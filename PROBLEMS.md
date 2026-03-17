@@ -26,3 +26,8 @@ Leaflet accesses `window` and `document` on import, which crashes during Next.js
 
 ## Time Window Semantics
 VROOM expects time windows as seconds (from midnight or epoch). Users think in clock times (e.g., "9:00 AM - 11:00 AM"). The constraint builder must convert HH:MM to seconds-from-midnight. All time windows are relative to the start of the day.
+
+## Still Unverified (Needs QA)
+- End-to-end behavior against live ORS/Nominatim with a real `ORS_API_KEY` is not fully validated.
+- Constraint correctness for edge cases (tight windows, impossible routes, unassigned jobs) needs explicit scenario testing.
+- Production readiness is incomplete: rate limiting, caching strategy, retries/backoff, monitoring, and geocoding policy compliance checks.
