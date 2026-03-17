@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hiking Route Planner
+
+A web app that helps users find the best walking and hiking routes based on their constraints — distance limits, must-visit places, time windows, and fixed start/end points.
+
+## Tech Stack
+
+- **Next.js 15 + TypeScript** (App Router)
+- **Tailwind CSS** for styling
+- **Leaflet + react-leaflet** for interactive maps (OpenStreetMap tiles)
+- **OpenRouteService API** for walking directions + route optimization
+- **Nominatim** for geocoding/place search
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- An OpenRouteService API key (free at https://openrouteservice.org/dev/#/signup)
+
+### Setup
+
+```bash
+git clone <repo-url>
+cd hiking-route-planner
+npm install
+```
+
+Create a `.env.local` file from the example:
+
+```bash
+cp .env.example .env.local
+```
+
+Add your OpenRouteService API key to `.env.local`.
+
+### Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## Features
 
-To learn more about Next.js, take a look at the following resources:
+- Interactive map — click to add waypoints or search for places
+- Constraint-based route optimization:
+  - **Max total distance** — limit the total route length
+  - **Must-visit places** — mark certain stops as required, others optional
+  - **Time windows** — visit places within specific time ranges
+  - **Start/end points** — fix where the route begins and ends
+- Users can combine any constraints they want
+- Route display with distance and duration stats
+- Walking and hiking profile support
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **API proxying**: The ORS API key is server-side only, proxied through Next.js Route Handlers at `/api/directions`, `/api/optimization`, `/api/geocode`
+- **Route optimization**: Uses OpenRouteService's VROOM-based optimization endpoint, which natively supports all constraint types
+- **Map rendering**: Leaflet components use `"use client"` and `next/dynamic` with `{ ssr: false }` to avoid SSR issues
+- **State management**: Hook-based (`useWaypoints`, `useConstraints`, `useRouteCalculation`) — no external state library needed

@@ -1,65 +1,166 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { ConstraintPanel } from "@/components/constraints";
+import { DynamicMap } from "@/components/map";
+import { RouteResults } from "@/components/route";
+import { Button, Card } from "@/components/ui";
+import { PlaceSearch, WaypointList } from "@/components/waypoints";
+import {
+  useConstraints,
+  useMapInteraction,
+  useRouteCalculation,
+  useWaypoints,
+} from "@/lib/hooks";
+import type { Coordinates } from "@/lib/types";
+
+export default function HomePage() {
+  const {
+    waypoints,
+    addWaypoint,
+    updateWaypoint,
+    removeWaypoint,
+    reorderWaypoints,
+    toggleRequired,
+    setStartWaypoint,
+    setEndWaypoint,
+    setWaypointTimeWindow,
+    clearWaypoints,
+  } = useWaypoints();
+  const {
+    constraints,
+    toggleMaxDistance,
+    setMaxDistanceKm,
+    toggleTimeWindows,
+    setDefaultTimeWindow,
+    toggleFixedStartEnd,
+  } = useConstraints();
+  const { route, isLoading, error, calculateRoute, clearRoute } = useRouteCalculation();
+  const { center, zoom, clickMode, setClickMode, focusOn } = useMapInteraction();
+
+  const handleMapClick = (coordinates: Coordinates) => {
+    if (clickMode === "add-waypoint") {
+      addWaypoint({
+        coordinates,
+      });
+      return;
+    }
+
+    const nextWaypoint = addWaypoint({
+      coordinates,
+      name: clickMode === "set-start" ? "Custom Start" : "Custom End",
+    });
+
+    if (clickMode === "set-start") {
+      setStartWaypoint(nextWaypoint.id);
+    } else {
+      setEndWaypoint(nextWaypoint.id);
+    }
+
+    setClickMode("add-waypoint");
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="flex h-screen w-screen overflow-hidden">
+      <aside className="h-full w-full max-w-[400px] overflow-y-auto border-r border-slate-200 bg-slate-50 p-4">
+        <div className="mb-4 space-y-1">
+          <h1 className="text-xl font-bold text-slate-900">Hiking Route Planner</h1>
+          <p className="text-xs text-slate-500">
+            Add waypoints, configure constraints, and generate an optimized walking route.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="space-y-4">
+          <PlaceSearch
+            onSelectPlace={(place) => {
+              addWaypoint({
+                coordinates: place.coordinates,
+                name: place.name,
+              });
+              focusOn(place.coordinates, 14);
+            }}
+          />
+
+          <Card className="space-y-2">
+            <div className="text-sm font-semibold text-slate-900">Map click mode</div>
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                variant={clickMode === "add-waypoint" ? "primary" : "secondary"}
+                onClick={() => setClickMode("add-waypoint")}
+              >
+                Add
+              </Button>
+              <Button
+                variant={clickMode === "set-start" ? "primary" : "secondary"}
+                onClick={() => setClickMode("set-start")}
+              >
+                Start
+              </Button>
+              <Button
+                variant={clickMode === "set-end" ? "primary" : "secondary"}
+                onClick={() => setClickMode("set-end")}
+              >
+                End
+              </Button>
+            </div>
+          </Card>
+
+          <WaypointList
+            waypoints={waypoints}
+            onRename={(id, name) => updateWaypoint(id, { name })}
+            onToggleRequired={toggleRequired}
+            onSetStart={setStartWaypoint}
+            onSetEnd={setEndWaypoint}
+            onDelete={removeWaypoint}
+            onReorder={reorderWaypoints}
+            onSetTimeWindow={setWaypointTimeWindow}
+          />
+
+          <ConstraintPanel
+            constraints={constraints}
+            isCalculating={isLoading}
+            onToggleMaxDistance={toggleMaxDistance}
+            onSetMaxDistanceKm={setMaxDistanceKm}
+            onToggleTimeWindows={toggleTimeWindows}
+            onSetDefaultTimeWindow={setDefaultTimeWindow}
+            onToggleFixedStartEnd={toggleFixedStartEnd}
+            onCalculateRoute={() => {
+              void calculateRoute(waypoints, constraints);
+            }}
+          />
+
+          <Card className="grid grid-cols-2 gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                clearRoute();
+              }}
+            >
+              Clear Route
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                clearWaypoints();
+                clearRoute();
+              }}
+            >
+              Clear All
+            </Button>
+          </Card>
+
+          <RouteResults route={route} error={error} />
         </div>
-      </main>
-    </div>
+      </aside>
+
+      <section className="h-full flex-1">
+        <DynamicMap
+          waypoints={waypoints}
+          routeGeometry={route?.geometry ?? []}
+          center={center}
+          zoom={zoom}
+          onMapClick={handleMapClick}
+        />
+      </section>
+    </main>
   );
 }
