@@ -20,7 +20,7 @@ const defaultConstraints: ConstraintSet = {
 };
 
 describe("buildOptimizationRequest", () => {
-  it("creates jobs for all waypoints", () => {
+  it("uses the first waypoint as an implicit start for 3+ waypoints when start/end are not fixed", () => {
     const waypoints = [
       makeWaypoint({ id: "a", coordinates: { lat: 47.0, lng: 8.0 } }),
       makeWaypoint({ id: "b", coordinates: { lat: 47.1, lng: 8.1 } }),
@@ -28,9 +28,13 @@ describe("buildOptimizationRequest", () => {
     ];
 
     const result = buildOptimizationRequest(waypoints, defaultConstraints);
-    expect(result.request.jobs).toHaveLength(3);
+    expect(result.request.jobs).toHaveLength(2);
     expect(result.request.vehicles).toHaveLength(1);
     expect(result.request.vehicles[0].profile).toBe("foot-walking");
+    expect(result.request.vehicles[0].start).toEqual([8.0, 47.0]);
+    expect(result.request.jobs[0].location).toEqual([8.1, 47.1]);
+    expect(result.request.jobs[1].location).toEqual([8.2, 47.2]);
+    expect(result.startWaypoint?.id).toBe("a");
   });
 
   it("uses [lng, lat] order in job locations", () => {

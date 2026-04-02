@@ -41,12 +41,18 @@ export function buildOptimizationRequest(
   waypoints: Waypoint[],
   constraints: ConstraintSet,
 ): ConstraintBuildResult {
-  const startWaypoint = constraints.fixedStartEnd.enabled
+  const explicitStartWaypoint = constraints.fixedStartEnd.enabled
     ? waypoints.find((waypoint) => waypoint.isStart)
     : undefined;
-  const endWaypoint = constraints.fixedStartEnd.enabled
+  const explicitEndWaypoint = constraints.fixedStartEnd.enabled
     ? waypoints.find((waypoint) => waypoint.isEnd)
     : undefined;
+  const startWaypoint =
+    explicitStartWaypoint ??
+    (!constraints.fixedStartEnd.enabled && waypoints.length >= 3
+      ? waypoints[0]
+      : undefined);
+  const endWaypoint = explicitEndWaypoint;
 
   const jobs: OrsOptimizationJob[] = [];
   const jobWaypointMap = new Map<number, Waypoint>();
