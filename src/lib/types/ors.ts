@@ -25,6 +25,7 @@ export interface OrsDirectionsRoute {
     duration: number;
   };
   segments: OrsDirectionsSegment[];
+  way_points: number[];
 }
 
 export interface OrsDirectionsResponse {

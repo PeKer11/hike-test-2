@@ -2,6 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
+import "leaflet-defaulticon-compatibility";
 
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import { useEffect } from "react";

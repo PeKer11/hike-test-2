@@ -27,7 +27,28 @@ Leaflet accesses `window` and `document` on import, which crashes during Next.js
 ## Time Window Semantics
 VROOM expects time windows as seconds (from midnight or epoch). Users think in clock times (e.g., "9:00 AM - 11:00 AM"). The constraint builder must convert HH:MM to seconds-from-midnight. All time windows are relative to the start of the day.
 
+## Bugs Found and Fixed During QA (2026-03-18)
+
+### Fixed: Missing leaflet-defaulticon-compatibility JS Import
+MapView.tsx only imported the CSS, not the module itself. Marker icons were broken. Fixed by adding `import "leaflet-defaulticon-compatibility"`.
+
+### Fixed: All Segments Shared Full Route Geometry
+In `calculateViaDirections`, every segment was assigned the entire route geometry instead of its own portion. Fixed by slicing geometry using ORS `way_points` indices.
+
+### Fixed: Silent Skip of Failed Direction Segments
+In `calculateViaOptimization`, if a per-segment directions call failed, it was silently skipped. Now catches errors and adds warning messages to the route result.
+
+### Fixed: timeToSeconds Silently Returned 0 on Invalid Input
+Invalid time strings like "abc" were treated as midnight (0 seconds). Now returns `null` for invalid input, and the constraint builder handles `null` properly.
+
+### Fixed: Nominatim Coordinate NaN Not Validated
+PlaceSearch blindly converted string coordinates from Nominatim via `Number()`. Now validates for NaN and filters out invalid results.
+
+### Fixed: Empty Jobs/Vehicles Accepted by Optimization Handler
+The optimization route handler only checked that jobs and vehicles were arrays, not that they were non-empty. Now rejects empty arrays with a descriptive error.
+
 ## Still Unverified (Needs QA)
 - End-to-end behavior against live ORS/Nominatim with a real `ORS_API_KEY` is not fully validated.
 - Constraint correctness for edge cases (tight windows, impossible routes, unassigned jobs) needs explicit scenario testing.
 - Production readiness is incomplete: rate limiting, caching strategy, retries/backoff, monitoring, and geocoding policy compliance checks.
+- VROOM priority semantics should be verified: higher priority (100) = more important to include, but behavior when constraints make inclusion impossible needs testing.

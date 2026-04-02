@@ -49,14 +49,20 @@ export function PlaceSearch({ onSelectPlace }: PlaceSearchProps) {
 
         const places = (await response.json()) as NominatimPlace[];
         setResults(
-          places.map((place) => ({
-            id: place.place_id,
-            name: place.display_name,
-            coordinates: {
-              lat: Number(place.lat),
-              lng: Number(place.lon),
-            },
-          })),
+          places
+            .map((place) => {
+              const lat = Number(place.lat);
+              const lng = Number(place.lon);
+              if (Number.isNaN(lat) || Number.isNaN(lng)) {
+                return null;
+              }
+              return {
+                id: place.place_id,
+                name: place.display_name,
+                coordinates: { lat, lng },
+              };
+            })
+            .filter((place): place is PlaceOption => place !== null),
         );
       } catch (searchError) {
         if (searchError instanceof DOMException && searchError.name === "AbortError") {

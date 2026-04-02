@@ -9,7 +9,27 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     if (!Array.isArray(payload.jobs) || !Array.isArray(payload.vehicles)) {
       return NextResponse.json(
-        { error: "Invalid optimization payload." },
+        {
+          error:
+            "Optimization requires at least one vehicle and either one job or a fixed start/end pair.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const hasVehicleWithFixedEndpoints = payload.vehicles.some(
+      (vehicle) => vehicle.start && vehicle.end,
+    );
+
+    if (
+      (payload.jobs.length === 0 && !hasVehicleWithFixedEndpoints) ||
+      payload.vehicles.length === 0
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Optimization requires at least one vehicle and either one job or a fixed start/end pair.",
+        },
         { status: 400 },
       );
     }

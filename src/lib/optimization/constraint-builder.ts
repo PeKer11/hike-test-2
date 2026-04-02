@@ -30,7 +30,7 @@ function getTimeWindowForWaypoint(
   const start = timeToSeconds(activeWindow.start);
   const end = timeToSeconds(activeWindow.end);
 
-  if (start >= end) {
+  if (start === null || end === null || start >= end) {
     return undefined;
   }
 

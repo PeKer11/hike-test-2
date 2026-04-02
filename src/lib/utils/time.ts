@@ -1,10 +1,20 @@
-export function timeToSeconds(time: string): number {
-  const [hours, minutes] = time.split(":").map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return 0;
+export function timeToSeconds(time: string): number | null {
+  const parts = time.split(":").map(Number);
+  const [hours, minutes] = parts;
+  if (
+    parts.length < 2 ||
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
   }
 
-  return hours * 3600 + minutes * 60;
+  const seconds = parts[2] ?? 0;
+  return hours * 3600 + minutes * 60 + (Number.isNaN(seconds) ? 0 : seconds);
 }
 
 export function secondsToTime(totalSeconds: number): string {

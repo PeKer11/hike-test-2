@@ -149,16 +149,19 @@ async function calculateViaDirections(waypoints: Waypoint[]): Promise<Calculated
 
   const geometry = decodePolyline(route.geometry);
   const segmentSummaries = route.segments;
+  const wayPointIndices = route.way_points;
   const segments: RouteSegment[] = [];
 
   for (let index = 0; index < waypoints.length - 1; index += 1) {
     const segment = segmentSummaries[index];
+    const startIdx = wayPointIndices[index] ?? 0;
+    const endIdx = wayPointIndices[index + 1] ?? geometry.length - 1;
     segments.push({
       from: waypoints[index],
       to: waypoints[index + 1],
       distanceMeters: segment?.distance ?? 0,
       durationSeconds: segment?.duration ?? 0,
-      geometry,
+      geometry: geometry.slice(startIdx, endIdx + 1),
       steps:
         segment?.steps.map((step) => ({
           instruction: step.instruction,
@@ -183,6 +186,19 @@ async function calculateViaOptimization(
   constraints: ConstraintSet,
 ): Promise<CalculatedRoute> {
   const optimizationRequest = buildOptimizationRequest(waypoints, constraints);
+
+  if (
+    optimizationRequest.request.jobs.length === 0 &&
+    constraints.fixedStartEnd.enabled &&
+    optimizationRequest.startWaypoint &&
+    optimizationRequest.endWaypoint
+  ) {
+    return calculateViaDirections([
+      optimizationRequest.startWaypoint,
+      optimizationRequest.endWaypoint,
+    ]);
+  }
+
   const optimizationResponse = await postJson<OrsOptimizationResponse>(
     "/api/optimization",
     optimizationRequest.request,
@@ -199,13 +215,33 @@ async function calculateViaOptimization(
   }
 
   const segments: RouteSegment[] = [];
+  const warnings: string[] = [];
+
+  if (optimizationResponse.unassigned.length) {
+    warnings.push(
+      `${optimizationResponse.unassigned.length} waypoint(s) could not be assigned due to constraints.`,
+    );
+  }
+
   for (let index = 0; index < orderedWaypoints.length - 1; index += 1) {
     const from = orderedWaypoints[index];
     const to = orderedWaypoints[index + 1];
-    const directions = await getDirectionsBetween(from, to);
-    const route = directions.routes[0];
 
+    let directions: OrsDirectionsResponse;
+    try {
+      directions = await getDirectionsBetween(from, to);
+    } catch {
+      warnings.push(
+        `Could not get directions from "${from.name}" to "${to.name}". Segment skipped.`,
+      );
+      continue;
+    }
+
+    const route = directions.routes[0];
     if (!route) {
+      warnings.push(
+        `No route found from "${from.name}" to "${to.name}". Segment skipped.`,
+      );
       continue;
     }
 
@@ -218,12 +254,6 @@ async function calculateViaOptimization(
       steps: toRouteSteps(directions),
     });
   }
-
-  const warnings = optimizationResponse.unassigned.length
-    ? [
-        `${optimizationResponse.unassigned.length} waypoint(s) could not be assigned due to constraints.`,
-      ]
-    : [];
 
   const totalDistanceMeters = segments.reduce(
     (sum, segment) => sum + segment.distanceMeters,
