@@ -144,7 +144,9 @@ async function calculateViaDirections(waypoints: Waypoint[]): Promise<Calculated
 
   const route = directions.routes[0];
   if (!route) {
-    throw new Error("No route returned from directions service.");
+    throw new Error(
+      "No walking route found between these locations. Try moving waypoints closer to a road or trail.",
+    );
   }
 
   const geometry = decodePolyline(route.geometry);
@@ -240,7 +242,7 @@ async function calculateViaOptimization(
     const route = directions.routes[0];
     if (!route) {
       warnings.push(
-        `No route found from "${from.name}" to "${to.name}". Segment skipped.`,
+        `No walking route found between "${from.name}" and "${to.name}". Try moving that waypoint closer to a path.`,
       );
       continue;
     }

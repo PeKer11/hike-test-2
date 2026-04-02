@@ -9,6 +9,47 @@ import type {
 
 const ORS_BASE_URL = "https://api.openrouteservice.org";
 
+function parseOrsError(errorText: string, status: number): string {
+  let normalizedError = errorText.toLowerCase();
+
+  try {
+    const parsedError = JSON.parse(errorText) as {
+      error?: { message?: string };
+      message?: string;
+    };
+    const errorMessage = parsedError.error?.message ?? parsedError.message;
+
+    if (errorMessage) {
+      normalizedError = errorMessage.toLowerCase();
+    }
+  } catch {
+    // Fall back to plain-text matching when ORS does not return structured JSON.
+  }
+
+  if (status === 401 || status === 403) {
+    return "API key is missing or invalid.";
+  }
+
+  if (status === 404) {
+    return "Routing service endpoint not found.";
+  }
+
+  if (
+    normalizedError.includes("not routable") ||
+    normalizedError.includes("could not find routable point") ||
+    normalizedError.includes("could not find routable") ||
+    normalizedError.includes("no routable point")
+  ) {
+    return "One or more waypoints are too far from a walkable road or trail. Move them closer to a path and try again.";
+  }
+
+  if (normalizedError.includes("no solution")) {
+    return "No valid route could be found with these constraints. Try relaxing the constraints.";
+  }
+
+  return "Routing service error. Please try again.";
+}
+
 function getApiKey(): string {
   const key = process.env.ORS_API_KEY;
   if (!key) {
@@ -35,7 +76,7 @@ async function fetchOrs<T>(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`ORS request failed (${response.status}): ${errorText}`);
+    throw new Error(parseOrsError(errorText, response.status));
   }
 
   return (await response.json()) as T;
