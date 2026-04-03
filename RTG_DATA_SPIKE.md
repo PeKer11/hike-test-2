@@ -24,9 +24,20 @@ Date: 2026-04-03
   - token is domain-bound (not reusable across arbitrary domains).
   - layered map embedding and feature intersection queries are supported.
 - No explicit official RTG endpoint for direct hike-route generation was found.
+- A publicly documented machine-readable RTG hiking-trail feed with ready-to-ingest route geometry was not confirmed during this spike.
+- Access method today is therefore best described as: downloadable GIS information may exist, but not yet validated as a supported backend ingestion workflow.
+- Data format remains unconfirmed from the public pages alone; likely GIS export formats, but GeoJSON/WFS/shapefile support was not verified end-to-end.
+- Licensing / redistribution terms were not confirmed from the public pages and must be checked before production ingestion.
+- Update cadence was not confirmed.
+- Coverage scope was not confirmed; it is still unclear whether the available layers cover all marked hiking trails or only selected RTG-managed assets.
+
+## Canonical v1 Source Decision
+- Canonical source for v1: curated static dataset stored in `src/lib/data/rtg-trails.json`.
+- Source classification for the current dataset: `rtg-curated`, not `rtg-official`.
+- UI and route labels must not present curated + ORS-approximated geometry as an official RTG trail.
 
 ## Current v1 Decision (kept)
-- Keep RTG-first candidate search using static normalized trail dataset: `src/lib/data/rtg-trails.json`.
+- Keep RTG-first candidate search using the curated normalized trail dataset: `src/lib/data/rtg-trails.json`.
 - Keep runtime fallback to existing ORS route generation when RTG candidate matching fails.
 - Keep architecture ready to swap `rtg-client` to a live source later without changing UI flow.
 

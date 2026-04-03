@@ -5,6 +5,9 @@
     "region": "Jerusalem",
     "lengthMeters": 4200,
     "difficulty": "easy",
+    "source": "rtg-curated",
+    "dataVersion": "2026-04-03",
+    "lastUpdated": "2026-04-03T00:00:00.000Z",
     "geometry": [
       { "lat": 31.7691, "lng": 35.2136 },
       { "lat": 31.7708, "lng": 35.2168 },
@@ -14,7 +17,7 @@
       { "lat": 31.7691, "lng": 35.2136 }
     ],
     "metadata": {
-      "dataSource": "rtg-sample",
+      "dataSource": "rtg-curated-static-v1",
       "surface": "trail/mixed"
     }
   },
@@ -24,6 +27,9 @@
     "region": "Jerusalem",
     "lengthMeters": 6100,
     "difficulty": "moderate",
+    "source": "rtg-curated",
+    "dataVersion": "2026-04-03",
+    "lastUpdated": "2026-04-03T00:00:00.000Z",
     "geometry": [
       { "lat": 31.7589, "lng": 35.2034 },
       { "lat": 31.7612, "lng": 35.2078 },
@@ -32,7 +38,7 @@
       { "lat": 31.7681, "lng": 35.2191 }
     ],
     "metadata": {
-      "dataSource": "rtg-sample",
+      "dataSource": "rtg-curated-static-v1",
       "surface": "trail"
     }
   },
@@ -42,6 +48,9 @@
     "region": "Jerusalem Hills",
     "lengthMeters": 7800,
     "difficulty": "moderate",
+    "source": "rtg-curated",
+    "dataVersion": "2026-04-03",
+    "lastUpdated": "2026-04-03T00:00:00.000Z",
     "geometry": [
       { "lat": 31.7748, "lng": 35.1374 },
       { "lat": 31.7762, "lng": 35.1431 },
@@ -50,7 +59,7 @@
       { "lat": 31.785, "lng": 35.1543 }
     ],
     "metadata": {
-      "dataSource": "rtg-sample",
+      "dataSource": "rtg-curated-static-v1",
       "surface": "forest-trail"
     }
   }

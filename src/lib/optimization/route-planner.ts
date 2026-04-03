@@ -257,6 +257,12 @@ async function calculateViaOptimization(
     });
   }
 
+  if (segments.length === 0) {
+    throw new Error(
+      "No walking route could be generated for the optimized waypoint order. Try moving waypoints closer to a road or trail.",
+    );
+  }
+
   const totalDistanceMeters = segments.reduce(
     (sum, segment) => sum + segment.distanceMeters,
     0,

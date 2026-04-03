@@ -40,6 +40,16 @@ describe("findHikeCandidates", () => {
     expect(result.every((candidate) => candidate.distanceMeters <= 4950)).toBe(true);
   });
 
+  it("prefers trails with a trailhead close to the origin", () => {
+    const request: HikeSearchRequest = {
+      origin: { lat: 31.7683, lng: 35.2137 },
+    };
+
+    const candidates = findHikeCandidates(request, rtgTrails);
+
+    expect(candidates[0]?.trail?.name).toBe("Jerusalem Park Scenic Loop");
+  });
+
   it("ignores invalid or empty trail geometry", () => {
     const request: HikeSearchRequest = {
       origin: { lat: 31.7683, lng: 35.2137 },
@@ -51,6 +61,9 @@ describe("findHikeCandidates", () => {
         name: "Bad Empty",
         region: "Jerusalem",
         lengthMeters: 1000,
+        source: "rtg-curated",
+        dataVersion: "2026-04-03",
+        lastUpdated: "2026-04-03T00:00:00.000Z",
         geometry: [],
       },
       {
@@ -58,6 +71,9 @@ describe("findHikeCandidates", () => {
         name: "Bad Point",
         region: "Jerusalem",
         lengthMeters: 1000,
+        source: "rtg-curated",
+        dataVersion: "2026-04-03",
+        lastUpdated: "2026-04-03T00:00:00.000Z",
         geometry: [{ lat: 31.7, lng: 35.2 }],
       },
       {
@@ -65,6 +81,9 @@ describe("findHikeCandidates", () => {
         name: "Bad Range",
         region: "Jerusalem",
         lengthMeters: 1000,
+        source: "rtg-curated",
+        dataVersion: "2026-04-03",
+        lastUpdated: "2026-04-03T00:00:00.000Z",
         geometry: [
           { lat: 999, lng: 35.2 },
           { lat: 31.7, lng: 35.3 },

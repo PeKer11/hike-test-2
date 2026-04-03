@@ -4,7 +4,11 @@ import { useState } from "react";
 
 import { ConstraintPanel } from "@/components/constraints";
 import { DynamicMap } from "@/components/map";
-import { HikeSearchPanel, RouteResults } from "@/components/route";
+import {
+  HikeSearchPanel,
+  RouteResults,
+  TrailIntelligencePanel,
+} from "@/components/route";
 import { Button, Card } from "@/components/ui";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
@@ -12,6 +16,7 @@ import {
   useHikeSearch,
   useMapInteraction,
   useRouteCalculation,
+  useTrailIntelligence,
   useWaypoints,
 } from "@/lib/hooks";
 import type { Coordinates } from "@/lib/types";
@@ -45,6 +50,13 @@ export default function HomePage() {
     useRouteCalculation();
   const { isSearching, error: hikeSearchError, findHike, cancelSearch } =
     useHikeSearch();
+  const routeAnchor =
+    route?.orderedWaypoints[0]?.coordinates ?? route?.geometry[0];
+  const {
+    report: trailBriefing,
+    isLoading: isTrailBriefingLoading,
+    error: trailBriefingError,
+  } = useTrailIntelligence(route, routeAnchor);
   const { center, zoom, clickMode, setClickMode, focusOn } = useMapInteraction();
 
   const handleMapClick = (coordinates: Coordinates) => {
@@ -228,6 +240,11 @@ export default function HomePage() {
           </Card>
 
           <RouteResults route={route} error={hikeSearchError ?? error} />
+          <TrailIntelligencePanel
+            report={trailBriefing}
+            isLoading={isTrailBriefingLoading}
+            error={trailBriefingError}
+          />
         </div>
       </aside>
 

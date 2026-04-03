@@ -30,6 +30,10 @@ export function secondsToTime(totalSeconds: number): string {
 }
 
 export function formatDuration(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds)) {
+    return "Unknown duration";
+  }
+
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.round((totalSeconds % 3600) / 60);
 

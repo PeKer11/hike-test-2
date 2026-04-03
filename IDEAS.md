@@ -119,6 +119,14 @@
 - Incorporate forecast conditions and planned departure time into scoring
 - Penalize exposed or risky segments under poor weather windows
 
+### Trail Intelligence + Official Safety Sources
+- Use Israel Meteorological Service as the primary official source for weather, heat, rain, wind, and flood-risk signals where available
+- Use Home Front Command as the primary official source for active security alerts relevant to the hike area
+- Use רשות הטבע והגנים as the primary official source for trail closures, restrictions, fire warnings, and park-access notices
+- Check Israel Police or equivalent official road-closure sources for blocked access roads that affect trailheads, entry, or exit logistics
+- Show source coverage clearly: live official, heuristic fallback, or unavailable
+- Never present heuristic safety guidance as if it were verified live official data
+
 ## Validation & Production Readiness
 
 ### End-to-End Live API Verification

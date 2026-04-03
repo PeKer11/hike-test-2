@@ -3,6 +3,24 @@ import { NextResponse } from "next/server";
 import { optimizeRoute } from "@/lib/api/ors-client";
 import type { OrsOptimizationRequest } from "@/lib/types";
 
+function isValidCoordinateTuple(value: unknown): value is [number, number] {
+  if (!Array.isArray(value) || value.length !== 2) {
+    return false;
+  }
+
+  const [lng, lat] = value;
+  return (
+    typeof lng === "number" &&
+    Number.isFinite(lng) &&
+    lng >= -180 &&
+    lng <= 180 &&
+    typeof lat === "number" &&
+    Number.isFinite(lat) &&
+    lat >= -90 &&
+    lat <= 90
+  );
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const payload = (await request.json()) as OrsOptimizationRequest;
@@ -18,7 +36,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const hasVehicleWithFixedEndpoints = payload.vehicles.some(
-      (vehicle) => vehicle.start && vehicle.end,
+      (vehicle) =>
+        isValidCoordinateTuple(vehicle.start) &&
+        isValidCoordinateTuple(vehicle.end),
     );
 
     if (

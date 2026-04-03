@@ -46,6 +46,7 @@ describe("useHikeSearch", () => {
           geometry: [],
           distanceMeters: 0,
           score: 0,
+          routeApproximated: false,
         },
         route: {
           orderedWaypoints: [],

@@ -28,6 +28,10 @@ export function fromOrsCoord(coord: OrsCoordinate): Coordinates {
 }
 
 export function formatDistance(meters: number): string {
+  if (!Number.isFinite(meters)) {
+    return "Unknown distance";
+  }
+
   if (meters < 1000) {
     return `${Math.round(meters)} m`;
   }

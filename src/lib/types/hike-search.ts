@@ -2,6 +2,7 @@ import type { CalculatedRoute } from "./route";
 import type { Coordinates } from "./waypoint";
 
 export type TrailSource = "rtg" | "fallback";
+export type TrailDataSource = "rtg-official" | "rtg-curated" | "fallback";
 
 export interface RtgTrail {
   id: string;
@@ -10,6 +11,9 @@ export interface RtgTrail {
   geometry: Coordinates[];
   lengthMeters: number;
   difficulty?: string;
+  source: TrailDataSource;
+  dataVersion: string;
+  lastUpdated: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -29,6 +33,7 @@ export interface HikeCandidate {
   geometry: Coordinates[];
   distanceMeters: number;
   score: number;
+  routeApproximated: boolean;
 }
 
 export interface HikeSearchResult {
