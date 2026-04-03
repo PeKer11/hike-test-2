@@ -1,21 +1,28 @@
 "use client";
 
+import { useState } from "react";
+
 import { ConstraintPanel } from "@/components/constraints";
 import { DynamicMap } from "@/components/map";
-import { RouteResults } from "@/components/route";
+import { HikeSearchPanel, RouteResults } from "@/components/route";
 import { Button, Card } from "@/components/ui";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
   useConstraints,
+  useHikeSearch,
   useMapInteraction,
   useRouteCalculation,
   useWaypoints,
 } from "@/lib/hooks";
 import type { Coordinates } from "@/lib/types";
 
+type PlannerMode = "manual" | "hike-search";
+
 export default function HomePage() {
+  const [plannerMode, setPlannerMode] = useState<PlannerMode>("manual");
   const {
     waypoints,
+    setWaypoints,
     addWaypoint,
     updateWaypoint,
     removeWaypoint,
@@ -34,10 +41,17 @@ export default function HomePage() {
     setDefaultTimeWindow,
     toggleFixedStartEnd,
   } = useConstraints();
-  const { route, isLoading, error, calculateRoute, clearRoute } = useRouteCalculation();
+  const { route, isLoading, error, calculateRoute, clearRoute, applyRoute } =
+    useRouteCalculation();
+  const { isSearching, error: hikeSearchError, findHike, cancelSearch } =
+    useHikeSearch();
   const { center, zoom, clickMode, setClickMode, focusOn } = useMapInteraction();
 
   const handleMapClick = (coordinates: Coordinates) => {
+    if (plannerMode !== "manual") {
+      return;
+    }
+
     if (clickMode === "add-waypoint") {
       addWaypoint({
         coordinates,
@@ -70,63 +84,127 @@ export default function HomePage() {
         </div>
 
         <div className="space-y-4">
-          <PlaceSearch
-            onSelectPlace={(place) => {
-              addWaypoint({
-                coordinates: place.coordinates,
-                name: place.name,
-              });
-              focusOn(place.coordinates, 14);
-            }}
-          />
-
           <Card className="space-y-2">
-            <div className="text-sm font-semibold text-slate-900">Map click mode</div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="text-sm font-semibold text-slate-900">Planning mode</div>
+            <div className="grid grid-cols-2 gap-2">
               <Button
-                variant={clickMode === "add-waypoint" ? "primary" : "secondary"}
-                onClick={() => setClickMode("add-waypoint")}
+                variant={plannerMode === "manual" ? "primary" : "secondary"}
+                onClick={() => setPlannerMode("manual")}
               >
-                Add
+                Manual Planner
               </Button>
               <Button
-                variant={clickMode === "set-start" ? "primary" : "secondary"}
-                onClick={() => setClickMode("set-start")}
+                variant={plannerMode === "hike-search" ? "primary" : "secondary"}
+                onClick={() => setPlannerMode("hike-search")}
               >
-                Start
-              </Button>
-              <Button
-                variant={clickMode === "set-end" ? "primary" : "secondary"}
-                onClick={() => setClickMode("set-end")}
-              >
-                End
+                Find Me a Hike
               </Button>
             </div>
           </Card>
 
-          <WaypointList
-            waypoints={waypoints}
-            onRename={(id, name) => updateWaypoint(id, { name })}
-            onToggleRequired={toggleRequired}
-            onSetStart={setStartWaypoint}
-            onSetEnd={setEndWaypoint}
-            onDelete={removeWaypoint}
-            onReorder={reorderWaypoints}
-            onSetTimeWindow={setWaypointTimeWindow}
-          />
+          {plannerMode === "manual" ? (
+            <>
+              <PlaceSearch
+                onSelectPlace={(place) => {
+                  addWaypoint({
+                    coordinates: place.coordinates,
+                    name: place.name,
+                  });
+                  focusOn(place.coordinates, 14);
+                }}
+              />
 
-          <ConstraintPanel
-            constraints={constraints}
-            isCalculating={isLoading}
-            onToggleMaxDistance={toggleMaxDistance}
-            onSetMaxDistanceKm={setMaxDistanceKm}
-            onToggleTimeWindows={toggleTimeWindows}
-            onSetDefaultTimeWindow={setDefaultTimeWindow}
-            onToggleFixedStartEnd={toggleFixedStartEnd}
-            onCalculateRoute={() => {
-              void calculateRoute(waypoints, constraints);
-            }}
-          />
+              <Card className="space-y-2">
+                <div className="text-sm font-semibold text-slate-900">Map click mode</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    variant={clickMode === "add-waypoint" ? "primary" : "secondary"}
+                    onClick={() => setClickMode("add-waypoint")}
+                  >
+                    Add
+                  </Button>
+                  <Button
+                    variant={clickMode === "set-start" ? "primary" : "secondary"}
+                    onClick={() => setClickMode("set-start")}
+                  >
+                    Start
+                  </Button>
+                  <Button
+                    variant={clickMode === "set-end" ? "primary" : "secondary"}
+                    onClick={() => setClickMode("set-end")}
+                  >
+                    End
+                  </Button>
+                </div>
+              </Card>
+
+              <WaypointList
+                waypoints={waypoints}
+                onRename={(id, name) => updateWaypoint(id, { name })}
+                onToggleRequired={toggleRequired}
+                onSetStart={setStartWaypoint}
+                onSetEnd={setEndWaypoint}
+                onDelete={removeWaypoint}
+                onReorder={reorderWaypoints}
+                onSetTimeWindow={setWaypointTimeWindow}
+              />
+
+              <ConstraintPanel
+                constraints={constraints}
+                isCalculating={isLoading}
+                onToggleMaxDistance={toggleMaxDistance}
+                onSetMaxDistanceKm={setMaxDistanceKm}
+                onToggleTimeWindows={toggleTimeWindows}
+                onSetDefaultTimeWindow={setDefaultTimeWindow}
+                onToggleFixedStartEnd={toggleFixedStartEnd}
+                onCalculateRoute={() => {
+                  void calculateRoute(waypoints, constraints);
+                }}
+              />
+            </>
+          ) : (
+            <HikeSearchPanel
+              isSearching={isSearching}
+              onFindHike={({ origin, endpoint, maxDistanceKm }) => {
+                void (async () => {
+                  cancelSearch();
+                  const searchConstraints =
+                    maxDistanceKm && maxDistanceKm > 0
+                      ? {
+                          ...constraints,
+                          maxDistance: {
+                            enabled: true,
+                            maxKm: maxDistanceKm,
+                          },
+                        }
+                      : constraints;
+
+                  const result = await findHike(
+                    {
+                      origin,
+                      endpoint,
+                      preferences:
+                        maxDistanceKm && maxDistanceKm > 0
+                          ? { maxDistanceMeters: maxDistanceKm * 1000 }
+                          : undefined,
+                    },
+                    searchConstraints,
+                  );
+
+                  if (!result) {
+                    return;
+                  }
+
+                  applyRoute(result.route);
+                  setWaypoints(result.route.orderedWaypoints);
+                  const firstPoint = result.route.geometry[0];
+                  if (firstPoint) {
+                    focusOn(firstPoint, 13);
+                  }
+                })();
+              }}
+            />
+          )}
 
           <Card className="grid grid-cols-2 gap-2">
             <Button
@@ -142,13 +220,14 @@ export default function HomePage() {
               onClick={() => {
                 clearWaypoints();
                 clearRoute();
+                cancelSearch();
               }}
             >
               Clear All
             </Button>
           </Card>
 
-          <RouteResults route={route} error={error} />
+          <RouteResults route={route} error={hikeSearchError ?? error} />
         </div>
       </aside>
 

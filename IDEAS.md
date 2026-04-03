@@ -88,6 +88,21 @@
 
 ## Algorithm/Data Upgrades
 
+### RTG Trail-First Hike Planning
+- Prefer official hiking-path data from רשות הטבע והגנים as the primary source of valid hike paths
+- Distinguish between official RTG trail-based hikes and fallback generic route generation
+- If no official RTG trail matches the request, tell the user and then fall back to the current best-effort routing logic
+
+### Constraint-Based Hike Search From User Location
+- User provides current location and optional endpoint
+- User can require the hike to finish about X km away from the endpoint as a constraint
+- Planner should search for the best hike path under those constraints, preferring RTG-declared hiking trails first
+
+### Prompt-Based Hike Generation From RTG Data
+- User can type prompts like "find me a good hike in Jerusalem"
+- App should generate a hike primarily from RTG hiking/trail data rather than generic pedestrian routing
+- If RTG coverage is missing for the area, explain that and fall back to the current route-generation approach
+
 ### Elevation-Aware Optimization
 - Include ascent/descent penalties in optimization scoring
 - Prefer routes with target effort level (easier/moderate/harder)

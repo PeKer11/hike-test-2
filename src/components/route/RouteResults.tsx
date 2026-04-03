@@ -28,6 +28,12 @@ export function RouteResults({ route, error }: RouteResultsProps) {
 
       {route && (
         <div className="space-y-3">
+          {route.sourceLabel && (
+            <div className="inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+              {route.sourceLabel}
+            </div>
+          )}
+
           <RouteStats
             totalDistanceMeters={route.totalDistanceMeters}
             totalDurationSeconds={route.totalDurationSeconds}

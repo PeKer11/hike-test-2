@@ -39,11 +39,17 @@ export function useRouteCalculation() {
     setError(null);
   };
 
+  const applyRoute = (nextRoute: CalculatedRoute | null) => {
+    setRoute(nextRoute);
+    setError(null);
+  };
+
   return {
     route,
     isLoading,
     error,
     calculateRoute,
     clearRoute,
+    applyRoute,
   };
 }

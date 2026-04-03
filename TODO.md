@@ -33,6 +33,9 @@
 - [ ] End-to-end testing with live ORS API key
 - [ ] Server-side caching for directions/geocode responses
 - [ ] Rate limiting/retries with backoff for upstream APIs
+- [ ] RTG-first trail data investigation (official API/feed, GIS download, or importable dataset)
+- [ ] Constraint-based hike search from user location with optional endpoint and endpoint-distance constraint
+- [ ] Prompt-based hike generation (for example: "find me a good hike in Jerusalem") using RTG trail data first, with fallback to generic routing
 - [ ] Drag to reorder waypoints
 - [ ] Route elevation profile
 - [ ] Save/load routes (localStorage)

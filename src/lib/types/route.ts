@@ -1,4 +1,5 @@
 import type { Coordinates, Waypoint } from "./waypoint";
+import type { TrailSource } from "./hike-search";
 
 export interface RouteStep {
   instruction: string;
@@ -22,4 +23,6 @@ export interface CalculatedRoute {
   totalDistanceMeters: number;
   totalDurationSeconds: number;
   warnings: string[];
+  source?: TrailSource;
+  sourceLabel?: string;
 }
