@@ -1,6 +1,14 @@
-# Hiking Route Planner
+# Personal AI Walking Assistant
 
-A web app that helps users find the best walking and hiking routes based on their constraints — distance limits, must-visit places, time windows, and fixed start/end points.
+A personal walking companion that learns who you are and builds your perfect walk every time, on both desktop and mobile web.
+
+Tell it "I have 90 minutes in Tel Aviv" — it already knows your pace, your interests, and what you've already seen. No configuration. Just walk.
+
+**Current stage:** MVP infrastructure (routing, attraction discovery, TSP ordering, real-time GPS engine). Personalization engine in progress. Mobile usability is a product requirement, not an optional enhancement.
+
+---
+
+*Previously: a static hiking route planner. Now pivoting to a personal AI walking assistant that learns the user over time.*
 
 ## Tech Stack
 
@@ -51,6 +59,7 @@ npm start
 ## Features
 
 - Interactive map — click to add waypoints or search for places
+- Mobile-friendly layout for planning and map usage
 - Constraint-based route optimization:
   - **Max total distance** — limit the total route length
   - **Must-visit places** — mark certain stops as required, others optional

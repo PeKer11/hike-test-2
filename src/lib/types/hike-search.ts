@@ -2,7 +2,7 @@ import type { CalculatedRoute } from "./route";
 import type { Coordinates } from "./waypoint";
 
 export type TrailSource = "rtg" | "fallback";
-export type TrailDataSource = "rtg-official" | "rtg-curated" | "fallback";
+export type TrailDataSource = "rtg-official" | "rtg-curated" | "osm-hiking" | "fallback";
 
 export interface RtgTrail {
   id: string;
@@ -23,6 +23,9 @@ export interface HikeSearchRequest {
   targetDistanceMeters?: number;
   preferences?: {
     maxDistanceMeters?: number;
+    maxStartDistanceMeters?: number;
+    maxFinishDistanceFromOriginMeters?: number;
+    desiredRouteCount?: number;
     difficulty?: string;
   };
 }

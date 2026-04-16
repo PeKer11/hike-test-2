@@ -3,6 +3,7 @@
 ## Project Overview
 
 Hiking route planner web app. Users place waypoints on a map, select constraints, and get an optimized walking/hiking route via OpenRouteService.
+The app must work on both desktop and mobile browsers; responsive behavior is a core requirement, not a later polish item.
 
 ## How to Run
 

@@ -8,6 +8,8 @@ const makeWaypoint = (id: string, lat: number, lng: number): Waypoint => ({
   name: id,
   coordinates: { lat, lng },
   required: false,
+  isStart: false,
+  isEnd: false,
 });
 
 describe("planRoute optimization flow", () => {

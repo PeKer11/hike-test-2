@@ -42,6 +42,21 @@ Date: 2026-04-03
 - Keep architecture ready to swap `rtg-client` to a live source later without changing UI flow.
 
 ## Follow-Up Needed
+- Keep both integration paths open for future work:
+  - direct RTG source if a usable official export/feed becomes available
+  - GovMap-backed source if it proves more practical or complete
+- Preferred direction for future implementation:
+  - use RTG as the first-choice official trail source
+  - use GovMap as fallback or enrichment when RTG coverage/data access is incomplete
+  - if both are available, compare or combine them and prefer the more reliable/complete trail representation
+- Additional follow-up direction:
+  - evaluate whether GovMap can enrich the planner with tourism/interesting-point layers
+  - if usable, support route suggestions that lead to or pass through selected points of interest
+- Product behavior decision for `Find Me a Hike`:
+  - if no official RTG trail is found, still return a thoughtful general hiking suggestion rather than no result
+  - clearly disclose that no official RTG route was found
+  - clearly state that the fallback is not an official trail recommendation and that final responsibility remains with the user
+  - when possible, explain which constraints blocked an official match and suggest what to relax or present a near-match
 - Confirm RTG geodata licensing/redistribution terms before auto-syncing production data.
 - Confirm update cadence and geographic coverage scope of RTG-exported layers.
 - Validate whether GovMap layer query endpoints can provide reliable trail geometry for backend ingestion (not only browser embedding).

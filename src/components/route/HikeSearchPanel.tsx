@@ -2,15 +2,23 @@
 
 import { useState } from "react";
 
-import { Button, Card, LoadingSpinner } from "@/components/ui";
+import { Button, Card, LoadingSpinner, Toggle } from "@/components/ui";
 import type { Coordinates } from "@/lib/types";
 
 interface HikeSearchPanelProps {
   isSearching: boolean;
+  originLatValue: string;
+  originLngValue: string;
+  onOriginInputChange: (next: { lat: string; lng: string }) => void;
+  useMapClickForOrigin: boolean;
+  onUseMapClickForOriginChange: (next: boolean) => void;
   onFindHike: (input: {
     origin: Coordinates;
     endpoint?: Coordinates;
     maxDistanceKm?: number;
+    maxStartDistanceKm?: number;
+    maxFinishDistanceFromOriginKm?: number;
+    desiredRouteCount?: number;
   }) => void;
 }
 
@@ -32,18 +40,71 @@ function isValidLongitude(value: number): boolean {
   return value >= -180 && value <= 180;
 }
 
-export function HikeSearchPanel({ isSearching, onFindHike }: HikeSearchPanelProps) {
-  const [originLat, setOriginLat] = useState("31.7683");
-  const [originLng, setOriginLng] = useState("35.2137");
+export function HikeSearchPanel({
+  isSearching,
+  originLatValue,
+  originLngValue,
+  onOriginInputChange,
+  useMapClickForOrigin,
+  onUseMapClickForOriginChange,
+  onFindHike,
+}: HikeSearchPanelProps) {
   const [endpointLat, setEndpointLat] = useState("");
   const [endpointLng, setEndpointLng] = useState("");
   const [maxDistanceKm, setMaxDistanceKm] = useState("");
+  const [maxStartDistanceKm, setMaxStartDistanceKm] = useState("");
+  const [maxFinishDistanceFromOriginKm, setMaxFinishDistanceFromOriginKm] =
+    useState("");
+  const [desiredRouteCount, setDesiredRouteCount] = useState("1");
   const [originLatError, setOriginLatError] = useState<string | null>(null);
   const [originLngError, setOriginLngError] = useState<string | null>(null);
   const [endpointLatError, setEndpointLatError] = useState<string | null>(null);
   const [endpointLngError, setEndpointLngError] = useState<string | null>(null);
   const [maxDistanceError, setMaxDistanceError] = useState<string | null>(null);
+  const [maxStartDistanceError, setMaxStartDistanceError] = useState<string | null>(
+    null,
+  );
+  const [maxFinishDistanceFromOriginError, setMaxFinishDistanceFromOriginError] =
+    useState<string | null>(null);
+  const [desiredRouteCountError, setDesiredRouteCountError] = useState<string | null>(
+    null,
+  );
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
+  const detectMyLocation = () => {
+    setLocationError(null);
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationError("Location is not supported on this device/browser.");
+      return;
+    }
+
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        onOriginInputChange({
+          lat: position.coords.latitude.toFixed(6),
+          lng: position.coords.longitude.toFixed(6),
+        });
+        setIsDetectingLocation(false);
+      },
+      (error) => {
+        const message =
+          error.code === error.PERMISSION_DENIED
+            ? "Location permission was denied. Enable location access and try again."
+            : "Could not detect your location. Please try again or enter coordinates manually.";
+        setLocationError(message);
+        setIsDetectingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      },
+    );
+  };
 
   const submit = () => {
     setOriginLatError(null);
@@ -51,10 +112,13 @@ export function HikeSearchPanel({ isSearching, onFindHike }: HikeSearchPanelProp
     setEndpointLatError(null);
     setEndpointLngError(null);
     setMaxDistanceError(null);
+    setMaxStartDistanceError(null);
+    setMaxFinishDistanceFromOriginError(null);
+    setDesiredRouteCountError(null);
     setSummaryError(null);
 
-    const parsedOriginLat = parseCoordinate(originLat);
-    const parsedOriginLng = parseCoordinate(originLng);
+    const parsedOriginLat = parseCoordinate(originLatValue);
+    const parsedOriginLng = parseCoordinate(originLngValue);
 
     let hasError = false;
 
@@ -103,6 +167,49 @@ export function HikeSearchPanel({ isSearching, onFindHike }: HikeSearchPanelProp
       hasError = true;
     }
 
+    const parsedMaxStartDistance = parseCoordinate(maxStartDistanceKm);
+    if (maxStartDistanceKm.trim() !== "" && parsedMaxStartDistance === null) {
+      setMaxStartDistanceError("Max start distance must be a valid number.");
+      hasError = true;
+    } else if (parsedMaxStartDistance !== null && parsedMaxStartDistance <= 0) {
+      setMaxStartDistanceError("Max start distance must be greater than 0.");
+      hasError = true;
+    }
+
+    const parsedMaxFinishDistanceFromOrigin = parseCoordinate(
+      maxFinishDistanceFromOriginKm,
+    );
+    if (
+      maxFinishDistanceFromOriginKm.trim() !== "" &&
+      parsedMaxFinishDistanceFromOrigin === null
+    ) {
+      setMaxFinishDistanceFromOriginError(
+        "Max finish distance must be a valid number.",
+      );
+      hasError = true;
+    } else if (
+      parsedMaxFinishDistanceFromOrigin !== null &&
+      parsedMaxFinishDistanceFromOrigin <= 0
+    ) {
+      setMaxFinishDistanceFromOriginError(
+        "Max finish distance must be greater than 0.",
+      );
+      hasError = true;
+    }
+
+    const normalizedRouteCount = desiredRouteCount.trim();
+    const parsedDesiredRouteCount = Number(normalizedRouteCount);
+    if (normalizedRouteCount === "" || !Number.isInteger(parsedDesiredRouteCount)) {
+      setDesiredRouteCountError("Nearby route count must be a whole number.");
+      hasError = true;
+    } else if (parsedDesiredRouteCount <= 0) {
+      setDesiredRouteCountError("Nearby route count must be at least 1.");
+      hasError = true;
+    } else if (parsedDesiredRouteCount > 5) {
+      setDesiredRouteCountError("Nearby route count must be 5 or less.");
+      hasError = true;
+    }
+
     if (hasError) {
       setSummaryError("Please fix highlighted fields.");
       return;
@@ -115,6 +222,10 @@ export function HikeSearchPanel({ isSearching, onFindHike }: HikeSearchPanelProp
           ? { lat: parsedEndpointLat, lng: parsedEndpointLng }
           : undefined,
       maxDistanceKm: parsedMaxDistance ?? undefined,
+      maxStartDistanceKm: parsedMaxStartDistance ?? undefined,
+      maxFinishDistanceFromOriginKm:
+        parsedMaxFinishDistanceFromOrigin ?? undefined,
+      desiredRouteCount: Number(desiredRouteCount),
     });
   };
 
@@ -125,21 +236,54 @@ export function HikeSearchPanel({ isSearching, onFindHike }: HikeSearchPanelProp
         <p className="text-xs text-slate-500">
           RTG-first trail search with automatic fallback routing.
         </p>
+        <div className="mt-2">
+          <Toggle
+            checked={useMapClickForOrigin}
+            onChange={onUseMapClickForOriginChange}
+            label="Map click sets origin"
+          />
+          <p className="mt-1 text-[11px] text-slate-500">
+            {useMapClickForOrigin
+              ? "Click on the map to update origin coordinates."
+              : "Enable this to pick origin by clicking on the map."}
+          </p>
+        </div>
+        <div className="mt-2">
+          <Button
+            variant="secondary"
+            onClick={detectMyLocation}
+            disabled={isSearching || isDetectingLocation}
+            fullWidth
+          >
+            {isDetectingLocation ? "Detecting location..." : "Use my current location"}
+          </Button>
+          {locationError && <p className="mt-1 text-xs text-rose-700">{locationError}</p>}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         <input
           type="text"
-          value={originLat}
-          onChange={(event) => setOriginLat(event.target.value)}
+          value={originLatValue}
+          onChange={(event) => {
+            onOriginInputChange({
+              lat: event.target.value,
+              lng: originLngValue,
+            });
+          }}
           placeholder="Origin lat"
           className="rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
         />
         {originLatError && <p className="text-xs text-rose-700">{originLatError}</p>}
         <input
           type="text"
-          value={originLng}
-          onChange={(event) => setOriginLng(event.target.value)}
+          value={originLngValue}
+          onChange={(event) => {
+            onOriginInputChange({
+              lat: originLatValue,
+              lng: event.target.value,
+            });
+          }}
           placeholder="Origin lng"
           className="rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
         />
@@ -173,6 +317,39 @@ export function HikeSearchPanel({ isSearching, onFindHike }: HikeSearchPanelProp
         className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
       />
       {maxDistanceError && <p className="text-xs text-rose-700">{maxDistanceError}</p>}
+
+      <input
+        type="text"
+        value={maxStartDistanceKm}
+        onChange={(event) => setMaxStartDistanceKm(event.target.value)}
+        placeholder="Max start distance km (optional)"
+        className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+      />
+      {maxStartDistanceError && (
+        <p className="text-xs text-rose-700">{maxStartDistanceError}</p>
+      )}
+
+      <input
+        type="text"
+        value={maxFinishDistanceFromOriginKm}
+        onChange={(event) => setMaxFinishDistanceFromOriginKm(event.target.value)}
+        placeholder="Max finish distance from origin km (optional)"
+        className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+      />
+      {maxFinishDistanceFromOriginError && (
+        <p className="text-xs text-rose-700">{maxFinishDistanceFromOriginError}</p>
+      )}
+
+      <input
+        type="text"
+        value={desiredRouteCount}
+        onChange={(event) => setDesiredRouteCount(event.target.value)}
+        placeholder="Nearby route count (default 1)"
+        className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+      />
+      {desiredRouteCountError && (
+        <p className="text-xs text-rose-700">{desiredRouteCountError}</p>
+      )}
 
       {summaryError && (
         <p className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">{summaryError}</p>

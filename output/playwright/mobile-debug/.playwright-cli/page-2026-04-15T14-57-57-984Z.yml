@@ -1,0 +1,61 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - heading "Hiking Route Planner" [level=1] [ref=e5]
+        - paragraph [ref=e6]: Add waypoints, configure constraints, and generate an optimized walking route.
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - generic [ref=e9]: Planning mode
+          - generic [ref=e10]:
+            - button "Manual" [ref=e11]
+            - button "Hike" [ref=e12]
+            - button "City Walk" [ref=e13]
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - heading "Search places" [level=2] [ref=e16]
+            - paragraph [ref=e17]: Nominatim lookup (debounced)
+          - textbox "Search by address, mountain, or trailhead" [ref=e18]
+        - generic [ref=e19]:
+          - generic [ref=e20]: Map click mode
+          - generic [ref=e21]:
+            - button "Add" [ref=e22]
+            - button "Start" [ref=e23]
+            - button "End" [ref=e24]
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - heading "Waypoints" [level=2] [ref=e27]
+            - paragraph [ref=e28]: Drag to reorder stop sequence
+          - paragraph [ref=e29]: Add waypoints from map clicks or search results.
+          - list
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - heading "Constraints" [level=2] [ref=e32]
+            - paragraph [ref=e33]: Configure optimization conditions before route calculation.
+          - generic [ref=e35] [cursor=pointer]:
+            - generic [ref=e36]: Enable max distance
+            - button "Enable max distance" [ref=e37]
+          - generic [ref=e40] [cursor=pointer]:
+            - generic [ref=e41]: Enable time windows
+            - button "Enable time windows" [ref=e42]
+          - generic [ref=e44] [cursor=pointer]:
+            - generic [ref=e45]: Respect Start/End markers
+            - button "Respect Start/End markers" [ref=e46]
+          - button "Calculate Route" [ref=e48]
+        - generic [ref=e49]:
+          - button "Clear Route" [ref=e50]
+          - button "Clear All" [ref=e51]
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - heading "Route Results" [level=2] [ref=e54]
+            - paragraph [ref=e55]: Calculated path and stop sequence
+          - paragraph [ref=e56]: Calculate a route to see results.
+        - generic [ref=e57]:
+          - generic [ref=e58]:
+            - heading "Trail Briefing" [level=2] [ref=e59]
+            - paragraph [ref=e60]: Route context, timing guidance, and safety confidence.
+          - paragraph [ref=e61]: Select or calculate a route to see the trail briefing.
+    - generic [ref=e63]: Loading map...
+  - button "Open Next.js Dev Tools" [ref=e69] [cursor=pointer]:
+    - img [ref=e70]
+  - alert [ref=e73]

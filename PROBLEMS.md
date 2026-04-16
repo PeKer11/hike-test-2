@@ -47,6 +47,20 @@ PlaceSearch blindly converted string coordinates from Nominatim via `Number()`. 
 ### Fixed: Empty Jobs/Vehicles Accepted by Optimization Handler
 The optimization route handler only checked that jobs and vehicles were arrays, not that they were non-empty. Now rejects empty arrays with a descriptive error.
 
+## Known Algorithmic Limitations (Walk Companion)
+
+### Attractions Without a Name Are Silently Dropped
+In `overpass-client.ts`, any OSM element that lacks a `name` tag (or `name:en` / `name:he`) is discarded entirely. This can silently remove real attractions that happen to be unnamed in OSM. Consider a fallback label (e.g. category + OSM id) or a separate low-confidence bucket.
+
+### TSP Drops High-Score Attractions When Time Budget Is Exceeded
+In `tsp-planner.ts`, attractions are dropped greedily in tour order once the remaining time budget is exhausted. A highly-rated attraction near the end of the tour can be discarded even though reordering it earlier would fit it within the budget. No retry or reorder is attempted before dropping.
+
+### avgVisitMinutes Is Global, Not Context-Aware
+In `overpass-client.ts`, the average visit duration per category (e.g. museum = 60 min) is a fixed global constant. It does not vary by country, city density, attraction size, or time of day. This causes the time-budget estimate to be inaccurate for non-typical locations.
+
+### No Optimization Loop — First Valid Plan Is Returned
+Neither `src/app/api/walk-plan/route.ts` nor `src/app/page.tsx` retry planning with relaxed or alternative parameters if the first result is suboptimal (e.g. too few attractions, large dropped list, poor coverage). The pipeline runs once and returns whatever it produces.
+
 ## Still Unverified (Needs QA)
 - End-to-end behavior against live ORS/Nominatim with a real `ORS_API_KEY` is not fully validated.
 - Constraint correctness for edge cases (tight windows, impossible routes, unassigned jobs) needs explicit scenario testing.
