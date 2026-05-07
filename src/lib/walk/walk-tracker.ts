@@ -1,4 +1,4 @@
-import type { Coordinates } from "@/lib/types";
+import type { Attraction, Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
 
 export interface PositionSample {
@@ -12,6 +12,7 @@ export interface PaceUpdate {
   accuracyMeters: number;
   paceMinPerKm: number | null; // null until enough samples
   timestamp: number;
+  attractionDistances: Record<string, number>; // attraction ID → meters
 }
 
 export type PaceUpdateHandler = (update: PaceUpdate) => void;
@@ -34,10 +35,16 @@ export class WalkTracker {
   private samples: PositionSample[] = [];
   private onUpdate: PaceUpdateHandler;
   private onError?: PaceErrorHandler;
+  private attractions: Attraction[];
 
-  constructor(onUpdate: PaceUpdateHandler, onError?: PaceErrorHandler) {
+  constructor(
+    onUpdate: PaceUpdateHandler,
+    onError?: PaceErrorHandler,
+    attractions: Attraction[] = [],
+  ) {
     this.onUpdate = onUpdate;
     this.onError = onError;
+    this.attractions = attractions;
   }
 
   start(): void {
@@ -92,7 +99,16 @@ export class WalkTracker {
       accuracyMeters: accuracy,
       paceMinPerKm: this.computePace(),
       timestamp: sample.timestamp,
+      attractionDistances: this.computeAttractionDistances(sample.coordinates),
     });
+  }
+
+  private computeAttractionDistances(position: Coordinates): Record<string, number> {
+    const result: Record<string, number> = {};
+    for (const attraction of this.attractions) {
+      result[attraction.id] = haversineDistance(position, attraction.coordinates);
+    }
+    return result;
   }
 
   private computePace(): number | null {
