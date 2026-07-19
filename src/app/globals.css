@@ -10,6 +10,15 @@
   --color-background: var(--color-bg);
   --color-foreground: var(--color-text);
   --font-sans: var(--font-inter);
+
+  /* Traike marketing tokens (DESIGN.md) — used by / and /pricing only */
+  --font-brand: var(--font-urbanist);
+  --font-display: var(--font-fraunces);
+  --color-terra: #c15f3c;
+  --color-forest: #1e3d2f;
+  --color-skysoft: #8fb8c9;
+  --color-cream: #fbf8f4;
+  --color-charcoal: #231f1c;
 }
 
 body {

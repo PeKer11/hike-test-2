@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Fraunces, Inter, Urbanist } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -7,17 +7,25 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const urbanist = Urbanist({
+  subsets: ["latin"],
+  variable: "--font-urbanist",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+});
+
 export const metadata: Metadata = {
-  title: "Hiking Route Planner",
+  title: "Traike — Your Personal Hiking Companion",
   description:
-    "Plan and optimize hiking and walking routes with waypoint constraints.",
+    "Tell Traike how much time you have. It builds a walk around your pace, your interests, and the city in front of you — and adapts as you go.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({
@@ -27,7 +35,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased`}>{children}</body>
+      <body
+        className={`${inter.variable} ${urbanist.variable} ${fraunces.variable} antialiased`}
+      >
+        {children}
+      </body>
     </html>
   );
 }
