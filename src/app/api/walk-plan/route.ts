@@ -72,27 +72,38 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // 4. Fetch ORS geometry for the ordered route (origin → attraction 1 → 2 → ...)
     let geometry: Coordinates[] | undefined;
-    if (plan.orderedAttractions.length > 0 && process.env.ORS_API_KEY) {
-      try {
-        const waypoints: Coordinates[] = [
-          origin,
-          ...plan.orderedAttractions.map((a) => a.coordinates),
-        ];
-        const orsRes = await getDirections({
-          coordinates: waypoints.map(toOrsCoord),
-          profile: "foot-walking",
-          instructions: false,
-        });
-        const encoded = orsRes.routes[0]?.geometry;
-        if (encoded) {
-          geometry = decodePolyline(encoded);
+    const warnings: string[] = [];
+
+    if (plan.orderedAttractions.length > 0) {
+      if (!process.env.ORS_API_KEY) {
+        warnings.push(
+          "No ORS_API_KEY configured — route geometry is unavailable. Start Walk is disabled until geometry is present.",
+        );
+      } else {
+        try {
+          const waypoints: Coordinates[] = [
+            origin,
+            ...plan.orderedAttractions.map((a) => a.coordinates),
+          ];
+          const orsRes = await getDirections({
+            coordinates: waypoints.map(toOrsCoord),
+            profile: "foot-walking",
+            instructions: false,
+          });
+          const encoded = orsRes.routes[0]?.geometry;
+          if (encoded) {
+            geometry = decodePolyline(encoded);
+          }
+        } catch {
+          // Geometry is optional — don't fail the whole plan if ORS is unavailable
+          warnings.push(
+            "Could not fetch route geometry from ORS. Start Walk is disabled.",
+          );
         }
-      } catch {
-        // Geometry is optional — don't fail the whole plan if ORS is unavailable
       }
     }
 
-    return NextResponse.json({ ...plan, geometry });
+    return NextResponse.json({ ...plan, geometry, warnings });
   } catch (error) {
     const message =
       error instanceof Error

@@ -1,5 +1,19 @@
 import type { Attraction, Coordinates } from "@/lib/types";
-import { haversineDistance } from "@/lib/utils/geo";
+import { haversineDistance, routeDistanceBetween } from "@/lib/utils/geo";
+
+/**
+ * Compass bearing (degrees, 0 = north, clockwise) from a to b.
+ */
+function computeBearing(a: Coordinates, b: Coordinates): number {
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
 
 export interface PositionSample {
   coordinates: Coordinates;
@@ -13,6 +27,7 @@ export interface PaceUpdate {
   paceMinPerKm: number | null; // null until enough samples
   timestamp: number;
   attractionDistances: Record<string, number>; // attraction ID → meters
+  bearing?: number; // compass bearing from previous accepted sample, degrees (0=north)
 }
 
 export type PaceUpdateHandler = (update: PaceUpdate) => void;
@@ -36,15 +51,19 @@ export class WalkTracker {
   private onUpdate: PaceUpdateHandler;
   private onError?: PaceErrorHandler;
   private attractions: Attraction[];
+  private geometry: Coordinates[];
+  private lastAcceptedPosition: Coordinates | null = null;
 
   constructor(
     onUpdate: PaceUpdateHandler,
     onError?: PaceErrorHandler,
     attractions: Attraction[] = [],
+    geometry: Coordinates[] = [],
   ) {
     this.onUpdate = onUpdate;
     this.onError = onError;
     this.attractions = attractions;
+    this.geometry = geometry;
   }
 
   start(): void {
@@ -75,6 +94,7 @@ export class WalkTracker {
       this.watchId = null;
     }
     this.samples = [];
+    this.lastAcceptedPosition = null;
   }
 
   private handlePosition(pos: GeolocationPosition): void {
@@ -89,6 +109,13 @@ export class WalkTracker {
       accuracyMeters: accuracy,
     };
 
+    const bearing =
+      this.lastAcceptedPosition !== null
+        ? computeBearing(this.lastAcceptedPosition, sample.coordinates)
+        : undefined;
+
+    this.lastAcceptedPosition = sample.coordinates;
+
     this.samples.push(sample);
     if (this.samples.length > PACE_SAMPLE_WINDOW) {
       this.samples.shift();
@@ -100,13 +127,16 @@ export class WalkTracker {
       paceMinPerKm: this.computePace(),
       timestamp: sample.timestamp,
       attractionDistances: this.computeAttractionDistances(sample.coordinates),
+      bearing,
     });
   }
 
   private computeAttractionDistances(position: Coordinates): Record<string, number> {
     const result: Record<string, number> = {};
     for (const attraction of this.attractions) {
-      result[attraction.id] = haversineDistance(position, attraction.coordinates);
+      result[attraction.id] = this.geometry.length >= 2
+        ? routeDistanceBetween(this.geometry, position, attraction.coordinates)
+        : haversineDistance(position, attraction.coordinates);
     }
     return result;
   }

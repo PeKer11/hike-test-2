@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui";
 import type { WalkPlan } from "@/lib/types";
 import { formatDistance } from "@/lib/utils/geo";
+import { CATEGORY_EMOJI } from "@/lib/constants/categories";
 
 interface WalkPlanResultsProps {
   plan: WalkPlan | null;
@@ -11,19 +12,6 @@ interface WalkPlanResultsProps {
   walkMinutes?: number;
   walkRadius?: number;
 }
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  landmark: "🏛",
-  museum: "🖼",
-  park: "🌳",
-  food: "☕",
-  viewpoint: "👁",
-  religious: "🕍",
-  shopping: "🛍",
-  entertainment: "🎭",
-  nature: "🌿",
-  other: "📍",
-};
 
 export function WalkPlanResults({ plan, error, walkOrigin, walkMinutes, walkRadius }: WalkPlanResultsProps) {
   if (error) {

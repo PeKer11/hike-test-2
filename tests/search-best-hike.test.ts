@@ -1,12 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RtgTrail } from "@/lib/types";
 
 const mockGetRtgTrails = vi.fn<() => Promise<RtgTrail[]>>();
+const mockFetchOsmHikingTrails = vi.fn<() => Promise<RtgTrail[]>>();
 const mockPlanRoute = vi.fn();
 
 vi.mock("@/lib/api/rtg-client", () => ({
   getRtgTrails: () => mockGetRtgTrails(),
+}));
+
+vi.mock("@/lib/api/osm-trails-client", () => ({
+  fetchOsmHikingTrails: () => mockFetchOsmHikingTrails(),
 }));
 
 vi.mock("@/lib/optimization/route-planner", () => ({
@@ -16,6 +21,9 @@ vi.mock("@/lib/optimization/route-planner", () => ({
 import { searchBestHike } from "@/lib/optimization/hike-search";
 
 describe("searchBestHike", () => {
+  beforeEach(() => {
+    mockFetchOsmHikingTrails.mockResolvedValue([]);
+  });
   it("labels RTG results as ORS-generated guidance instead of official trail geometry", async () => {
     mockGetRtgTrails.mockResolvedValueOnce([
       {

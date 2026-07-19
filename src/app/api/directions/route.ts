@@ -14,6 +14,22 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
+    const invalidCoord = payload.coordinates.find(
+      (c) =>
+        !Array.isArray(c) ||
+        c.length !== 2 ||
+        typeof c[0] !== "number" ||
+        typeof c[1] !== "number" ||
+        !Number.isFinite(c[0]) ||
+        !Number.isFinite(c[1]),
+    );
+    if (invalidCoord !== undefined) {
+      return NextResponse.json(
+        { error: "Each coordinate must be a [lng, lat] tuple of finite numbers." },
+        { status: 400 },
+      );
+    }
+
     const result = await getDirections(payload);
     return NextResponse.json(result);
   } catch (error) {

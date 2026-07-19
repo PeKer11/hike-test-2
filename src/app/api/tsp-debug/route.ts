@@ -17,6 +17,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     };
 
     const { lat, lng, availableMinutes } = body;
+
+    if (
+      typeof lat !== "number" ||
+      typeof lng !== "number" ||
+      typeof availableMinutes !== "number" ||
+      availableMinutes <= 0
+    ) {
+      return NextResponse.json(
+        { error: "lat, lng, and availableMinutes (> 0) are required." },
+        { status: 400 },
+      );
+    }
+
     const origin = { lat, lng };
     const walkingPaceMinPerKm = body.walkingPaceMinPerKm ?? 15;
     const radiusMeters = body.radiusMeters ?? 2000;

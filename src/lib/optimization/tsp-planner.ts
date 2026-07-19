@@ -11,8 +11,12 @@ function distBetween(a: Point, b: Point): number {
   return haversineDistance(a.coordinates, b.coordinates);
 }
 
+function hasFiniteCoords(p: Point): boolean {
+  return Number.isFinite(p.coordinates.lat) && Number.isFinite(p.coordinates.lng);
+}
+
 function buildMatrix(origin: Point, attractions: Attraction[]): number[][] {
-  const nodes: Point[] = [origin, ...attractions];
+  const nodes: Point[] = [origin, ...attractions.filter(hasFiniteCoords)];
   const n = nodes.length;
   const matrix: number[][] = Array.from({ length: n }, () => new Array<number>(n).fill(0));
 
@@ -44,11 +48,14 @@ function nearestNeighbor(matrix: number[][], n: number): number[] {
     let nearestDist = Infinity;
 
     for (let j = 1; j < n; j++) {
-      if (!visited[j] && matrix[current][j] < nearestDist) {
+      if (!visited[j] && Number.isFinite(matrix[current][j]) && matrix[current][j] < nearestDist) {
         nearest = j;
         nearestDist = matrix[current][j];
       }
     }
+
+    // No unvisited reachable node found (e.g. all remaining distances are NaN)
+    if (nearest === -1) break;
 
     visited[nearest] = true;
     tour.push(nearest);
@@ -175,39 +182,83 @@ export function planWalkOrder(
   // tourIndices are 1-based indices into [origin, ...candidates]
   const ordered = tourIndices.map((i) => candidates[i - 1]);
 
-  // Build segments and check feasibility
+  // Build segments and check feasibility.
+  // Before dropping an over-budget attraction, try inserting it at earlier positions
+  // in the already-accepted list — keep it if any earlier slot fits within budget.
+  const feasibleAttractions: Attraction[] = [];
+  const droppedAttractions: Attraction[] = [];
+
+  for (const attraction of ordered) {
+    // Try appending at the current end first
+    const appendFits = (() => {
+      const prev = feasibleAttractions.length === 0 ? originPoint : feasibleAttractions[feasibleAttractions.length - 1];
+      const dist = distBetween(prev, attraction);
+      const walkMin = (dist / 1000) * walkingPaceMinPerKm;
+      const usedWalk = feasibleAttractions.reduce((s, _, idx) => {
+        const from = idx === 0 ? originPoint : feasibleAttractions[idx - 1];
+        return s + (distBetween(from, feasibleAttractions[idx]) / 1000) * walkingPaceMinPerKm;
+      }, 0);
+      const usedVisit = feasibleAttractions.reduce((s, a) => s + a.avgVisitMinutes, 0);
+      return usedWalk + usedVisit + walkMin + attraction.avgVisitMinutes <= availableMinutes;
+    })();
+
+    if (appendFits) {
+      feasibleAttractions.push(attraction);
+      continue;
+    }
+
+    // Attempt reinsertion at each earlier position (MEDIUM-3)
+    let inserted = false;
+    for (let pos = 0; pos < feasibleAttractions.length; pos++) {
+      // Build a trial list with attraction inserted at `pos`
+      const trial = [
+        ...feasibleAttractions.slice(0, pos),
+        attraction,
+        ...feasibleAttractions.slice(pos),
+      ];
+      // Compute total cost for the trial tour
+      let trialWalk = 0;
+      let trialVisit = 0;
+      let prev: Point = originPoint;
+      for (const a of trial) {
+        trialWalk += (distBetween(prev, a) / 1000) * walkingPaceMinPerKm;
+        trialVisit += a.avgVisitMinutes;
+        prev = a;
+      }
+      if (trialWalk + trialVisit <= availableMinutes) {
+        feasibleAttractions.splice(pos, 0, attraction);
+        inserted = true;
+        break;
+      }
+    }
+
+    if (!inserted) {
+      droppedAttractions.push(attraction);
+    }
+  }
+
+  // Build segments from final feasibleAttractions order
   const segments: WalkSegment[] = [];
   let totalDistanceMeters = 0;
   let totalWalkingMinutes = 0;
   let totalVisitMinutes = 0;
-  const droppedAttractions: Attraction[] = [];
-  const feasibleAttractions: Attraction[] = [];
-
   let prevPoint: Point = originPoint;
   let prevLabel: WalkSegment["from"] = { name: "origin", coordinates: origin };
 
-  for (const attraction of ordered) {
+  for (const attraction of feasibleAttractions) {
     const segDistMeters = distBetween(prevPoint, attraction);
     const segWalkMinutes = (segDistMeters / 1000) * walkingPaceMinPerKm;
-    const cost = segWalkMinutes + attraction.avgVisitMinutes;
 
-    if (totalWalkingMinutes + totalVisitMinutes + cost > availableMinutes) {
-      droppedAttractions.push(attraction);
-      continue;
-    }
-
-    const segment: WalkSegment = {
+    segments.push({
       from: prevLabel,
       to: attraction,
       distanceMeters: segDistMeters,
       walkingMinutes: segWalkMinutes,
-    };
+    });
 
-    segments.push(segment);
     totalDistanceMeters += segDistMeters;
     totalWalkingMinutes += segWalkMinutes;
     totalVisitMinutes += attraction.avgVisitMinutes;
-    feasibleAttractions.push(attraction);
 
     prevPoint = attraction;
     prevLabel = attraction;

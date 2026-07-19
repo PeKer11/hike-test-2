@@ -1,5 +1,5 @@
 import type { Coordinates } from "@/lib/types";
-import { haversineDistance } from "@/lib/utils/geo";
+import { closestPointOnSegment, haversineDistance } from "@/lib/utils/geo";
 
 // Only flag deviation when user is this far off-route
 const DEVIATION_THRESHOLD_METERS = 50;
@@ -9,32 +9,6 @@ export interface DeviationResult {
   needsReroute: boolean;
   closestPointOnRoute: Coordinates;
   closestSegmentIndex: number;
-}
-
-/**
- * Find the closest point on a line segment [a, b] to point p.
- * Returns the projected point (clamped to the segment).
- */
-function closestPointOnSegment(
-  p: Coordinates,
-  a: Coordinates,
-  b: Coordinates,
-): Coordinates {
-  const dx = b.lng - a.lng;
-  const dy = b.lat - a.lat;
-  const lenSq = dx * dx + dy * dy;
-
-  if (lenSq === 0) return a; // degenerate segment
-
-  const t = Math.max(
-    0,
-    Math.min(1, ((p.lng - a.lng) * dx + (p.lat - a.lat) * dy) / lenSq),
-  );
-
-  return {
-    lat: a.lat + t * dy,
-    lng: a.lng + t * dx,
-  };
 }
 
 /**

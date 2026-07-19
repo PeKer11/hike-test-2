@@ -47,4 +47,5 @@ export interface WalkPlan {
   feasible: boolean;
   droppedAttractions: Attraction[];
   geometry?: Coordinates[];
+  warnings?: string[];
 }

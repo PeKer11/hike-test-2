@@ -5,6 +5,7 @@ export interface RecordedPoint {
   lng: number;
   timestamp: number; // ms since epoch
   paceMinPerKm: number | null;
+  attractionDistances: Record<string, number>; // attraction ID → meters along route
 }
 
 export class WalkRecorder {
@@ -30,6 +31,7 @@ export class WalkRecorder {
         lng: update.currentPosition.lng,
         timestamp: update.timestamp,
         paceMinPerKm: update.paceMinPerKm,
+        attractionDistances: update.attractionDistances,
       });
     }, this.intervalMs);
   }
@@ -50,6 +52,10 @@ export class WalkRecorder {
     }
 
     this.points = [];
+  }
+
+  getPoints(): RecordedPoint[] {
+    return [...this.points];
   }
 
   get pointCount(): number {

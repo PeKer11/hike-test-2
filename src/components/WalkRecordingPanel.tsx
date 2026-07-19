@@ -4,12 +4,14 @@ interface WalkRecordingPanelProps {
   isRecording: boolean;
   pointCount: number;
   onDownload: () => void;
+  onDownloadCsv?: () => void;
 }
 
 export function WalkRecordingPanel({
   isRecording,
   pointCount,
   onDownload,
+  onDownloadCsv,
 }: WalkRecordingPanelProps) {
   if (!isRecording && pointCount === 0) {
     return null;
@@ -32,13 +34,24 @@ export function WalkRecordingPanel({
       ) : null}
 
       {pointCount > 0 ? (
-        <button
-          type="button"
-          onClick={onDownload}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white transition hover:bg-emerald-500"
-        >
-          Download Walk (GPX)
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onDownload}
+            className="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-medium text-white transition hover:bg-emerald-500"
+          >
+            GPX
+          </button>
+          {onDownloadCsv ? (
+            <button
+              type="button"
+              onClick={onDownloadCsv}
+              className="inline-flex h-9 flex-1 items-center justify-center rounded-md border border-emerald-600 px-3 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
+            >
+              CSV
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );

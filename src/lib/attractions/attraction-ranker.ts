@@ -91,7 +91,7 @@ export function selectFeasibleAttractions(
     // Rough walking time from previous stop (or origin) to this attraction
     // This is a heuristic — TSP planner will compute exact order + times later
     const walkingMinutes =
-      (attraction.distanceFromOriginMeters ?? 0) / 1000 / walkingPaceMinPerKm;
+      ((attraction.distanceFromOriginMeters ?? 0) / 1000) * walkingPaceMinPerKm;
 
     const totalCost = walkingMinutes + attraction.avgVisitMinutes;
 

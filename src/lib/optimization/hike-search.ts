@@ -29,8 +29,9 @@ const MALFORMED_TRAIL_WARNING =
 const NON_OFFICIAL_DISCLAIMER =
   "No official RTG trail was found for this request. This is a general hiking suggestion, not an official recommendation, and final responsibility remains with you.";
 
+let _waypointIdCounter = 0;
 function createWaypointId(index: number): string {
-  return `generated-${index}-${Date.now()}`;
+  return `generated-${index}-${++_waypointIdCounter}`;
 }
 
 function distanceToTrail(point: Coordinates, trail: RtgTrail): number {

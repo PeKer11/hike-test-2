@@ -220,9 +220,20 @@ async function calculateViaOptimization(
   const warnings: string[] = [];
 
   if (optimizationResponse.unassigned.length) {
-    warnings.push(
-      `${optimizationResponse.unassigned.length} waypoint(s) could not be assigned due to constraints.`,
-    );
+    // Check whether any required waypoint was dropped (LOW-1)
+    const unassignedIds = new Set(optimizationResponse.unassigned.map((u) => u.id));
+    const requiredDropped = [...optimizationRequest.jobWaypointMap.entries()]
+      .filter(([jobId, wp]) => unassignedIds.has(jobId) && wp.required)
+      .map(([, wp]) => wp.name ?? wp.id);
+    if (requiredDropped.length > 0) {
+      warnings.push(
+        `Required waypoint(s) were dropped by route optimization: ${requiredDropped.join(", ")}.`,
+      );
+    } else {
+      warnings.push(
+        `${optimizationResponse.unassigned.length} waypoint(s) could not be assigned due to constraints.`,
+      );
+    }
   }
 
   for (let index = 0; index < orderedWaypoints.length - 1; index += 1) {

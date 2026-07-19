@@ -23,7 +23,9 @@ interface WalkCompanionPanelProps {
   mapClickedCoords?: Coordinates | null;
   onLocationDetected?: (coords: Coordinates) => void;
   onStartWalk?: () => void;
+  onStopWalk?: () => void;
   walkPlanReady?: boolean;
+  isWalking?: boolean;
 }
 
 const PACE_OPTIONS = [
@@ -51,7 +53,9 @@ export function WalkCompanionPanel({
   mapClickedCoords,
   onLocationDetected,
   onStartWalk,
+  onStopWalk,
   walkPlanReady = false,
+  isWalking = false,
 }: WalkCompanionPanelProps) {
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
@@ -285,7 +289,15 @@ export function WalkCompanionPanel({
           "Build My Walk"
         )}
       </Button>
-      {walkPlanReady ? (
+      {isWalking ? (
+        <Button
+          onClick={() => onStopWalk?.()}
+          variant="danger"
+          fullWidth
+        >
+          End Walk
+        </Button>
+      ) : walkPlanReady ? (
         <Button
           onClick={() => onStartWalk?.()}
           disabled={isLoading}
