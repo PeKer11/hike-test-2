@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 const TspMap = dynamic(() => import("./TspMap"), { ssr: false, loading: () => <div className="flex h-full items-center justify-center text-slate-400">Loading map…</div> });
@@ -24,6 +24,14 @@ interface DebugData {
 type ViewMode = "graph" | "nn" | "optimized";
 
 export default function TspDebugPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen w-screen items-center justify-center bg-slate-50 text-slate-400">Loading…</div>}>
+      <TspDebugContent />
+    </Suspense>
+  );
+}
+
+function TspDebugContent() {
   const params = useSearchParams();
   const [lat, setLat] = useState(params.get("lat") ?? "32.0853");
   const [lng, setLng] = useState(params.get("lng") ?? "34.7818");
