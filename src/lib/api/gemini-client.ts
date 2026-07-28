@@ -3,8 +3,9 @@ import "server-only";
 import { GoogleGenAI, Type, type Schema } from "@google/genai";
 
 import {
-  parsePlaceNames,
+  parsePlaceExtraction,
   PLACE_EXTRACTION_SYSTEM_PROMPT,
+  type PlaceExtraction,
 } from "@/lib/places/place-extractor";
 
 // Ariel picked Flash-Lite for this: the task is a short, cheap NER pass on one
@@ -23,16 +24,26 @@ const PLACES_SCHEMA: Schema = {
       items: { type: Type.STRING },
       description: "Place, venue, or landmark names extracted from the text.",
     },
+    contextLocation: {
+      type: Type.STRING,
+      nullable: true,
+      description:
+        "City, town, neighbourhood, or region named only to say where the places are, or null.",
+    },
   },
+  // `contextLocation` stays optional: most prompts have none, and a missing
+  // field parses to null just like an explicit one.
   required: ["places"],
 };
 
 /**
- * Ask Gemini Flash-Lite to pull the named places out of a free-text prompt.
- * Uses JSON mode with a response schema so the answer arrives as structured
- * JSON instead of prose we would have to regex.
+ * Ask Gemini Flash-Lite to pull the named places out of a free-text prompt,
+ * along with the area they sit in. Uses JSON mode with a response schema so the
+ * answer arrives as structured JSON instead of prose we would have to regex.
  */
-export async function extractPlaceNames(prompt: string): Promise<string[]> {
+export async function extractPlaceNames(
+  prompt: string,
+): Promise<PlaceExtraction> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -56,7 +67,7 @@ export async function extractPlaceNames(prompt: string): Promise<string[]> {
     },
   });
 
-  // JSON mode makes `text` a JSON document; `parsePlaceNames` handles the
+  // JSON mode makes `text` a JSON document; `parsePlaceExtraction` handles the
   // string, and also copes with a blocked or empty response.
-  return parsePlaceNames(response.text ?? "");
+  return parsePlaceExtraction(response.text ?? "");
 }

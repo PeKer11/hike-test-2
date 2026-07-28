@@ -37,6 +37,28 @@ function toBias(value: Coordinates | undefined): Coordinates | undefined {
   return { lat, lng };
 }
 
+/**
+ * Best-effort geocode of a single name. Returns null instead of throwing — one
+ * failed lookup shouldn't sink the whole prompt, the name falls through to
+ * `unresolvedNames` instead.
+ */
+async function geocode(
+  name: string,
+  bias: Coordinates | undefined,
+): Promise<Coordinates | null> {
+  try {
+    const [match] = await searchPlaces(name, 1, bias);
+    const lat = Number(match?.lat);
+    const lng = Number(match?.lon);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { lat, lng };
+    }
+  } catch {
+    // Fall through to null.
+  }
+  return null;
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const body = (await request.json()) as ExtractPlacesRequest;
@@ -58,37 +80,40 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    const bias = toBias(body.nearLocation);
-    const names = await extractPlaceNames(prompt);
+    let bias = toBias(body.nearLocation);
+    const { places, contextLocation } = await extractPlaceNames(prompt);
+
+    // Where the user says they want to walk beats where they happen to be
+    // standing: geocode the area named in the prompt first, unbiased (it is the
+    // anchor, not something to anchor), and search the rest around it. Without
+    // a context area — or if it can't be located — the request's own
+    // `nearLocation` stays the bias, as before.
+    let geocodeCalls = 0;
+    if (contextLocation) {
+      geocodeCalls += 1;
+      const contextCoordinates = await geocode(contextLocation, undefined);
+      if (contextCoordinates) {
+        bias = contextCoordinates;
+      }
+    }
 
     const entries: GeocodedPlaceName[] = [];
-    for (const [index, name] of names.entries()) {
-      if (index > 0) {
+    for (const name of places) {
+      if (geocodeCalls > 0) {
         await delay(GEOCODE_DELAY_MS);
       }
+      geocodeCalls += 1;
 
-      let coordinates: Coordinates | null = null;
-      try {
-        const [match] = await searchPlaces(name, 1, bias);
-        const lat = Number(match?.lat);
-        const lng = Number(match?.lon);
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          coordinates = { lat, lng };
-        }
-      } catch {
-        // A single geocoding failure shouldn't sink the whole prompt — the
-        // name falls through to `unresolvedNames` instead.
-      }
-
-      entries.push({ name, coordinates });
+      entries.push({ name, coordinates: await geocode(name, bias) });
     }
 
     const { attractions, unresolvedNames } = buildExtractionResult(entries);
 
     return NextResponse.json({
-      extractedNames: names,
+      extractedNames: places,
       attractions,
       unresolvedNames,
+      contextLocation: contextLocation ?? null,
     });
   } catch (error) {
     const message =

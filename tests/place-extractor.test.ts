@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildExtractionResult,
+  parseContextLocation,
+  parsePlaceExtraction,
   parsePlaceNames,
   PLACE_EXTRACTION_SYSTEM_PROMPT,
   toExplicitAttraction,
@@ -22,16 +24,23 @@ describe("PLACE_EXTRACTION_SYSTEM_PROMPT", () => {
   });
 
   it("shows both sides of the distinction as examples", () => {
-    // (a) smaller places named -> the city is dropped.
+    // (a) smaller places named -> the city moves to contextLocation.
     expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
-      '"I want to go to Habima Square and the Carmel Market in Tel Aviv" -> ["Habima Square", "Carmel Market"]',
+      '"I want to go to Habima Square and the Carmel Market in Tel Aviv" -> places ["Habima Square", "Carmel Market"], contextLocation "Tel Aviv"',
     );
     expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
-      '"אני רוצה ללכת למדרחוב ולגן טייל בזכרון יעקב" -> ["מדרחוב", "גן טייל"]',
+      '"אני רוצה ללכת למדרחוב ולגן טייל בזכרון יעקב" -> places ["מדרחוב", "גן טייל"], contextLocation "זכרון יעקב"',
     );
-    // (b) nothing smaller named -> the city is the one destination.
+    // (b) nothing smaller named -> the city is the one destination, no context.
     expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
-      '"I want to visit Jerusalem" -> ["Jerusalem"]',
+      '"I want to visit Jerusalem" -> places ["Jerusalem"], contextLocation null',
+    );
+  });
+
+  it("asks for the context area by name instead of only dropping it", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("`contextLocation`");
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "Never repeat a name in both fields.",
     );
   });
 });
@@ -96,6 +105,67 @@ describe("parsePlaceNames", () => {
   it("caps the number of names", () => {
     const many = Array.from({ length: 20 }, (_, i) => `Place ${i}`);
     expect(parsePlaceNames({ places: many })).toHaveLength(8);
+  });
+});
+
+describe("parseContextLocation", () => {
+  it("reads the context area off the JSON-mode response shape", () => {
+    expect(
+      parseContextLocation({ places: ["מדרחוב"], contextLocation: "זכרון יעקב" }),
+    ).toBe("זכרון יעקב");
+  });
+
+  it("parses a raw JSON string and trims the value", () => {
+    expect(
+      parseContextLocation('{"places": [], "contextLocation": " Tel Aviv "}'),
+    ).toBe("Tel Aviv");
+  });
+
+  it("returns null when there is no usable context area", () => {
+    expect(parseContextLocation({ places: ["Jerusalem"] })).toBeNull();
+    expect(
+      parseContextLocation({ places: [], contextLocation: null }),
+    ).toBeNull();
+    expect(parseContextLocation({ contextLocation: 42 })).toBeNull();
+    expect(parseContextLocation({ contextLocation: "   " })).toBeNull();
+    expect(parseContextLocation("not json at all")).toBeNull();
+    expect(parseContextLocation(undefined)).toBeNull();
+    expect(parseContextLocation(["Jaffa Port"])).toBeNull();
+  });
+});
+
+describe("parsePlaceExtraction", () => {
+  it("returns the stops and the area they sit in", () => {
+    expect(
+      parsePlaceExtraction(
+        '{"places": ["מדרחוב", "גן טייל"], "contextLocation": "זכרון יעקב"}',
+      ),
+    ).toEqual({
+      places: ["מדרחוב", "גן טייל"],
+      contextLocation: "זכרון יעקב",
+    });
+  });
+
+  it("leaves a bare city name as the only stop, with no context to bias by", () => {
+    expect(
+      parsePlaceExtraction({ places: ["עכו"], contextLocation: null }),
+    ).toEqual({ places: ["עכו"], contextLocation: null });
+  });
+
+  it("drops a context area the model also listed as a stop", () => {
+    expect(
+      parsePlaceExtraction({
+        places: ["Jerusalem"],
+        contextLocation: "jerusalem",
+      }),
+    ).toEqual({ places: ["Jerusalem"], contextLocation: null });
+  });
+
+  it("survives a blocked or unparseable response", () => {
+    expect(parsePlaceExtraction("")).toEqual({
+      places: [],
+      contextLocation: null,
+    });
   });
 });
 

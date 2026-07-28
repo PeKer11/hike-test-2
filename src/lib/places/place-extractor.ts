@@ -18,22 +18,28 @@ const DEFAULT_VISIT_MINUTES = 30;
  * The general-vs-specific block exists because live testing showed the model
  * returning the city ("זכרון יעקב" in "the מדרחוב and גן טייל in זכרון יעקב")
  * as a stop of its own. The distinction is fuzzy, so it is taught by example.
+ *
+ * That context area is also asked for by name (`contextLocation`) rather than
+ * just dropped: geocoding it first gives the other names a bias that matches
+ * what the user typed, instead of wherever they happen to be standing.
  */
 export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   "You extract place names from a walker's free-text description of where they want to go.",
+  "Return two things: `places` (the destinations) and `contextLocation` (the area that only says where those destinations are, or null).",
   "Return the places in the order the user mentioned them.",
   "Keep the user's own wording (for example 'Habima Square', 'the Jaffa port').",
   "Drop leading articles, and shorten a vague description to a searchable phrase (for example 'a good market' becomes 'market').",
   "Ignore anything that is not a place: durations, pace, moods, and general chatter.",
-  "A city, town, neighbourhood, or region named only to say WHERE the other places are is context, not a destination — leave it out.",
+  "A city, town, neighbourhood, or region named only to say WHERE the other places are is context, not a destination — leave it out of `places` and return it as `contextLocation`.",
   "Rule of thumb: a name introduced with 'in <name>', 'near <name>', 'around <name>', 'ב<name>' or 'ליד <name>' that locates the other named places is context.",
-  "Keep such an area name only when the text names no smaller or more specific place at all — then the area itself is the one destination.",
+  "Keep such an area name in `places` only when the text names no smaller or more specific place at all — then the area itself is the one destination, and `contextLocation` is null.",
+  "`contextLocation` is null whenever no area was mentioned only as context. Never repeat a name in both fields.",
   "Examples:",
-  '"I want to go to Habima Square and the Carmel Market in Tel Aviv" -> ["Habima Square", "Carmel Market"] — Tel Aviv only says where those stops are.',
-  '"אני רוצה ללכת למדרחוב ולגן טייל בזכרון יעקב" -> ["מדרחוב", "גן טייל"] — זכרון יעקב only says where those stops are.',
-  '"I want to visit Jerusalem" -> ["Jerusalem"] — no smaller place is named, so the city is the destination.',
-  '"תן לי טיול בעכו" -> ["עכו"] — no smaller place is named, so the city is the destination.',
-  "If the text names no places at all, return an empty list.",
+  '"I want to go to Habima Square and the Carmel Market in Tel Aviv" -> places ["Habima Square", "Carmel Market"], contextLocation "Tel Aviv" — Tel Aviv only says where those stops are.',
+  '"אני רוצה ללכת למדרחוב ולגן טייל בזכרון יעקב" -> places ["מדרחוב", "גן טייל"], contextLocation "זכרון יעקב" — זכרון יעקב only says where those stops are.',
+  '"I want to visit Jerusalem" -> places ["Jerusalem"], contextLocation null — no smaller place is named, so the city is the destination.',
+  '"תן לי טיול בעכו" -> places ["עכו"], contextLocation null — no smaller place is named, so the city is the destination.',
+  "If the text names no places at all, return an empty list and a null contextLocation.",
 ].join("\n");
 
 export interface GeocodedPlaceName {
@@ -46,11 +52,39 @@ export interface PlaceExtractionResult {
   unresolvedNames: string[];
 }
 
+/** What one extraction pass produces: the stops, plus where they are. */
+export interface PlaceExtraction {
+  places: string[];
+  /** Area named only as location context — used to bias the other lookups. */
+  contextLocation: string | null;
+}
+
 function toStringArray(value: unknown): string[] | null {
   if (!Array.isArray(value)) {
     return null;
   }
   return value.filter((item): item is string => typeof item === "string");
+}
+
+/**
+ * Turn a JSON-mode text reply — which may be wrapped in a markdown fence — into
+ * a value the field readers can inspect. Already-parsed input passes through.
+ */
+function toCandidate(input: unknown): unknown {
+  if (typeof input !== "string") {
+    return input;
+  }
+
+  const stripped = input
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  try {
+    return JSON.parse(stripped) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -61,20 +95,7 @@ function toStringArray(value: unknown): string[] | null {
  * of a 500.
  */
 export function parsePlaceNames(input: unknown): string[] {
-  let candidate: unknown = input;
-
-  if (typeof candidate === "string") {
-    const stripped = candidate
-      .trim()
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "")
-      .trim();
-    try {
-      candidate = JSON.parse(stripped) as unknown;
-    } catch {
-      return [];
-    }
-  }
+  const candidate = toCandidate(input);
 
   let names = toStringArray(candidate);
 
@@ -103,6 +124,46 @@ export function parsePlaceNames(input: unknown): string[] {
   }
 
   return result;
+}
+
+/**
+ * Read the optional context area off the same reply. Anything that isn't a
+ * usable string — a missing field, null, a number, an unparseable reply —
+ * becomes `null`, which the caller treats as "no context to bias with".
+ */
+export function parseContextLocation(input: unknown): string | null {
+  const candidate = toCandidate(input);
+
+  if (candidate === null || typeof candidate !== "object") {
+    return null;
+  }
+
+  const raw = (candidate as Record<string, unknown>).contextLocation;
+  if (typeof raw !== "string") {
+    return null;
+  }
+
+  return raw.trim().slice(0, MAX_NAME_LENGTH) || null;
+}
+
+/**
+ * Read both fields off one reply. The context area is dropped when it also
+ * appears in `places` — the model occasionally returns it twice, and biasing a
+ * search for a city by that same city is pointless.
+ */
+export function parsePlaceExtraction(input: unknown): PlaceExtraction {
+  const candidate = toCandidate(input);
+  const places = parsePlaceNames(candidate);
+  const contextLocation = parseContextLocation(candidate);
+
+  if (
+    contextLocation &&
+    places.some((name) => name.toLowerCase() === contextLocation.toLowerCase())
+  ) {
+    return { places, contextLocation: null };
+  }
+
+  return { places, contextLocation };
 }
 
 function toSlug(name: string): string {
