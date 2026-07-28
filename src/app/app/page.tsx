@@ -241,7 +241,12 @@ export default function HomePage() {
           }
         : null;
     if (snapshot) {
-      setPreviousPlan(snapshot);
+      // Keep the *first* snapshot of a re-plan chain. A "+15 min" retry is another
+      // automatic step on top of an already-adjusted plan, so overwriting here would
+      // make "back to previous route" land on an intermediate auto-generated plan
+      // instead of the route the walker deliberately started on. A user-initiated
+      // build clears it below, which is where a genuinely new chain begins.
+      setPreviousPlan((prev) => prev ?? snapshot);
     }
 
     stopWalkTracking();
@@ -559,20 +564,29 @@ export default function HomePage() {
     const keptIndices = snapshot.plan.orderedAttractions
       .map((a, i) => (visitedIds.has(a.id) ? -1 : i))
       .filter((i) => i >= 0);
-    const restoredPlan =
-      keptIndices.length === snapshot.plan.orderedAttractions.length
-        ? snapshot.plan
-        : {
-            ...snapshot.plan,
-            orderedAttractions: keptIndices.map(
-              (i) => snapshot.plan.orderedAttractions[i],
-            ),
-            // The results list pairs stop N with segment N. Trimming one list and
-            // not the other re-labels every surviving stop with someone else's leg.
-            segments: keptIndices
-              .map((i) => snapshot.plan.segments[i])
-              .filter((s) => s !== undefined),
-          };
+    let restoredPlan = snapshot.plan;
+    if (keptIndices.length !== snapshot.plan.orderedAttractions.length) {
+      const orderedAttractions = keptIndices.map(
+        (i) => snapshot.plan.orderedAttractions[i],
+      );
+      // The results list pairs stop N with segment N. Trimming one list and
+      // not the other re-labels every surviving stop with someone else's leg.
+      const segments = keptIndices
+        .map((i) => snapshot.plan.segments[i])
+        .filter((s) => s !== undefined);
+      // The snapshot's totals cover the whole original route, including the legs
+      // just trimmed — recompute them from what's actually left so the header
+      // matches the legs listed underneath it.
+      restoredPlan = {
+        ...snapshot.plan,
+        orderedAttractions,
+        segments,
+        totalDistanceMeters: segments.reduce((sum, s) => sum + s.distanceMeters, 0),
+        totalMinutes:
+          segments.reduce((sum, s) => sum + s.walkingMinutes, 0) +
+          orderedAttractions.reduce((sum, a) => sum + a.avgVisitMinutes, 0),
+      };
+    }
 
     showPlan(restoredPlan, snapshot.geometry);
     setCurrentPosition(resumePosition);
