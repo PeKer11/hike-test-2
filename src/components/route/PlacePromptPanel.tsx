@@ -9,6 +9,7 @@ interface ExtractPlacesResponse {
   extractedNames?: string[];
   attractions?: Attraction[];
   unresolvedNames?: string[];
+  durationMinutes?: number | null;
   error?: string;
 }
 
@@ -23,6 +24,12 @@ interface PlacePromptPanelProps {
   /** Keeps the map's candidate markers in sync with the list shown here. */
   onFoundPlacesChange: (attractions: Attraction[]) => void;
   /**
+   * Fired when the text stated how long the walk is ("I have three hours"), so
+   * the companion panel's time field can start from it. Nothing is fired when
+   * no duration was stated — the field keeps whatever it had.
+   */
+  onDurationDetected?: (minutes: number) => void;
+  /**
    * Mirrors the "Remember my preferences" setting. When true the same text is
    * also read for what the walker likes, and stored on their profile if they
    * are signed in. Defaults to off so nothing is learned unless asked for.
@@ -36,6 +43,7 @@ export function PlacePromptPanel({
   onAcceptAttractions,
   onPreview,
   onFoundPlacesChange,
+  onDurationDetected,
   learnPreferences = false,
 }: PlacePromptPanelProps) {
   const [prompt, setPrompt] = useState("");
@@ -81,6 +89,10 @@ export function PlacePromptPanel({
       onFoundPlacesChange(data.attractions ?? []);
       setUnresolvedNames(data.unresolvedNames ?? []);
       setHasResult(true);
+
+      if (typeof data.durationMinutes === "number") {
+        onDurationDetected?.(data.durationMinutes);
+      }
     } catch (extractError) {
       setError(
         extractError instanceof Error

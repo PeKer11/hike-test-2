@@ -4,12 +4,17 @@ import {
   buildExtractionResult,
   CANONICAL_NAME_SYSTEM_PROMPT,
   parseCanonicalName,
+  parseCategoryNeeds,
   parseContextLocation,
+  parseDurationMinutes,
   parsePlaceExtraction,
   parsePlaceNames,
+  pickNeedAttractions,
   PLACE_EXTRACTION_SYSTEM_PROMPT,
   toExplicitAttraction,
 } from "@/lib/places/place-extractor";
+import { ATTRACTION_CATEGORIES } from "@/lib/preferences/preference-extractor";
+import type { Attraction } from "@/lib/types";
 
 describe("PLACE_EXTRACTION_SYSTEM_PROMPT", () => {
   it("tells the model that an area named only as location context is not a stop", () => {
@@ -17,6 +22,31 @@ describe("PLACE_EXTRACTION_SYSTEM_PROMPT", () => {
     expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("'in <name>'");
     expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("'near <name>'");
     expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("'around <name>'");
+  });
+
+  it("asks for a duration only when the text states one unambiguously", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("'three hours' -> 180");
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "Never guess a duration that was not stated",
+    );
+  });
+
+  it("separates a need for a stop on this walk from a standing taste", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"אני גם רוצה לאכול משהו" -> categoryNeeds ["food"]',
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"אני אוהב דברים טבעיים" -> categoryNeeds [] — a taste',
+    );
+  });
+
+  it("lists every category the parser will accept", () => {
+    // The list is spelled out in the prompt rather than interpolated (circular
+    // import); this catches the two drifting apart.
+    for (const category of ATTRACTION_CATEGORIES) {
+      if (category === "other") continue;
+      expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(category);
+    }
   });
 
   it("keeps the area name when no more specific place is mentioned", () => {
@@ -171,13 +201,20 @@ describe("parsePlaceExtraction", () => {
     ).toEqual({
       places: ["מדרחוב", "גן טייל"],
       contextLocation: "זכרון יעקב",
+      durationMinutes: null,
+      categoryNeeds: [],
     });
   });
 
   it("leaves a bare city name as the only stop, with no context to bias by", () => {
     expect(
       parsePlaceExtraction({ places: ["עכו"], contextLocation: null }),
-    ).toEqual({ places: ["עכו"], contextLocation: null });
+    ).toEqual({
+      places: ["עכו"],
+      contextLocation: null,
+      durationMinutes: null,
+      categoryNeeds: [],
+    });
   });
 
   it("drops a context area the model also listed as a stop", () => {
@@ -186,14 +223,141 @@ describe("parsePlaceExtraction", () => {
         places: ["Jerusalem"],
         contextLocation: "jerusalem",
       }),
-    ).toEqual({ places: ["Jerusalem"], contextLocation: null });
+    ).toEqual({
+      places: ["Jerusalem"],
+      contextLocation: null,
+      durationMinutes: null,
+      categoryNeeds: [],
+    });
   });
 
   it("survives a blocked or unparseable response", () => {
     expect(parsePlaceExtraction("")).toEqual({
       places: [],
       contextLocation: null,
+      durationMinutes: null,
+      categoryNeeds: [],
     });
+  });
+});
+
+describe("parseDurationMinutes", () => {
+  it("reads a stated walk length", () => {
+    expect(parseDurationMinutes('{"durationMinutes": 180}')).toBe(180);
+  });
+
+  it("returns null when the model stated no duration", () => {
+    expect(parseDurationMinutes({ durationMinutes: null })).toBeNull();
+    expect(parseDurationMinutes({ places: [] })).toBeNull();
+  });
+
+  it("refuses a duration the model wrote as prose", () => {
+    expect(parseDurationMinutes({ durationMinutes: "three hours" })).toBeNull();
+  });
+
+  it("rounds a fractional answer to whole minutes", () => {
+    expect(parseDurationMinutes({ durationMinutes: 89.6 })).toBe(90);
+  });
+
+  it("refuses a value too small or too large to be a walk", () => {
+    expect(parseDurationMinutes({ durationMinutes: 0 })).toBeNull();
+    expect(parseDurationMinutes({ durationMinutes: -30 })).toBeNull();
+    expect(parseDurationMinutes({ durationMinutes: 2026 })).toBeNull();
+  });
+
+  it("survives a blocked or unparseable response", () => {
+    expect(parseDurationMinutes("")).toBeNull();
+    expect(parseDurationMinutes(["not an object"])).toBeNull();
+  });
+});
+
+describe("parseCategoryNeeds", () => {
+  it("reads the kinds of stop asked for without a name", () => {
+    expect(
+      parseCategoryNeeds('{"categoryNeeds": ["food", "religious"]}'),
+    ).toEqual(["food", "religious"]);
+  });
+
+  it("returns an empty list when nothing of the sort was asked for", () => {
+    expect(parseCategoryNeeds({ categoryNeeds: [] })).toEqual([]);
+    expect(parseCategoryNeeds({ places: ["Habima Square"] })).toEqual([]);
+  });
+
+  it("drops values that are not categories, and 'other'", () => {
+    expect(
+      parseCategoryNeeds({
+        categoryNeeds: ["food", "brunch", "other", 7, null],
+      }),
+    ).toEqual(["food"]);
+  });
+
+  it("keeps each category once and caps the list", () => {
+    expect(parseCategoryNeeds({ categoryNeeds: ["food", "food"] })).toEqual([
+      "food",
+    ]);
+    expect(
+      parseCategoryNeeds({
+        categoryNeeds: ["food", "park", "museum", "nature"],
+      }),
+    ).toHaveLength(3);
+  });
+
+  it("survives a blocked or unparseable response", () => {
+    expect(parseCategoryNeeds("")).toEqual([]);
+    expect(parseCategoryNeeds({ categoryNeeds: "food" })).toEqual([]);
+  });
+});
+
+describe("pickNeedAttractions", () => {
+  const ranked: Attraction[] = [
+    {
+      id: "osm-node-1",
+      name: "City Park",
+      coordinates: { lat: 1, lng: 1 },
+      category: "park",
+      avgVisitMinutes: 30,
+      tags: {},
+    },
+    {
+      id: "osm-node-2",
+      name: "Best Restaurant",
+      coordinates: { lat: 1, lng: 1 },
+      category: "food",
+      avgVisitMinutes: 45,
+      tags: { amenity: "restaurant" },
+    },
+    {
+      id: "osm-node-3",
+      name: "Second Restaurant",
+      coordinates: { lat: 1, lng: 1 },
+      category: "food",
+      avgVisitMinutes: 45,
+      tags: {},
+    },
+  ];
+
+  it("takes the best-ranked match for each need", () => {
+    expect(pickNeedAttractions(ranked, ["food"]).map((a) => a.name)).toEqual([
+      "Best Restaurant",
+    ]);
+  });
+
+  it("marks the stop as coming from a stated need", () => {
+    const [stop] = pickNeedAttractions(ranked, ["food"]);
+    expect(stop.tags.source).toBe("prompt-need");
+    expect(stop.tags.needCategory).toBe("food");
+    // The POI's own tags are kept alongside the marker.
+    expect(stop.tags.amenity).toBe("restaurant");
+  });
+
+  it("contributes nothing for a need with nothing nearby", () => {
+    expect(pickNeedAttractions(ranked, ["museum"])).toEqual([]);
+    expect(pickNeedAttractions([], ["food"])).toEqual([]);
+  });
+
+  it("never picks the same stop for two needs", () => {
+    const picked = pickNeedAttractions(ranked, ["food", "park"]);
+    expect(picked.map((a) => a.id)).toEqual(["osm-node-2", "osm-node-1"]);
   });
 });
 

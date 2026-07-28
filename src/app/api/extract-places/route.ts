@@ -5,13 +5,16 @@ import {
   resolveCanonicalName,
 } from "@/lib/api/gemini-client";
 import { searchPlaces } from "@/lib/api/nominatim-client";
+import { rankAttractions } from "@/lib/attractions/attraction-ranker";
+import { fetchAttractions } from "@/lib/attractions/overpass-client";
 import {
   buildExtractionResult,
+  pickNeedAttractions,
   type GeocodedPlaceName,
 } from "@/lib/places/place-extractor";
 import { learnPreferencesFromText } from "@/lib/preferences/preference-store";
 import { createClient } from "@/lib/supabase/server";
-import type { Coordinates } from "@/lib/types";
+import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
 
 interface ExtractPlacesRequest {
   prompt: string;
@@ -23,6 +26,14 @@ interface ExtractPlacesRequest {
 const MAX_PROMPT_LENGTH = 1000;
 // Nominatim allows 1 request/sec — geocode the names serially with a margin.
 const GEOCODE_DELAY_MS = 1100;
+
+// Same 2 km the City Walk Companion form defaults to, so a stop found for a
+// stated need is as reachable as one the open-mode search would have offered.
+const NEED_SEARCH_RADIUS_METERS = 2000;
+// Only used to bound how far the ranker will look when the walker did not say
+// how long they have; matches the form's default walk length and pace.
+const FALLBACK_WALK_MINUTES = 90;
+const NEED_RANKING_PACE_MIN_PER_KM = 15;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -88,7 +99,42 @@ async function canonicalNameFor(
 }
 
 /**
- * Second, optional job of this endpoint: notice what the walker likes, not just
+ * Find one real stop for each kind of place the walker asked for without naming
+ * one ("I also want to eat something"). Unlike the preference pass this is not
+ * about who the walker is — it is a one-off need for THIS walk, so it runs for
+ * everyone, signed in or not, and nothing is written anywhere.
+ *
+ * One Overpass call covers every need: the same POI set is ranked once and the
+ * best match per category is taken from it, so three needs still cost one
+ * request. Anything that goes wrong — no origin to search around, Overpass down,
+ * nothing of that kind nearby — silently contributes no stop, exactly like a
+ * name we could not geocode.
+ */
+async function findNeedAttractions(
+  categories: AttractionCategory[],
+  origin: Coordinates | undefined,
+  durationMinutes: number | null,
+): Promise<Attraction[]> {
+  if (categories.length === 0 || !origin) {
+    return [];
+  }
+
+  try {
+    const nearby = await fetchAttractions(origin, NEED_SEARCH_RADIUS_METERS);
+    const ranked = rankAttractions(nearby, {
+      origin,
+      preferredCategories: categories,
+      availableMinutes: durationMinutes ?? FALLBACK_WALK_MINUTES,
+      walkingPaceMinPerKm: NEED_RANKING_PACE_MIN_PER_KM,
+    });
+    return pickNeedAttractions(ranked, categories);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Third, optional job of this endpoint: notice what the walker likes, not just
  * where they want to go. Runs only for a signed-in walker who has left
  * preference learning on — a logged-out prompt is answered exactly as before,
  * with no session lookup turning into an error and no model call made.
@@ -141,7 +187,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     let bias = toBias(body.nearLocation);
-    const { places, contextLocation } = await extractPlaceNames(prompt);
+    const { places, contextLocation, durationMinutes, categoryNeeds } =
+      await extractPlaceNames(prompt);
 
     // Where the user says they want to walk beats where they happen to be
     // standing: geocode the area named in the prompt first, unbiased (it is the
@@ -190,13 +237,26 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const { attractions, unresolvedNames } = buildExtractionResult(entries);
 
+    // Searched around the same point the named stops were biased towards: the
+    // area the walker asked about if we could locate it, otherwise where they
+    // are standing.
+    const needAttractions = await findNeedAttractions(
+      categoryNeeds,
+      bias,
+      durationMinutes,
+    );
+
     await learnPreferences(prompt, body.learnPreferences);
 
     return NextResponse.json({
       extractedNames: places,
-      attractions,
+      attractions: [...attractions, ...needAttractions],
       unresolvedNames,
       contextLocation: contextLocation ?? null,
+      durationMinutes: durationMinutes ?? null,
+      // Reported so a need that found nothing is still visible when debugging —
+      // no UI reads this yet.
+      categoryNeeds,
     });
   } catch (error) {
     const message =

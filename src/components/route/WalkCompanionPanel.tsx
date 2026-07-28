@@ -21,6 +21,12 @@ interface WalkCompanionPanelProps {
   walkSettings: WalkSettings;
   onWalkSettingsChange: (s: Partial<WalkSettings>) => void;
   mapClickedCoords?: Coordinates | null;
+  /**
+   * A walk length read out of the free-text box ("I have three hours"). Fills
+   * the time field as a starting value each time a new one is detected — the
+   * walker can still type over it, and it is never re-applied on its own.
+   */
+  suggestedMinutes?: number | null;
   onLocationDetected?: (coords: Coordinates) => void;
   onStartWalk?: () => void;
   onStopWalk?: () => void;
@@ -53,6 +59,7 @@ export function WalkCompanionPanel({
   walkSettings,
   onWalkSettingsChange,
   mapClickedCoords,
+  suggestedMinutes,
   onLocationDetected,
   onStartWalk,
   onStopWalk,
@@ -80,6 +87,15 @@ export function WalkCompanionPanel({
     setLat(mapClickedCoords.lat.toFixed(6));
     setLng(mapClickedCoords.lng.toFixed(6));
   }, [mapClickedCoords]);
+
+  useEffect(() => {
+    if (typeof suggestedMinutes !== "number") {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAvailableMinutes(String(suggestedMinutes));
+  }, [suggestedMinutes]);
 
   const detectLocation = () => {
     setLocationError(null);

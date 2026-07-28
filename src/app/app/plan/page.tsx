@@ -172,6 +172,11 @@ export default function HomePage() {
   const [promptAttractions, setPromptAttractions] = useState<Attraction[] | null>(
     null,
   );
+  // Walk length read out of that same free text, handed to the companion panel
+  // as a starting value for its time field. Null until a prompt states one.
+  const [promptDurationMinutes, setPromptDurationMinutes] = useState<
+    number | null
+  >(null);
   // Candidate pins for the places currently listed in PlacePromptPanel — shown
   // until they either become real waypoints or the list they came from is gone.
   const [previewPlaces, setPreviewPlaces] = useState<Attraction[]>([]);
@@ -950,6 +955,7 @@ export default function HomePage() {
                   onAcceptAttractions={setPromptAttractions}
                   onPreview={(coordinates) => focusOn(coordinates, 16)}
                   onFoundPlacesChange={setPreviewPlaces}
+                  onDurationDetected={setPromptDurationMinutes}
                   learnPreferences={walkSettings.preferenceLearningEnabled}
                 />
               )}
@@ -978,6 +984,7 @@ export default function HomePage() {
                 walkSettings={walkSettings}
                 onWalkSettingsChange={setWalkSettings}
                 mapClickedCoords={mapClickedCoords}
+                suggestedMinutes={promptDurationMinutes}
                 onLocationDetected={(coords) => {
                   setCurrentPosition(coords);
                   focusOn(coords, 16);

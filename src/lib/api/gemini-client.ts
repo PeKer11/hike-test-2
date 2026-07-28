@@ -38,9 +38,21 @@ const PLACES_SCHEMA: Schema = {
       description:
         "City, town, neighbourhood, or region named only to say where the places are, or null.",
     },
+    durationMinutes: {
+      type: Type.INTEGER,
+      nullable: true,
+      description:
+        "Total walk length in whole minutes when the text states one unambiguously, or null.",
+    },
+    categoryNeeds: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING, enum: ATTRACTION_CATEGORIES },
+      description:
+        "Kinds of stop asked for on this walk without naming a place, for example food for 'I also want to eat'.",
+    },
   },
-  // `contextLocation` stays optional: most prompts have none, and a missing
-  // field parses to null just like an explicit one.
+  // Everything past `places` stays optional: most prompts have none of it, and a
+  // missing field parses to null / an empty list just like an explicit one.
   required: ["places"],
 };
 
@@ -91,8 +103,9 @@ function apiKeyOrThrow(): string {
 
 /**
  * Ask Gemini Flash-Lite to pull the named places out of a free-text prompt,
- * along with the area they sit in. Uses JSON mode with a response schema so the
- * answer arrives as structured JSON instead of prose we would have to regex.
+ * along with the area they sit in, how long the walk is, and any kind of stop
+ * asked for without a name. Uses JSON mode with a response schema so the answer
+ * arrives as structured JSON instead of prose we would have to regex.
  */
 export async function extractPlaceNames(
   prompt: string,

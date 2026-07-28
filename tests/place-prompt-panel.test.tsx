@@ -116,4 +116,69 @@ describe("PlacePromptPanel", () => {
     ).toBeNull();
     expect(screen.getByText(/You removed every place/)).toBeTruthy();
   });
+
+  it("hands a stated walk length up so the time field can start from it", async () => {
+    const onDurationDetected = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          attractions: [],
+          unresolvedNames: [],
+          durationMinutes: 180,
+        }),
+      })),
+    );
+
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        onDurationDetected={onDurationDetected}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "יש לי שלוש שעות" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+
+    await waitFor(() => expect(onDurationDetected).toHaveBeenCalledWith(180));
+  });
+
+  it("leaves the time field alone when no walk length was stated", async () => {
+    const onDurationDetected = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          attractions: FOUND,
+          unresolvedNames: [],
+          durationMinutes: null,
+        }),
+      })),
+    );
+
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        onDurationDetected={onDurationDetected}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "מדרחוב וגן טייל" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+
+    await screen.findByText("זכרון יעקב");
+    expect(onDurationDetected).not.toHaveBeenCalled();
+  });
 });

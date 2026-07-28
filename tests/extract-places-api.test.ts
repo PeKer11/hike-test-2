@@ -5,11 +5,23 @@ const mockResolveCanonicalName = vi.fn();
 const mockSearchPlaces = vi.fn();
 const mockGetUser = vi.fn();
 const mockLearnPreferencesFromText = vi.fn();
+const mockFetchAttractions = vi.fn();
 
 vi.mock("@/lib/api/gemini-client", () => ({
-  extractPlaceNames: (...args: unknown[]) => mockExtractPlaceNames(...args),
+  // The real `extractPlaceNames` always returns all four fields, so the mock
+  // fills in the two most tests do not care about rather than making every
+  // case restate them.
+  extractPlaceNames: async (...args: unknown[]) => ({
+    durationMinutes: null,
+    categoryNeeds: [],
+    ...((await mockExtractPlaceNames(...args)) as object),
+  }),
   resolveCanonicalName: (...args: unknown[]) =>
     mockResolveCanonicalName(...args),
+}));
+
+vi.mock("@/lib/attractions/overpass-client", () => ({
+  fetchAttractions: (...args: unknown[]) => mockFetchAttractions(...args),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -47,6 +59,8 @@ describe("POST /api/extract-places", () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
     mockLearnPreferencesFromText.mockReset();
     mockLearnPreferencesFromText.mockResolvedValue(null);
+    mockFetchAttractions.mockReset();
+    mockFetchAttractions.mockResolvedValue([]);
   });
 
   it("reports a name with no in-box match as unresolved", async () => {
@@ -296,5 +310,165 @@ describe("POST /api/extract-places", () => {
 
     expect(response.status).toBe(200);
     expect(body.attractions).toHaveLength(1);
+  });
+
+  it("returns a stated walk length so the time field can start from it", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: null,
+      durationMinutes: 180,
+    });
+
+    const response = await POST(postRequest({ prompt: "יש לי שלוש שעות" }));
+
+    expect((await response.json()).durationMinutes).toBe(180);
+  });
+
+  it("reports a null duration when the text states none", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: null,
+    });
+
+    const response = await POST(postRequest({ prompt: "a nice walk" }));
+
+    expect((await response.json()).durationMinutes).toBeNull();
+  });
+
+  it("finds a real stop for a stated need, around the context area", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: "זכרון יעקב",
+      categoryNeeds: ["food"],
+    });
+    // The context area geocode.
+    mockSearchPlaces.mockResolvedValueOnce([{ lat: "32.573", lon: "34.953" }]);
+    mockFetchAttractions.mockResolvedValueOnce([
+      {
+        id: "osm-node-1",
+        name: "עירית",
+        coordinates: { lat: 32.5731, lng: 34.9531 },
+        category: "park",
+        avgVisitMinutes: 30,
+        tags: {},
+      },
+      {
+        id: "osm-node-2",
+        name: "מסעדת הבית",
+        coordinates: { lat: 32.5732, lng: 34.9532 },
+        category: "food",
+        avgVisitMinutes: 45,
+        tags: { amenity: "restaurant" },
+      },
+    ]);
+
+    const response = await POST(
+      postRequest({ prompt: "אני גם רוצה לאכול משהו בזכרון יעקב" }),
+    );
+    const body = await response.json();
+
+    expect(mockFetchAttractions).toHaveBeenCalledWith(
+      { lat: 32.573, lng: 34.953 },
+      2000,
+    );
+    // The best-ranked food place, not the higher-scoring park.
+    expect(body.attractions).toHaveLength(1);
+    expect(body.attractions[0].name).toBe("מסעדת הבית");
+    expect(body.attractions[0].tags.source).toBe("prompt-need");
+    expect(body.attractions[0].tags.needCategory).toBe("food");
+  });
+
+  it("searches around the request's own location when no context area was named", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: null,
+      categoryNeeds: ["food"],
+    });
+
+    await POST(
+      postRequest({
+        prompt: "I also want to eat something",
+        nearLocation: { lat: 32.0736, lng: 34.7811 },
+      }),
+    );
+
+    expect(mockFetchAttractions).toHaveBeenCalledWith(
+      { lat: 32.0736, lng: 34.7811 },
+      2000,
+    );
+  });
+
+  it("does not search for POIs when the text states no need", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["Habima Square"],
+      contextLocation: null,
+    });
+    mockSearchPlaces.mockResolvedValueOnce([{ lat: "32.0736", lon: "34.7811" }]);
+
+    await POST(
+      postRequest({
+        prompt: "I want to go to Habima Square",
+        nearLocation: { lat: 32.0736, lng: 34.7811 },
+      }),
+    );
+
+    expect(mockFetchAttractions).not.toHaveBeenCalled();
+  });
+
+  it("skips the need search when there is nowhere to search around", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: null,
+      categoryNeeds: ["food"],
+    });
+
+    const response = await POST(
+      postRequest({ prompt: "I also want to eat something" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockFetchAttractions).not.toHaveBeenCalled();
+    expect((await response.json()).attractions).toEqual([]);
+  });
+
+  it("omits the need silently when the POI search fails", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: null,
+      categoryNeeds: ["food"],
+    });
+    mockFetchAttractions.mockRejectedValueOnce(new Error("Overpass down"));
+
+    const response = await POST(
+      postRequest({
+        prompt: "I also want to eat something",
+        nearLocation: { lat: 32.0736, lng: 34.7811 },
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.attractions).toEqual([]);
+    // Still reported, so a need that found nothing is visible when debugging.
+    expect(body.categoryNeeds).toEqual(["food"]);
+  });
+
+  it("searches for a need for a walker who is not signed in", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: null,
+      categoryNeeds: ["religious"],
+    });
+    mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+
+    await POST(
+      postRequest({
+        prompt: "show me a synagogue in the area",
+        nearLocation: { lat: 32.0736, lng: 34.7811 },
+      }),
+    );
+
+    // Unlike preference learning, an immediate need needs no login.
+    expect(mockFetchAttractions).toHaveBeenCalled();
   });
 });
