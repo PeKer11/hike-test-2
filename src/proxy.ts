@@ -13,7 +13,28 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  return updateSession(request);
+  const { response, user } = await updateSession(request);
+
+  // /app is the only gated area. Everything else — landing page, /login,
+  // /signup, /pricing, API routes — stays public.
+  const isGated =
+    request.nextUrl.pathname === "/app" ||
+    request.nextUrl.pathname.startsWith("/app/");
+
+  if (isGated && !user) {
+    const loginUrl = new URL("/login", request.url);
+    const redirect = NextResponse.redirect(loginUrl);
+
+    // Carry over any cookies the refresh above rotated, otherwise the response
+    // that actually reaches the browser would drop them.
+    for (const cookie of response.cookies.getAll()) {
+      redirect.cookies.set(cookie);
+    }
+
+    return redirect;
+  }
+
+  return response;
 }
 
 export const config = {

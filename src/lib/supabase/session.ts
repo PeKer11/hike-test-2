@@ -1,14 +1,22 @@
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getSupabasePublishableKey, getSupabaseUrl } from "./env";
+
+export interface UpdateSessionResult {
+  /** Response carrying any rotated auth cookies. */
+  response: NextResponse;
+  /** The signed-in user, or null when the request has no valid session. */
+  user: User | null;
+}
 
 // Refreshes the auth session and writes any rotated tokens back onto the
 // outgoing response. Server Components cannot set cookies, so without this
 // running on every request an expired token would never be renewed.
 export async function updateSession(
   request: NextRequest,
-): Promise<NextResponse> {
+): Promise<UpdateSessionResult> {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -41,7 +49,9 @@ export async function updateSession(
   );
 
   // Do not remove: this call is what actually triggers the token refresh.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return response;
+  return { response, user };
 }
