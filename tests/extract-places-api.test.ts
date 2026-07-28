@@ -3,11 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockExtractPlaceNames = vi.fn();
 const mockResolveCanonicalName = vi.fn();
 const mockSearchPlaces = vi.fn();
+const mockGetUser = vi.fn();
+const mockLearnPreferencesFromText = vi.fn();
 
 vi.mock("@/lib/api/gemini-client", () => ({
   extractPlaceNames: (...args: unknown[]) => mockExtractPlaceNames(...args),
   resolveCanonicalName: (...args: unknown[]) =>
     mockResolveCanonicalName(...args),
+}));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({ auth: { getUser: mockGetUser } }),
+}));
+
+vi.mock("@/lib/preferences/preference-store", () => ({
+  learnPreferencesFromText: (...args: unknown[]) =>
+    mockLearnPreferencesFromText(...args),
 }));
 
 vi.mock("@/lib/api/nominatim-client", () => ({
@@ -32,6 +43,10 @@ describe("POST /api/extract-places", () => {
     mockResolveCanonicalName.mockReset();
     mockResolveCanonicalName.mockResolvedValue(null);
     mockSearchPlaces.mockReset();
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockLearnPreferencesFromText.mockReset();
+    mockLearnPreferencesFromText.mockResolvedValue(null);
   });
 
   it("reports a name with no in-box match as unresolved", async () => {
@@ -215,5 +230,71 @@ describe("POST /api/extract-places", () => {
     expect(mockSearchPlaces).toHaveBeenCalledWith("עכו", 1, undefined);
     expect(body.contextLocation).toBeNull();
     expect(body.attractions.map((a: { name: string }) => a.name)).toEqual(["עכו"]);
+  });
+
+  it("reads the same text for preferences when learning is on", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: null,
+    });
+
+    const prompt = "אני מאד אוהב מקומות טבע, 90 דקות, לא יודע מה הקצב שלי";
+    await POST(postRequest({ prompt, learnPreferences: true }));
+
+    expect(mockLearnPreferencesFromText).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+      prompt,
+    );
+  });
+
+  it("learns nothing when the walker turned preference learning off", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["Habima Square"],
+      contextLocation: null,
+    });
+    mockSearchPlaces.mockResolvedValueOnce([{ lat: "32.0736", lon: "34.7811" }]);
+
+    const response = await POST(
+      postRequest({ prompt: "I want to go to Habima Square" }),
+    );
+
+    // Place extraction is unaffected — only the learning side is skipped.
+    expect((await response.json()).attractions).toHaveLength(1);
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(mockLearnPreferencesFromText).not.toHaveBeenCalled();
+  });
+
+  it("learns nothing for a walker who is not signed in", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: null,
+    });
+    mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+
+    const response = await POST(
+      postRequest({ prompt: "I love nature spots", learnPreferences: true }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockLearnPreferencesFromText).not.toHaveBeenCalled();
+  });
+
+  it("still answers with the places when the preference write blows up", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["Habima Square"],
+      contextLocation: null,
+    });
+    mockSearchPlaces.mockResolvedValueOnce([{ lat: "32.0736", lon: "34.7811" }]);
+    mockLearnPreferencesFromText.mockRejectedValueOnce(new Error("db down"));
+
+    const response = await POST(
+      postRequest({ prompt: "I love nature", learnPreferences: true }),
+    );
+
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.attractions).toHaveLength(1);
   });
 });

@@ -23,6 +23,10 @@ function sanitizeSettings(
         ? candidate.paceCheckIntervalMs
         : DEFAULT_WALK_SETTINGS.paceCheckIntervalMs,
     ),
+    preferenceLearningEnabled:
+      typeof candidate?.preferenceLearningEnabled === "boolean"
+        ? candidate.preferenceLearningEnabled
+        : DEFAULT_WALK_SETTINGS.preferenceLearningEnabled,
   };
 }
 

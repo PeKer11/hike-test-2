@@ -9,11 +9,15 @@ import {
   buildExtractionResult,
   type GeocodedPlaceName,
 } from "@/lib/places/place-extractor";
+import { learnPreferencesFromText } from "@/lib/preferences/preference-store";
+import { createClient } from "@/lib/supabase/server";
 import type { Coordinates } from "@/lib/types";
 
 interface ExtractPlacesRequest {
   prompt: string;
   nearLocation?: Coordinates;
+  /** Client-side "Remember my preferences" setting. Absent means off. */
+  learnPreferences?: boolean;
 }
 
 const MAX_PROMPT_LENGTH = 1000;
@@ -80,6 +84,38 @@ async function canonicalNameFor(
     return canonical;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Second, optional job of this endpoint: notice what the walker likes, not just
+ * where they want to go. Runs only for a signed-in walker who has left
+ * preference learning on — a logged-out prompt is answered exactly as before,
+ * with no session lookup turning into an error and no model call made.
+ *
+ * Nothing here can fail the request: the walker asked for places, and getting
+ * them must not depend on the profile write succeeding.
+ */
+async function learnPreferences(
+  prompt: string,
+  enabled: boolean | undefined,
+): Promise<void> {
+  if (enabled !== true) {
+    return;
+  }
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return;
+    }
+
+    await learnPreferencesFromText(supabase, user.id, prompt);
+  } catch {
+    // Supabase not configured, no session, or a failed write — all silent.
   }
 }
 
@@ -153,6 +189,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const { attractions, unresolvedNames } = buildExtractionResult(entries);
+
+    await learnPreferences(prompt, body.learnPreferences);
 
     return NextResponse.json({
       extractedNames: places,

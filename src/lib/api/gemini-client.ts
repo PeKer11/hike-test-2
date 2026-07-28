@@ -9,6 +9,12 @@ import {
   PLACE_EXTRACTION_SYSTEM_PROMPT,
   type PlaceExtraction,
 } from "@/lib/places/place-extractor";
+import {
+  ATTRACTION_CATEGORIES,
+  parseCategoryPreferences,
+  PREFERENCE_EXTRACTION_SYSTEM_PROMPT,
+  type CategoryPreference,
+} from "@/lib/preferences/preference-extractor";
 
 // Ariel picked Flash-Lite for this: the task is a short, cheap NER pass on one
 // sentence, latency sits in front of the user typing a prompt, and Google AI
@@ -51,6 +57,26 @@ const CANONICAL_NAME_SCHEMA: Schema = {
   // Left optional for the same reason as `contextLocation`: an omitted field
   // and an explicit null both mean "no better name", and both parse to null.
   required: [],
+};
+
+const PREFERENCES_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    preferences: {
+      type: Type.ARRAY,
+      description:
+        "Standing preferences about kinds of places that the text states clearly. Usually empty.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          category: { type: Type.STRING, enum: ATTRACTION_CATEGORIES },
+          sentiment: { type: Type.STRING, enum: ["like", "dislike"] },
+        },
+        required: ["category", "sentiment"],
+      },
+    },
+  },
+  required: ["preferences"],
 };
 
 function apiKeyOrThrow(): string {
@@ -119,4 +145,34 @@ export async function resolveCanonicalName(
   });
 
   return parseCanonicalName(response.text ?? "");
+}
+
+/**
+ * Pull the standing category preferences out of free text — the "name your own
+ * stops" box, or the post-walk "what did you like?" box. Deliberately a
+ * separate call from `extractPlaceNames` rather than an extra field on it:
+ *
+ * - place extraction runs for everyone, this runs only for a signed-in walker
+ *   who has left preference learning on, so folding them together would make
+ *   every logged-out prompt pay for a field nobody reads;
+ * - the post-walk box has no places to extract at all, and reusing one function
+ *   for both entry points keeps a single definition of what a preference is.
+ */
+export async function extractCategoryPreferences(
+  text: string,
+): Promise<CategoryPreference[]> {
+  const client = new GoogleGenAI({ apiKey: apiKeyOrThrow() });
+
+  const response = await client.models.generateContent({
+    model: MODEL,
+    contents: text,
+    config: {
+      systemInstruction: PREFERENCE_EXTRACTION_SYSTEM_PROMPT,
+      responseMimeType: "application/json",
+      responseSchema: PREFERENCES_SCHEMA,
+      maxOutputTokens: 256,
+    },
+  });
+
+  return parseCategoryPreferences(response.text ?? "");
 }

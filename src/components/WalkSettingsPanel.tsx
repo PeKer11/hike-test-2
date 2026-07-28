@@ -45,6 +45,25 @@ export function WalkSettingsPanel({
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-base text-slate-900 outline-none ring-emerald-500 transition focus:ring-2 sm:text-sm"
         />
       </label>
+
+      <div className="space-y-1 border-t border-slate-100 pt-3">
+        <label className="flex items-center justify-between gap-3 text-sm text-slate-700">
+          <span>Remember my preferences</span>
+          <input
+            type="checkbox"
+            checked={settings.preferenceLearningEnabled}
+            onChange={(event) =>
+              onChange({ preferenceLearningEnabled: event.target.checked })
+            }
+            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+          />
+        </label>
+        <p className="text-xs text-slate-500">
+          {settings.preferenceLearningEnabled
+            ? "On — what you say you like and how you rate your walks shapes the walks we build for you next."
+            : "Off — Traike won't learn your preferences, so future walks may feel less personalized."}
+        </p>
+      </div>
     </section>
   );
 }

@@ -113,7 +113,8 @@
 
 ### Not built yet — next session picks up here
 - [ ] Profile UI — the first-time onboarding questionnaire (categories, typical trip length, pace, solo/group) from the vault doc
-- [ ] Feedback UI — post-walk "liked / didn't like / skipped" capture writing to `attraction_feedback`
+- [x] Feedback UI — post-walk "did you like this walk?" (thumbs + optional free text) — `src/components/walk/WalkFeedbackCard.tsx` → `src/app/api/walk-feedback/route.ts`. Writes one **category-level** `attraction_feedback` row per category the walk contained (the table has no walk-level target). Per-POI "skipped" capture is still open.
+- [x] Preference learning from free text — `src/lib/preferences/preference-extractor.ts` (Gemini pass + merge logic) + `preference-store.ts` (RLS-scoped read-modify-write of `profiles.preferred_categories`). Fed by both the "name your own stops" box and the post-walk elaboration. Gated by the "Remember my preferences" setting (`WalkSettings.preferenceLearningEnabled`, default on) and by having a session.
 - [ ] Wire the stored profile back into `WalkCompanionPanel` defaults (pace, preferred categories) and into `walk-plan` scoring, replacing the hardcoded defaults
 - [ ] Decide the migration path from the existing localStorage profile idea (`CLAUDE.md` → "User Profile Schema") to Supabase for signed-in users
 - [ ] Generate DB types (`supabase gen types typescript`) and drop the `any` default on the client generics

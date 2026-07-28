@@ -97,7 +97,7 @@ function toStringArray(value: unknown): string[] | null {
  * Turn a JSON-mode text reply — which may be wrapped in a markdown fence — into
  * a value the field readers can inspect. Already-parsed input passes through.
  */
-function toCandidate(input: unknown): unknown {
+export function toCandidate(input: unknown): unknown {
   if (typeof input !== "string") {
     return input;
   }

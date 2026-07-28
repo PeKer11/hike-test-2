@@ -13,13 +13,15 @@ import {
   WalkPlanResults,
 } from "@/components/route";
 import { OffRouteNotification } from "@/components/walk/OffRouteNotification";
+import { WalkFeedbackCard } from "@/components/walk/WalkFeedbackCard";
 import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
-import type { Attraction, WalkPlan } from "@/lib/types";
+import type { Attraction, AttractionCategory, WalkPlan } from "@/lib/types";
 import { Button, Card } from "@/components/ui";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
   useConstraints,
   useHikeSearch,
+  useIsSignedIn,
   useMapInteraction,
   useRouteCalculation,
   useTrailIntelligence,
@@ -90,6 +92,12 @@ export default function HomePage() {
   const [walkPlanError, setWalkPlanError] = useState<string | null>(null);
   const [isWalkPlanLoading, setIsWalkPlanLoading] = useState(false);
   const { settings: walkSettings, setSettings: setWalkSettings } = useWalkSettings();
+  const isSignedIn = useIsSignedIn();
+  // Set when a walk ends: the categories that walk was made of, which is what
+  // the post-walk rating is recorded against. Null means "don't ask".
+  const [feedbackCategories, setFeedbackCategories] = useState<
+    AttractionCategory[] | null
+  >(null);
   const walkInputRef = useRef<WalkCompanionInput | null>(null);
   const walkStartTimeRef = useRef<number>(0);
   const latestPaceUpdateRef = useRef<PaceUpdate | null>(null);
@@ -173,6 +181,24 @@ export default function HomePage() {
   // "back to previous route" button would still be sitting there afterwards and
   // would restart tracking on a walk the user had already ended.
   const handleEndWalk = () => {
+    // Ask only about a walk that was actually walked, and only when there is
+    // somewhere to put the answer: signed in, with preference learning on.
+    // Asked before the teardown below, while the plan is still readable.
+    if (
+      walkPhase === "walking" &&
+      isSignedIn &&
+      walkSettings.preferenceLearningEnabled
+    ) {
+      const categories = [
+        ...new Set(
+          (walkPlanRef.current?.orderedAttractions ?? []).map((a) => a.category),
+        ),
+      ];
+      if (categories.length > 0) {
+        setFeedbackCategories(categories);
+      }
+    }
+
     stopWalkTracking();
     setPreviousPlan(null);
     setPinnedTimeWarning(null);
@@ -825,6 +851,14 @@ export default function HomePage() {
                   onAcceptAttractions={setPromptAttractions}
                   onPreview={(coordinates) => focusOn(coordinates, 16)}
                   onFoundPlacesChange={setPreviewPlaces}
+                  learnPreferences={walkSettings.preferenceLearningEnabled}
+                />
+              )}
+              {feedbackCategories && (
+                <WalkFeedbackCard
+                  categories={feedbackCategories}
+                  learnPreferences={walkSettings.preferenceLearningEnabled}
+                  onDismiss={() => setFeedbackCategories(null)}
                 />
               )}
               <WalkCompanionPanel

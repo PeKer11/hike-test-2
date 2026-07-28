@@ -22,6 +22,12 @@ interface PlacePromptPanelProps {
   onPreview: (coordinates: Coordinates, name: string) => void;
   /** Keeps the map's candidate markers in sync with the list shown here. */
   onFoundPlacesChange: (attractions: Attraction[]) => void;
+  /**
+   * Mirrors the "Remember my preferences" setting. When true the same text is
+   * also read for what the walker likes, and stored on their profile if they
+   * are signed in. Defaults to off so nothing is learned unless asked for.
+   */
+  learnPreferences?: boolean;
 }
 
 export function PlacePromptPanel({
@@ -30,6 +36,7 @@ export function PlacePromptPanel({
   onAcceptAttractions,
   onPreview,
   onFoundPlacesChange,
+  learnPreferences = false,
 }: PlacePromptPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [attractions, setAttractions] = useState<Attraction[]>([]);
@@ -60,6 +67,7 @@ export function PlacePromptPanel({
         body: JSON.stringify({
           prompt: trimmed,
           nearLocation: nearLocation ?? undefined,
+          learnPreferences,
         }),
       });
       const data = (await res.json()) as ExtractPlacesResponse;
