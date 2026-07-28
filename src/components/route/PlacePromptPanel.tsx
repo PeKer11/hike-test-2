@@ -18,12 +18,18 @@ interface PlacePromptPanelProps {
   /** Accepted places become `explicitAttractions` on the next walk build. */
   acceptedAttractions: Attraction[] | null;
   onAcceptAttractions: (attractions: Attraction[] | null) => void;
+  /** Fly the map to a found place so the user can check we got the right one. */
+  onPreview: (coordinates: Coordinates, name: string) => void;
+  /** Keeps the map's candidate markers in sync with the list shown here. */
+  onFoundPlacesChange: (attractions: Attraction[]) => void;
 }
 
 export function PlacePromptPanel({
   nearLocation,
   acceptedAttractions,
   onAcceptAttractions,
+  onPreview,
+  onFoundPlacesChange,
 }: PlacePromptPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [attractions, setAttractions] = useState<Attraction[]>([]);
@@ -44,6 +50,9 @@ export function PlacePromptPanel({
     setIsLoading(true);
     setError(null);
     setHasResult(false);
+    // Drop the previous run's pins now — a failed extraction must not leave the
+    // old candidates sitting on the map.
+    onFoundPlacesChange([]);
     try {
       const res = await fetch("/api/extract-places", {
         method: "POST",
@@ -61,6 +70,7 @@ export function PlacePromptPanel({
 
       setAttractions(data.attractions ?? []);
       setRemovedIds([]);
+      onFoundPlacesChange(data.attractions ?? []);
       setUnresolvedNames(data.unresolvedNames ?? []);
       setHasResult(true);
     } catch (extractError) {
@@ -115,21 +125,35 @@ export function PlacePromptPanel({
 
       {hasResult && selectedAttractions.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs font-medium text-slate-700">Found</p>
+          <p className="text-xs font-medium text-slate-700">
+            Found — tap a place to see it on the map
+          </p>
           <ul className="space-y-1">
             {selectedAttractions.map((attraction) => (
               <li
                 key={attraction.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100"
               >
-                {attraction.name}
+                <button
+                  type="button"
+                  onClick={() =>
+                    onPreview(attraction.coordinates, attraction.name)
+                  }
+                  className="flex-1 cursor-pointer text-left"
+                >
+                  {attraction.name}
+                </button>
                 <button
                   type="button"
                   aria-label={`Remove ${attraction.name}`}
-                  onClick={() =>
-                    setRemovedIds((current) => [...current, attraction.id])
-                  }
-                  className="text-sm leading-none text-slate-400 transition hover:text-rose-600"
+                  onClick={() => {
+                    const next = [...removedIds, attraction.id];
+                    setRemovedIds(next);
+                    onFoundPlacesChange(
+                      attractions.filter((a) => !next.includes(a.id)),
+                    );
+                  }}
+                  className="cursor-pointer text-sm leading-none text-slate-400 transition hover:text-rose-600"
                 >
                   ×
                 </button>

@@ -122,6 +122,9 @@ export default function HomePage() {
   const [promptAttractions, setPromptAttractions] = useState<Attraction[] | null>(
     null,
   );
+  // Candidate pins for the places currently listed in PlacePromptPanel — shown
+  // until they either become real waypoints or the list they came from is gone.
+  const [previewPlaces, setPreviewPlaces] = useState<Attraction[]>([]);
   const [recordedPointCount, setRecordedPointCount] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<Coordinates | null>(null);
@@ -190,6 +193,9 @@ export default function HomePage() {
     setIsOffRoute(false);
     setOffRouteDeviation(0);
     setWalkTrackingMessage(null);
+    // The candidates are in the plan now — they get numbered waypoint markers
+    // below, so the amber "not committed yet" pins would only duplicate them.
+    setPreviewPlaces([]);
     // Show attraction markers on the map
     clearWaypoints();
     clearRoute();
@@ -814,6 +820,8 @@ export default function HomePage() {
                   nearLocation={currentPosition ?? mapClickedCoords}
                   acceptedAttractions={promptAttractions}
                   onAcceptAttractions={setPromptAttractions}
+                  onPreview={(coordinates) => focusOn(coordinates, 16)}
+                  onFoundPlacesChange={setPreviewPlaces}
                 />
               )}
               <WalkCompanionPanel
@@ -1056,6 +1064,7 @@ export default function HomePage() {
                 clearRoute();
                 cancelSearch();
                 handleEndWalk();
+                setPreviewPlaces([]);
                 walkRecorderRef.current?.clear();
                 setRecordedPointCount(0);
               }}
@@ -1086,6 +1095,7 @@ export default function HomePage() {
           onMapClick={handleMapClick}
           currentPosition={currentPosition ?? undefined}
           followPosition={walkPhase === "walking"}
+          previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}
         />
       </section>
       </main>

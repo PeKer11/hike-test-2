@@ -10,8 +10,9 @@ import { useEffect } from "react";
 import { MapClickHandler } from "@/components/map/MapClickHandler";
 import { CurrentPositionMarker } from "@/components/map/CurrentPositionMarker";
 import { MapMarkers } from "@/components/map/MapMarkers";
+import { PreviewMarkers } from "@/components/map/PreviewMarkers";
 import { RoutePolyline } from "@/components/map/RoutePolyline";
-import type { Coordinates, Waypoint } from "@/lib/types";
+import type { Attraction, Coordinates, Waypoint } from "@/lib/types";
 
 interface MapViewProps {
   waypoints: Waypoint[];
@@ -21,6 +22,8 @@ interface MapViewProps {
   onMapClick: (coordinates: Coordinates) => void;
   currentPosition?: Coordinates;
   followPosition?: boolean;
+  /** Places found from free text but not accepted into a walk yet. */
+  previewPlaces?: Attraction[];
 }
 
 function MapViewport({ center, zoom }: { center: Coordinates; zoom: number }) {
@@ -87,6 +90,7 @@ export default function MapView({
   onMapClick,
   currentPosition,
   followPosition,
+  previewPlaces,
 }: MapViewProps) {
   return (
     <div className="absolute inset-0">
@@ -107,6 +111,7 @@ export default function MapView({
         followPosition={followPosition}
       />
       <MapMarkers waypoints={waypoints} />
+      <PreviewMarkers places={previewPlaces ?? []} />
       {currentPosition ? <CurrentPositionMarker position={currentPosition} /> : null}
       <RoutePolyline geometry={routeGeometry} />
       <MapClickHandler onMapClick={onMapClick} />

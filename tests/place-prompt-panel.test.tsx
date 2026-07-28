@@ -21,7 +21,11 @@ const FOUND: Attraction[] = [
   attraction("prompt-2-place", "זכרון יעקב"),
 ];
 
-function renderPanel(onAcceptAttractions = vi.fn()) {
+function renderPanel(
+  onAcceptAttractions = vi.fn(),
+  onPreview = vi.fn(),
+  onFoundPlacesChange = vi.fn(),
+) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => ({
@@ -35,6 +39,8 @@ function renderPanel(onAcceptAttractions = vi.fn()) {
       nearLocation={null}
       acceptedAttractions={null}
       onAcceptAttractions={onAcceptAttractions}
+      onPreview={onPreview}
+      onFoundPlacesChange={onFoundPlacesChange}
     />,
   );
 
@@ -78,6 +84,24 @@ describe("PlacePromptPanel", () => {
     );
 
     expect(onAcceptAttractions).toHaveBeenCalledWith([FOUND[0], FOUND[1]]);
+  });
+
+  it("previews a found place on the map when its name is clicked", async () => {
+    const onPreview = vi.fn();
+    renderPanel(vi.fn(), onPreview);
+
+    fireEvent.click(await screen.findByRole("button", { name: "גן טייל" }));
+
+    expect(onPreview).toHaveBeenCalledWith(FOUND[1].coordinates, "גן טייל");
+  });
+
+  it("reports the remaining places so stale pins leave the map", async () => {
+    const onFoundPlacesChange = vi.fn();
+    renderPanel(vi.fn(), vi.fn(), onFoundPlacesChange);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Remove זכרון יעקב" }));
+
+    expect(onFoundPlacesChange).toHaveBeenLastCalledWith([FOUND[0], FOUND[1]]);
   });
 
   it("hides the accept button once every place is removed", async () => {
