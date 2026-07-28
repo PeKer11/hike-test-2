@@ -27,6 +27,8 @@ export function PlacePromptPanel({
 }: PlacePromptPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [attractions, setAttractions] = useState<Attraction[]>([]);
+  // Extraction is fuzzy — the user drops the ones we got wrong before accepting.
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [unresolvedNames, setUnresolvedNames] = useState<string[]>([]);
   const [hasResult, setHasResult] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,6 +60,7 @@ export function PlacePromptPanel({
       }
 
       setAttractions(data.attractions ?? []);
+      setRemovedIds([]);
       setUnresolvedNames(data.unresolvedNames ?? []);
       setHasResult(true);
     } catch (extractError) {
@@ -70,6 +73,10 @@ export function PlacePromptPanel({
       setIsLoading(false);
     }
   };
+
+  const selectedAttractions = attractions.filter(
+    (attraction) => !removedIds.includes(attraction.id),
+  );
 
   return (
     <Card className="space-y-3">
@@ -106,16 +113,26 @@ export function PlacePromptPanel({
         <p className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">{error}</p>
       )}
 
-      {hasResult && attractions.length > 0 && (
+      {hasResult && selectedAttractions.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs font-medium text-slate-700">Found</p>
           <ul className="space-y-1">
-            {attractions.map((attraction) => (
+            {selectedAttractions.map((attraction) => (
               <li
                 key={attraction.id}
-                className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
               >
                 {attraction.name}
+                <button
+                  type="button"
+                  aria-label={`Remove ${attraction.name}`}
+                  onClick={() =>
+                    setRemovedIds((current) => [...current, attraction.id])
+                  }
+                  className="text-sm leading-none text-slate-400 transition hover:text-rose-600"
+                >
+                  ×
+                </button>
               </li>
             ))}
           </ul>
@@ -151,14 +168,18 @@ export function PlacePromptPanel({
               Clear these stops
             </Button>
           </div>
-        ) : (
+        ) : selectedAttractions.length > 0 ? (
           <Button
             variant="secondary"
             fullWidth
-            onClick={() => onAcceptAttractions(attractions)}
+            onClick={() => onAcceptAttractions(selectedAttractions)}
           >
             Use these stops in my walk
           </Button>
+        ) : (
+          <p className="text-xs text-slate-500">
+            You removed every place — search again to start over.
+          </p>
         ))}
     </Card>
   );

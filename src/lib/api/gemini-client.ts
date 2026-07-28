@@ -2,7 +2,10 @@ import "server-only";
 
 import { GoogleGenAI, Type, type Schema } from "@google/genai";
 
-import { parsePlaceNames } from "@/lib/places/place-extractor";
+import {
+  parsePlaceNames,
+  PLACE_EXTRACTION_SYSTEM_PROMPT,
+} from "@/lib/places/place-extractor";
 
 // Ariel picked Flash-Lite for this: the task is a short, cheap NER pass on one
 // sentence, latency sits in front of the user typing a prompt, and Google AI
@@ -11,16 +14,6 @@ import { parsePlaceNames } from "@/lib/places/place-extractor";
 // projects); the "-latest" alias auto-follows Google's current stable
 // Flash-Lite release instead of needing a manual bump each time.
 const MODEL = "gemini-flash-lite-latest";
-
-const SYSTEM_PROMPT = [
-  "You extract place names from a walker's free-text description of where they want to go.",
-  "Return the places in the order the user mentioned them.",
-  "Keep the user's own wording (for example 'Habima Square', 'the Jaffa port').",
-  "Drop leading articles, and shorten a vague description to a searchable phrase",
-  "(for example 'a good market' becomes 'market').",
-  "Ignore anything that is not a place: durations, pace, moods, and general chatter.",
-  "If the text names no places at all, return an empty list.",
-].join(" ");
 
 const PLACES_SCHEMA: Schema = {
   type: Type.OBJECT,
@@ -53,7 +46,7 @@ export async function extractPlaceNames(prompt: string): Promise<string[]> {
     model: MODEL,
     contents: prompt,
     config: {
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: PLACE_EXTRACTION_SYSTEM_PROMPT,
       responseMimeType: "application/json",
       responseSchema: PLACES_SCHEMA,
       maxOutputTokens: 512,

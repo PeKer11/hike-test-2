@@ -10,6 +10,32 @@ const MAX_NAME_LENGTH = 120;
 // the Overpass category defaults.
 const DEFAULT_VISIT_MINUTES = 30;
 
+/**
+ * System instruction for the Gemini extraction pass. It lives here rather than
+ * in `gemini-client.ts` so it can be asserted on in tests — that module is
+ * `server-only` and cannot be imported from the test runner.
+ *
+ * The general-vs-specific block exists because live testing showed the model
+ * returning the city ("זכרון יעקב" in "the מדרחוב and גן טייל in זכרון יעקב")
+ * as a stop of its own. The distinction is fuzzy, so it is taught by example.
+ */
+export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
+  "You extract place names from a walker's free-text description of where they want to go.",
+  "Return the places in the order the user mentioned them.",
+  "Keep the user's own wording (for example 'Habima Square', 'the Jaffa port').",
+  "Drop leading articles, and shorten a vague description to a searchable phrase (for example 'a good market' becomes 'market').",
+  "Ignore anything that is not a place: durations, pace, moods, and general chatter.",
+  "A city, town, neighbourhood, or region named only to say WHERE the other places are is context, not a destination — leave it out.",
+  "Rule of thumb: a name introduced with 'in <name>', 'near <name>', 'around <name>', 'ב<name>' or 'ליד <name>' that locates the other named places is context.",
+  "Keep such an area name only when the text names no smaller or more specific place at all — then the area itself is the one destination.",
+  "Examples:",
+  '"I want to go to Habima Square and the Carmel Market in Tel Aviv" -> ["Habima Square", "Carmel Market"] — Tel Aviv only says where those stops are.',
+  '"אני רוצה ללכת למדרחוב ולגן טייל בזכרון יעקב" -> ["מדרחוב", "גן טייל"] — זכרון יעקב only says where those stops are.',
+  '"I want to visit Jerusalem" -> ["Jerusalem"] — no smaller place is named, so the city is the destination.',
+  '"תן לי טיול בעכו" -> ["עכו"] — no smaller place is named, so the city is the destination.',
+  "If the text names no places at all, return an empty list.",
+].join("\n");
+
 export interface GeocodedPlaceName {
   name: string;
   coordinates: Coordinates | null;

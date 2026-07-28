@@ -3,8 +3,38 @@ import { describe, expect, it } from "vitest";
 import {
   buildExtractionResult,
   parsePlaceNames,
+  PLACE_EXTRACTION_SYSTEM_PROMPT,
   toExplicitAttraction,
 } from "@/lib/places/place-extractor";
+
+describe("PLACE_EXTRACTION_SYSTEM_PROMPT", () => {
+  it("tells the model that an area named only as location context is not a stop", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("context, not a destination");
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("'in <name>'");
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("'near <name>'");
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("'around <name>'");
+  });
+
+  it("keeps the area name when no more specific place is mentioned", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "only when the text names no smaller or more specific place at all",
+    );
+  });
+
+  it("shows both sides of the distinction as examples", () => {
+    // (a) smaller places named -> the city is dropped.
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"I want to go to Habima Square and the Carmel Market in Tel Aviv" -> ["Habima Square", "Carmel Market"]',
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"אני רוצה ללכת למדרחוב ולגן טייל בזכרון יעקב" -> ["מדרחוב", "גן טייל"]',
+    );
+    // (b) nothing smaller named -> the city is the one destination.
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"I want to visit Jerusalem" -> ["Jerusalem"]',
+    );
+  });
+});
 
 describe("parsePlaceNames", () => {
   it("reads the JSON-mode response shape", () => {
