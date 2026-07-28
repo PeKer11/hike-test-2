@@ -79,6 +79,10 @@ export default function HomePage() {
   const walkInputRef = useRef<WalkCompanionInput | null>(null);
   const walkStartTimeRef = useRef<number>(0);
   const latestPaceUpdateRef = useRef<PaceUpdate | null>(null);
+  // PaceChecker fires on every tick the walker is slow, and auto-resume restarts it
+  // after each rebuild — so without this latch a persistently slow walker would
+  // re-plan (Overpass + ORS) forever. One auto re-plan per user-started walk.
+  const autoRebuildUsedRef = useRef(false);
   const walkTrackerRef = useRef<WalkTracker | SimulatedWalkTracker | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const paceCheckerRef = useRef<PaceChecker | null>(null);
@@ -147,6 +151,9 @@ export default function HomePage() {
     setLastWalkInput(input);
     walkStartTimeRef.current = Date.now();
     latestPaceUpdateRef.current = null;
+    if (!options?.autoResume) {
+      autoRebuildUsedRef.current = false;
+    }
     setCurrentPosition(input.origin);
 
     buildWalkRequestIdRef.current += 1;
@@ -245,6 +252,9 @@ export default function HomePage() {
 
     stopWalkTracking();
     latestPaceUpdateRef.current = null;
+    if (!planOverride) {
+      autoRebuildUsedRef.current = false;
+    }
     setRecordedPointCount(0);
     setCurrentPosition(initialPosition);
     setIsOffRoute(false);
@@ -367,6 +377,8 @@ export default function HomePage() {
         // This ref closure captures the live walkPhase via the setter comparison below
         // We re-read walkPhase by checking the tracker is still active
         if (walkTrackerRef.current === null) return;
+        if (autoRebuildUsedRef.current) return;
+        autoRebuildUsedRef.current = true;
         const elapsedMinutes = (Date.now() - walkStartTimeRef.current) / 60_000;
         const remainingMinutes = Math.max(15, orig.availableMinutes - elapsedMinutes);
         const currentPos = latestPaceUpdateRef.current?.currentPosition ?? orig.origin;
