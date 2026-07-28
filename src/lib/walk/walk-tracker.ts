@@ -147,10 +147,16 @@ export class WalkTracker {
     const first = this.samples[0];
     const last = this.samples[this.samples.length - 1];
 
-    const distMeters = haversineDistance(
-      first.coordinates,
-      last.coordinates,
-    );
+    // Sum the distance walked between consecutive samples. Measuring the straight
+    // line from the first to the last sample under-counts every turn in the path
+    // and makes the walker look slower than they are (false slow-pace rebuilds).
+    let distMeters = 0;
+    for (let i = 1; i < this.samples.length; i += 1) {
+      distMeters += haversineDistance(
+        this.samples[i - 1].coordinates,
+        this.samples[i].coordinates,
+      );
+    }
     if (distMeters < MIN_DISTANCE_FOR_PACE_METERS) return null;
 
     const durationMs = last.timestamp - first.timestamp;

@@ -15,8 +15,10 @@ function hasFiniteCoords(p: Point): boolean {
   return Number.isFinite(p.coordinates.lat) && Number.isFinite(p.coordinates.lng);
 }
 
+// Callers must pass attractions that already passed `hasFiniteCoords`, otherwise
+// the matrix indices stop lining up with the caller's attraction array.
 function buildMatrix(origin: Point, attractions: Attraction[]): number[][] {
-  const nodes: Point[] = [origin, ...attractions.filter(hasFiniteCoords)];
+  const nodes: Point[] = [origin, ...attractions];
   const n = nodes.length;
   const matrix: number[][] = Array.from({ length: n }, () => new Array<number>(n).fill(0));
 
@@ -132,7 +134,8 @@ export function planWalkOrderDebug(
   candidates: Attraction[],
 ): TspDebugResult {
   const originPoint = { coordinates: request.origin };
-  const matrix = buildMatrix(originPoint, candidates);
+  const plottable = candidates.filter(hasFiniteCoords);
+  const matrix = buildMatrix(originPoint, plottable);
   const n = matrix.length;
   const nnTourIndices = nearestNeighbor(matrix, n);
   const optimizedTourIndices = twoOpt([...nnTourIndices], matrix, 0);
@@ -141,7 +144,7 @@ export function planWalkOrderDebug(
 
   const allNodes = [
     { label: "Start", coordinates: request.origin },
-    ...candidates.map((a) => ({ label: a.name, coordinates: a.coordinates })),
+    ...plottable.map((a) => ({ label: a.name, coordinates: a.coordinates })),
   ];
 
   return {
@@ -156,8 +159,12 @@ export function planWalkOrder(
 ): TspResult {
   const { origin, availableMinutes, walkingPaceMinPerKm } = request;
   const originPoint = { coordinates: origin };
+  // Attractions with broken coordinates can't be ordered or measured — keep them
+  // out of the matrix (and out of the tour) so matrix indices stay aligned.
+  const usable = candidates.filter(hasFiniteCoords);
+  const unusable = candidates.filter((a) => !hasFiniteCoords(a));
 
-  if (candidates.length === 0) {
+  if (usable.length === 0) {
     return {
       orderedAttractions: [],
       segments: [],
@@ -165,13 +172,13 @@ export function planWalkOrder(
       totalWalkingMinutes: 0,
       totalVisitMinutes: 0,
       feasible: false,
-      droppedAttractions: [],
+      droppedAttractions: unusable,
     };
   }
 
   // Build distance matrix: index 0 = origin, 1..n = attractions
-  const matrix = buildMatrix(originPoint, candidates);
-  const n = matrix.length; // 1 (origin) + candidates.length
+  const matrix = buildMatrix(originPoint, usable);
+  const n = matrix.length; // 1 (origin) + usable.length
 
   // Get initial order via Nearest Neighbor
   let tourIndices = nearestNeighbor(matrix, n);
@@ -179,14 +186,19 @@ export function planWalkOrder(
   // Improve with 2-opt
   tourIndices = twoOpt(tourIndices, matrix, 0);
 
-  // tourIndices are 1-based indices into [origin, ...candidates]
-  const ordered = tourIndices.map((i) => candidates[i - 1]);
+  // tourIndices are 1-based indices into [origin, ...usable]
+  const ordered = tourIndices.map((i) => usable[i - 1]);
 
   // Build segments and check feasibility.
   // Before dropping an over-budget attraction, try inserting it at earlier positions
   // in the already-accepted list — keep it if any earlier slot fits within budget.
   const feasibleAttractions: Attraction[] = [];
-  const droppedAttractions: Attraction[] = [];
+  // Unusable coordinates, plus anything Nearest Neighbor could not reach, are
+  // dropped up front rather than disappearing from the result silently.
+  const droppedAttractions: Attraction[] = [
+    ...unusable,
+    ...usable.filter((a) => !ordered.includes(a)),
+  ];
 
   for (const attraction of ordered) {
     // Try appending at the current end first

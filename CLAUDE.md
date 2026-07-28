@@ -24,7 +24,7 @@ Ship the user profile + feedback loop. That's the difference between a route pla
 - OpenRouteService (ORS) — directions + VROOM optimization
 - Overpass API — POI discovery (with mirror fallback)
 - Nominatim — geocoding (1 req/sec, 500ms debounce)
-- Vitest — 36 unit tests passing
+- Vitest — 86 unit tests passing
 
 ---
 

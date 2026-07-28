@@ -11,7 +11,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json([]);
     }
 
-    const results = await searchPlaces(query, Number.isNaN(limit) ? 5 : limit);
+    // Nominatim is a rate-limited shared service — never forward an arbitrary limit.
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.floor(limit), 1), 10)
+      : 5;
+    const results = await searchPlaces(query, safeLimit);
     return NextResponse.json(results);
   } catch (error) {
     const message =

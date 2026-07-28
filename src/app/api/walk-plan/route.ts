@@ -27,9 +27,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     const { lat, lng, availableMinutes } = body;
 
     if (
-      typeof lat !== "number" ||
-      typeof lng !== "number" ||
-      typeof availableMinutes !== "number" ||
+      !Number.isFinite(lat) ||
+      lat < -90 ||
+      lat > 90 ||
+      !Number.isFinite(lng) ||
+      lng < -180 ||
+      lng > 180 ||
+      !Number.isFinite(availableMinutes) ||
       availableMinutes <= 0
     ) {
       return NextResponse.json(
@@ -39,8 +43,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const origin = { lat, lng };
-    const walkingPaceMinPerKm = body.walkingPaceMinPerKm ?? 15;
-    const radiusMeters = body.radiusMeters ?? 2000;
+    const requestedPace = body.walkingPaceMinPerKm ?? 15;
+    const walkingPaceMinPerKm =
+      Number.isFinite(requestedPace) && requestedPace > 0 ? requestedPace : 15;
+    // Clamp the Overpass search radius — an unbounded value from the client
+    // turns into an enormous query against a shared public API.
+    const requestedRadius = body.radiusMeters ?? 2000;
+    const radiusMeters = Number.isFinite(requestedRadius)
+      ? Math.min(Math.max(requestedRadius, 100), 10_000)
+      : 2000;
 
     // 1. Fetch raw attractions from Overpass
     const raw = await fetchAttractions(origin, radiusMeters);

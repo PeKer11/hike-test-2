@@ -87,6 +87,8 @@ export default function HomePage() {
   const [poiAlert, setPoiAlert] = useState<PoiAlert | null>(null);
   const poiAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buildWalkRequestIdRef = useRef(0);
+  // Bumped whenever an in-flight hike search must be abandoned (clear / mode switch / unmount)
+  const hikeSearchTokenRef = useRef(0);
   const lastGpsUpdateRef = useRef<number>(0);
   const walkGeometryRef = useRef<Coordinates[]>([]);
   const [lastWalkInput, setLastWalkInput] = useState<WalkCompanionInput | null>(null);
@@ -121,6 +123,7 @@ export default function HomePage() {
       clearTimeout(poiAlertTimeoutRef.current);
       poiAlertTimeoutRef.current = null;
     }
+    lastGpsUpdateRef.current = 0;
     setIsRecording(false);
     setCurrentPosition(null);
     setRemainingGeometry([]);
@@ -132,7 +135,13 @@ export default function HomePage() {
     setPoiAlert(null);
   };
 
-  const handleBuildWalk = async (input: WalkCompanionInput) => {
+  // `autoResume` is set only by the pace-triggered rebuild below: after a slow-pace
+  // re-plan we jump straight back into live tracking instead of dropping the walker
+  // on the "planned" screen. User-initiated rebuilds keep the manual Start Walk step.
+  const handleBuildWalk = async (
+    input: WalkCompanionInput,
+    options?: { autoResume?: boolean },
+  ) => {
     stopWalkTracking();
     walkInputRef.current = input;
     setLastWalkInput(input);
@@ -185,7 +194,10 @@ export default function HomePage() {
           isStart: i === 0,
           isEnd: i === data.orderedAttractions.length - 1,
         }));
-        attractionWaypoints.forEach((w) => addWaypoint(w));
+        // Set them directly: addWaypoint would mint fresh ids and drop the
+        // required/isStart/isEnd flags, leaving the markers out of sync with
+        // the route waypoints handed to applyRoute below.
+        setWaypoints(attractionWaypoints);
         // If ORS returned geometry, show the route line on the map
         if (data.geometry && data.geometry.length > 0) {
           applyRoute({
@@ -200,6 +212,11 @@ export default function HomePage() {
         if (data.orderedAttractions[0]) {
           focusOn(data.orderedAttractions[0].coordinates, 14);
         }
+        // Pace-triggered rebuild: resume live tracking on the new route without
+        // making the walker press "Start Walk" again.
+        if (options?.autoResume && data.feasible && (data.geometry?.length ?? 0) >= 2) {
+          handleStartWalk(data);
+        }
       }
     } catch {
       if (requestId !== buildWalkRequestIdRef.current) return;
@@ -211,14 +228,17 @@ export default function HomePage() {
     }
   };
 
-  const handleStartWalk = () => {
-    if (!walkPlan || walkGeometryRef.current.length === 0) {
+  // `planOverride` is passed by the auto-resume path, where `walkPlan` state has just
+  // been set and this closure would still read the previous (null) value.
+  const handleStartWalk = (planOverride?: WalkPlan) => {
+    const plan = planOverride ?? walkPlan;
+    if (!plan || walkGeometryRef.current.length < 2) {
       setWalkPlanError("Build a walk plan before starting live tracking.");
       return;
     }
 
     const initialPosition =
-      currentPosition ??
+      (planOverride ? walkInputRef.current?.origin : currentPosition) ??
       walkInputRef.current?.origin ??
       walkGeometryRef.current[0] ??
       null;
@@ -248,7 +268,7 @@ export default function HomePage() {
       setRemainingGeometry(walkGeometryRef.current);
     }
 
-    const attractions = walkPlan?.orderedAttractions ?? [];
+    const attractions = plan.orderedAttractions;
 
     // Instantiate PoiAlerter for this walk session (CRITICAL-1)
     const alerter = new PoiAlerter();
@@ -350,11 +370,14 @@ export default function HomePage() {
         const elapsedMinutes = (Date.now() - walkStartTimeRef.current) / 60_000;
         const remainingMinutes = Math.max(15, orig.availableMinutes - elapsedMinutes);
         const currentPos = latestPaceUpdateRef.current?.currentPosition ?? orig.origin;
-        void handleBuildWalk({
-          ...orig,
-          origin: currentPos,
-          availableMinutes: remainingMinutes,
-        });
+        void handleBuildWalk(
+          {
+            ...orig,
+            origin: currentPos,
+            availableMinutes: remainingMinutes,
+          },
+          { autoResume: true },
+        );
       },
     );
     paceCheckerRef.current = checker;
@@ -365,6 +388,26 @@ export default function HomePage() {
   useEffect(() => {
     paceCheckerRef.current?.updateSettings(walkSettings);
   }, [walkSettings]);
+
+  // Tear down the GPS watch, timers and in-flight searches if the page unmounts mid-walk
+  useEffect(() => {
+    return () => {
+      hikeSearchTokenRef.current += 1;
+      buildWalkRequestIdRef.current += 1;
+      paceCheckerRef.current?.stop();
+      walkTrackerRef.current?.stop();
+      walkRecorderRef.current?.stop();
+      if (poiAlertTimeoutRef.current !== null) {
+        clearTimeout(poiAlertTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Abandon any in-flight hike search when the user leaves the hike-search mode
+  const changePlannerMode = (mode: PlannerMode) => {
+    hikeSearchTokenRef.current += 1;
+    setPlannerMode(mode);
+  };
 
   const handleMapClick = (coordinates: Coordinates) => {
     if (plannerMode === "hike-search") {
@@ -442,19 +485,19 @@ export default function HomePage() {
             <div className="grid grid-cols-3 gap-2">
               <Button
                 variant={plannerMode === "manual" ? "primary" : "secondary"}
-                onClick={() => setPlannerMode("manual")}
+                onClick={() => changePlannerMode("manual")}
               >
                 Manual
               </Button>
               <Button
                 variant={plannerMode === "hike-search" ? "primary" : "secondary"}
-                onClick={() => setPlannerMode("hike-search")}
+                onClick={() => changePlannerMode("hike-search")}
               >
                 Hike
               </Button>
               <Button
                 variant={plannerMode === "walk-companion" ? "primary" : "secondary"}
-                onClick={() => setPlannerMode("walk-companion")}
+                onClick={() => changePlannerMode("walk-companion")}
               >
                 City Walk
               </Button>
@@ -653,6 +696,8 @@ export default function HomePage() {
               }) => {
                 void (async () => {
                   cancelSearch();
+                  hikeSearchTokenRef.current += 1;
+                  const searchToken = hikeSearchTokenRef.current;
                   const searchConstraints =
                     maxDistanceKm && maxDistanceKm > 0
                       ? {
@@ -691,7 +736,8 @@ export default function HomePage() {
                     searchConstraints,
                   );
 
-                  if (!result) {
+                  // Abort if the state was cleared or the mode switched mid-flight
+                  if (searchToken !== hikeSearchTokenRef.current || !result) {
                     return;
                   }
 
@@ -710,6 +756,7 @@ export default function HomePage() {
             <Button
               variant="ghost"
               onClick={() => {
+                hikeSearchTokenRef.current += 1;
                 clearRoute();
               }}
             >

@@ -72,6 +72,19 @@ describe("planWalkOrder", () => {
     expect(result.totalDistanceMeters).toBeCloseTo(segTotal, 1);
   });
 
+  it("drops attractions with broken coordinates without shifting the others", () => {
+    const broken = makeAttraction("broken", Number.NaN, 34.781);
+    const attractions = [
+      broken,
+      makeAttraction("a", 32.081, 34.781),
+      makeAttraction("b", 32.082, 34.782),
+    ];
+    const result = planWalkOrder(baseRequest, attractions);
+    expect(result.orderedAttractions.map((a) => a.id).sort()).toEqual(["a", "b"]);
+    expect(result.droppedAttractions.map((a) => a.id)).toContain("broken");
+    expect(result.segments.every((s) => Number.isFinite(s.distanceMeters))).toBe(true);
+  });
+
   it("first segment always starts from origin", () => {
     const attractions = [
       makeAttraction("a", 32.081, 34.781),

@@ -150,6 +150,12 @@ async function calculateViaDirections(waypoints: Waypoint[]): Promise<Calculated
   }
 
   const geometry = decodePolyline(route.geometry);
+  if (geometry.length < 2) {
+    throw new Error(
+      "The routing service returned an empty walking route. Try moving waypoints closer to a road or trail.",
+    );
+  }
+
   const segmentSummaries = route.segments;
   const wayPointIndices = route.way_points;
   const segments: RouteSegment[] = [];
@@ -274,6 +280,13 @@ async function calculateViaOptimization(
     );
   }
 
+  const geometry = aggregateGeometry(segments);
+  if (geometry.length < 2) {
+    throw new Error(
+      "The optimized route has no usable walking path. Try moving waypoints closer to a road or trail.",
+    );
+  }
+
   const totalDistanceMeters = segments.reduce(
     (sum, segment) => sum + segment.distanceMeters,
     0,
@@ -286,7 +299,7 @@ async function calculateViaOptimization(
   return {
     orderedWaypoints,
     segments,
-    geometry: aggregateGeometry(segments),
+    geometry,
     totalDistanceMeters,
     totalDurationSeconds,
     warnings,

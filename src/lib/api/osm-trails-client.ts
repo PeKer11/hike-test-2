@@ -125,9 +125,11 @@ function relationToTrail(rel: OverpassRelation): RtgTrail | null {
   const geometry = assembleGeometry(rel.members);
   if (geometry.length < 3) return null;
 
-  // Use OSM-reported distance if available, otherwise compute from geometry
+  // Use OSM-reported distance if available, otherwise compute from geometry.
+  // Only `distance` is used: it is documented as kilometres on route relations,
+  // while `length` is metres, so mixing them inflates trails 1000x.
   let lengthMeters: number;
-  const osmDistance = tags.distance ?? tags.length;
+  const osmDistance = tags.distance;
   if (osmDistance) {
     const parsed = parseFloat(osmDistance);
     // OSM distance is usually in km
