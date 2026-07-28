@@ -3,6 +3,8 @@ import "server-only";
 import { GoogleGenAI, Type, type Schema } from "@google/genai";
 
 import {
+  CANONICAL_NAME_SYSTEM_PROMPT,
+  parseCanonicalName,
   parsePlaceExtraction,
   PLACE_EXTRACTION_SYSTEM_PROMPT,
   type PlaceExtraction,
@@ -36,6 +38,31 @@ const PLACES_SCHEMA: Schema = {
   required: ["places"],
 };
 
+const CANONICAL_NAME_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    canonicalName: {
+      type: Type.STRING,
+      nullable: true,
+      description:
+        "The formal or commonly-mapped name of the place, or null if none is known with confidence.",
+    },
+  },
+  // Left optional for the same reason as `contextLocation`: an omitted field
+  // and an explicit null both mean "no better name", and both parse to null.
+  required: [],
+};
+
+function apiKeyOrThrow(): string {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "GEMINI_API_KEY is not set. Add it to .env.local (see .env.example) and restart the dev server.",
+    );
+  }
+  return apiKey;
+}
+
 /**
  * Ask Gemini Flash-Lite to pull the named places out of a free-text prompt,
  * along with the area they sit in. Uses JSON mode with a response schema so the
@@ -44,14 +71,7 @@ const PLACES_SCHEMA: Schema = {
 export async function extractPlaceNames(
   prompt: string,
 ): Promise<PlaceExtraction> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "GEMINI_API_KEY is not set. Add it to .env.local (see .env.example) and restart the dev server.",
-    );
-  }
-
-  const client = new GoogleGenAI({ apiKey });
+  const client = new GoogleGenAI({ apiKey: apiKeyOrThrow() });
 
   const response = await client.models.generateContent({
     model: MODEL,
@@ -70,4 +90,33 @@ export async function extractPlaceNames(
   // JSON mode makes `text` a JSON document; `parsePlaceExtraction` handles the
   // string, and also copes with a blocked or empty response.
   return parsePlaceExtraction(response.text ?? "");
+}
+
+/**
+ * Second chance for a name Nominatim could not find: ask the model what that
+ * place is actually called on a map, so the caller can retry the lookup with
+ * the mapped name. Returns null whenever the model has nothing better to offer
+ * — see `CANONICAL_NAME_SYSTEM_PROMPT` for why null is the preferred answer.
+ */
+export async function resolveCanonicalName(
+  name: string,
+  contextLocation: string | null,
+): Promise<string | null> {
+  const client = new GoogleGenAI({ apiKey: apiKeyOrThrow() });
+
+  const response = await client.models.generateContent({
+    model: MODEL,
+    contents: [
+      `Term: ${name}`,
+      `Area: ${contextLocation ?? "not given"}`,
+    ].join("\n"),
+    config: {
+      systemInstruction: CANONICAL_NAME_SYSTEM_PROMPT,
+      responseMimeType: "application/json",
+      responseSchema: CANONICAL_NAME_SCHEMA,
+      maxOutputTokens: 128,
+    },
+  });
+
+  return parseCanonicalName(response.text ?? "");
 }

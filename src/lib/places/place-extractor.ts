@@ -42,6 +42,31 @@ export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   "If the text names no places at all, return an empty list and a null contextLocation.",
 ].join("\n");
 
+/**
+ * System instruction for the fallback lookup that runs only after a name failed
+ * to geocode. Lives here for the same reason as the extraction prompt: tests
+ * can read it, `gemini-client.ts` cannot be imported from the test runner.
+ *
+ * Live testing found the gap it exists for: "מדרחוב" in "זכרון יעקב" is a real,
+ * well-known place, but OpenStreetMap only tags it under its street name
+ * ("המייסדים"), so Nominatim returns nothing for the colloquial term. Gemini
+ * already knows that mapping; this asks for it.
+ *
+ * The instruction leans hard on returning null, because a confident-sounding
+ * wrong name is worse than no name: it geocodes cleanly and drops the walker at
+ * the wrong place with no sign anything went wrong.
+ */
+export const CANONICAL_NAME_SYSTEM_PROMPT = [
+  "You are given a place term a walker used, and the area it was mentioned in.",
+  "Return `canonicalName`: the formal, official, or commonly-mapped name of that place — the name a map or OpenStreetMap would label it with — when it is more specific than the term the walker used.",
+  "For example, a generic term for a pedestrian mall in a town whose pedestrian mall is officially a named street should return that street's name.",
+  "Return null when the term is already specific or formal, when no such place is known to you in that area, or when you are not confident which place is meant.",
+  "Prefer null over a plausible-sounding guess. A wrong name still geocodes, and would silently send the walker to the wrong place; returning null just tells them we could not find it.",
+  "Never invent a name, and never return a name you cannot place in the given area.",
+  "Answer in the same language as the term you were given.",
+  "Return the name only — no street numbers, no city, no country, no explanation.",
+].join("\n");
+
 export interface GeocodedPlaceName {
   name: string;
   coordinates: Coordinates | null;
@@ -164,6 +189,26 @@ export function parsePlaceExtraction(input: unknown): PlaceExtraction {
   }
 
   return { places, contextLocation };
+}
+
+/**
+ * Read the fallback lookup's single field. Anything that isn't a usable string
+ * — a missing field, an explicit null, prose, an unparseable reply — becomes
+ * `null`, which the caller treats as "no better name to retry with".
+ */
+export function parseCanonicalName(input: unknown): string | null {
+  const candidate = toCandidate(input);
+
+  if (candidate === null || typeof candidate !== "object") {
+    return null;
+  }
+
+  const raw = (candidate as Record<string, unknown>).canonicalName;
+  if (typeof raw !== "string") {
+    return null;
+  }
+
+  return raw.trim().slice(0, MAX_NAME_LENGTH) || null;
 }
 
 function toSlug(name: string): string {

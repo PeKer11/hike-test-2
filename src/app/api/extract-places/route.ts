@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { extractPlaceNames } from "@/lib/api/gemini-client";
+import {
+  extractPlaceNames,
+  resolveCanonicalName,
+} from "@/lib/api/gemini-client";
 import { searchPlaces } from "@/lib/api/nominatim-client";
 import {
   buildExtractionResult,
@@ -59,6 +62,27 @@ async function geocode(
   return null;
 }
 
+/**
+ * Best-effort "what is this place actually called on a map?" lookup, used only
+ * once a name has already failed to geocode. Returns null on any failure for the
+ * same reason as `geocode`: a name we cannot improve just stays unresolved,
+ * rather than turning the whole prompt into a 500.
+ */
+async function canonicalNameFor(
+  name: string,
+  contextLocation: string | null,
+): Promise<string | null> {
+  try {
+    const canonical = await resolveCanonicalName(name, contextLocation);
+    if (!canonical || canonical.toLowerCase() === name.toLowerCase()) {
+      return null;
+    }
+    return canonical;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const body = (await request.json()) as ExtractPlacesRequest;
@@ -88,10 +112,23 @@ export async function POST(request: Request): Promise<NextResponse> {
     // anchor, not something to anchor), and search the rest around it. Without
     // a context area — or if it can't be located — the request's own
     // `nearLocation` stays the bias, as before.
+    // Every Nominatim lookup in this handler — context area, stop, and the
+    // canonical-name retry below — goes through here, so they stay one second
+    // apart no matter how many of them a given prompt ends up making.
     let geocodeCalls = 0;
-    if (contextLocation) {
+    const spacedGeocode = async (
+      name: string,
+      searchBias: Coordinates | undefined,
+    ): Promise<Coordinates | null> => {
+      if (geocodeCalls > 0) {
+        await delay(GEOCODE_DELAY_MS);
+      }
       geocodeCalls += 1;
-      const contextCoordinates = await geocode(contextLocation, undefined);
+      return geocode(name, searchBias);
+    };
+
+    if (contextLocation) {
+      const contextCoordinates = await spacedGeocode(contextLocation, undefined);
       if (contextCoordinates) {
         bias = contextCoordinates;
       }
@@ -99,12 +136,20 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const entries: GeocodedPlaceName[] = [];
     for (const name of places) {
-      if (geocodeCalls > 0) {
-        await delay(GEOCODE_DELAY_MS);
-      }
-      geocodeCalls += 1;
+      let coordinates = await spacedGeocode(name, bias);
 
-      entries.push({ name, coordinates: await geocode(name, bias) });
+      // Nothing in the box under the user's wording. OpenStreetMap often tags
+      // such a place only under its formal name ("מדרחוב" is mapped as the
+      // street "המייסדים"), so ask the model for that name and try once more —
+      // once, never in a loop. The stop keeps the user's own wording either way.
+      if (!coordinates) {
+        const canonical = await canonicalNameFor(name, contextLocation);
+        if (canonical) {
+          coordinates = await spacedGeocode(canonical, bias);
+        }
+      }
+
+      entries.push({ name, coordinates });
     }
 
     const { attractions, unresolvedNames } = buildExtractionResult(entries);

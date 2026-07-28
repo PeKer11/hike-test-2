@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildExtractionResult,
+  CANONICAL_NAME_SYSTEM_PROMPT,
+  parseCanonicalName,
   parseContextLocation,
   parsePlaceExtraction,
   parsePlaceNames,
@@ -131,6 +133,32 @@ describe("parseContextLocation", () => {
     expect(parseContextLocation("not json at all")).toBeNull();
     expect(parseContextLocation(undefined)).toBeNull();
     expect(parseContextLocation(["Jaffa Port"])).toBeNull();
+  });
+});
+
+describe("CANONICAL_NAME_SYSTEM_PROMPT", () => {
+  it("tells the model to prefer null over a plausible-sounding guess", () => {
+    expect(CANONICAL_NAME_SYSTEM_PROMPT).toContain(
+      "Prefer null over a plausible-sounding guess",
+    );
+    expect(CANONICAL_NAME_SYSTEM_PROMPT).toContain("Never invent a name");
+  });
+});
+
+describe("parseCanonicalName", () => {
+  it("reads the mapped name off the JSON-mode response shape", () => {
+    expect(parseCanonicalName({ canonicalName: "המייסדים" })).toBe("המייסדים");
+    expect(parseCanonicalName('{"canonicalName": " HaMeyasdim "}')).toBe(
+      "HaMeyasdim",
+    );
+  });
+
+  it("returns null when the model offers no better name", () => {
+    expect(parseCanonicalName({ canonicalName: null })).toBeNull();
+    expect(parseCanonicalName({})).toBeNull();
+    expect(parseCanonicalName({ canonicalName: "   " })).toBeNull();
+    expect(parseCanonicalName("I'm not sure what you mean")).toBeNull();
+    expect(parseCanonicalName(undefined)).toBeNull();
   });
 });
 

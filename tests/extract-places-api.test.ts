@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockExtractPlaceNames = vi.fn();
+const mockResolveCanonicalName = vi.fn();
 const mockSearchPlaces = vi.fn();
 
 vi.mock("@/lib/api/gemini-client", () => ({
   extractPlaceNames: (...args: unknown[]) => mockExtractPlaceNames(...args),
+  resolveCanonicalName: (...args: unknown[]) =>
+    mockResolveCanonicalName(...args),
 }));
 
 vi.mock("@/lib/api/nominatim-client", () => ({
@@ -26,6 +29,8 @@ function postRequest(body: unknown): Request {
 describe("POST /api/extract-places", () => {
   beforeEach(() => {
     mockExtractPlaceNames.mockReset();
+    mockResolveCanonicalName.mockReset();
+    mockResolveCanonicalName.mockResolvedValue(null);
     mockSearchPlaces.mockReset();
   });
 
@@ -128,6 +133,72 @@ describe("POST /api/extract-places", () => {
       lng: 34.8044,
     });
   });
+
+  it("retries a failed name under its mapped name, keeping the user's wording", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["מדרחוב"],
+      contextLocation: "זכרון יעקב",
+    });
+    mockResolveCanonicalName.mockResolvedValueOnce("המייסדים");
+    mockSearchPlaces
+      // The context area, then nothing for "מדרחוב", then the mapped street.
+      .mockResolvedValueOnce([{ lat: "32.5736", lon: "34.9522" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ lat: "32.5732", lon: "34.9540" }]);
+
+    const response = await POST(
+      postRequest({ prompt: "אני רוצה ללכת למדרחוב בזכרון יעקב" }),
+    );
+
+    const body = await response.json();
+    const contextBias = { lat: 32.5736, lng: 34.9522 };
+
+    expect(mockResolveCanonicalName).toHaveBeenCalledWith("מדרחוב", "זכרון יעקב");
+    // The retry reuses the same bias as the attempt it replaces.
+    expect(mockSearchPlaces).toHaveBeenNthCalledWith(3, "המייסדים", 1, contextBias);
+    expect(body.unresolvedNames).toEqual([]);
+    expect(body.attractions).toHaveLength(1);
+    // The walker asked for "מדרחוב" — that stays the label, only the lookup changed.
+    expect(body.attractions[0].name).toBe("מדרחוב");
+    expect(body.attractions[0].coordinates).toEqual({
+      lat: 32.5732,
+      lng: 34.954,
+    });
+  }, 10000);
+
+  it("reports the name unresolved when no mapped name is known", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["מדרחוב"],
+      contextLocation: null,
+    });
+    mockResolveCanonicalName.mockResolvedValueOnce(null);
+    mockSearchPlaces.mockResolvedValueOnce([]);
+
+    const response = await POST(postRequest({ prompt: "מדרחוב" }));
+
+    const body = await response.json();
+
+    expect(mockSearchPlaces).toHaveBeenCalledTimes(1);
+    expect(body.unresolvedNames).toEqual(["מדרחוב"]);
+  });
+
+  it("gives up after one retry when the mapped name doesn't geocode either", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["מדרחוב"],
+      contextLocation: null,
+    });
+    mockResolveCanonicalName.mockResolvedValueOnce("המייסדים");
+    mockSearchPlaces.mockResolvedValue([]);
+
+    const response = await POST(postRequest({ prompt: "מדרחוב" }));
+
+    const body = await response.json();
+
+    expect(mockSearchPlaces).toHaveBeenCalledTimes(2);
+    expect(mockResolveCanonicalName).toHaveBeenCalledTimes(1);
+    expect(body.attractions).toEqual([]);
+    expect(body.unresolvedNames).toEqual(["מדרחוב"]);
+  }, 10000);
 
   it("makes no separate context lookup for a bare city name", async () => {
     mockExtractPlaceNames.mockResolvedValueOnce({
