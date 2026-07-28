@@ -38,6 +38,7 @@ import { WalkRecordingPanel } from "@/components/WalkRecordingPanel";
 import { PoiAlerter } from "@/lib/walk/poi-alerter";
 import type { PoiAlert } from "@/lib/walk/poi-alerter";
 import { VisitTracker, excludeVisited } from "@/lib/walk/visit-tracker";
+import { ReplanTrigger } from "@/lib/walk/replan-trigger";
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -48,6 +49,9 @@ interface PlanSnapshot {
   geometry: Coordinates[];
   startTime: number;
 }
+
+const REPLAN_FAILED_MESSAGE =
+  "Couldn't build an updated route just now — keeping you on your current one.";
 
 export default function HomePage() {
   const [plannerMode, setPlannerMode] = useState<PlannerMode>("manual");
@@ -101,6 +105,10 @@ export default function HomePage() {
   const poiAlerterRef = useRef<PoiAlerter | null>(null);
   // Lives for the whole walk — a re-plan must not forget what was already seen.
   const visitTrackerRef = useRef<VisitTracker | null>(null);
+  // Also lives for the whole walk: each re-plan builds a fresh PaceChecker, so a
+  // trigger owned by the checker would reset its cooldown on every re-plan and
+  // never actually throttle them.
+  const replanTriggerRef = useRef<ReplanTrigger | null>(null);
   const [poiAlert, setPoiAlert] = useState<PoiAlert | null>(null);
   const poiAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buildWalkRequestIdRef = useRef(0);
@@ -150,6 +158,20 @@ export default function HomePage() {
     setWalkTrackingMessage(null);
     setAttractionDistances({});
     setPoiAlert(null);
+  };
+
+  // Ending the walk tears down everything scoped to *this walk*, not just the GPS
+  // session: `stopWalkTracking` alone leaves the revert snapshot armed, so the
+  // "back to previous route" button would still be sitting there afterwards and
+  // would restart tracking on a walk the user had already ended.
+  const handleEndWalk = () => {
+    stopWalkTracking();
+    setPreviousPlan(null);
+    setPinnedTimeWarning(null);
+    setPinnedAttractionIds([]);
+    pinnedAttractionIdsRef.current = [];
+    visitTrackerRef.current?.reset();
+    replanTriggerRef.current = null;
   };
 
   // Draws a plan on the map and moves the walk into the "planned" phase. Shared by
@@ -207,14 +229,19 @@ export default function HomePage() {
       pinnedIds?: string[];
     },
   ) => {
-    // Snapshot what the walker is on now, so an automatic re-plan can be undone.
-    if (options?.autoResume && walkPlanRef.current && walkInputRef.current) {
-      setPreviousPlan({
-        plan: walkPlanRef.current,
-        input: walkInputRef.current,
-        geometry: walkGeometryRef.current,
-        startTime: walkStartTimeRef.current,
-      });
+    // Snapshot what the walker is on now, so an automatic re-plan can be undone —
+    // and so a failed re-plan can put them back instead of stranding them.
+    const snapshot: PlanSnapshot | null =
+      options?.autoResume && walkPlanRef.current && walkInputRef.current
+        ? {
+            plan: walkPlanRef.current,
+            input: walkInputRef.current,
+            geometry: walkGeometryRef.current,
+            startTime: walkStartTimeRef.current,
+          }
+        : null;
+    if (snapshot) {
+      setPreviousPlan(snapshot);
     }
 
     stopWalkTracking();
@@ -228,6 +255,7 @@ export default function HomePage() {
       setPinnedAttractionIds([]);
       pinnedAttractionIdsRef.current = [];
       visitTrackerRef.current?.reset();
+      replanTriggerRef.current = null;
     }
     setCurrentPosition(input.origin);
 
@@ -271,7 +299,15 @@ export default function HomePage() {
       if (requestId !== buildWalkRequestIdRef.current) return;
 
       if (!res.ok || data.error) {
-        setWalkPlanError(data.error ?? "Failed to build walk plan.");
+        // Tracking was already torn down for the rebuild. Dropping the walker
+        // mid-walk because Overpass/ORS blipped is worse than keeping the route
+        // they were on, so put it back and say so.
+        if (snapshot) {
+          revertToSnapshot(snapshot);
+          setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
+        } else {
+          setWalkPlanError(data.error ?? "Failed to build walk plan.");
+        }
       } else {
         showPlan(data, data.geometry ?? []);
 
@@ -303,7 +339,12 @@ export default function HomePage() {
       }
     } catch {
       if (requestId !== buildWalkRequestIdRef.current) return;
-      setWalkPlanError("Network error. Please try again.");
+      if (snapshot) {
+        revertToSnapshot(snapshot);
+        setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
+      } else {
+        setWalkPlanError("Network error. Please try again.");
+      }
     } finally {
       if (requestId === buildWalkRequestIdRef.current) {
         setIsWalkPlanLoading(false);
@@ -456,9 +497,15 @@ export default function HomePage() {
       return;
     }
 
+    // Carried across re-plans within the same walk, so the cooldown armed by the
+    // last re-plan still applies to the next one.
+    const trigger =
+      replanTriggerRef.current ?? new ReplanTrigger(input.walkingPaceMinPerKm);
+    replanTriggerRef.current = trigger;
+
     const checker = new PaceChecker(
       walkSettings,
-      input.walkingPaceMinPerKm,
+      trigger,
       () => {
         const orig = walkInputRef.current;
         if (!orig) return;
@@ -490,18 +537,16 @@ export default function HomePage() {
 
   // Undo the last automatic re-plan: put the walker back on the route they had,
   // starting from wherever they are now.
-  const handleRevertPlan = () => {
-    if (!previousPlan) return;
-
+  const revertToSnapshot = (snapshot: PlanSnapshot) => {
     const resumePosition =
       latestPaceUpdateRef.current?.currentPosition ??
       currentPosition ??
-      previousPlan.input.origin;
+      snapshot.input.origin;
 
     stopWalkTracking();
-    walkInputRef.current = { ...previousPlan.input, origin: resumePosition };
+    walkInputRef.current = { ...snapshot.input, origin: resumePosition };
     setLastWalkInput(walkInputRef.current);
-    walkStartTimeRef.current = previousPlan.startTime;
+    walkStartTimeRef.current = snapshot.startTime;
     latestPaceUpdateRef.current = null;
     setPinnedTimeWarning(null);
     setPreviousPlan(null);
@@ -511,21 +556,34 @@ export default function HomePage() {
     // route line — it can't be recomputed offline, and following it past a stop
     // that's already done is harmless.
     const visitedIds = visitTrackerRef.current?.visitedIds ?? new Set<string>();
-    const remainingAttractions = excludeVisited(
-      previousPlan.plan.orderedAttractions,
-      visitedIds,
-    );
+    const keptIndices = snapshot.plan.orderedAttractions
+      .map((a, i) => (visitedIds.has(a.id) ? -1 : i))
+      .filter((i) => i >= 0);
     const restoredPlan =
-      remainingAttractions.length === previousPlan.plan.orderedAttractions.length
-        ? previousPlan.plan
-        : { ...previousPlan.plan, orderedAttractions: remainingAttractions };
+      keptIndices.length === snapshot.plan.orderedAttractions.length
+        ? snapshot.plan
+        : {
+            ...snapshot.plan,
+            orderedAttractions: keptIndices.map(
+              (i) => snapshot.plan.orderedAttractions[i],
+            ),
+            // The results list pairs stop N with segment N. Trimming one list and
+            // not the other re-labels every surviving stop with someone else's leg.
+            segments: keptIndices
+              .map((i) => snapshot.plan.segments[i])
+              .filter((s) => s !== undefined),
+          };
 
-    showPlan(restoredPlan, previousPlan.geometry);
+    showPlan(restoredPlan, snapshot.geometry);
     setCurrentPosition(resumePosition);
 
-    if (previousPlan.geometry.length >= 2) {
+    if (snapshot.geometry.length >= 2) {
       handleStartWalk(restoredPlan);
     }
+  };
+
+  const handleRevertPlan = () => {
+    if (previousPlan) revertToSnapshot(previousPlan);
   };
 
   const toggleAttractionPin = (attractionId: string) => {
@@ -744,7 +802,7 @@ export default function HomePage() {
                 }}
                 walkPlanReady={walkPhase === "planned" || walkPhase === "walking"}
                 onStartWalk={handleStartWalk}
-                onStopWalk={stopWalkTracking}
+                onStopWalk={handleEndWalk}
                 onRevertPlan={handleRevertPlan}
                 canRevertPlan={previousPlan !== null}
                 isWalking={walkPhase === "walking"}
@@ -964,7 +1022,7 @@ export default function HomePage() {
                 clearWaypoints();
                 clearRoute();
                 cancelSearch();
-                stopWalkTracking();
+                handleEndWalk();
                 walkRecorderRef.current?.clear();
                 setRecordedPointCount(0);
               }}

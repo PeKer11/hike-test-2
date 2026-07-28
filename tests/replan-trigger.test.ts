@@ -1,10 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   ReplanTrigger,
   FULL_STOP_WINDOW_MS,
   SUSTAINED_SLOW_WINDOW_MS,
   REPLAN_COOLDOWN_MS,
 } from "@/lib/walk/replan-trigger";
+import type { ReplanReason } from "@/lib/walk/replan-trigger";
+import { PaceChecker } from "@/lib/walk/pace-checker";
+import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 import type { Coordinates } from "@/lib/types";
 
 const START: Coordinates = { lat: 32.08, lng: 34.78 };
@@ -89,6 +92,10 @@ describe("ReplanTrigger — sustained slow pace", () => {
 });
 
 describe("ReplanTrigger — cooldown", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("stays quiet right after firing, even while the condition holds", () => {
     const trigger = new ReplanTrigger(15);
     const end = walk(trigger, T0, FULL_STOP_WINDOW_MS, null);
@@ -106,6 +113,43 @@ describe("ReplanTrigger — cooldown", () => {
     const secondStart = firstEnd + REPLAN_COOLDOWN_MS + SAMPLE_INTERVAL_MS;
     const secondEnd = walk(trigger, secondStart, FULL_STOP_WINDOW_MS, null);
     expect(trigger.evaluate(secondEnd)).toBe("full-stop");
+  });
+
+  // A re-plan tears the PaceChecker down and builds a new one. If the checker
+  // owned its trigger, every re-plan would hand back a zeroed cooldown and the
+  // 12-minute throttle would never hold.
+  it("survives the PaceChecker being rebuilt by the re-plan it triggered", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+
+    const trigger = new ReplanTrigger(15);
+    const fired: ReplanReason[] = [];
+    const onReplan = (reason: ReplanReason) => fired.push(reason);
+
+    const stand = (checker: PaceChecker, from: number, durationMs: number) => {
+      for (let t = from; t <= from + durationMs; t += SAMPLE_INTERVAL_MS) {
+        checker.recordSample({ coordinates: START, timestamp: t });
+      }
+    };
+
+    const first = new PaceChecker(DEFAULT_WALK_SETTINGS, trigger, onReplan);
+    first.start();
+    stand(first, T0, FULL_STOP_WINDOW_MS);
+    vi.setSystemTime(T0 + FULL_STOP_WINDOW_MS);
+    vi.advanceTimersByTime(DEFAULT_WALK_SETTINGS.paceCheckIntervalMs);
+    expect(fired).toEqual(["full-stop"]);
+
+    // The re-plan: old checker discarded, new one built on the same trigger.
+    first.stop();
+    const firedAt = Date.now();
+    const second = new PaceChecker(DEFAULT_WALK_SETTINGS, trigger, onReplan);
+    second.start();
+    stand(second, firedAt + SAMPLE_INTERVAL_MS, FULL_STOP_WINDOW_MS);
+    vi.advanceTimersByTime(FULL_STOP_WINDOW_MS + DEFAULT_WALK_SETTINGS.paceCheckIntervalMs);
+
+    // Still stopped, but inside the cooldown — must not re-plan again.
+    expect(fired).toEqual(["full-stop"]);
+    second.stop();
   });
 
   it("reset() clears samples and the cooldown", () => {

@@ -15,16 +15,19 @@ export class PaceChecker {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
 
+  // The trigger is owned by the caller, not by this instance: a re-plan tears the
+  // PaceChecker down and builds a new one, and a cooldown that died with the old
+  // instance would never actually hold back the next re-plan.
   constructor(
     settings: WalkSettings,
-    plannedPaceMinPerKm: number,
+    trigger: ReplanTrigger,
     onReplanNeeded: (reason: ReplanReason) => void,
   ) {
     this.settings = {
       ...settings,
       paceCheckIntervalMs: clampPaceCheckInterval(settings.paceCheckIntervalMs),
     };
-    this.trigger = new ReplanTrigger(plannedPaceMinPerKm);
+    this.trigger = trigger;
     this.onReplanNeeded = onReplanNeeded;
   }
 

@@ -24,7 +24,10 @@ export function WalkPlanResults({ plan, error, walkOrigin, walkMinutes, walkRadi
 
   if (!plan) return null;
 
-  if (!plan.feasible || plan.orderedAttractions.length === 0) {
+  // Deliberately not gated on `plan.feasible`: a pinned stop can push a perfectly
+  // real itinerary over the time budget, and hiding the whole plan behind "no
+  // attractions found" would be both wrong and contradicted by the pin prompt.
+  if (plan.orderedAttractions.length === 0) {
     return (
       <Card>
         <p className="text-sm text-slate-600">
