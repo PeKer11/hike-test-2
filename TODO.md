@@ -95,6 +95,7 @@
 - [x] Fix empty-route success masking in `route-planner.ts` — throw if all segments fail
 
 ## Post-MVP (Hiking Mode)
+- [ ] Dependency security upgrade: `npm audit` (2026-07-28) flags 9 pre-existing vulnerabilities (1 low, 8 high) in transitive deps — Next.js itself needs a version bump (`npm audit fix --force` proposes `next@16.2.12`, outside current stated range — needs a deliberate upgrade + test pass, not an unattended `--force`), plus `@babel/core`, `js-yaml`, `brace-expansion`, `picomatch`. Not introduced by the Supabase install (verified: only `@supabase/ssr` + `@supabase/supabase-js` were added to `package.json`), pre-existed it.
 - [ ] End-to-end testing with live ORS API key
 - [ ] Server-side caching for directions/geocode responses
 - [ ] Rate limiting/retries with backoff for upstream APIs
