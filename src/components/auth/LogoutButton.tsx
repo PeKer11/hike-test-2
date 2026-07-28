@@ -5,7 +5,13 @@ import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
-export function LogoutButton() {
+interface LogoutButtonProps {
+  className?: string;
+}
+
+export function LogoutButton({
+  className = "font-semibold text-emerald-700 hover:text-emerald-600 disabled:text-slate-400",
+}: LogoutButtonProps) {
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -19,12 +25,7 @@ export function LogoutButton() {
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={isSigningOut}
-      className="font-semibold text-emerald-700 hover:text-emerald-600 disabled:text-slate-400"
-    >
+    <button type="button" onClick={handleClick} disabled={isSigningOut} className={className}>
       {isSigningOut ? "Logging out…" : "Log out"}
     </button>
   );

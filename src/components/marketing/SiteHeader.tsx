@@ -1,7 +1,20 @@
 import Image from "next/image";
 import Link from "next/link";
 
-export function SiteHeader() {
+import { LogoutButton } from "@/components/auth/LogoutButton";
+import { createClient } from "@/lib/supabase/server";
+
+// Server component: reads the session from request cookies, which the proxy
+// (src/proxy.ts) has already refreshed by the time this renders.
+export async function SiteHeader() {
+  const isSupabaseConfigured =
+    !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    !!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  const user = isSupabaseConfigured
+    ? (await (await createClient()).auth.getUser()).data.user
+    : null;
+
   return (
     <header className="sticky top-0 z-40 bg-cream/90 backdrop-blur-sm shadow-[0_2px_16px_rgba(30,61,47,0.08)]">
       <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 sm:px-6">
@@ -28,12 +41,16 @@ export function SiteHeader() {
           >
             Pricing
           </Link>
-          <Link
-            href="/login"
-            className="text-sm font-semibold text-forest hover:text-terra"
-          >
-            Log in
-          </Link>
+          {user ? (
+            <LogoutButton className="text-sm font-semibold text-forest hover:text-terra disabled:text-forest/50" />
+          ) : (
+            <Link
+              href="/login"
+              className="text-sm font-semibold text-forest hover:text-terra"
+            >
+              Log in
+            </Link>
+          )}
           <Link
             href="/app"
             className="rounded-[10px] bg-terra px-4 py-2 text-sm font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90 sm:px-5 sm:py-2.5"
