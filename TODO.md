@@ -115,7 +115,8 @@
 - [ ] Follow-Up 3 production platform planning: storage, jobs, monitoring, uptime, backups, scaling
 - [ ] Follow-Up 3 product design pass: stronger visual design and launch-quality UX polish
 - [ ] Follow-Up 3 assistant/bot exploration: guided planning assistant with optional voice experience
-- [ ] Follow-Up 3 legal review: terms, liability, privacy, data licensing, and legal-counsel check
+- [ ] Follow-Up 3 legal review: terms, liability, privacy, data licensing, and legal-counsel check — confirm no exposure to suit (safety-alert accuracy, third-party map/POI data licensing, GPS-tracking liability)
+- [ ] Follow-Up 3 patent/IP review: have a patent attorney check the routing/re-planning approach (TSP+MST shortcutting, deviation-triggered re-route, pace-based auto-replan with visited-attraction exclusion) for patentability and for freedom-to-operate against existing patents (Waze/Google/Komoot-style navigation patents)
 - [x] Constraint-based hike search from user location with optional endpoint and endpoint-distance constraint — `HikeSearchPanel` + `hike-search.ts` preferences
 - [ ] Prompt-based hike generation (for example: "find me a good hike in Jerusalem") using RTG trail data first, with fallback to generic routing
 - [x] Drag to reorder waypoints — HTML5 drag-and-drop in `WaypointList`
