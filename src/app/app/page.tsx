@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -799,8 +800,24 @@ export default function HomePage() {
         </div>
       )}
       <main className="flex min-h-screen w-full flex-col bg-cream font-brand text-charcoal lg:h-screen lg:flex-row lg:overflow-hidden">
-      <aside className="order-2 w-full overflow-y-auto border-b border-charcoal/10 bg-cream p-4 pb-8 lg:order-1 lg:h-full lg:max-w-[400px] lg:border-b-0 lg:border-r lg:pb-4">
-        <div className="mb-5 flex items-start justify-between gap-3">
+      <aside className="relative isolate order-2 w-full overflow-y-auto border-b border-charcoal/10 bg-cream p-4 pb-8 lg:order-1 lg:h-full lg:max-w-[400px] lg:border-b-0 lg:border-r lg:pb-4">
+        {/* Ambient studio-sweep wash behind the panel. Same blurred-photo +
+            gradient-scrim technique as /login, but dialled far down: the
+            planner is a working surface, so the image only survives as a warm
+            terracotta glow under a near-opaque cream scrim. Lives on the
+            <aside> itself, so the simple and Advanced views get it identically,
+            and it never reaches the map section. */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+          <Image
+            src="/images/studio-gradient-terra.png"
+            alt=""
+            fill
+            sizes="400px"
+            className="scale-125 object-cover object-center opacity-70 blur-2xl"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-cream/70 via-cream/88 to-cream/[0.97]" />
+        </div>
+        <div className="relative z-10 mb-5 flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
             <Link
               href="/"
@@ -837,7 +854,7 @@ export default function HomePage() {
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="relative z-10 space-y-4">
           {isAdvancedOpen && (
             <Card className="space-y-2">
               <div className="text-sm font-semibold text-forest">Planning mode</div>
