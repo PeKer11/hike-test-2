@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function SignupPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+    <main className="flex min-h-screen items-center justify-center bg-cream p-4 font-brand text-charcoal">
       <AuthForm mode="signup" />
     </main>
   );

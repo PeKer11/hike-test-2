@@ -29,6 +29,12 @@ export function SiteHeader() {
             Pricing
           </Link>
           <Link
+            href="/login"
+            className="text-sm font-semibold text-forest hover:text-terra"
+          >
+            Log in
+          </Link>
+          <Link
             href="/app"
             className="rounded-[10px] bg-terra px-4 py-2 text-sm font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90 sm:px-5 sm:py-2.5"
           >

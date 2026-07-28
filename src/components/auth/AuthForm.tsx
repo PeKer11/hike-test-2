@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
-import { Button, Card } from "@/components/ui";
 
 type AuthMode = "login" | "signup";
 
@@ -15,8 +14,12 @@ interface AuthFormProps {
   initialError?: string;
 }
 
+// Brand tokens from DESIGN.md (see globals.css @theme) so these pages sit next
+// to the landing page rather than looking like the generic app chrome.
 const inputClasses =
-  "w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none";
+  "w-full rounded-[10px] border border-charcoal/15 bg-cream/40 px-3 py-2.5 text-sm text-charcoal focus:border-terra focus:outline-none";
+
+const labelClasses = "text-sm font-semibold text-forest";
 
 export function AuthForm({ mode, initialError }: AuthFormProps) {
   const router = useRouter();
@@ -86,21 +89,21 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
   const isSignup = mode === "signup";
 
   return (
-    <Card className="w-full max-w-sm space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-xl font-bold text-slate-900">
+    <div className="w-full max-w-sm space-y-5 rounded-xl bg-white p-8 shadow-[0_4px_20px_rgba(30,61,47,0.12)]">
+      <div className="space-y-2">
+        <h1 className="font-display text-2xl font-bold text-forest">
           {isSignup ? "Create your account" : "Welcome back"}
         </h1>
-        <p className="text-xs text-slate-500">
+        <p className="text-sm leading-relaxed text-charcoal/70">
           {isSignup
             ? "Save your walking profile so every walk starts where the last one left off."
             : "Log in to pick up your walking profile."}
         </p>
       </div>
 
-      <form className="space-y-3" onSubmit={handleSubmit}>
-        <label className="block space-y-1">
-          <span className="text-sm font-semibold text-slate-900">Email</span>
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <label className="block space-y-1.5">
+          <span className={labelClasses}>Email</span>
           <input
             type="email"
             value={email}
@@ -111,8 +114,8 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
           />
         </label>
 
-        <label className="block space-y-1">
-          <span className="text-sm font-semibold text-slate-900">Password</span>
+        <label className="block space-y-1.5">
+          <span className={labelClasses}>Password</span>
           <input
             type="password"
             value={password}
@@ -125,10 +128,8 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
         </label>
 
         {isSignup && (
-          <label className="block space-y-1">
-            <span className="text-sm font-semibold text-slate-900">
-              Confirm password
-            </span>
+          <label className="block space-y-1.5">
+            <span className={labelClasses}>Confirm password</span>
             <input
               type="password"
               value={confirmPassword}
@@ -142,35 +143,39 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
         )}
 
         {error && (
-          <p className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">
+          <p className="rounded-[10px] bg-terra/10 p-3 text-xs text-terra">
             {error}
           </p>
         )}
 
         {notice && (
-          <p className="rounded-md bg-emerald-50 p-2 text-xs text-emerald-800">
+          <p className="rounded-[10px] bg-skysoft/25 p-3 text-xs text-forest">
             {notice}
           </p>
         )}
 
-        <Button type="submit" fullWidth disabled={isSubmitting}>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full rounded-[10px] bg-terra px-7 py-3 text-sm font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90 disabled:bg-terra/50"
+        >
           {isSubmitting
             ? "Working…"
             : isSignup
               ? "Create account"
               : "Log in"}
-        </Button>
+        </button>
       </form>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-sm text-charcoal/70">
         {isSignup ? "Already have an account? " : "No account yet? "}
         <Link
           href={isSignup ? "/login" : "/signup"}
-          className="font-semibold text-emerald-700 hover:text-emerald-600"
+          className="font-semibold text-terra hover:text-terra/80"
         >
           {isSignup ? "Log in" : "Sign up"}
         </Link>
       </p>
-    </Card>
+    </div>
   );
 }
