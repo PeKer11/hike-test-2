@@ -99,10 +99,10 @@ export function PlacePromptPanel({
   return (
     <Card className="space-y-3">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">
+        <h2 className="font-display text-base font-bold text-forest">
           Name your own stops
         </h2>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-charcoal/60">
           Type where you want to go — we&apos;ll find the places and build the
           walk around them.
         </p>
@@ -113,7 +113,7 @@ export function PlacePromptPanel({
         onChange={(event) => setPrompt(event.target.value)}
         rows={3}
         placeholder="I want to see Habima Square, the Jaffa port, and a good market"
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-base sm:text-sm focus:border-emerald-500 focus:outline-none"
+        className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
       />
 
       <Button onClick={() => void extract()} disabled={isLoading} fullWidth>
@@ -133,14 +133,14 @@ export function PlacePromptPanel({
 
       {hasResult && selectedAttractions.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs font-medium text-slate-700">
+          <p className="text-xs font-medium text-charcoal/80">
             Found — tap a place to see it on the map
           </p>
           <ul className="space-y-1">
             {selectedAttractions.map((attraction) => (
               <li
                 key={attraction.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100"
+                className="flex items-center justify-between gap-2 rounded-md border border-charcoal/10 bg-cream/70 px-3 py-2 text-xs text-charcoal/80 hover:bg-cream"
               >
                 <button
                   type="button"
@@ -161,7 +161,7 @@ export function PlacePromptPanel({
                       attractions.filter((a) => !next.includes(a.id)),
                     );
                   }}
-                  className="cursor-pointer text-sm leading-none text-slate-400 transition hover:text-rose-600"
+                  className="cursor-pointer text-sm leading-none text-charcoal/40 transition hover:text-rose-600"
                 >
                   ×
                 </button>
@@ -179,7 +179,7 @@ export function PlacePromptPanel({
       )}
 
       {hasResult && attractions.length === 0 && unresolvedNames.length === 0 && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-charcoal/60">
           No places found in that text — mention them by name.
         </p>
       )}
@@ -187,7 +187,7 @@ export function PlacePromptPanel({
       {attractions.length > 0 &&
         (acceptedAttractions ? (
           <div className="space-y-2">
-            <p className="rounded-md bg-emerald-50 p-2 text-xs text-emerald-800">
+            <p className="rounded-md bg-terra/10 p-2 text-xs text-forest">
               {acceptedAttractions.length} stop
               {acceptedAttractions.length === 1 ? "" : "s"} will be used for the
               next walk you build.
@@ -209,7 +209,7 @@ export function PlacePromptPanel({
             Use these stops in my walk
           </Button>
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-charcoal/60">
             You removed every place — search again to start over.
           </p>
         ))}

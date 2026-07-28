@@ -30,9 +30,9 @@ export function ConstraintPanel({
   return (
     <Card className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">Constraints</h2>
-        <p className="text-xs text-slate-500">
-          Configure optimization conditions before route calculation.
+        <h2 className="font-display text-base font-bold text-forest">Constraints</h2>
+        <p className="text-xs text-charcoal/60">
+          Set the rules your route has to respect.
         </p>
       </div>
 
@@ -40,7 +40,7 @@ export function ConstraintPanel({
         <Toggle
           checked={constraints.maxDistance.enabled}
           onChange={onToggleMaxDistance}
-          label="Enable max distance"
+          label="Limit total distance"
         />
         {constraints.maxDistance.enabled && (
           <MaxDistanceInput
@@ -54,7 +54,7 @@ export function ConstraintPanel({
         <Toggle
           checked={constraints.timeWindows.enabled}
           onChange={onToggleTimeWindows}
-          label="Enable time windows"
+          label="Use opening hours per stop"
         />
         {constraints.timeWindows.enabled && (
           <TimeWindowInput
@@ -67,7 +67,7 @@ export function ConstraintPanel({
       <Toggle
         checked={constraints.fixedStartEnd.enabled}
         onChange={onToggleFixedStartEnd}
-        label="Respect Start/End markers"
+        label="Keep my start and end points"
       />
 
       <Button onClick={onCalculateRoute} fullWidth disabled={isCalculating}>

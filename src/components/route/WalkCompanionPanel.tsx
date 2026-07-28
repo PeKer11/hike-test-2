@@ -163,8 +163,8 @@ export function WalkCompanionPanel({
   return (
     <Card className="space-y-3">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">City Walk Companion</h2>
-        <p className="text-xs text-slate-500">
+        <h2 className="font-display text-base font-bold text-forest">City Walk Companion</h2>
+        <p className="text-xs text-charcoal/60">
           Tell us where you are and how long you have — we&apos;ll build a smart walk.
         </p>
       </div>
@@ -188,21 +188,21 @@ export function WalkCompanionPanel({
             value={lat}
             onChange={(e) => setLat(e.target.value)}
             placeholder="Latitude"
-            className="rounded-md border border-slate-300 px-2 py-2 text-base sm:text-sm focus:border-emerald-500 focus:outline-none"
+            className="rounded-md border border-charcoal/15 px-2 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
           />
           <input
             type="text"
             value={lng}
             onChange={(e) => setLng(e.target.value)}
             placeholder="Longitude"
-            className="rounded-md border border-slate-300 px-2 py-2 text-base sm:text-sm focus:border-emerald-500 focus:outline-none"
+            className="rounded-md border border-charcoal/15 px-2 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
           />
         </div>
       </div>
 
       {/* Time */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-slate-700">
+        <label className="text-xs font-medium text-charcoal/80">
           Time available (minutes)
         </label>
         <input
@@ -211,13 +211,13 @@ export function WalkCompanionPanel({
           max={480}
           value={availableMinutes}
           onChange={(e) => setAvailableMinutes(e.target.value)}
-          className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
         />
       </div>
 
       {/* Search radius */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-slate-700">
+        <label className="text-xs font-medium text-charcoal/80">
           Search radius (km)
         </label>
         <input
@@ -227,13 +227,13 @@ export function WalkCompanionPanel({
           step={0.5}
           value={radiusKm}
           onChange={(e) => setRadiusKm(e.target.value)}
-          className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
         />
       </div>
 
       {/* Walking pace */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-slate-700">Walking pace</label>
+        <label className="text-xs font-medium text-charcoal/80">Walking pace</label>
         <div className="grid grid-cols-3 gap-1">
           {PACE_OPTIONS.map((opt) => (
             <button
@@ -241,8 +241,8 @@ export function WalkCompanionPanel({
               onClick={() => setPace(opt.value)}
               className={`rounded-md border px-2 py-3 text-xs font-medium transition sm:py-1.5 ${
                 pace === opt.value
-                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                  : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                  ? "border-terra bg-terra/10 text-terra"
+                  : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
               }`}
             >
               {opt.label}
@@ -253,9 +253,9 @@ export function WalkCompanionPanel({
 
       {/* Categories */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-slate-700">
+        <label className="text-xs font-medium text-charcoal/80">
           Interests{" "}
-          <span className="font-normal text-slate-400">(optional)</span>
+          <span className="font-normal text-charcoal/40">(optional)</span>
         </label>
         <div className="flex flex-wrap gap-1">
           {CATEGORY_OPTIONS.map((opt) => (
@@ -264,8 +264,8 @@ export function WalkCompanionPanel({
               onClick={() => toggleCategory(opt.value)}
               className={`rounded-full border px-3 py-2 text-xs transition sm:px-2 sm:py-1 ${
                 selectedCategories.includes(opt.value)
-                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                  : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                  ? "border-terra bg-terra/10 text-terra"
+                  : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
               }`}
             >
               {opt.label}

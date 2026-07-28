@@ -25,9 +25,9 @@ export function WaypointItem({
   onSetTimeWindow,
 }: WaypointItemProps) {
   return (
-    <article className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
+    <article className="space-y-3 rounded-md border border-charcoal/10 bg-white p-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-xs font-semibold text-slate-500">#{index + 1}</div>
+        <div className="text-xs font-semibold text-charcoal/60">#{index + 1}</div>
         <div className="flex items-center gap-2 text-xs">
           {waypoint.isStart && (
             <span className="rounded bg-rose-100 px-2 py-1 font-medium text-rose-700">
@@ -35,7 +35,7 @@ export function WaypointItem({
             </span>
           )}
           {waypoint.isEnd && (
-            <span className="rounded bg-emerald-100 px-2 py-1 font-medium text-emerald-700">
+            <span className="rounded bg-terra/15 px-2 py-1 font-medium text-terra">
               End
             </span>
           )}
@@ -46,7 +46,7 @@ export function WaypointItem({
         type="text"
         value={waypoint.name}
         onChange={(event) => onRename(waypoint.id, event.target.value)}
-        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-emerald-500 focus:outline-none"
+        className="w-full rounded-md border border-charcoal/15 px-2 py-1.5 text-sm focus:border-terra focus:outline-none"
       />
 
       <Toggle
@@ -65,7 +65,7 @@ export function WaypointItem({
       </div>
 
       <div className="space-y-1">
-        <p className="text-xs font-medium text-slate-600">Time window</p>
+        <p className="text-xs font-medium text-charcoal/70">Time window</p>
         <div className="grid grid-cols-2 gap-2">
           <input
             type="time"
@@ -76,7 +76,7 @@ export function WaypointItem({
                 end: waypoint.timeWindow?.end ?? event.target.value,
               })
             }
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-emerald-500 focus:outline-none"
+            className="rounded-md border border-charcoal/15 px-2 py-1 text-xs focus:border-terra focus:outline-none"
           />
           <input
             type="time"
@@ -87,13 +87,13 @@ export function WaypointItem({
                 end: event.target.value,
               })
             }
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-emerald-500 focus:outline-none"
+            className="rounded-md border border-charcoal/15 px-2 py-1 text-xs focus:border-terra focus:outline-none"
           />
         </div>
         <button
           type="button"
           onClick={() => onSetTimeWindow(waypoint.id, undefined)}
-          className="text-xs text-slate-500 underline underline-offset-2"
+          className="text-xs text-charcoal/60 underline underline-offset-2"
         >
           Clear time window
         </button>

@@ -7,7 +7,7 @@ export function LoadingSpinner({ size = "md" }: LoadingSpinnerProps) {
 
   return (
     <span
-      className={`${dimensions} inline-block animate-spin rounded-full border-2 border-slate-300 border-t-emerald-600`}
+      className={`${dimensions} inline-block animate-spin rounded-full border-2 border-charcoal/20 border-t-terra`}
       aria-label="Loading"
     />
   );

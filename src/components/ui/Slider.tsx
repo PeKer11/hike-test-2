@@ -15,7 +15,7 @@ export function Slider({ min, max, step = 1, value, onChange }: SliderProps) {
       step={step}
       value={value}
       onChange={(event) => onChange(Number(event.target.value))}
-      className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-emerald-600"
+      className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-charcoal/15 accent-terra"
     />
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { ConstraintPanel } from "@/components/constraints";
@@ -53,11 +54,51 @@ interface PlanSnapshot {
   startTime: number;
 }
 
+/* Iconoir-style glyph (1.5px stroke, round caps) — DESIGN.md forbids icon
+   packages, and this is the only icon the planner needs. */
+function IconExpand({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />
+    </svg>
+  );
+}
+
+function IconCollapse({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M20 4l-7 7m0 0h6m-6 0V5M4 20l7-7m0 0H5m6 0v6" />
+    </svg>
+  );
+}
+
 const REPLAN_FAILED_MESSAGE =
   "Couldn't build an updated route just now — keeping you on your current one.";
 
 export default function HomePage() {
-  const [plannerMode, setPlannerMode] = useState<PlannerMode>("manual");
+  // The default experience is the City Walk flow alone. Manual/Hike planning,
+  // the waypoint list, the constraints and the raw place search live behind the
+  // "Advanced planning" escape hatch below.
+  const [plannerMode, setPlannerMode] = useState<PlannerMode>("walk-companion");
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [hikeSearchOriginInput, setHikeSearchOriginInput] = useState({
     lat: "31.7683",
     lng: "35.2137",
@@ -206,6 +247,18 @@ export default function HomePage() {
     pinnedAttractionIdsRef.current = [];
     visitTrackerRef.current?.reset();
     replanTriggerRef.current = null;
+  };
+
+  // Full reset — the same teardown behind "Clear All" (advanced) and
+  // "Start over" (simple view).
+  const handleClearAll = () => {
+    clearWaypoints();
+    clearRoute();
+    cancelSearch();
+    handleEndWalk();
+    setPreviewPlaces([]);
+    walkRecorderRef.current?.clear();
+    setRecordedPointCount(0);
   };
 
   // Draws a plan on the map and moves the walk into the "planned" phase. Shared by
@@ -676,6 +729,14 @@ export default function HomePage() {
     setPlannerMode(mode);
   };
 
+  // Leaving the advanced surface always lands back on the simple City Walk flow,
+  // otherwise the simple view would keep rendering with `plannerMode` set to a
+  // mode it no longer offers a switcher for.
+  const closeAdvanced = () => {
+    changePlannerMode("walk-companion");
+    setIsAdvancedOpen(false);
+  };
+
   const handleMapClick = (coordinates: Coordinates) => {
     if (plannerMode === "hike-search") {
       if (useMapClickForHikeOrigin) {
@@ -727,51 +788,83 @@ export default function HomePage() {
       />
       {/* POI alert overlay (CRITICAL-1) */}
       {poiAlert && (
-        <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-medium text-white shadow-lg">
+        <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-forest px-5 py-3 text-sm font-medium text-white shadow-lg">
           {poiAlert.message}
           <button
-            className="ml-3 text-emerald-200 hover:text-white"
+            className="ml-3 text-cream/70 hover:text-white"
             onClick={() => setPoiAlert(null)}
           >
             ✕
           </button>
         </div>
       )}
-      <main className="flex min-h-screen w-full flex-col lg:h-screen lg:flex-row lg:overflow-hidden">
-      <aside className="order-2 w-full overflow-y-auto border-b border-slate-200 bg-slate-50 p-4 pb-8 lg:order-1 lg:h-full lg:max-w-[400px] lg:border-b-0 lg:border-r lg:pb-4">
-        <div className="mb-4 space-y-1">
-          <h1 className="text-xl font-bold text-slate-900">Hiking Route Planner</h1>
-          <p className="text-xs text-slate-500">
-            Add waypoints, configure constraints, and generate an optimized walking route.
-          </p>
+      <main className="flex min-h-screen w-full flex-col bg-cream font-brand text-charcoal lg:h-screen lg:flex-row lg:overflow-hidden">
+      <aside className="order-2 w-full overflow-y-auto border-b border-charcoal/10 bg-cream p-4 pb-8 lg:order-1 lg:h-full lg:max-w-[400px] lg:border-b-0 lg:border-r lg:pb-4">
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <Link
+              href="/"
+              className="font-display text-sm font-bold tracking-wide text-terra"
+            >
+              Traike
+            </Link>
+            <h1 className="font-display text-2xl font-bold leading-tight text-forest">
+              {isAdvancedOpen ? "Advanced planning" : "Your walk, right now"}
+            </h1>
+            <p className="text-sm leading-relaxed text-charcoal/70">
+              {isAdvancedOpen
+                ? "Place your own stops, set the rules, or search for a marked hike."
+                : "Tell us where you are and how long you have — we’ll build the walk."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => (isAdvancedOpen ? closeAdvanced() : setIsAdvancedOpen(true))}
+            aria-pressed={isAdvancedOpen}
+            title={
+              isAdvancedOpen
+                ? "Back to the simple walk builder"
+                : "Open the full planner: your own stops, route rules and hike search"
+            }
+            className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-forest/20 bg-white px-2.5 py-1.5 text-xs font-semibold text-forest transition-colors hover:bg-forest/10"
+          >
+            {isAdvancedOpen ? (
+              <IconCollapse className="h-4 w-4" />
+            ) : (
+              <IconExpand className="h-4 w-4" />
+            )}
+            {isAdvancedOpen ? "Simple view" : "Advanced"}
+          </button>
         </div>
 
         <div className="space-y-4">
-          <Card className="space-y-2">
-            <div className="text-sm font-semibold text-slate-900">Planning mode</div>
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                variant={plannerMode === "manual" ? "primary" : "secondary"}
-                onClick={() => changePlannerMode("manual")}
-              >
-                Manual
-              </Button>
-              <Button
-                variant={plannerMode === "hike-search" ? "primary" : "secondary"}
-                onClick={() => changePlannerMode("hike-search")}
-              >
-                Hike
-              </Button>
-              <Button
-                variant={plannerMode === "walk-companion" ? "primary" : "secondary"}
-                onClick={() => changePlannerMode("walk-companion")}
-              >
-                City Walk
-              </Button>
-            </div>
-          </Card>
+          {isAdvancedOpen && (
+            <Card className="space-y-2">
+              <div className="text-sm font-semibold text-forest">Planning mode</div>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant={plannerMode === "manual" ? "primary" : "secondary"}
+                  onClick={() => changePlannerMode("manual")}
+                >
+                  Manual
+                </Button>
+                <Button
+                  variant={plannerMode === "hike-search" ? "primary" : "secondary"}
+                  onClick={() => changePlannerMode("hike-search")}
+                >
+                  Hike
+                </Button>
+                <Button
+                  variant={plannerMode === "walk-companion" ? "primary" : "secondary"}
+                  onClick={() => changePlannerMode("walk-companion")}
+                >
+                  City Walk
+                </Button>
+              </div>
+            </Card>
+          )}
 
-          {plannerMode === "manual" ? (
+          {isAdvancedOpen && plannerMode === "manual" ? (
             <>
               <PlaceSearch
                 onSelectPlace={(place) => {
@@ -784,7 +877,7 @@ export default function HomePage() {
               />
 
               <Card className="space-y-2">
-                <div className="text-sm font-semibold text-slate-900">Map click mode</div>
+                <div className="text-sm font-semibold text-forest">Map click mode</div>
                 <div className="grid grid-cols-3 gap-2">
                   <Button
                     variant={clickMode === "add-waypoint" ? "primary" : "secondary"}
@@ -831,19 +924,8 @@ export default function HomePage() {
                 }}
               />
             </>
-          ) : plannerMode === "walk-companion" ? (
+          ) : !isAdvancedOpen || plannerMode === "walk-companion" ? (
             <>
-              {walkPhase !== "walking" && (
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  <input
-                    type="checkbox"
-                    checked={isSimulating}
-                    onChange={(e) => setIsSimulating(e.target.checked)}
-                    className="h-4 w-4 rounded border-amber-400 accent-amber-500"
-                  />
-                  Simulate walk (dev mode — 10× speed)
-                </label>
-              )}
               {walkPhase !== "walking" && (
                 <PlacePromptPanel
                   nearLocation={currentPosition ?? mapClickedCoords}
@@ -928,7 +1010,8 @@ export default function HomePage() {
               {walkPlan?.warnings?.some((w) => w.includes("geometry")) && (
                 <Card>
                   <p className="text-sm text-amber-700">
-                    ⚠️ Route geometry is unavailable (ORS API key not configured). Start Walk is disabled.
+                    ⚠️ We couldn&apos;t draw the walking route for this plan, so
+                    live walking isn&apos;t available right now.
                   </p>
                 </Card>
               )}
@@ -955,10 +1038,10 @@ export default function HomePage() {
               {/* Loading skeleton while plan is being built (MEDIUM-5) */}
               {isWalkPlanLoading && (
                 <Card className="space-y-2 animate-pulse">
-                  <div className="h-4 w-1/2 rounded bg-slate-200" />
-                  <div className="h-3 w-full rounded bg-slate-100" />
-                  <div className="h-3 w-5/6 rounded bg-slate-100" />
-                  <div className="h-3 w-4/6 rounded bg-slate-100" />
+                  <div className="h-4 w-1/2 rounded bg-charcoal/15" />
+                  <div className="h-3 w-full rounded bg-cream" />
+                  <div className="h-3 w-5/6 rounded bg-cream" />
+                  <div className="h-3 w-4/6 rounded bg-cream" />
                 </Card>
               )}
               {/* Retry affordance when plan is infeasible or attractions were dropped (MEDIUM-5) */}
@@ -993,17 +1076,19 @@ export default function HomePage() {
                 walkOrigin={lastWalkInput?.origin}
                 walkMinutes={lastWalkInput?.availableMinutes}
                 walkRadius={lastWalkInput?.radiusMeters}
+                showDebugLink={isAdvancedOpen}
               />
-              <a
-                href={lastWalkInput
-                  ? `/tsp-debug?lat=${lastWalkInput.origin.lat}&lng=${lastWalkInput.origin.lng}&minutes=${lastWalkInput.availableMinutes}&radius=${lastWalkInput.radiusMeters}`
-                  : "/tsp-debug"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                🔬 View TSP Graph
-              </a>
+              {walkPhase !== "walking" && (
+                <label className="flex cursor-pointer items-center gap-2 rounded-[10px] border border-dashed border-charcoal/20 bg-white px-3 py-2 text-xs text-charcoal/70">
+                  <input
+                    type="checkbox"
+                    checked={isSimulating}
+                    onChange={(e) => setIsSimulating(e.target.checked)}
+                    className="h-4 w-4 rounded border-charcoal/30 accent-terra"
+                  />
+                  Simulate this walk (10× speed)
+                </label>
+              )}
               <TrailIntelligencePanel
                 report={trailBriefing}
                 isLoading={isTrailBriefingLoading}
@@ -1089,39 +1174,50 @@ export default function HomePage() {
             />
           )}
 
-          <Card className="grid grid-cols-2 gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                hikeSearchTokenRef.current += 1;
-                clearRoute();
-              }}
-            >
-              Clear Route
+          {isAdvancedOpen ? (
+            <Card className="grid grid-cols-2 gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  hikeSearchTokenRef.current += 1;
+                  clearRoute();
+                }}
+              >
+                Clear Route
+              </Button>
+              <Button variant="danger" onClick={handleClearAll}>
+                Clear All
+              </Button>
+            </Card>
+          ) : (
+            <Button variant="ghost" fullWidth onClick={handleClearAll}>
+              Start over
             </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                clearWaypoints();
-                clearRoute();
-                cancelSearch();
-                handleEndWalk();
-                setPreviewPlaces([]);
-                walkRecorderRef.current?.clear();
-                setRecordedPointCount(0);
-              }}
-            >
-              Clear All
-            </Button>
-          </Card>
+          )}
 
-          <RouteResults route={route} error={hikeSearchError ?? error} />
-          {plannerMode !== "walk-companion" ? (
-            <TrailIntelligencePanel
-              report={trailBriefing}
-              isLoading={isTrailBriefingLoading}
-              error={trailBriefingError}
-            />
+          {isAdvancedOpen ? (
+            <>
+              <RouteResults route={route} error={hikeSearchError ?? error} />
+              {plannerMode !== "walk-companion" ? (
+                <TrailIntelligencePanel
+                  report={trailBriefing}
+                  isLoading={isTrailBriefingLoading}
+                  error={trailBriefingError}
+                />
+              ) : null}
+              <a
+                href={
+                  lastWalkInput
+                    ? `/tsp-debug?lat=${lastWalkInput.origin.lat}&lng=${lastWalkInput.origin.lng}&minutes=${lastWalkInput.availableMinutes}&radius=${lastWalkInput.radiusMeters}`
+                    : "/tsp-debug"
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-charcoal/15 bg-white py-2 text-xs font-semibold text-charcoal/70 transition-colors hover:bg-white/60"
+              >
+                🔬 Route graph inspector
+              </a>
+            </>
           ) : null}
         </div>
       </aside>

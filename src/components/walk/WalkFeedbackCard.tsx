@@ -53,7 +53,7 @@ export function WalkFeedbackCard({
   if (isDone) {
     return (
       <Card className="space-y-2">
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-charcoal/80">
           Thanks — that shapes your next walk.
         </p>
         <Button variant="secondary" fullWidth onClick={onDismiss}>
@@ -67,10 +67,10 @@ export function WalkFeedbackCard({
     <Card className="space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">
+          <h2 className="font-display text-base font-bold text-forest">
             Did you like this walk?
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-charcoal/60">
             One tap is enough — it helps us build your next one.
           </p>
         </div>
@@ -78,7 +78,7 @@ export function WalkFeedbackCard({
           type="button"
           aria-label="Dismiss feedback"
           onClick={onDismiss}
-          className="cursor-pointer text-sm leading-none text-slate-400 transition hover:text-slate-600"
+          className="cursor-pointer text-sm leading-none text-charcoal/40 transition hover:text-charcoal/70"
         >
           ×
         </button>
@@ -103,7 +103,7 @@ export function WalkFeedbackCard({
 
       {liked !== null && (
         <div className="space-y-2">
-          <label className="block text-xs font-medium text-slate-700">
+          <label className="block text-xs font-medium text-charcoal/80">
             {liked
               ? "What did you like about it? (optional)"
               : "What didn't work for you? (optional)"}
@@ -113,7 +113,7 @@ export function WalkFeedbackCard({
             onChange={(event) => setComment(event.target.value)}
             rows={2}
             placeholder="I loved the nature stops, less into the shopping streets"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-base sm:text-sm focus:border-emerald-500 focus:outline-none"
+            className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
           />
           <Button
             fullWidth
@@ -128,7 +128,7 @@ export function WalkFeedbackCard({
       <button
         type="button"
         onClick={onDismiss}
-        className="w-full cursor-pointer text-center text-xs text-slate-400 transition hover:text-slate-600"
+        className="w-full cursor-pointer text-center text-xs text-charcoal/40 transition hover:text-charcoal/70"
       >
         Skip
       </button>

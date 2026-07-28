@@ -232,9 +232,9 @@ export function HikeSearchPanel({
   return (
     <Card className="space-y-3">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">Find me a hike</h2>
-        <p className="text-xs text-slate-500">
-          RTG-first trail search with automatic fallback routing.
+        <h2 className="font-display text-base font-bold text-forest">Find me a hike</h2>
+        <p className="text-xs text-charcoal/60">
+          Find a marked trail near a starting point of your choice.
         </p>
         <div className="mt-2">
           <Toggle
@@ -242,7 +242,7 @@ export function HikeSearchPanel({
             onChange={onUseMapClickForOriginChange}
             label="Map click sets origin"
           />
-          <p className="mt-1 text-[11px] text-slate-500">
+          <p className="mt-1 text-[11px] text-charcoal/60">
             {useMapClickForOrigin
               ? "Click on the map to update origin coordinates."
               : "Enable this to pick origin by clicking on the map."}
@@ -272,7 +272,7 @@ export function HikeSearchPanel({
             });
           }}
           placeholder="Origin lat"
-          className="rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          className="rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
         />
         {originLatError && <p className="text-xs text-rose-700">{originLatError}</p>}
         <input
@@ -285,7 +285,7 @@ export function HikeSearchPanel({
             });
           }}
           placeholder="Origin lng"
-          className="rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          className="rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
         />
         {originLngError && <p className="text-xs text-rose-700">{originLngError}</p>}
       </div>
@@ -296,7 +296,7 @@ export function HikeSearchPanel({
           value={endpointLat}
           onChange={(event) => setEndpointLat(event.target.value)}
           placeholder="Endpoint lat (optional)"
-          className="rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          className="rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
         />
         {endpointLatError && <p className="text-xs text-rose-700">{endpointLatError}</p>}
         <input
@@ -304,7 +304,7 @@ export function HikeSearchPanel({
           value={endpointLng}
           onChange={(event) => setEndpointLng(event.target.value)}
           placeholder="Endpoint lng (optional)"
-          className="rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          className="rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
         />
         {endpointLngError && <p className="text-xs text-rose-700">{endpointLngError}</p>}
       </div>
@@ -314,7 +314,7 @@ export function HikeSearchPanel({
         value={maxDistanceKm}
         onChange={(event) => setMaxDistanceKm(event.target.value)}
         placeholder="Max distance km (optional)"
-        className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+        className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
       />
       {maxDistanceError && <p className="text-xs text-rose-700">{maxDistanceError}</p>}
 
@@ -323,7 +323,7 @@ export function HikeSearchPanel({
         value={maxStartDistanceKm}
         onChange={(event) => setMaxStartDistanceKm(event.target.value)}
         placeholder="Max start distance km (optional)"
-        className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+        className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
       />
       {maxStartDistanceError && (
         <p className="text-xs text-rose-700">{maxStartDistanceError}</p>
@@ -334,7 +334,7 @@ export function HikeSearchPanel({
         value={maxFinishDistanceFromOriginKm}
         onChange={(event) => setMaxFinishDistanceFromOriginKm(event.target.value)}
         placeholder="Max finish distance from origin km (optional)"
-        className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+        className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
       />
       {maxFinishDistanceFromOriginError && (
         <p className="text-xs text-rose-700">{maxFinishDistanceFromOriginError}</p>
@@ -345,7 +345,7 @@ export function HikeSearchPanel({
         value={desiredRouteCount}
         onChange={(event) => setDesiredRouteCount(event.target.value)}
         placeholder="Nearby route count (default 1)"
-        className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+        className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
       />
       {desiredRouteCountError && (
         <p className="text-xs text-rose-700">{desiredRouteCountError}</p>

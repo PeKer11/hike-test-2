@@ -16,20 +16,20 @@ export function RouteStats({
   return (
     <div className="grid grid-cols-3 gap-2">
       <Card className="p-3">
-        <div className="text-xs text-slate-500">Distance</div>
-        <div className="text-sm font-semibold text-slate-900">
+        <div className="text-xs text-charcoal/60">Distance</div>
+        <div className="text-sm font-semibold text-forest">
           {formatDistance(totalDistanceMeters)}
         </div>
       </Card>
       <Card className="p-3">
-        <div className="text-xs text-slate-500">Duration</div>
-        <div className="text-sm font-semibold text-slate-900">
+        <div className="text-xs text-charcoal/60">Duration</div>
+        <div className="text-sm font-semibold text-forest">
           {formatDuration(totalDurationSeconds)}
         </div>
       </Card>
       <Card className="p-3">
-        <div className="text-xs text-slate-500">Stops</div>
-        <div className="text-sm font-semibold text-slate-900">{stopsCount}</div>
+        <div className="text-xs text-charcoal/60">Stops</div>
+        <div className="text-sm font-semibold text-forest">{stopsCount}</div>
       </Card>
     </div>
   );

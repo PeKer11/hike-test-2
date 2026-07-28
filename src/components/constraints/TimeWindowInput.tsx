@@ -10,7 +10,7 @@ interface TimeWindowInputProps {
 export function TimeWindowInput({ value, onChange }: TimeWindowInputProps) {
   return (
     <div className="space-y-2">
-      <div className="text-sm text-slate-600">Default time window</div>
+      <div className="text-sm text-charcoal/70">Default time window</div>
       <div className="grid grid-cols-2 gap-2">
         <input
           type="time"
@@ -21,7 +21,7 @@ export function TimeWindowInput({ value, onChange }: TimeWindowInputProps) {
               end: value?.end ?? event.target.value,
             })
           }
-          className="rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-emerald-500 focus:outline-none"
+          className="rounded-md border border-charcoal/15 px-2 py-1 text-sm focus:border-terra focus:outline-none"
         />
         <input
           type="time"
@@ -32,13 +32,13 @@ export function TimeWindowInput({ value, onChange }: TimeWindowInputProps) {
               end: event.target.value,
             })
           }
-          className="rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-emerald-500 focus:outline-none"
+          className="rounded-md border border-charcoal/15 px-2 py-1 text-sm focus:border-terra focus:outline-none"
         />
       </div>
       <button
         type="button"
         onClick={() => onChange(undefined)}
-        className="text-xs text-slate-500 underline underline-offset-2"
+        className="text-xs text-charcoal/60 underline underline-offset-2"
       >
         Clear default window
       </button>

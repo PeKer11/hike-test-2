@@ -28,13 +28,13 @@ export function AttractionDistancesPanel({
   if (items.length === 0) return null;
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-100 px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <section className="rounded-lg border border-charcoal/10 bg-white shadow-sm">
+      <div className="border-b border-charcoal/10 px-3 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-charcoal/60">
           Attractions ahead
         </span>
       </div>
-      <ul className="divide-y divide-slate-100">
+      <ul className="divide-y divide-charcoal/10">
         {items.map(({ attraction, meters }, idx) => {
           const passed = meters === 0;
           const isNext = idx === 0 && !passed;
@@ -44,20 +44,20 @@ export function AttractionDistancesPanel({
             <li
               key={attraction.id}
               className={`flex items-center justify-between px-3 py-2 ${
-                isNext ? "bg-emerald-50" : ""
+                isNext ? "bg-terra/10" : ""
               }`}
             >
               <div className="flex flex-1 items-center gap-2 min-w-0">
                 <span className="text-base leading-none">{emoji}</span>
                 <span
                   className={`truncate text-sm ${
-                    passed ? "text-slate-400 line-through" : "text-slate-700"
+                    passed ? "text-charcoal/40 line-through" : "text-charcoal/80"
                   }`}
                 >
                   {attraction.name}
                 </span>
                 {isNext && (
-                  <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700">
+                  <span className="shrink-0 rounded-full bg-terra/15 px-1.5 py-0.5 text-xs font-medium text-terra">
                     next
                   </span>
                 )}
@@ -82,10 +82,10 @@ export function AttractionDistancesPanel({
               <span
                 className={`ml-3 shrink-0 text-sm font-medium tabular-nums ${
                   passed
-                    ? "text-slate-400"
+                    ? "text-charcoal/40"
                     : isNext
-                      ? "text-emerald-700"
-                      : "text-slate-600"
+                      ? "text-terra"
+                      : "text-charcoal/70"
                 }`}
               >
                 {passed ? "passed" : formatDistance(meters ?? 0)}

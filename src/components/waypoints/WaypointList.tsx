@@ -33,12 +33,12 @@ export function WaypointList({
   return (
     <Card className="space-y-3">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">Waypoints</h2>
-        <p className="text-xs text-slate-500">Drag to reorder stop sequence</p>
+        <h2 className="font-display text-base font-bold text-forest">Waypoints</h2>
+        <p className="text-xs text-charcoal/60">Drag a stop to change the order</p>
       </div>
 
       {waypoints.length === 0 && (
-        <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">
+        <p className="rounded-md bg-cream/70 px-3 py-2 text-sm text-charcoal/60">
           Add waypoints from map clicks or search results.
         </p>
       )}
