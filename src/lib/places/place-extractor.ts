@@ -64,6 +64,8 @@ export const CANONICAL_NAME_SYSTEM_PROMPT = [
   "Prefer null over a plausible-sounding guess. A wrong name still geocodes, and would silently send the walker to the wrong place; returning null just tells them we could not find it.",
   "Never invent a name, and never return a name you cannot place in the given area.",
   "Answer in the same language as the term you were given.",
+  "Return the bare mapped name ONLY — do not keep the walker's generic word attached to it.",
+  'For example, if the walker said "מדרחוב" (a generic word for pedestrian street) and the officially mapped street is called "המייסדים", return exactly "המייסדים" — not "מדרחוב המייסדים". A geocoder matches the bare official name, not the generic word plus the name.',
   "Return the name only — no street numbers, no city, no country, no explanation.",
 ].join("\n");
 
