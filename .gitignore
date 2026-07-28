@@ -43,3 +43,4 @@ next-env.d.ts
 
 # graphify cache (regenerated automatically via git hook)
 /graphify-out/
+.next-stale-bak/
