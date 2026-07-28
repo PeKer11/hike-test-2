@@ -7,7 +7,10 @@ import { parsePlaceNames } from "@/lib/places/place-extractor";
 // Ariel picked Flash-Lite for this: the task is a short, cheap NER pass on one
 // sentence, latency sits in front of the user typing a prompt, and Google AI
 // Studio's free tier covers it without a credit card.
-const MODEL = "gemini-2.5-flash-lite";
+// Pinned model names get deprecated (gemini-2.5-flash-lite 404'd for new
+// projects); the "-latest" alias auto-follows Google's current stable
+// Flash-Lite release instead of needing a manual bump each time.
+const MODEL = "gemini-flash-lite-latest";
 
 const SYSTEM_PROMPT = [
   "You extract place names from a walker's free-text description of where they want to go.",
@@ -54,9 +57,9 @@ export async function extractPlaceNames(prompt: string): Promise<string[]> {
       responseMimeType: "application/json",
       responseSchema: PLACES_SCHEMA,
       maxOutputTokens: 512,
-      // Extraction is trivial for this model, and thinking tokens count
-      // against `maxOutputTokens` — leave the whole budget for the answer.
-      thinkingConfig: { thinkingBudget: 0 },
+      // `thinkingConfig: { thinkingBudget: 0 }` was tried to reserve the full
+      // output budget for the answer, but gemini-3.5-flash-lite rejects that
+      // field with a 400 (works fine on 2.5-series models) — omitted.
     },
   });
 
