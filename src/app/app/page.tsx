@@ -37,6 +37,7 @@ import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 import { WalkRecordingPanel } from "@/components/WalkRecordingPanel";
 import { PoiAlerter } from "@/lib/walk/poi-alerter";
 import type { PoiAlert } from "@/lib/walk/poi-alerter";
+import { VisitTracker, excludeVisited } from "@/lib/walk/visit-tracker";
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -98,6 +99,8 @@ export default function HomePage() {
   const paceCheckerRef = useRef<PaceChecker | null>(null);
   const walkRecorderRef = useRef<WalkRecorder | null>(null);
   const poiAlerterRef = useRef<PoiAlerter | null>(null);
+  // Lives for the whole walk — a re-plan must not forget what was already seen.
+  const visitTrackerRef = useRef<VisitTracker | null>(null);
   const [poiAlert, setPoiAlert] = useState<PoiAlert | null>(null);
   const poiAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buildWalkRequestIdRef = useRef(0);
@@ -224,8 +227,22 @@ export default function HomePage() {
       setPreviousPlan(null);
       setPinnedAttractionIds([]);
       pinnedAttractionIdsRef.current = [];
+      visitTrackerRef.current?.reset();
     }
     setCurrentPosition(input.origin);
+
+    // Attractions the walker already reached are done — never re-plan them back
+    // into the route. If that empties the kept set, the API falls back to fresh
+    // discovery, which is the right answer: nothing is left to keep.
+    const visitedIds = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    const keepAttractions = options?.keepAttractions
+      ? excludeVisited(options.keepAttractions, visitedIds)
+      : undefined;
+    // A pin on a visited stop has nothing left to enforce — drop it so it can't
+    // make the plan infeasible or raise the "you won't reach it" prompt.
+    const activePinnedIds = (options?.pinnedIds ?? []).filter(
+      (id) => !visitedIds.has(id),
+    );
 
     buildWalkRequestIdRef.current += 1;
     const requestId = buildWalkRequestIdRef.current;
@@ -244,8 +261,8 @@ export default function HomePage() {
           walkingPaceMinPerKm: input.walkingPaceMinPerKm,
           radiusMeters: input.radiusMeters,
           preferredCategories: input.preferredCategories,
-          explicitAttractions: options?.keepAttractions,
-          pinnedAttractionIds: options?.pinnedIds,
+          explicitAttractions: keepAttractions,
+          pinnedAttractionIds: activePinnedIds,
         }),
       });
       const data = (await res.json()) as WalkPlan & { error?: string };
@@ -260,10 +277,9 @@ export default function HomePage() {
 
         // A pinned stop is never dropped, so the plan can come back over budget.
         // Say so instead of failing quietly — the walker decides what to do.
-        const pinnedIds = options?.pinnedIds ?? [];
-        if (pinnedIds.length > 0) {
+        if (activePinnedIds.length > 0) {
           const droppedPins = data.droppedAttractions.filter((a) =>
-            pinnedIds.includes(a.id),
+            activePinnedIds.includes(a.id),
           );
           if (!data.feasible || droppedPins.length > 0) {
             setPinnedTimeWarning(
@@ -342,6 +358,10 @@ export default function HomePage() {
     const alerter = new PoiAlerter();
     poiAlerterRef.current = alerter;
 
+    // Reused across re-plans within the same walk — only a fresh build resets it.
+    const visits = visitTrackerRef.current ?? new VisitTracker();
+    visitTrackerRef.current = visits;
+
     const onPositionUpdate = (update: PaceUpdate) => {
       latestPaceUpdateRef.current = update;
 
@@ -351,6 +371,10 @@ export default function HomePage() {
         coordinates: update.currentPosition,
         timestamp: update.timestamp,
       });
+
+      // Visited detection runs on every accepted fix, like the alerter — a stop
+      // walked past between two throttled ticks must still count as reached.
+      visits.recordPosition(update.currentPosition, attractions);
 
       // PoiAlerter check — runs every tick, not throttled (CRITICAL-1)
       const alert = alerter.check(
@@ -481,11 +505,26 @@ export default function HomePage() {
     latestPaceUpdateRef.current = null;
     setPinnedTimeWarning(null);
     setPreviousPlan(null);
-    showPlan(previousPlan.plan, previousPlan.geometry);
+
+    // Undo the re-plan, not the walk: stops already reached stay reached, so the
+    // restored plan lists only what is still ahead. The geometry is the original
+    // route line — it can't be recomputed offline, and following it past a stop
+    // that's already done is harmless.
+    const visitedIds = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    const remainingAttractions = excludeVisited(
+      previousPlan.plan.orderedAttractions,
+      visitedIds,
+    );
+    const restoredPlan =
+      remainingAttractions.length === previousPlan.plan.orderedAttractions.length
+        ? previousPlan.plan
+        : { ...previousPlan.plan, orderedAttractions: remainingAttractions };
+
+    showPlan(restoredPlan, previousPlan.geometry);
     setCurrentPosition(resumePosition);
 
     if (previousPlan.geometry.length >= 2) {
-      handleStartWalk(previousPlan.plan);
+      handleStartWalk(restoredPlan);
     }
   };
 

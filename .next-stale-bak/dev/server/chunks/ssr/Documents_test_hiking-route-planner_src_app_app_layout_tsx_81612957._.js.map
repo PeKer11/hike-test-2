@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/arielshorpacker/Documents/test/hiking-route-planner/src/app/app/layout.tsx"],"sourcesContent":["import type { Viewport } from \"next\";\n\nexport const viewport: Viewport = {\n  width: \"device-width\",\n  initialScale: 1,\n  maximumScale: 1,\n  userScalable: false,\n};\n\nexport default function AppLayout({\n  children,\n}: Readonly<{\n  children: React.ReactNode;\n}>) {\n  return children;\n}\n"],"names":[],"mappings":";;;;;;AAEO,MAAM,WAAqB;IAChC,OAAO;IACP,cAAc;IACd,cAAc;IACd,cAAc;AAChB;AAEe,SAAS,UAAU,EAChC,QAAQ,EAGR;IACA,OAAO;AACT"}}]
+}

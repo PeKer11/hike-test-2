@@ -1,0 +1,12 @@
+{
+  "pages": {},
+  "app": {
+    "[project]/Documents/test/hiking-route-planner/src/app/app/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2",
+      "static/media/5c8bbc89ca099f34-s.p.871a2d56.woff2",
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2"
+    ]
+  },
+  "appUsingSizeAdjust": true,
+  "pagesUsingSizeAdjust": false
+}
