@@ -81,6 +81,9 @@
   3. If step 2 also finds nothing, drop the element exactly as today.
   Blocked on infra: no Google key exists (`.env.example` has only `ORS_API_KEY`), so this needs a `GOOGLE_PLACES_API_KEY` / `GOOGLE_MAPS_API_KEY` env var plus a decision on which Google API, its cost/quota, and per-request caching before any code is written.
 
+#### extract-places (`src/app/api/extract-places/route.ts`, `nominatim-client.ts`)
+- [ ] **Google fallback when Nominatim can't geocode a named place:** live-tested 2026-07-28 — a real, well-known place ("מדרחוב זכרון יעקב", 4.4★/4.7K reviews on Google) came back as `unresolvedNames` because Nominatim/OSM has no matching searchable entity for it in that area, even though it's not a naming problem (the user supplied the exact correct name). This is the same underlying gap as the unnamed-OSM-elements item above (OSM coverage vs Google's), just triggered from the opposite direction (a resolvable name Nominatim doesn't have, vs. no name at all). Proposed fix: when Nominatim returns zero results for an extracted name, fall back to Google Places **Text Search** (or Geocoding API) using that name + the `contextLocation`/bias as a query hint, before giving up and reporting it as unresolved. Blocked on the same infra decision as above (`GOOGLE_PLACES_API_KEY`, cost/quota) — should be designed and built together with that item rather than as a separate one-off, since both need the same key/decision.
+
 #### tsp-planner.ts (`src/lib/optimization/tsp-planner.ts`)
 - [x] **Smarter drop logic:** before discarding a high-score attraction that exceeds the time budget, try reinserting it at an earlier position in the tour. Only drop if no valid insertion exists within budget — implemented in `planWalkOrder`
 
