@@ -4,9 +4,10 @@ import type { Coordinates, NominatimPlace } from "@/lib/types";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
-// Roughly 25 km around the bias point. Nominatim treats an unbounded viewbox
-// as a preference, not a filter, so out-of-box matches still come back.
-const BIAS_BOX_DEGREES = 0.25;
+// Roughly 10 km around the bias point. Generic names ("מדרחוב", "גן טייל")
+// exist in every town, so a preference-only viewbox silently returned matches
+// tens of km away. With `bounded=1` the box is a hard filter instead.
+const BIAS_BOX_DEGREES = 0.1;
 
 export async function searchPlaces(
   query: string,
@@ -25,12 +26,16 @@ export async function searchPlaces(
     addressdetails: "1",
   });
 
+  // A bias turns this into a hard "near this point" search: no match inside the
+  // box is a real answer, and the caller reports that name as unresolved rather
+  // than retrying unbounded and accepting a place in another town.
   if (bias && Number.isFinite(bias.lat) && Number.isFinite(bias.lng)) {
     const minLng = bias.lng - BIAS_BOX_DEGREES;
     const minLat = bias.lat - BIAS_BOX_DEGREES;
     const maxLng = bias.lng + BIAS_BOX_DEGREES;
     const maxLat = bias.lat + BIAS_BOX_DEGREES;
     params.set("viewbox", `${minLng},${minLat},${maxLng},${maxLat}`);
+    params.set("bounded", "1");
   }
 
   const response = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {
