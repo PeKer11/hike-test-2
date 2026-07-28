@@ -17,17 +17,22 @@ export default async function LoginPage({
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-cream p-4 font-brand text-charcoal">
-      {/* Same hero photo as the landing page, blurred and washed out so it reads
-          as brand texture behind the form rather than a second focal point. */}
+      {/* Terracotta studio gradient instead of the landing-page photo: the auth
+          pages should feel like brand surface, not a second marketing hero. It
+          needs only a light blur (it has no detail to hide, just a faint
+          cyclorama seam) and a heavier cream wash, since the source is far more
+          saturated than the photo it replaced. Its highlight sits dead centre,
+          so the warm glow lands behind the card. */}
       <Image
-        src="/images/hero-tent-sunrise-new.png"
+        src="/images/auth-terra-gradient.jpg"
         alt=""
         fill
+        priority
         sizes="100vw"
         aria-hidden
-        className="scale-110 object-cover object-center blur-lg"
+        className="scale-105 object-cover object-center blur-sm"
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-cream/85 via-cream/75 to-cream/90" />
+      <div className="absolute inset-0 bg-gradient-to-b from-cream/86 via-cream/72 to-cream/92" />
       <div className="relative w-full max-w-sm">
         <AuthForm mode="login" initialError={error} />
       </div>
