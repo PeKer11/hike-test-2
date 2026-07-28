@@ -7,7 +7,7 @@ import {
 } from "@/lib/attractions/attraction-ranker";
 import { getDirections } from "@/lib/api/ors-client";
 import { buildWalkPlan } from "@/lib/optimization/tsp-planner";
-import { toOrsCoord } from "@/lib/utils/geo";
+import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 import { decodePolyline } from "@/lib/utils/polyline";
 import type {
   Attraction,
@@ -27,6 +27,34 @@ interface WalkPlanApiRequest {
   // already on instead of discovering a whole new set of POIs.
   explicitAttractions?: Attraction[];
   pinnedAttractionIds?: string[];
+  // Set by the "Name your own stops" flow: the named places are a starting point,
+  // not the whole walk — top up the leftover time with discovered POIs. Off by
+  // default so the pace-triggered rebuild keeps meaning "only these".
+  fillRemainingTime?: boolean;
+}
+
+// A discovered POI this close to a named place is the same place under another
+// OSM id — keep it out of the filler so the stop isn't listed twice.
+const DUPLICATE_RADIUS_METERS = 50;
+
+// Below this much of the budget spent, the named places leave enough room that
+// discovering filler is worth an Overpass call.
+const FILL_THRESHOLD = 0.9;
+
+// Same heuristic `selectFeasibleAttractions` uses: walk from the origin to each
+// stop plus its visit time. Rough on purpose — the planner does the real math.
+function estimateMinutes(
+  origin: Coordinates,
+  attractions: Attraction[],
+  walkingPaceMinPerKm: number,
+): number {
+  return attractions.reduce(
+    (sum, a) =>
+      sum +
+      (haversineDistance(origin, a.coordinates) / 1000) * walkingPaceMinPerKm +
+      a.avgVisitMinutes,
+    0,
+  );
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -70,8 +98,58 @@ export async function POST(request: Request): Promise<NextResponse> {
     // time budget — skipped entirely when the caller already knows which
     // attractions the walk must keep.
     let selected: Attraction[];
+    let pinnedAttractionIds = body.pinnedAttractionIds;
     if (explicitAttractions && explicitAttractions.length > 0) {
       selected = explicitAttractions;
+
+      const explicitMinutes = estimateMinutes(
+        origin,
+        explicitAttractions,
+        walkingPaceMinPerKm,
+      );
+
+      // The named places barely dent the budget — fill the rest the same way an
+      // open-mode walk is built, but never at the cost of a place the user named.
+      if (
+        body.fillRemainingTime === true &&
+        explicitMinutes < availableMinutes * FILL_THRESHOLD
+      ) {
+        const raw = await fetchAttractions(origin, radiusMeters);
+
+        const ranked = rankAttractions(raw, {
+          origin,
+          preferredCategories: body.preferredCategories,
+          availableMinutes,
+          walkingPaceMinPerKm,
+        });
+
+        const explicitIds = new Set(explicitAttractions.map((a) => a.id));
+        const filler = ranked.filter(
+          (candidate) =>
+            !explicitIds.has(candidate.id) &&
+            !explicitAttractions.some(
+              (e) =>
+                haversineDistance(e.coordinates, candidate.coordinates) <=
+                DUPLICATE_RADIUS_METERS,
+            ),
+        );
+
+        const feasible = selectFeasibleAttractions(
+          [...explicitAttractions, ...filler],
+          availableMinutes,
+          walkingPaceMinPerKm,
+        ).selected;
+
+        // Every named place stays in, whatever the pre-filter decided; only the
+        // filler is allowed to be trimmed here (and later by the planner).
+        selected = [
+          ...explicitAttractions,
+          ...feasible.filter((a) => !explicitIds.has(a.id)),
+        ];
+        pinnedAttractionIds = Array.from(
+          new Set([...(body.pinnedAttractionIds ?? []), ...explicitIds]),
+        );
+      }
     } else {
       const raw = await fetchAttractions(origin, radiusMeters);
 
@@ -97,7 +175,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       radiusMeters,
       preferredCategories: body.preferredCategories,
       explicitAttractions,
-      pinnedAttractionIds: body.pinnedAttractionIds,
+      pinnedAttractionIds,
     };
 
     const plan = buildWalkPlan(planRequest, selected);

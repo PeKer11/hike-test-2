@@ -231,13 +231,15 @@ export default function HomePage() {
   // re-plan we jump straight back into live tracking instead of dropping the walker
   // on the "planned" screen. User-initiated rebuilds keep the manual Start Walk step.
   // `keepAttractions` pins the rebuild to the POIs the walker is already heading to
-  // instead of re-running discovery — again, automatic path only.
+  // instead of re-running discovery — again, automatic path only. `fillRemainingTime`
+  // relaxes that to "keep these, then discover more" for user-named stops.
   const handleBuildWalk = async (
     input: WalkCompanionInput,
     options?: {
       autoResume?: boolean;
       keepAttractions?: Attraction[];
       pinnedIds?: string[];
+      fillRemainingTime?: boolean;
     },
   ) => {
     // Snapshot what the walker is on now, so an automatic re-plan can be undone —
@@ -307,6 +309,7 @@ export default function HomePage() {
           preferredCategories: input.preferredCategories,
           explicitAttractions: keepAttractions,
           pinnedAttractionIds: activePinnedIds,
+          fillRemainingTime: options?.fillRemainingTime ?? false,
         }),
       });
       const data = (await res.json()) as WalkPlan & { error?: string };
@@ -830,7 +833,12 @@ export default function HomePage() {
                   void handleBuildWalk(
                     input,
                     promptAttractions && promptAttractions.length > 0
-                      ? { keepAttractions: promptAttractions }
+                      ? {
+                          keepAttractions: promptAttractions,
+                          // Named stops are the must-haves, not the whole walk —
+                          // let discovery use up whatever time is left over.
+                          fillRemainingTime: true,
+                        }
                       : undefined,
                   );
                 }}
