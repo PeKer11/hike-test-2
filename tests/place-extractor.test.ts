@@ -7,7 +7,7 @@ import {
 } from "@/lib/places/place-extractor";
 
 describe("parsePlaceNames", () => {
-  it("reads the tool-use input shape", () => {
+  it("reads the JSON-mode response shape", () => {
     expect(parsePlaceNames({ places: ["Habima Square", "Jaffa Port"] })).toEqual([
       "Habima Square",
       "Jaffa Port",
@@ -26,6 +26,11 @@ describe("parsePlaceNames", () => {
 
   it("parses a raw JSON string", () => {
     expect(parsePlaceNames('{"places": ["Jaffa Port"]}')).toEqual(["Jaffa Port"]);
+  });
+
+  it("returns an empty array for a missing or blocked response", () => {
+    expect(parsePlaceNames("")).toEqual([]);
+    expect(parsePlaceNames(undefined)).toEqual([]);
   });
 
   it("strips a markdown code fence", () => {

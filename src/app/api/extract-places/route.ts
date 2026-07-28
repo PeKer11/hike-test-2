@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { extractPlaceNames } from "@/lib/api/anthropic-client";
+import { extractPlaceNames } from "@/lib/api/gemini-client";
 import { searchPlaces } from "@/lib/api/nominatim-client";
 import {
   buildExtractionResult,

@@ -1,7 +1,7 @@
 import type { Attraction, Coordinates } from "@/lib/types";
 
-// The model is asked for a fixed JSON shape, but a tool-use `input` is still
-// untyped JSON coming off the wire — parse defensively rather than trusting it.
+// The model is asked for a fixed JSON shape, but the reply is still untyped
+// JSON coming off the wire — parse defensively rather than trusting it.
 const MAX_PLACE_NAMES = 8;
 const MAX_NAME_LENGTH = 120;
 
@@ -28,10 +28,11 @@ function toStringArray(value: unknown): string[] | null {
 }
 
 /**
- * Pull a list of place names out of whatever the model returned — a tool-use
- * `input` object, a bare array, or raw text that may be wrapped in a markdown
- * fence. Returns an empty array rather than throwing when nothing usable is
- * found, so the caller can report "no places found" instead of a 500.
+ * Pull a list of place names out of whatever the model returned — a JSON-mode
+ * text reply, an already-parsed object, a bare array, or prose that may be
+ * wrapped in a markdown fence. Returns an empty array rather than throwing when
+ * nothing usable is found, so the caller can report "no places found" instead
+ * of a 500.
  */
 export function parsePlaceNames(input: unknown): string[] {
   let candidate: unknown = input;
