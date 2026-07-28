@@ -9,7 +9,12 @@ import { getDirections } from "@/lib/api/ors-client";
 import { buildWalkPlan } from "@/lib/optimization/tsp-planner";
 import { toOrsCoord } from "@/lib/utils/geo";
 import { decodePolyline } from "@/lib/utils/polyline";
-import type { AttractionCategory, Coordinates, WalkPlanRequest } from "@/lib/types";
+import type {
+  Attraction,
+  AttractionCategory,
+  Coordinates,
+  WalkPlanRequest,
+} from "@/lib/types";
 
 interface WalkPlanApiRequest {
   lat: number;
@@ -18,6 +23,10 @@ interface WalkPlanApiRequest {
   walkingPaceMinPerKm?: number;
   radiusMeters?: number;
   preferredCategories?: AttractionCategory[];
+  // Set by the automatic pace-triggered rebuild: re-time the walk the user is
+  // already on instead of discovering a whole new set of POIs.
+  explicitAttractions?: Attraction[];
+  pinnedAttractionIds?: string[];
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -53,22 +62,32 @@ export async function POST(request: Request): Promise<NextResponse> {
       ? Math.min(Math.max(requestedRadius, 100), 10_000)
       : 2000;
 
-    // 1. Fetch raw attractions from Overpass
-    const raw = await fetchAttractions(origin, radiusMeters);
+    const explicitAttractions = Array.isArray(body.explicitAttractions)
+      ? body.explicitAttractions
+      : undefined;
 
-    // 2. Rank and pre-filter by time budget
-    const ranked = rankAttractions(raw, {
-      origin,
-      preferredCategories: body.preferredCategories,
-      availableMinutes,
-      walkingPaceMinPerKm,
-    });
+    // 1 + 2. Fetch raw attractions from Overpass, then rank and pre-filter by
+    // time budget — skipped entirely when the caller already knows which
+    // attractions the walk must keep.
+    let selected: Attraction[];
+    if (explicitAttractions && explicitAttractions.length > 0) {
+      selected = explicitAttractions;
+    } else {
+      const raw = await fetchAttractions(origin, radiusMeters);
 
-    const { selected } = selectFeasibleAttractions(
-      ranked,
-      availableMinutes,
-      walkingPaceMinPerKm,
-    );
+      const ranked = rankAttractions(raw, {
+        origin,
+        preferredCategories: body.preferredCategories,
+        availableMinutes,
+        walkingPaceMinPerKm,
+      });
+
+      selected = selectFeasibleAttractions(
+        ranked,
+        availableMinutes,
+        walkingPaceMinPerKm,
+      ).selected;
+    }
 
     // 3. Build walk plan with TSP ordering
     const planRequest: WalkPlanRequest = {
@@ -77,6 +96,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       walkingPaceMinPerKm,
       radiusMeters,
       preferredCategories: body.preferredCategories,
+      explicitAttractions,
+      pinnedAttractionIds: body.pinnedAttractionIds,
     };
 
     const plan = buildWalkPlan(planRequest, selected);

@@ -2,35 +2,44 @@ import {
   clampPaceCheckInterval,
   type WalkSettings,
 } from "@/lib/types/walk-settings";
+import {
+  ReplanTrigger,
+  type ReplanReason,
+  type ReplanSample,
+} from "@/lib/walk/replan-trigger";
 
 export class PaceChecker {
   private settings: WalkSettings;
-  private readonly plannedPaceMinPerKm: number;
-  private readonly onSlowPace: (latestPace: number) => void;
+  private readonly trigger: ReplanTrigger;
+  private readonly onReplanNeeded: (reason: ReplanReason) => void;
   private intervalId: ReturnType<typeof setInterval> | null = null;
-  private getLatestPaceRef: (() => number | null) | null = null;
+  private isRunning = false;
 
   constructor(
     settings: WalkSettings,
     plannedPaceMinPerKm: number,
-    onSlowPace: (latestPace: number) => void,
+    onReplanNeeded: (reason: ReplanReason) => void,
   ) {
     this.settings = {
       ...settings,
       paceCheckIntervalMs: clampPaceCheckInterval(settings.paceCheckIntervalMs),
     };
-    this.plannedPaceMinPerKm = plannedPaceMinPerKm;
-    this.onSlowPace = onSlowPace;
+    this.trigger = new ReplanTrigger(plannedPaceMinPerKm);
+    this.onReplanNeeded = onReplanNeeded;
   }
 
-  start(getLatestPace: () => number | null): void {
-    this.getLatestPaceRef = getLatestPace;
+  /** Feed every accepted GPS position here — the trigger windows are built from these. */
+  recordSample(sample: ReplanSample): void {
+    this.trigger.recordSample(sample);
+  }
 
+  start(): void {
     if (this.intervalId !== null) {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
 
+    this.isRunning = true;
     const intervalMs = clampPaceCheckInterval(this.settings.paceCheckIntervalMs);
 
     this.intervalId = setInterval(() => {
@@ -38,18 +47,15 @@ export class PaceChecker {
         return;
       }
 
-      const latestPace = this.getLatestPaceRef?.();
-      if (latestPace === null || latestPace === undefined) {
-        return;
-      }
-
-      if (latestPace > this.plannedPaceMinPerKm * 1.3) {
-        this.onSlowPace(latestPace);
+      const reason = this.trigger.evaluate(Date.now());
+      if (reason !== null) {
+        this.onReplanNeeded(reason);
       }
     }, intervalMs);
   }
 
   stop(): void {
+    this.isRunning = false;
     if (this.intervalId !== null) {
       clearInterval(this.intervalId);
       this.intervalId = null;
@@ -62,11 +68,10 @@ export class PaceChecker {
       paceCheckIntervalMs: clampPaceCheckInterval(settings.paceCheckIntervalMs),
     };
 
-    const latestPaceGetter = this.getLatestPaceRef;
-    this.stop();
-
-    if (latestPaceGetter) {
-      this.start(latestPaceGetter);
+    // Restart the timer with the new interval, but keep the collected samples and
+    // the cooldown — changing a setting is not a reason to re-arm either trigger.
+    if (this.isRunning) {
+      this.start();
     }
   }
 }

@@ -85,6 +85,21 @@ describe("planWalkOrder", () => {
     expect(result.segments.every((s) => Number.isFinite(s.distanceMeters))).toBe(true);
   });
 
+  it("keeps a pinned attraction that no longer fits, and reports it as infeasible", () => {
+    const attractions = [
+      makeAttraction("a", 32.081, 34.781, 60),
+      makeAttraction("b", 32.082, 34.782, 60),
+      makeAttraction("pinned", 32.083, 34.783, 60),
+    ];
+    const result = planWalkOrder(
+      { ...baseRequest, pinnedAttractionIds: ["pinned"] },
+      attractions,
+    );
+    expect(result.orderedAttractions.map((a) => a.id)).toContain("pinned");
+    expect(result.droppedAttractions.map((a) => a.id)).not.toContain("pinned");
+    expect(result.feasible).toBe(false);
+  });
+
   it("first segment always starts from origin", () => {
     const attractions = [
       makeAttraction("a", 32.081, 34.781),

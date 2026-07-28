@@ -24,6 +24,8 @@ interface WalkCompanionPanelProps {
   onLocationDetected?: (coords: Coordinates) => void;
   onStartWalk?: () => void;
   onStopWalk?: () => void;
+  onRevertPlan?: () => void;
+  canRevertPlan?: boolean;
   walkPlanReady?: boolean;
   isWalking?: boolean;
 }
@@ -54,6 +56,8 @@ export function WalkCompanionPanel({
   onLocationDetected,
   onStartWalk,
   onStopWalk,
+  onRevertPlan,
+  canRevertPlan = false,
   walkPlanReady = false,
   isWalking = false,
 }: WalkCompanionPanelProps) {
@@ -289,6 +293,15 @@ export function WalkCompanionPanel({
           "Build My Walk"
         )}
       </Button>
+      {canRevertPlan && (
+        <Button
+          onClick={() => onRevertPlan?.()}
+          variant="secondary"
+          fullWidth
+        >
+          ↩ Back to previous route
+        </Button>
+      )}
       {isWalking ? (
         <Button
           onClick={() => onStopWalk?.()}

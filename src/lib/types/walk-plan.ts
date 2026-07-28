@@ -30,6 +30,9 @@ export interface WalkPlanRequest {
   radiusMeters: number;
   preferredCategories?: AttractionCategory[];
   explicitAttractions?: Attraction[];
+  // Attractions the user pinned as "must keep". Never dropped by the planner,
+  // even when they push the plan over the time budget (`feasible` goes false instead).
+  pinnedAttractionIds?: string[];
 }
 
 export interface WalkSegment {

@@ -7,9 +7,17 @@ import { CATEGORY_EMOJI } from "@/lib/constants/categories";
 interface Props {
   attractions: Attraction[];
   attractionDistances: Record<string, number>;
+  // Pinned attractions survive an automatic re-plan even if time runs short.
+  pinnedIds?: string[];
+  onTogglePin?: (attractionId: string) => void;
 }
 
-export function AttractionDistancesPanel({ attractions, attractionDistances }: Props) {
+export function AttractionDistancesPanel({
+  attractions,
+  attractionDistances,
+  pinnedIds = [],
+  onTogglePin,
+}: Props) {
   if (attractions.length === 0) return null;
 
   const items = attractions
@@ -39,7 +47,7 @@ export function AttractionDistancesPanel({ attractions, attractionDistances }: P
                 isNext ? "bg-emerald-50" : ""
               }`}
             >
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex flex-1 items-center gap-2 min-w-0">
                 <span className="text-base leading-none">{emoji}</span>
                 <span
                   className={`truncate text-sm ${
@@ -54,6 +62,23 @@ export function AttractionDistancesPanel({ attractions, attractionDistances }: P
                   </span>
                 )}
               </div>
+              {onTogglePin && (
+                <button
+                  onClick={() => onTogglePin(attraction.id)}
+                  aria-label={
+                    pinnedIds.includes(attraction.id)
+                      ? `Unpin ${attraction.name}`
+                      : `Pin ${attraction.name}`
+                  }
+                  className={`ml-2 shrink-0 rounded-full px-1.5 py-0.5 text-sm transition ${
+                    pinnedIds.includes(attraction.id)
+                      ? "bg-amber-100 opacity-100"
+                      : "opacity-30 hover:opacity-70"
+                  }`}
+                >
+                  📌
+                </button>
+              )}
               <span
                 className={`ml-3 shrink-0 text-sm font-medium tabular-nums ${
                   passed

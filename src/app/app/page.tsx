@@ -13,7 +13,7 @@ import {
 } from "@/components/route";
 import { OffRouteNotification } from "@/components/walk/OffRouteNotification";
 import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
-import type { WalkPlan } from "@/lib/types";
+import type { Attraction, WalkPlan } from "@/lib/types";
 import { Button, Card } from "@/components/ui";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
@@ -39,6 +39,14 @@ import { PoiAlerter } from "@/lib/walk/poi-alerter";
 import type { PoiAlert } from "@/lib/walk/poi-alerter";
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
+
+// One level of undo: the plan the walker was on before the last automatic re-plan.
+interface PlanSnapshot {
+  plan: WalkPlan;
+  input: WalkCompanionInput;
+  geometry: Coordinates[];
+  startTime: number;
+}
 
 export default function HomePage() {
   const [plannerMode, setPlannerMode] = useState<PlannerMode>("manual");
@@ -79,10 +87,12 @@ export default function HomePage() {
   const walkInputRef = useRef<WalkCompanionInput | null>(null);
   const walkStartTimeRef = useRef<number>(0);
   const latestPaceUpdateRef = useRef<PaceUpdate | null>(null);
-  // PaceChecker fires on every tick the walker is slow, and auto-resume restarts it
-  // after each rebuild — so without this latch a persistently slow walker would
-  // re-plan (Overpass + ORS) forever. One auto re-plan per user-started walk.
-  const autoRebuildUsedRef = useRef(false);
+  // Read by the PaceChecker callback, which closes over a stale render's state.
+  const walkPlanRef = useRef<WalkPlan | null>(null);
+  const pinnedAttractionIdsRef = useRef<string[]>([]);
+  const [pinnedAttractionIds, setPinnedAttractionIds] = useState<string[]>([]);
+  const [previousPlan, setPreviousPlan] = useState<PlanSnapshot | null>(null);
+  const [pinnedTimeWarning, setPinnedTimeWarning] = useState<string | null>(null);
   const walkTrackerRef = useRef<WalkTracker | SimulatedWalkTracker | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const paceCheckerRef = useRef<PaceChecker | null>(null);
@@ -139,20 +149,81 @@ export default function HomePage() {
     setPoiAlert(null);
   };
 
+  // Draws a plan on the map and moves the walk into the "planned" phase. Shared by
+  // the build path and the revert-to-previous-route path.
+  const showPlan = (plan: WalkPlan, geometry: Coordinates[]) => {
+    setWalkPlan(plan);
+    walkPlanRef.current = plan;
+    setWalkPhase("planned");
+    walkGeometryRef.current = geometry;
+    setRemainingGeometry(geometry);
+    setIsOffRoute(false);
+    setOffRouteDeviation(0);
+    setWalkTrackingMessage(null);
+    // Show attraction markers on the map
+    clearWaypoints();
+    clearRoute();
+    const attractionWaypoints = plan.orderedAttractions.map((a, i) => ({
+      id: a.id,
+      name: `${i + 1}. ${a.name}`,
+      coordinates: a.coordinates,
+      required: true,
+      isStart: i === 0,
+      isEnd: i === plan.orderedAttractions.length - 1,
+    }));
+    // Set them directly: addWaypoint would mint fresh ids and drop the
+    // required/isStart/isEnd flags, leaving the markers out of sync with
+    // the route waypoints handed to applyRoute below.
+    setWaypoints(attractionWaypoints);
+    // If ORS returned geometry, show the route line on the map
+    if (geometry.length > 0) {
+      applyRoute({
+        orderedWaypoints: attractionWaypoints,
+        geometry,
+        totalDistanceMeters: plan.totalDistanceMeters,
+        totalDurationSeconds: plan.totalMinutes * 60,
+        segments: [],
+        warnings: [],
+      });
+    }
+    if (plan.orderedAttractions[0]) {
+      focusOn(plan.orderedAttractions[0].coordinates, 14);
+    }
+  };
+
   // `autoResume` is set only by the pace-triggered rebuild below: after a slow-pace
   // re-plan we jump straight back into live tracking instead of dropping the walker
   // on the "planned" screen. User-initiated rebuilds keep the manual Start Walk step.
+  // `keepAttractions` pins the rebuild to the POIs the walker is already heading to
+  // instead of re-running discovery — again, automatic path only.
   const handleBuildWalk = async (
     input: WalkCompanionInput,
-    options?: { autoResume?: boolean },
+    options?: {
+      autoResume?: boolean;
+      keepAttractions?: Attraction[];
+      pinnedIds?: string[];
+    },
   ) => {
+    // Snapshot what the walker is on now, so an automatic re-plan can be undone.
+    if (options?.autoResume && walkPlanRef.current && walkInputRef.current) {
+      setPreviousPlan({
+        plan: walkPlanRef.current,
+        input: walkInputRef.current,
+        geometry: walkGeometryRef.current,
+        startTime: walkStartTimeRef.current,
+      });
+    }
+
     stopWalkTracking();
     walkInputRef.current = input;
     setLastWalkInput(input);
     walkStartTimeRef.current = Date.now();
     latestPaceUpdateRef.current = null;
+    setPinnedTimeWarning(null);
     if (!options?.autoResume) {
-      autoRebuildUsedRef.current = false;
+      setPreviousPlan(null);
+      setPinnedAttractionIds([]);
+      pinnedAttractionIdsRef.current = [];
     }
     setCurrentPosition(input.origin);
 
@@ -173,6 +244,8 @@ export default function HomePage() {
           walkingPaceMinPerKm: input.walkingPaceMinPerKm,
           radiusMeters: input.radiusMeters,
           preferredCategories: input.preferredCategories,
+          explicitAttractions: options?.keepAttractions,
+          pinnedAttractionIds: options?.pinnedIds,
         }),
       });
       const data = (await res.json()) as WalkPlan & { error?: string };
@@ -183,45 +256,32 @@ export default function HomePage() {
       if (!res.ok || data.error) {
         setWalkPlanError(data.error ?? "Failed to build walk plan.");
       } else {
-        setWalkPlan(data);
-        setWalkPhase("planned");
-        walkGeometryRef.current = data.geometry ?? [];
-        setRemainingGeometry(data.geometry ?? []);
-        setIsOffRoute(false);
-        setOffRouteDeviation(0);
-        setWalkTrackingMessage(null);
-        // Show attraction markers on the map
-        clearWaypoints();
-        clearRoute();
-        const attractionWaypoints = data.orderedAttractions.map((a, i) => ({
-          id: a.id,
-          name: `${i + 1}. ${a.name}`,
-          coordinates: a.coordinates,
-          required: true,
-          isStart: i === 0,
-          isEnd: i === data.orderedAttractions.length - 1,
-        }));
-        // Set them directly: addWaypoint would mint fresh ids and drop the
-        // required/isStart/isEnd flags, leaving the markers out of sync with
-        // the route waypoints handed to applyRoute below.
-        setWaypoints(attractionWaypoints);
-        // If ORS returned geometry, show the route line on the map
-        if (data.geometry && data.geometry.length > 0) {
-          applyRoute({
-            orderedWaypoints: attractionWaypoints,
-            geometry: data.geometry,
-            totalDistanceMeters: data.totalDistanceMeters,
-            totalDurationSeconds: data.totalMinutes * 60,
-            segments: [],
-            warnings: [],
-          });
+        showPlan(data, data.geometry ?? []);
+
+        // A pinned stop is never dropped, so the plan can come back over budget.
+        // Say so instead of failing quietly — the walker decides what to do.
+        const pinnedIds = options?.pinnedIds ?? [];
+        if (pinnedIds.length > 0) {
+          const droppedPins = data.droppedAttractions.filter((a) =>
+            pinnedIds.includes(a.id),
+          );
+          if (!data.feasible || droppedPins.length > 0) {
+            setPinnedTimeWarning(
+              `At your current pace you probably won't reach every pinned stop within the remaining ${Math.round(
+                input.availableMinutes,
+              )} min. Keep going anyway, add time, or unpin a stop.`,
+            );
+          }
         }
-        if (data.orderedAttractions[0]) {
-          focusOn(data.orderedAttractions[0].coordinates, 14);
-        }
+
         // Pace-triggered rebuild: resume live tracking on the new route without
-        // making the walker press "Start Walk" again.
-        if (options?.autoResume && data.feasible && (data.geometry?.length ?? 0) >= 2) {
+        // making the walker press "Start Walk" again. An over-budget plan caused
+        // by a pin still resumes — the warning above is the user's decision point.
+        if (
+          options?.autoResume &&
+          data.orderedAttractions.length > 0 &&
+          (data.geometry?.length ?? 0) >= 2
+        ) {
           handleStartWalk(data);
         }
       }
@@ -243,6 +303,7 @@ export default function HomePage() {
       setWalkPlanError("Build a walk plan before starting live tracking.");
       return;
     }
+    walkPlanRef.current = plan;
 
     const initialPosition =
       (planOverride ? walkInputRef.current?.origin : currentPosition) ??
@@ -252,9 +313,6 @@ export default function HomePage() {
 
     stopWalkTracking();
     latestPaceUpdateRef.current = null;
-    if (!planOverride) {
-      autoRebuildUsedRef.current = false;
-    }
     setRecordedPointCount(0);
     setCurrentPosition(initialPosition);
     setIsOffRoute(false);
@@ -286,6 +344,13 @@ export default function HomePage() {
 
     const onPositionUpdate = (update: PaceUpdate) => {
       latestPaceUpdateRef.current = update;
+
+      // Feed the re-plan windows from every accepted fix, not from the coarse
+      // pace-check tick — the stop/slow detection needs the full sample stream.
+      paceCheckerRef.current?.recordSample({
+        coordinates: update.currentPosition,
+        timestamp: update.timestamp,
+      });
 
       // PoiAlerter check — runs every tick, not throttled (CRITICAL-1)
       const alert = alerter.check(
@@ -377,8 +442,6 @@ export default function HomePage() {
         // This ref closure captures the live walkPhase via the setter comparison below
         // We re-read walkPhase by checking the tracker is still active
         if (walkTrackerRef.current === null) return;
-        if (autoRebuildUsedRef.current) return;
-        autoRebuildUsedRef.current = true;
         const elapsedMinutes = (Date.now() - walkStartTimeRef.current) / 60_000;
         const remainingMinutes = Math.max(15, orig.availableMinutes - elapsedMinutes);
         const currentPos = latestPaceUpdateRef.current?.currentPosition ?? orig.origin;
@@ -388,12 +451,53 @@ export default function HomePage() {
             origin: currentPos,
             availableMinutes: remainingMinutes,
           },
-          { autoResume: true },
+          {
+            autoResume: true,
+            // Re-time the walk the user is already on — no fresh POI discovery.
+            keepAttractions: walkPlanRef.current?.orderedAttractions,
+            pinnedIds: pinnedAttractionIdsRef.current,
+          },
         );
       },
     );
     paceCheckerRef.current = checker;
-    checker.start(() => latestPaceUpdateRef.current?.paceMinPerKm ?? null);
+    checker.start();
+  };
+
+  // Undo the last automatic re-plan: put the walker back on the route they had,
+  // starting from wherever they are now.
+  const handleRevertPlan = () => {
+    if (!previousPlan) return;
+
+    const resumePosition =
+      latestPaceUpdateRef.current?.currentPosition ??
+      currentPosition ??
+      previousPlan.input.origin;
+
+    stopWalkTracking();
+    walkInputRef.current = { ...previousPlan.input, origin: resumePosition };
+    setLastWalkInput(walkInputRef.current);
+    walkStartTimeRef.current = previousPlan.startTime;
+    latestPaceUpdateRef.current = null;
+    setPinnedTimeWarning(null);
+    setPreviousPlan(null);
+    showPlan(previousPlan.plan, previousPlan.geometry);
+    setCurrentPosition(resumePosition);
+
+    if (previousPlan.geometry.length >= 2) {
+      handleStartWalk(previousPlan.plan);
+    }
+  };
+
+  const toggleAttractionPin = (attractionId: string) => {
+    setPinnedAttractionIds((prev) => {
+      const next = prev.includes(attractionId)
+        ? prev.filter((id) => id !== attractionId)
+        : [...prev, attractionId];
+      // The PaceChecker callback reads a ref — it can't see this state update.
+      pinnedAttractionIdsRef.current = next;
+      return next;
+    });
   };
 
   // Keep PaceChecker in sync when settings change while a walk is active
@@ -602,8 +706,44 @@ export default function HomePage() {
                 walkPlanReady={walkPhase === "planned" || walkPhase === "walking"}
                 onStartWalk={handleStartWalk}
                 onStopWalk={stopWalkTracking}
+                onRevertPlan={handleRevertPlan}
+                canRevertPlan={previousPlan !== null}
                 isWalking={walkPhase === "walking"}
               />
+              {/* Pinned stop no longer fits the remaining time — ask, don't drop it */}
+              {pinnedTimeWarning && (
+                <Card className="space-y-2 border-amber-300 bg-amber-50">
+                  <p className="text-sm text-amber-800">📌 {pinnedTimeWarning}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setPinnedTimeWarning(null)}
+                    >
+                      Keep going
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        const orig = walkInputRef.current;
+                        if (!orig) return;
+                        void handleBuildWalk(
+                          {
+                            ...orig,
+                            availableMinutes: orig.availableMinutes + 15,
+                          },
+                          {
+                            autoResume: true,
+                            keepAttractions: walkPlanRef.current?.orderedAttractions,
+                            pinnedIds: pinnedAttractionIdsRef.current,
+                          },
+                        );
+                      }}
+                    >
+                      + 15 min
+                    </Button>
+                  </div>
+                </Card>
+              )}
               {/* Geometry warning banner (LOW-4) */}
               {walkPlan?.warnings?.some((w) => w.includes("geometry")) && (
                 <Card>
@@ -628,6 +768,8 @@ export default function HomePage() {
                 <AttractionDistancesPanel
                   attractions={walkPlan.orderedAttractions}
                   attractionDistances={attractionDistances}
+                  pinnedIds={pinnedAttractionIds}
+                  onTogglePin={toggleAttractionPin}
                 />
               )}
               {/* Loading skeleton while plan is being built (MEDIUM-5) */}
@@ -641,10 +783,13 @@ export default function HomePage() {
               )}
               {/* Retry affordance when plan is infeasible or attractions were dropped (MEDIUM-5) */}
               {!isWalkPlanLoading && walkPlan && lastWalkInput && (
-                (!walkPlan.feasible || walkPlan.droppedAttractions.length > 0) && (
+                // A pinned stop can make a non-empty plan infeasible — that case has
+                // its own prompt above, so don't claim nothing fit.
+                (walkPlan.orderedAttractions.length === 0 ||
+                  walkPlan.droppedAttractions.length > 0) && (
                   <Card className="space-y-2">
                     <p className="text-sm text-amber-700">
-                      {!walkPlan.feasible
+                      {walkPlan.orderedAttractions.length === 0
                         ? "No attractions fit your time budget."
                         : `Only ${walkPlan.orderedAttractions.length} of ${walkPlan.orderedAttractions.length + walkPlan.droppedAttractions.length} attractions fit — expand time or radius?`}
                     </p>

@@ -159,6 +159,7 @@ export function planWalkOrder(
 ): TspResult {
   const { origin, availableMinutes, walkingPaceMinPerKm } = request;
   const originPoint = { coordinates: origin };
+  const pinnedIds = new Set(request.pinnedAttractionIds ?? []);
   // Attractions with broken coordinates can't be ordered or measured — keep them
   // out of the matrix (and out of the tour) so matrix indices stay aligned.
   const usable = candidates.filter(hasFiniteCoords);
@@ -201,6 +202,13 @@ export function planWalkOrder(
   ];
 
   for (const attraction of ordered) {
+    // A pinned attraction is kept no matter what the budget says — going over
+    // budget is reported through `feasible` so the UI can ask the user.
+    if (pinnedIds.has(attraction.id)) {
+      feasibleAttractions.push(attraction);
+      continue;
+    }
+
     // Try appending at the current end first
     const appendFits = (() => {
       const prev = feasibleAttractions.length === 0 ? originPoint : feasibleAttractions[feasibleAttractions.length - 1];
@@ -282,7 +290,11 @@ export function planWalkOrder(
     totalDistanceMeters,
     totalWalkingMinutes,
     totalVisitMinutes,
-    feasible: feasibleAttractions.length > 0,
+    // Without pins the loop above never lets the total exceed the budget, so this
+    // only turns false when a pinned attraction no longer fits the remaining time.
+    feasible:
+      feasibleAttractions.length > 0 &&
+      totalWalkingMinutes + totalVisitMinutes <= availableMinutes + 1e-6,
     droppedAttractions,
   };
 }
