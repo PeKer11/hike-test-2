@@ -1,5 +1,7 @@
 import type { Viewport } from "next";
 
+import { AccountIndicator } from "@/components/auth/AccountIndicator";
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -12,5 +14,10 @@ export default function AppLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return children;
+  return (
+    <>
+      <AccountIndicator />
+      {children}
+    </>
+  );
 }

@@ -103,10 +103,15 @@
 - [x] `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` documented in `.env.example`
 - [x] Initial schema — `supabase/migrations/20260728120000_initial_schema.sql`: `profiles` (pace, preferred categories, typical visit minutes, group preference) + `attraction_feedback` (upvote/downvote/skip on a POI or a whole category), RLS enabled with own-rows-only policies on both
 
-**Not run yet.** The migration has never been executed against the live Supabase project — it needs a manual read-through and a run in the SQL editor (or `supabase db push`) before anything can use these tables.
+**Run 2026-07-28** against the live project via the dashboard SQL editor. Both tables exist with RLS, and `on_auth_user_created` creates an empty `profiles` row for every new user.
+
+### Auth — built 2026-07-28
+- [x] Email + password auth screens — `src/app/login/page.tsx`, `src/app/signup/page.tsx`, shared form in `src/components/auth/AuthForm.tsx`
+- [x] Email confirmation callback — `src/app/auth/callback/route.ts` (handles both the PKCE `?code=` and the `?token_hash=&type=` template shapes)
+- [x] Session-aware account indicator — `src/components/auth/AccountIndicator.tsx` (server-rendered) + `LogoutButton.tsx`, mounted in `src/app/app/layout.tsx`. Renders nothing when the Supabase env vars are absent, and no walk-planning feature is gated behind login.
+- [ ] Verify the live flow in a browser with a real inbox (signup → confirmation email → callback → session). Confirm the Supabase Auth **Site URL / Redirect URLs** allow-list includes `http://localhost:3000/auth/callback`, otherwise the email link bounces.
 
 ### Not built yet — next session picks up here
-- [ ] Auth screens (sign up / sign in / sign out) and an auth callback route
 - [ ] Profile UI — the first-time onboarding questionnaire (categories, typical trip length, pace, solo/group) from the vault doc
 - [ ] Feedback UI — post-walk "liked / didn't like / skipped" capture writing to `attraction_feedback`
 - [ ] Wire the stored profile back into `WalkCompanionPanel` defaults (pace, preferred categories) and into `walk-plan` scoring, replacing the hardcoded defaults
