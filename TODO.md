@@ -40,7 +40,7 @@
 - [x] Build `src/lib/attractions/overpass-client.ts` — query POIs by location + category
 - [x] Build `src/lib/attractions/attraction-ranker.ts` — rank by relevance, popularity, avg visit time
 - [x] Define Attraction schema: `{ id, name, coordinates, category, avgVisitMinutes, rating? }`
-- [ ] Support explicit mode (user names places) + open mode (system suggests) — only open mode is built; `WalkPlanRequest.explicitAttractions` exists as a type but nothing reads it
+- [x] Support explicit mode (user names places) + open mode (system suggests) — free-text prompt → Claude Haiku NER (`src/lib/api/anthropic-client.ts`) → Nominatim geocode → `explicitAttractions`, via `/api/extract-places` and `PlacePromptPanel`
 
 ### Phase 3 — TSP Route Planner
 - [x] Build `src/lib/optimization/tsp-planner.ts` — Nearest Neighbor heuristic + 2-opt improvement

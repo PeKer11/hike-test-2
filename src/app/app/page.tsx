@@ -6,6 +6,7 @@ import { ConstraintPanel } from "@/components/constraints";
 import { DynamicMap } from "@/components/map";
 import {
   HikeSearchPanel,
+  PlacePromptPanel,
   RouteResults,
   TrailIntelligencePanel,
   WalkCompanionPanel,
@@ -117,6 +118,10 @@ export default function HomePage() {
   const lastGpsUpdateRef = useRef<number>(0);
   const walkGeometryRef = useRef<Coordinates[]>([]);
   const [lastWalkInput, setLastWalkInput] = useState<WalkCompanionInput | null>(null);
+  // Explicit mode: stops the user named in free text, applied to the next build.
+  const [promptAttractions, setPromptAttractions] = useState<Attraction[] | null>(
+    null,
+  );
   const [recordedPointCount, setRecordedPointCount] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<Coordinates | null>(null);
@@ -804,9 +809,23 @@ export default function HomePage() {
                   Simulate walk (dev mode — 10× speed)
                 </label>
               )}
+              {walkPhase !== "walking" && (
+                <PlacePromptPanel
+                  nearLocation={currentPosition ?? mapClickedCoords}
+                  acceptedAttractions={promptAttractions}
+                  onAcceptAttractions={setPromptAttractions}
+                />
+              )}
               <WalkCompanionPanel
                 isLoading={isWalkPlanLoading}
-                onBuildWalk={(input) => { void handleBuildWalk(input); }}
+                onBuildWalk={(input) => {
+                  void handleBuildWalk(
+                    input,
+                    promptAttractions && promptAttractions.length > 0
+                      ? { keepAttractions: promptAttractions }
+                      : undefined,
+                  );
+                }}
                 walkSettings={walkSettings}
                 onWalkSettingsChange={setWalkSettings}
                 mapClickedCoords={mapClickedCoords}
