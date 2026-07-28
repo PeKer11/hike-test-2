@@ -94,6 +94,25 @@
 - [x] Fix stale async race in `page.tsx:158-206` — `onFindHike` should abort if state cleared
 - [x] Fix empty-route success masking in `route-planner.ts` — throw if all segments fail
 
+## User Profile System (Supabase)
+
+### Foundational layer — built 2026-07-28
+- [x] Supabase browser client — `src/lib/supabase/client.ts`
+- [x] Supabase server client (Server Components / Route Handlers / Server Actions) — `src/lib/supabase/server.ts`
+- [x] Session refresh on every request — `src/lib/supabase/session.ts` + `src/proxy.ts` (Next 16 renamed the `middleware` file convention to `proxy`; the proxy no-ops when the Supabase env vars are absent, so the app still runs without them)
+- [x] `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` documented in `.env.example`
+- [x] Initial schema — `supabase/migrations/20260728120000_initial_schema.sql`: `profiles` (pace, preferred categories, typical visit minutes, group preference) + `attraction_feedback` (upvote/downvote/skip on a POI or a whole category), RLS enabled with own-rows-only policies on both
+
+**Not run yet.** The migration has never been executed against the live Supabase project — it needs a manual read-through and a run in the SQL editor (or `supabase db push`) before anything can use these tables.
+
+### Not built yet — next session picks up here
+- [ ] Auth screens (sign up / sign in / sign out) and an auth callback route
+- [ ] Profile UI — the first-time onboarding questionnaire (categories, typical trip length, pace, solo/group) from the vault doc
+- [ ] Feedback UI — post-walk "liked / didn't like / skipped" capture writing to `attraction_feedback`
+- [ ] Wire the stored profile back into `WalkCompanionPanel` defaults (pace, preferred categories) and into `walk-plan` scoring, replacing the hardcoded defaults
+- [ ] Decide the migration path from the existing localStorage profile idea (`CLAUDE.md` → "User Profile Schema") to Supabase for signed-in users
+- [ ] Generate DB types (`supabase gen types typescript`) and drop the `any` default on the client generics
+
 ## Post-MVP (Hiking Mode)
 - [ ] Dependency security upgrade: `npm audit` (2026-07-28) flags 9 pre-existing vulnerabilities (1 low, 8 high) in transitive deps — Next.js itself needs a version bump (`npm audit fix --force` proposes `next@16.2.12`, outside current stated range — needs a deliberate upgrade + test pass, not an unattended `--force`), plus `@babel/core`, `js-yaml`, `brace-expansion`, `picomatch`. Not introduced by the Supabase install (verified: only `@supabase/ssr` + `@supabase/supabase-js` were added to `package.json`), pre-existed it.
 - [ ] End-to-end testing with live ORS API key
