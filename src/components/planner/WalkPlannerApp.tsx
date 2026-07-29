@@ -94,7 +94,19 @@ function IconCollapse({ className }: { className?: string }) {
 const REPLAN_FAILED_MESSAGE =
   "Couldn't build an updated route just now — keeping you on your current one.";
 
-export default function HomePage() {
+interface WalkPlannerAppProps {
+  /** True while the frame around this planner fills the viewport. Only drives
+      density — every control works identically in both states. */
+  isExpanded?: boolean;
+}
+
+// The planner fills whatever box it is given: the small embedded frame on /app
+// and the same frame expanded to the viewport are the same mounted component,
+// so nothing here may assume a viewport-sized container. Sizing is `h-full` and
+// the breakpoints are container queries (`@4xl:`), not viewport ones.
+export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
+  // Small-frame density. Never gates functionality — only padding and type size.
+  const compact = !isExpanded;
   // The default experience is the City Walk flow alone. Manual/Hike planning,
   // the waypoint list, the constraints and the raw place search live behind the
   // "Advanced planning" escape hatch below.
@@ -787,14 +799,19 @@ export default function HomePage() {
   };
 
   return (
-    <>
+    /* @container: every breakpoint below reacts to the frame's width, not the
+       window's, so the embedded planner stacks and the expanded one splits.
+       The flex row lives on the child, not here — an element can't match its
+       own container query, so `@4xl:flex-row` would silently never fire. */
+    <div className="@container relative h-full w-full overflow-hidden bg-cream font-brand text-charcoal">
       <OffRouteNotification
         visible={isOffRoute}
         deviationMeters={offRouteDeviation}
       />
-      {/* POI alert overlay (CRITICAL-1) */}
+      {/* POI alert overlay (CRITICAL-1) — absolute, so it lands inside the
+          planner frame rather than at the bottom of the window when embedded. */}
       {poiAlert && (
-        <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-forest px-5 py-3 text-sm font-medium text-white shadow-lg">
+        <div className="absolute bottom-4 left-1/2 z-[500] -translate-x-1/2 rounded-xl bg-forest px-5 py-3 text-sm font-medium text-white shadow-lg">
           {poiAlert.message}
           <button
             className="ml-3 text-cream/70 hover:text-white"
@@ -804,8 +821,12 @@ export default function HomePage() {
           </button>
         </div>
       )}
-      <main className="flex min-h-screen w-full flex-col bg-cream font-brand text-charcoal lg:h-screen lg:flex-row lg:overflow-hidden">
-      <aside className="relative isolate order-2 w-full overflow-y-auto border-b border-charcoal/10 bg-cream p-4 pb-8 lg:order-1 lg:h-full lg:max-w-[400px] lg:border-b-0 lg:border-r lg:pb-4">
+      <div className="flex h-full w-full flex-col @4xl:flex-row">
+      <aside
+        className={`relative isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 bg-cream @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
+          compact ? "p-3 pb-6" : "p-4 pb-8 @4xl:pb-4"
+        }`}
+      >
         {/* Ambient studio-sweep wash behind the panel. Same blurred-photo +
             gradient-scrim technique as /login, but dialled far down: the
             planner is a working surface, so the image only survives as a warm
@@ -822,18 +843,34 @@ export default function HomePage() {
           />
           <div className="absolute inset-0 bg-gradient-to-b from-cream/70 via-cream/88 to-cream/[0.97]" />
         </div>
-        <div className="relative z-10 mb-5 flex items-start justify-between gap-3">
+        <div
+          className={`relative z-10 flex items-start justify-between gap-3 ${
+            compact ? "mb-3" : "mb-5"
+          }`}
+        >
           <div className="min-w-0 space-y-1">
-            <Link
-              href="/"
-              className="font-display text-sm font-bold tracking-wide text-terra"
+            {/* The wordmark is the frame's job when embedded — the hub page
+                already says Traike right above the planner. */}
+            {!compact && (
+              <Link
+                href="/"
+                className="font-display text-sm font-bold tracking-wide text-terra"
+              >
+                Traike
+              </Link>
+            )}
+            <h1
+              className={`font-display font-bold leading-tight text-forest ${
+                compact ? "text-lg" : "text-2xl"
+              }`}
             >
-              Traike
-            </Link>
-            <h1 className="font-display text-2xl font-bold leading-tight text-forest">
               {isAdvancedOpen ? "Advanced planning" : "Your walk, right now"}
             </h1>
-            <p className="text-sm leading-relaxed text-charcoal/70">
+            <p
+              className={`leading-relaxed text-charcoal/70 ${
+                compact ? "text-xs" : "text-sm"
+              }`}
+            >
               {isAdvancedOpen
                 ? "Place your own stops, set the rules, or search for a marked hike."
                 : "Tell us where you are and how long you have — we’ll build the walk."}
@@ -859,7 +896,7 @@ export default function HomePage() {
           </button>
         </div>
 
-        <div className="relative z-10 space-y-4">
+        <div className={`relative z-10 ${compact ? "space-y-3" : "space-y-4"}`}>
           {isAdvancedOpen && (
             <Card className="space-y-2">
               <div className="text-sm font-semibold text-forest">Planning mode</div>
@@ -1246,7 +1283,10 @@ export default function HomePage() {
         </div>
       </aside>
 
-      <section className="relative order-1 h-[45vh] min-h-[320px] flex-1 overflow-hidden lg:order-2 lg:h-full">
+      {/* Percentage height, not viewport height: when stacked, the map takes a
+          share of the frame it is in — a 45vh map inside a 560px frame would
+          leave the sidebar nothing. */}
+      <section className="relative order-1 h-[45%] min-h-[180px] shrink-0 overflow-hidden @4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1">
         <DynamicMap
           waypoints={waypoints}
           routeGeometry={
@@ -1260,7 +1300,7 @@ export default function HomePage() {
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}
         />
       </section>
-      </main>
-    </>
+      </div>
+    </div>
   );
 }

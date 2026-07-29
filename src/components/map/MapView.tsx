@@ -52,10 +52,20 @@ function MapSizeInvalidator() {
     window.addEventListener("resize", invalidate);
     window.addEventListener("orientationchange", invalidate);
 
+    // The map now lives in a box that resizes without the window resizing —
+    // expanding/collapsing the planner frame on /app. Without this, Leaflet
+    // keeps the old pixel size and the tiles come out cropped or grey.
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(invalidate);
+    observer?.observe(map.getContainer());
+
     return () => {
       window.cancelAnimationFrame(frameId);
       window.removeEventListener("resize", invalidate);
       window.removeEventListener("orientationchange", invalidate);
+      observer?.disconnect();
     };
   }, [map]);
 
