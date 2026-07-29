@@ -53,7 +53,18 @@ export default async function AppHubPage() {
       />
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-to-b from-cream/84 via-cream/66 to-cream/90"
+        className="absolute inset-0 bg-gradient-to-b from-cream/62 via-cream/44 to-cream/74"
+      />
+      {/* Second, local scrim over the header band only. The page-wide wash above
+          is deliberately light so the landscape survives, but that leaves the
+          terracotta wordmark at ~2.4:1 against the photo's grey-lavender haze —
+          below AA. This band pushes the text zone to ~92% cream at the crown,
+          fading out by 14rem, which is where the header ends and the frame
+          begins. Net effect: legible copy at the top, real photograph
+          everywhere else. */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-cream/80 via-cream/55 to-transparent"
       />
       <div className="relative mx-auto w-full max-w-6xl space-y-5 px-4 py-8 sm:px-6">
         <header className="max-w-2xl space-y-2 pr-40">
