@@ -168,6 +168,9 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
   const poiAlerterRef = useRef<PoiAlerter | null>(null);
   // Lives for the whole walk — a re-plan must not forget what was already seen.
   const visitTrackerRef = useRef<VisitTracker | null>(null);
+  // Render mirror of the tracker's set: the tracker is a ref, so the stops list
+  // can't strike a stop through until the ids reach state.
+  const [visitedAttractionIds, setVisitedAttractionIds] = useState<string[]>([]);
   // Also lives for the whole walk: each re-plan builds a fresh PaceChecker, so a
   // trigger owned by the checker would reset its cooldown on every re-plan and
   // never actually throttle them.
@@ -267,6 +270,7 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
     setPinnedAttractionIds([]);
     pinnedAttractionIdsRef.current = [];
     visitTrackerRef.current?.reset();
+    setVisitedAttractionIds([]);
     replanTriggerRef.current = null;
   };
 
@@ -373,6 +377,7 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
       setPinnedAttractionIds([]);
       pinnedAttractionIdsRef.current = [];
       visitTrackerRef.current?.reset();
+      setVisitedAttractionIds([]);
       replanTriggerRef.current = null;
     }
     setCurrentPosition(input.origin);
@@ -534,7 +539,9 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
 
       // Visited detection runs on every accepted fix, like the alerter — a stop
       // walked past between two throttled ticks must still count as reached.
-      visits.recordPosition(update.currentPosition, attractions);
+      if (visits.recordPosition(update.currentPosition, attractions).length > 0) {
+        setVisitedAttractionIds([...visits.visitedIds]);
+      }
 
       // PoiAlerter check — runs every tick, not throttled (CRITICAL-1)
       const alert = alerter.check(
@@ -720,6 +727,25 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
         ? prev.filter((id) => id !== attractionId)
         : [...prev, attractionId];
       // The PaceChecker callback reads a ref — it can't see this state update.
+      pinnedAttractionIdsRef.current = next;
+      return next;
+    });
+  };
+
+  // Manual "done" for the stop the walker is heading to — identical to having
+  // walked past it, because it goes into the same visited set: struck through in
+  // the list, and dropped from every later re-plan by `excludeVisited`.
+  const skipAttraction = (attractionId: string) => {
+    const visits = visitTrackerRef.current;
+    if (!visits) return;
+    // Idempotent by construction: a skip click racing a GPS fix for the same stop
+    // only ever adds it once, in either order.
+    visits.markVisited(attractionId);
+    setVisitedAttractionIds([...visits.visitedIds]);
+    // A pin on a stop that's done has nothing left to enforce.
+    setPinnedAttractionIds((prev) => {
+      if (!prev.includes(attractionId)) return prev;
+      const next = prev.filter((id) => id !== attractionId);
       pinnedAttractionIdsRef.current = next;
       return next;
     });
@@ -1099,6 +1125,8 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
                   attractionDistances={attractionDistances}
                   pinnedIds={pinnedAttractionIds}
                   onTogglePin={toggleAttractionPin}
+                  visitedIds={visitedAttractionIds}
+                  onSkip={skipAttraction}
                 />
               )}
               {/* Loading skeleton while plan is being built (MEDIUM-5) */}

@@ -78,6 +78,46 @@ describe("VisitTracker", () => {
     expect([...tracker.visitedIds].sort()).toEqual(["a1", "a2"]);
   });
 
+  it("marks a skipped stop visited without any GPS proof", () => {
+    expect(tracker.markVisited("a1")).toBe(true);
+
+    expect(tracker.has("a1")).toBe(true);
+    expect(excludeVisited(attractions, tracker.visitedIds)).toEqual([park]);
+  });
+
+  it("is idempotent — marking the same stop twice counts once", () => {
+    expect(tracker.markVisited("a1")).toBe(true);
+    expect(tracker.markVisited("a1")).toBe(false);
+    expect(tracker.visitedIds.size).toBe(1);
+  });
+
+  it("does not report a skipped stop as newly visited on a later GPS fix", () => {
+    tracker.markVisited("a1");
+
+    expect(tracker.recordPosition(START, attractions)).toEqual([]);
+    expect(tracker.visitedIds.size).toBe(1);
+  });
+
+  it("treats a skip after a GPS visit of the same stop as a no-op", () => {
+    expect(tracker.recordPosition(START, attractions)).toEqual(["a1"]);
+    expect(tracker.markVisited("a1")).toBe(false);
+    expect(tracker.visitedIds.size).toBe(1);
+  });
+
+  it("keeps recording other stops by GPS after a skip", () => {
+    tracker.markVisited("a1");
+
+    expect(tracker.recordPosition(eastOf(START, 1000), attractions)).toEqual(["a2"]);
+    expect([...tracker.visitedIds].sort()).toEqual(["a1", "a2"]);
+  });
+
+  it("forgets skipped stops on reset (new walk)", () => {
+    tracker.markVisited("a1");
+    tracker.reset();
+
+    expect(tracker.has("a1")).toBe(false);
+  });
+
   it("forgets everything on reset (new walk)", () => {
     tracker.recordPosition(START, attractions);
     tracker.reset();

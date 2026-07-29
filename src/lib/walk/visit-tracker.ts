@@ -36,6 +36,18 @@ export class VisitTracker {
     return newlyVisited;
   }
 
+  /**
+   * Marks a stop done without GPS proof — the walker skipped it. Idempotent, and
+   * it shares the one visited set with `recordPosition`, so a skip click and a GPS
+   * fix for the same stop in the same second can only ever count once, in either
+   * order. Returns true when this call is what marked it.
+   */
+  markVisited(attractionId: string): boolean {
+    if (this.visited.has(attractionId)) return false;
+    this.visited.add(attractionId);
+    return true;
+  }
+
   get visitedIds(): ReadonlySet<string> {
     return this.visited;
   }

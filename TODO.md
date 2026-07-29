@@ -63,7 +63,7 @@
 ### Phase 6 — Walk Companion UI
 - [ ] Pre-walk screen: time available + walking pace + explicit/open mode input — `WalkCompanionPanel` covers location/time/pace/radius/categories; explicit-mode input is missing
 - [x] Walk plan preview: ordered attractions, estimated time, feasibility check, safety briefing — `WalkPlanResults` + `TrailIntelligencePanel`
-- [ ] Active walk screen: real-time map, next step highlighted, progress bar, skip button — live map, follow-position, off-route banner and `AttractionDistancesPanel` exist; next-step highlight, progress bar and skip button do not
+- [x] Active walk screen: real-time map, next step highlighted, progress bar, skip button — live map, follow-position and off-route banner in `WalkPlannerApp`; next-step highlight, "N of M stops" progress bar and per-stop skip in `AttractionDistancesPanel` (a skip marks the stop visited in `VisitTracker`, so re-plans drop it like a walked-past one)
 - [x] Non-intrusive POI alert overlay — auto-dismissing overlay in `app/app/page.tsx`
 
 ### Improvements — Walk Companion Pipeline
