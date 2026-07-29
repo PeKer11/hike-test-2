@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 
 import { createClient } from "@/lib/supabase/server";
 import { PlannerFrame } from "@/components/planner/PlannerFrame";
@@ -26,8 +27,35 @@ export default async function AppHubPage() {
   }
 
   return (
-    <main className="min-h-screen bg-cream font-brand text-charcoal">
-      <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-8 sm:px-6">
+    <main className="relative min-h-screen overflow-hidden bg-cream font-brand text-charcoal">
+      {/* Same blurred-photo + cream-scrim treatment as /login and the planner
+          sidebar, but scoped to the page's own chrome: it lives on <main>, and
+          the PlannerFrame below paints its own opaque bg-cream, so the photo
+          reads around the tool (header band, margins, the strip under the
+          frame) and never behind the map or sidebar. Two differences from
+          /login: the blur goes to blur-lg because the greeting sits *directly*
+          on the photo rather than on an opaque Card, and this source is much
+          busier (blazing sun, near-black trees) than the auth gradient; and the
+          scrim is stepped rather than even — 84% behind the header so
+          text-charcoal/70 body copy clears WCAG AA against the darkest tree
+          mass, opening to 66% through the middle where only margins show (that
+          band is where the landscape actually gets to be a landscape), then
+          back to 90% at the foot so the page settles into cream instead of
+          fighting the frame's bottom edge. */}
+      <Image
+        src="/images/hub-mountain-lake-sunset.png"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        aria-hidden
+        className="scale-105 object-cover object-center blur-lg"
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-gradient-to-b from-cream/84 via-cream/66 to-cream/90"
+      />
+      <div className="relative mx-auto w-full max-w-6xl space-y-5 px-4 py-8 sm:px-6">
         <header className="max-w-2xl space-y-2 pr-40">
           <span className="font-display text-sm font-bold tracking-wide text-terra">
             Traike
