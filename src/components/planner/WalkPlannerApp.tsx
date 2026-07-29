@@ -189,6 +189,9 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
   const [promptDurationMinutes, setPromptDurationMinutes] = useState<
     number | null
   >(null);
+  // The area that same free text named, geocoded — handed to the companion panel
+  // as a starting value for its origin. Null until a prompt resolves one.
+  const [promptOrigin, setPromptOrigin] = useState<Coordinates | null>(null);
   // Candidate pins for the places currently listed in PlacePromptPanel — shown
   // until they either become real waypoints or the list they came from is gone.
   const [previewPlaces, setPreviewPlaces] = useState<Attraction[]>([]);
@@ -993,6 +996,7 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
                   onPreview={(coordinates) => focusOn(coordinates, 16)}
                   onFoundPlacesChange={setPreviewPlaces}
                   onDurationDetected={setPromptDurationMinutes}
+                  onOriginDetected={setPromptOrigin}
                   learnPreferences={walkSettings.preferenceLearningEnabled}
                 />
               )}
@@ -1022,6 +1026,7 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
                 onWalkSettingsChange={setWalkSettings}
                 mapClickedCoords={mapClickedCoords}
                 suggestedMinutes={promptDurationMinutes}
+                suggestedOrigin={promptOrigin}
                 onLocationDetected={(coords) => {
                   setCurrentPosition(coords);
                   focusOn(coords, 16);

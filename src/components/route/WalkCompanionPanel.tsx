@@ -27,6 +27,13 @@ interface WalkCompanionPanelProps {
    * walker can still type over it, and it is never re-applied on its own.
    */
   suggestedMinutes?: number | null;
+  /**
+   * The area named in that same free-text box ("in Zichron Yaakov"), geocoded.
+   * Fills the coordinate fields the same way `suggestedMinutes` fills the time
+   * one: a starting value the walker can type over, only re-applied when the
+   * prompt resolves somewhere new.
+   */
+  suggestedOrigin?: Coordinates | null;
   onLocationDetected?: (coords: Coordinates) => void;
   onStartWalk?: () => void;
   onStopWalk?: () => void;
@@ -60,6 +67,7 @@ export function WalkCompanionPanel({
   onWalkSettingsChange,
   mapClickedCoords,
   suggestedMinutes,
+  suggestedOrigin,
   onLocationDetected,
   onStartWalk,
   onStopWalk,
@@ -96,6 +104,22 @@ export function WalkCompanionPanel({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAvailableMinutes(String(suggestedMinutes));
   }, [suggestedMinutes]);
+
+  // Depends on the two numbers, not the object: a prompt that resolves to the
+  // same place again must not overwrite coordinates the walker has since typed
+  // or detected, exactly as re-stating the same walk length leaves the time
+  // field alone.
+  const suggestedLat = suggestedOrigin?.lat;
+  const suggestedLng = suggestedOrigin?.lng;
+  useEffect(() => {
+    if (typeof suggestedLat !== "number" || typeof suggestedLng !== "number") {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLat(suggestedLat.toFixed(6));
+    setLng(suggestedLng.toFixed(6));
+  }, [suggestedLat, suggestedLng]);
 
   const detectLocation = () => {
     setLocationError(null);

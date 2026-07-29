@@ -181,4 +181,74 @@ describe("PlacePromptPanel", () => {
     await screen.findByText("זכרון יעקב");
     expect(onDurationDetected).not.toHaveBeenCalled();
   });
+
+  it("hands the located area up so the coordinate fields can start from it", async () => {
+    const onOriginDetected = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          attractions: [],
+          unresolvedNames: [],
+          contextCoordinates: { lat: 32.5736, lng: 34.9522 },
+        }),
+      })),
+    );
+
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        onOriginDetected={onOriginDetected}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "הבימה בזכרון יעקב" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+
+    await waitFor(() =>
+      expect(onOriginDetected).toHaveBeenCalledWith({
+        lat: 32.5736,
+        lng: 34.9522,
+      }),
+    );
+  });
+
+  it("leaves the coordinate fields alone when no area was located", async () => {
+    const onOriginDetected = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          attractions: FOUND,
+          unresolvedNames: [],
+          contextCoordinates: null,
+        }),
+      })),
+    );
+
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        onOriginDetected={onOriginDetected}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "מדרחוב וגן טייל" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+
+    await screen.findByText("זכרון יעקב");
+    expect(onOriginDetected).not.toHaveBeenCalled();
+  });
 });

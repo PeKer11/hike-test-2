@@ -335,6 +335,44 @@ describe("POST /api/extract-places", () => {
     expect((await response.json()).durationMinutes).toBeNull();
   });
 
+  it("returns the context area's coordinates so the origin field can start from them", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: "זכרון יעקב",
+    });
+    mockSearchPlaces.mockResolvedValueOnce([{ lat: "32.5736", lon: "34.9522" }]);
+
+    const response = await POST(postRequest({ prompt: "טיול בזכרון יעקב" }));
+
+    expect((await response.json()).contextCoordinates).toEqual({
+      lat: 32.5736,
+      lng: 34.9522,
+    });
+  });
+
+  it("reports null context coordinates when the text names no area", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: null,
+    });
+
+    const response = await POST(postRequest({ prompt: "a nice walk" }));
+
+    expect((await response.json()).contextCoordinates).toBeNull();
+  });
+
+  it("reports null context coordinates when the named area can't be geocoded", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: "Nowheresville",
+    });
+    mockSearchPlaces.mockResolvedValueOnce([]);
+
+    const response = await POST(postRequest({ prompt: "a walk in Nowheresville" }));
+
+    expect((await response.json()).contextCoordinates).toBeNull();
+  });
+
   it("finds a real stop for a stated need, around the context area", async () => {
     mockExtractPlaceNames.mockResolvedValueOnce({
       places: [],

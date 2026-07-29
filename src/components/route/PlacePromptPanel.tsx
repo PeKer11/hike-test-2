@@ -9,6 +9,7 @@ interface ExtractPlacesResponse {
   extractedNames?: string[];
   attractions?: Attraction[];
   unresolvedNames?: string[];
+  contextCoordinates?: Coordinates | null;
   durationMinutes?: number | null;
   error?: string;
 }
@@ -30,6 +31,13 @@ interface PlacePromptPanelProps {
    */
   onDurationDetected?: (minutes: number) => void;
   /**
+   * Fired when the text named an area we could locate ("in Zichron Yaakov"), so
+   * the companion panel's coordinate fields can start from it. Nothing is fired
+   * when no area was named or it could not be geocoded — the fields keep
+   * whatever they had.
+   */
+  onOriginDetected?: (coordinates: Coordinates) => void;
+  /**
    * Mirrors the "Remember my preferences" setting. When true the same text is
    * also read for what the walker likes, and stored on their profile if they
    * are signed in. Defaults to off so nothing is learned unless asked for.
@@ -44,6 +52,7 @@ export function PlacePromptPanel({
   onPreview,
   onFoundPlacesChange,
   onDurationDetected,
+  onOriginDetected,
   learnPreferences = false,
 }: PlacePromptPanelProps) {
   const [prompt, setPrompt] = useState("");
@@ -92,6 +101,10 @@ export function PlacePromptPanel({
 
       if (typeof data.durationMinutes === "number") {
         onDurationDetected?.(data.durationMinutes);
+      }
+
+      if (data.contextCoordinates) {
+        onOriginDetected?.(data.contextCoordinates);
       }
     } catch (extractError) {
       setError(

@@ -210,8 +210,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       return geocode(name, searchBias);
     };
 
+    // Kept beyond the bias it is used for: it is also the best guess at where the
+    // walk starts, so the companion form can fill its origin from it.
+    let contextCoordinates: Coordinates | null = null;
     if (contextLocation) {
-      const contextCoordinates = await spacedGeocode(contextLocation, undefined);
+      contextCoordinates = await spacedGeocode(contextLocation, undefined);
       if (contextCoordinates) {
         bias = contextCoordinates;
       }
@@ -253,6 +256,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       attractions: [...attractions, ...needAttractions],
       unresolvedNames,
       contextLocation: contextLocation ?? null,
+      contextCoordinates,
       durationMinutes: durationMinutes ?? null,
       // Reported so a need that found nothing is still visible when debugging —
       // no UI reads this yet.
