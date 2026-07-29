@@ -35,6 +35,7 @@
 - [ ] Build `src/lib/graph/osm-loader.ts` — download + cache OSMnx street graph by location + radius
 - [ ] Add bounding box filter (2-5 km around user, expandable)
 - [ ] Add city-level cache to avoid repeated downloads
+- [ ] **Public transit legs (metro/bus) as a route option** — flagged 2026-07-29. Different case from the walking-only Graph Layer decision above (JS/ORS benchmarked faster for pure walking distance, see [[project_hiking_ai_roadmap]] memory) — this is multi-modal routing (walk → transit → walk), which ORS's free tier doesn't cover. OSMnx 2.1.0 (shipped Feb 2026, per `hiking-pulse` 2026-07-28) supports transit-network modeling and could be the right tool specifically for this sub-problem, even though it lost the walking-routing comparison. Not scoped yet — needs its own investigation before building (GTFS data availability for target cities, whether OSMnx or a dedicated transit API like Google Directions Transit mode is the better fit).
 
 ### Phase 2 — Attraction Discovery
 - [x] Build `src/lib/attractions/overpass-client.ts` — query POIs by location + category
