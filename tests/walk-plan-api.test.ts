@@ -4,6 +4,7 @@ import type { Attraction, Coordinates } from "@/lib/types";
 
 const mockFetchAttractions = vi.fn();
 const mockGetDirections = vi.fn();
+const mockGetMatrix = vi.fn();
 const mockGetUser = vi.fn();
 const mockGetPreferredCategories = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
@@ -15,6 +16,9 @@ vi.mock("@/lib/attractions/overpass-client", () => ({
 
 vi.mock("@/lib/api/ors-client", () => ({
   getDirections: (...args: unknown[]) => mockGetDirections(...args),
+  // The planner falls back to haversine ordering when the matrix is unavailable,
+  // which is what these route-level tests measure against.
+  getMatrix: (...args: unknown[]) => mockGetMatrix(...args),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -92,6 +96,8 @@ function resetMocks(): void {
   mockFetchAttractions.mockReset();
   mockGetDirections.mockReset();
   mockGetDirections.mockRejectedValue(new Error("no ORS in tests"));
+  mockGetMatrix.mockReset();
+  mockGetMatrix.mockRejectedValue(new Error("no ORS in tests"));
   mockGetUser.mockReset();
   mockGetUser.mockResolvedValue(SIGNED_IN);
   mockGetPreferredCategories.mockReset();

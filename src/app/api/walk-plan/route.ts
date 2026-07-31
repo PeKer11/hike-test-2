@@ -243,7 +243,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       pinnedAttractionIds,
     };
 
-    const plan = buildWalkPlan(planRequest, selected);
+    const plan = await buildWalkPlan(planRequest, selected);
 
     // 4. Fetch ORS geometry for the ordered route (origin → attraction 1 → 2 → ...)
     let geometry: Coordinates[] | undefined;

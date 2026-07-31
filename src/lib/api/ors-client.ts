@@ -3,6 +3,8 @@ import "server-only";
 import type {
   OrsDirectionsRequest,
   OrsDirectionsResponse,
+  OrsMatrixRequest,
+  OrsMatrixResponse,
   OrsOptimizationRequest,
   OrsOptimizationResponse,
 } from "@/lib/types";
@@ -92,6 +94,26 @@ export async function getDirections(
     {
       coordinates: request.coordinates,
       instructions: request.instructions ?? true,
+    },
+    { cache: "no-store" },
+  );
+}
+
+// All-pairs walking-network distances in one request. ORS caps a foot profile at
+// 50 locations; a walk plan asks for 1 origin + ~10 stops, so no chunking here.
+export async function getMatrix(
+  request: OrsMatrixRequest,
+): Promise<OrsMatrixResponse> {
+  const profile = request.profile ?? "foot-walking";
+
+  return fetchOrs<OrsMatrixResponse>(
+    `${ORS_BASE_URL}/v2/matrix/${profile}`,
+    {
+      // Already in ORS [lng, lat] order — callers build these with `toOrsCoord()`.
+      locations: request.locations,
+      // ORS defaults to duration only; ordering needs metres.
+      metrics: ["distance"],
+      units: "m",
     },
     { cache: "no-store" },
   );

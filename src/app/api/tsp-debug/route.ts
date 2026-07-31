@@ -50,7 +50,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const { selected } = selectFeasibleAttractions(ranked, availableMinutes, walkingPaceMinPerKm);
 
     const planRequest: WalkPlanRequest = { origin, availableMinutes, walkingPaceMinPerKm, radiusMeters };
-    const result = planWalkOrderDebug(planRequest, selected);
+    const result = await planWalkOrderDebug(planRequest, selected);
 
     return NextResponse.json(result);
   } catch (error) {

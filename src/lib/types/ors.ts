@@ -32,6 +32,17 @@ export interface OrsDirectionsResponse {
   routes: OrsDirectionsRoute[];
 }
 
+export interface OrsMatrixRequest {
+  locations: OrsCoordinate[];
+  profile?: "foot-walking" | "foot-hiking" | "cycling-regular" | "driving-car";
+}
+
+export interface OrsMatrixResponse {
+  // Row i / column j = metres from locations[i] to locations[j]. ORS returns
+  // `null` for a pair it could not route between.
+  distances: Array<Array<number | null>>;
+}
+
 export interface OrsOptimizationJob {
   id: number;
   location: OrsCoordinate;

@@ -1,8 +1,10 @@
+import { getMatrix } from "@/lib/api/ors-client";
 import type { Attraction, WalkPlan, WalkSegment, WalkPlanRequest } from "@/lib/types";
-import { haversineDistance } from "@/lib/utils/geo";
+import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 
 // ---------------------------------------------------------------------------
-// Distance matrix (haversine — used for ordering only, not final geometry)
+// Distance matrix (real ORS walking-network metres, haversine as fallback —
+// used for ordering only, not final geometry)
 // ---------------------------------------------------------------------------
 
 type Point = { coordinates: { lat: number; lng: number } };
@@ -15,10 +17,7 @@ function hasFiniteCoords(p: Point): boolean {
   return Number.isFinite(p.coordinates.lat) && Number.isFinite(p.coordinates.lng);
 }
 
-// Callers must pass attractions that already passed `hasFiniteCoords`, otherwise
-// the matrix indices stop lining up with the caller's attraction array.
-function buildMatrix(origin: Point, attractions: Attraction[]): number[][] {
-  const nodes: Point[] = [origin, ...attractions];
+function buildHaversineMatrix(nodes: Point[]): number[][] {
   const n = nodes.length;
   const matrix: number[][] = Array.from({ length: n }, () => new Array<number>(n).fill(0));
 
@@ -31,6 +30,58 @@ function buildMatrix(origin: Point, attractions: Attraction[]): number[][] {
   }
 
   return matrix;
+}
+
+// Callers must pass attractions that already passed `hasFiniteCoords`, otherwise
+// the matrix indices stop lining up with the caller's attraction array.
+//
+// Aerial distance can order stops that are minutes apart in a straight line but
+// a long detour on foot, so the ordering runs on real walking-network metres.
+// The straight line stays as the fallback: a slightly worse order beats no walk
+// at all, so ORS being down or slow must never fail `planWalkOrder`.
+async function buildMatrix(origin: Point, attractions: Attraction[]): Promise<number[][]> {
+  const nodes: Point[] = [origin, ...attractions];
+  const fallback = buildHaversineMatrix(nodes);
+
+  // ORS rejects a single-location matrix, and there is nothing to order anyway.
+  if (nodes.length < 2) return fallback;
+
+  try {
+    const { distances } = await getMatrix({
+      // ORS wants [lng, lat] (PROBLEMS.md — "Coordinate Order Confusion").
+      // Never hand-swap: `toOrsCoord()` is the only place that ordering lives.
+      locations: nodes.map((node) => toOrsCoord(node.coordinates)),
+      profile: "foot-walking",
+    });
+
+    if (!Array.isArray(distances) || distances.length !== nodes.length) {
+      return fallback;
+    }
+
+    return distances.map((row, i) => {
+      if (!Array.isArray(row) || row.length !== nodes.length) return fallback[i];
+      // ORS returns `null` for a pair it could not route between — fill just
+      // that cell from the straight line rather than throwing the matrix away.
+      return row.map((d, j) => (typeof d === "number" && Number.isFinite(d) ? d : fallback[i][j]));
+    });
+  } catch {
+    return fallback;
+  }
+}
+
+// Distances are read back by node object, so the ordering, the budget check and
+// the reported segments all quote the same matrix the tour was chosen from.
+function matrixDistance(
+  matrix: number[][],
+  nodes: Point[],
+): (a: Point, b: Point) => number {
+  const indexOf = new Map<Point, number>(nodes.map((node, i) => [node, i]));
+
+  return (a, b) => {
+    const i = indexOf.get(a);
+    const j = indexOf.get(b);
+    return i === undefined || j === undefined ? distBetween(a, b) : matrix[i][j];
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,18 +180,19 @@ export interface TspDebugResult extends TspResult {
   };
 }
 
-export function planWalkOrderDebug(
+export async function planWalkOrderDebug(
   request: WalkPlanRequest,
   candidates: Attraction[],
-): TspDebugResult {
+): Promise<TspDebugResult> {
   const originPoint = { coordinates: request.origin };
   const plottable = candidates.filter(hasFiniteCoords);
-  const matrix = buildMatrix(originPoint, plottable);
+  const matrix = await buildMatrix(originPoint, plottable);
   const n = matrix.length;
   const nnTourIndices = nearestNeighbor(matrix, n);
   const optimizedTourIndices = twoOpt([...nnTourIndices], matrix, 0);
 
-  const base = planWalkOrder(request, candidates);
+  // Debug-only second matrix call; the production path builds exactly one.
+  const base = await planWalkOrder(request, candidates);
 
   const allNodes = [
     { label: "Start", coordinates: request.origin },
@@ -153,10 +205,10 @@ export function planWalkOrderDebug(
   };
 }
 
-export function planWalkOrder(
+export async function planWalkOrder(
   request: WalkPlanRequest,
   candidates: Attraction[],
-): TspResult {
+): Promise<TspResult> {
   const { origin, availableMinutes, walkingPaceMinPerKm } = request;
   const originPoint = { coordinates: origin };
   const pinnedIds = new Set(request.pinnedAttractionIds ?? []);
@@ -178,8 +230,9 @@ export function planWalkOrder(
   }
 
   // Build distance matrix: index 0 = origin, 1..n = attractions
-  const matrix = buildMatrix(originPoint, usable);
+  const matrix = await buildMatrix(originPoint, usable);
   const n = matrix.length; // 1 (origin) + usable.length
+  const dist = matrixDistance(matrix, [originPoint, ...usable]);
 
   // Get initial order via Nearest Neighbor
   let tourIndices = nearestNeighbor(matrix, n);
@@ -212,11 +265,11 @@ export function planWalkOrder(
     // Try appending at the current end first
     const appendFits = (() => {
       const prev = feasibleAttractions.length === 0 ? originPoint : feasibleAttractions[feasibleAttractions.length - 1];
-      const dist = distBetween(prev, attraction);
-      const walkMin = (dist / 1000) * walkingPaceMinPerKm;
+      const legMeters = dist(prev, attraction);
+      const walkMin = (legMeters / 1000) * walkingPaceMinPerKm;
       const usedWalk = feasibleAttractions.reduce((s, _, idx) => {
         const from = idx === 0 ? originPoint : feasibleAttractions[idx - 1];
-        return s + (distBetween(from, feasibleAttractions[idx]) / 1000) * walkingPaceMinPerKm;
+        return s + (dist(from, feasibleAttractions[idx]) / 1000) * walkingPaceMinPerKm;
       }, 0);
       const usedVisit = feasibleAttractions.reduce((s, a) => s + a.avgVisitMinutes, 0);
       return usedWalk + usedVisit + walkMin + attraction.avgVisitMinutes <= availableMinutes;
@@ -241,7 +294,7 @@ export function planWalkOrder(
       let trialVisit = 0;
       let prev: Point = originPoint;
       for (const a of trial) {
-        trialWalk += (distBetween(prev, a) / 1000) * walkingPaceMinPerKm;
+        trialWalk += (dist(prev, a) / 1000) * walkingPaceMinPerKm;
         trialVisit += a.avgVisitMinutes;
         prev = a;
       }
@@ -266,7 +319,7 @@ export function planWalkOrder(
   let prevLabel: WalkSegment["from"] = { name: "origin", coordinates: origin };
 
   for (const attraction of feasibleAttractions) {
-    const segDistMeters = distBetween(prevPoint, attraction);
+    const segDistMeters = dist(prevPoint, attraction);
     const segWalkMinutes = (segDistMeters / 1000) * walkingPaceMinPerKm;
 
     segments.push({
@@ -299,11 +352,11 @@ export function planWalkOrder(
   };
 }
 
-export function buildWalkPlan(
+export async function buildWalkPlan(
   request: WalkPlanRequest,
   candidates: Attraction[],
-): WalkPlan {
-  const tsp = planWalkOrder(request, candidates);
+): Promise<WalkPlan> {
+  const tsp = await planWalkOrder(request, candidates);
 
   return {
     orderedAttractions: tsp.orderedAttractions,
