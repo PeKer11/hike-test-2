@@ -14,6 +14,7 @@ import {
   getPreferredCategories,
   getProfileDefaults,
   saveAttractionFeedback,
+  saveWalkFeedback,
   type AttractionRating,
 } from "@/lib/preferences/preference-store";
 
@@ -197,16 +198,39 @@ function fakeFeedbackSupabase(result: Result) {
 }
 
 describe("getDownvotedCategories", () => {
-  it("returns the categories the walker has voted down", async () => {
+  it("returns each downvoted category with how often it was voted down", async () => {
     const { client } = fakeFeedbackSupabase({
-      data: [{ category: "food" }, { category: "shopping" }],
+      data: [
+        { category: "food", occurrence_count: 1 },
+        { category: "shopping", occurrence_count: 4 },
+      ],
       error: null,
     });
 
-    expect(await getDownvotedCategories(client, "user-1")).toEqual([
-      "food",
-      "shopping",
-    ]);
+    expect(await getDownvotedCategories(client, "user-1")).toEqual(
+      new Map([
+        ["food", 1],
+        ["shopping", 4],
+      ]),
+    );
+  });
+
+  // The column is integer, but PostgREST is free to hand a numeric back as a
+  // string, and a row written before the column existed reads as null.
+  it.each([
+    ["a count that arrived as a string", "3", 3],
+    ["a row from before occurrence tracking", null, 1],
+    ["a count that is not a whole number", 2.5, 1],
+    ["a count of zero", 0, 1],
+  ])("reads %s as %s occurrences", async (_label, stored, expected) => {
+    const { client } = fakeFeedbackSupabase({
+      data: [{ category: "food", occurrence_count: stored }],
+      error: null,
+    });
+
+    expect(await getDownvotedCategories(client, "user-1")).toEqual(
+      new Map([["food", expected]]),
+    );
   });
 
   // A downvote on one museum means "not that place", not "not museums" — the
@@ -223,18 +247,22 @@ describe("getDownvotedCategories", () => {
     });
   });
 
-  it("de-duplicates and drops values that are no longer known categories", async () => {
+  // Duplicates should not happen — one standing row per category — but if one
+  // slips past, the strongest evidence is the honest reading, not the last row.
+  it("de-duplicates to the highest count and drops unknown categories", async () => {
     const { client } = fakeFeedbackSupabase({
       data: [
-        { category: "food" },
-        { category: "cafe" },
-        { category: "food" },
-        { category: null },
+        { category: "food", occurrence_count: 3 },
+        { category: "cafe", occurrence_count: 9 },
+        { category: "food", occurrence_count: 1 },
+        { category: null, occurrence_count: 2 },
       ],
       error: null,
     });
 
-    expect(await getDownvotedCategories(client, "user-1")).toEqual(["food"]);
+    expect(await getDownvotedCategories(client, "user-1")).toEqual(
+      new Map([["food", 3]]),
+    );
   });
 
   it.each([
@@ -244,7 +272,7 @@ describe("getDownvotedCategories", () => {
   ])("returns no downvotes for %s", async (_label, result) => {
     const { client } = fakeFeedbackSupabase(result);
 
-    expect(await getDownvotedCategories(client, "user-1")).toEqual([]);
+    expect(await getDownvotedCategories(client, "user-1")).toEqual(new Map());
   });
 });
 
@@ -365,6 +393,196 @@ describe("saveAttractionFeedback", () => {
 
     expect(await saveAttractionFeedback(client, "user-1", [])).toBe(0);
     expect(deletes).toEqual([]);
+  });
+
+  // Accumulating occurrences is a claim about a whole category. A POI-level row
+  // is a different signal — the audit trail of what the walker thought of one
+  // exact place — and re-rating it still replaces rather than counts up.
+  it("still replaces rather than accumulates on a re-rated stop", async () => {
+    const { client, deletes, inserts } = fakeWriteSupabase();
+
+    await saveAttractionFeedback(client, "user-1", [
+      rating({ signal: "downvote" }),
+    ]);
+
+    expect(deletes).toHaveLength(1);
+    expect(inserts[0]).not.toHaveProperty("occurrence_count");
+  });
+});
+
+// Just enough of the builder for the three shapes `saveWalkFeedback` uses:
+// `.select().eq().is().in()` (read the standing rows), `.update().eq().eq().is()`
+// (move one of them) and `.insert()` (a category with nothing standing).
+// `updates` records what each update asked for, `inserts` what was written.
+function fakeStandingSupabase(
+  standing: unknown[],
+  errors: {
+    readError?: unknown;
+    updateError?: unknown;
+    insertError?: unknown;
+  } = {},
+) {
+  const updates: { payload: unknown; filters: Record<string, unknown> }[] = [];
+  const inserts: unknown[] = [];
+
+  const client = {
+    from: () => ({
+      select: () => {
+        const builder = {
+          eq: () => builder,
+          is: () => builder,
+          in: async () => ({
+            data: errors.readError ? null : standing,
+            error: errors.readError ?? null,
+          }),
+        };
+        return builder;
+      },
+      update: (payload: unknown) => {
+        const filters: Record<string, unknown> = {};
+        updates.push({ payload, filters });
+        const builder = {
+          eq: (column: string, value: unknown) => {
+            filters[column] = value;
+            return builder;
+          },
+          is: (column: string, value: unknown) => {
+            filters[column] = value;
+            return Promise.resolve({ error: errors.updateError ?? null });
+          },
+        };
+        return builder;
+      },
+      insert: async (rows: unknown) => {
+        inserts.push(rows);
+        return { error: errors.insertError ?? null };
+      },
+    }),
+  };
+
+  return {
+    updates,
+    inserts,
+    client: client as unknown as Parameters<typeof saveWalkFeedback>[0],
+  };
+}
+
+// The heart of the confidence fix: a category disliked once and a category
+// disliked on every walk have to end up as different rows, not the same one.
+describe("saveWalkFeedback", () => {
+  it("starts a category with nothing standing at one occurrence", async () => {
+    const { client, inserts, updates } = fakeStandingSupabase([]);
+
+    expect(
+      await saveWalkFeedback(client, "user-1", "downvote", ["museum"]),
+    ).toEqual(["museum"]);
+    expect(inserts).toEqual([
+      [
+        {
+          user_id: "user-1",
+          signal: "downvote",
+          category: "museum",
+          occurrence_count: 1,
+        },
+      ],
+    ]);
+    expect(updates).toEqual([]);
+  });
+
+  it("increments a standing row rated the same way again", async () => {
+    const { client, updates, inserts } = fakeStandingSupabase([
+      { category: "museum", signal: "downvote", occurrence_count: 3 },
+    ]);
+
+    expect(
+      await saveWalkFeedback(client, "user-1", "downvote", ["museum"]),
+    ).toEqual(["museum"]);
+    expect(updates).toEqual([
+      {
+        payload: { occurrence_count: 4 },
+        filters: { user_id: "user-1", category: "museum", poi_name: null },
+      },
+    ]);
+    expect(inserts).toEqual([]);
+  });
+
+  // A walker who has come round on a category should not stay suppressed while
+  // an old pile of evidence unwinds — but the new direction starts from scratch,
+  // so one outlier tap cannot swing the ranker as hard as the history it replaced.
+  it("resets to the new signal at one occurrence when the rating flips", async () => {
+    const { client, updates } = fakeStandingSupabase([
+      { category: "museum", signal: "downvote", occurrence_count: 5 },
+    ]);
+
+    await saveWalkFeedback(client, "user-1", "upvote", ["museum"]);
+
+    expect(updates[0].payload).toEqual({
+      signal: "upvote",
+      occurrence_count: 1,
+    });
+  });
+
+  // A row from before the column existed reads as null, which still means one
+  // standing rating — incrementing it must land on two, not on NaN.
+  it("counts a row written before occurrence tracking as one", async () => {
+    const { client, updates } = fakeStandingSupabase([
+      { category: "food", signal: "upvote", occurrence_count: null },
+    ]);
+
+    await saveWalkFeedback(client, "user-1", "upvote", ["food"]);
+
+    expect(updates[0].payload).toEqual({ occurrence_count: 2 });
+  });
+
+  it("updates what stands and inserts what does not in one batch", async () => {
+    const { client, updates, inserts } = fakeStandingSupabase([
+      { category: "museum", signal: "upvote", occurrence_count: 2 },
+    ]);
+
+    expect(
+      await saveWalkFeedback(client, "user-1", "upvote", ["museum", "park"]),
+    ).toEqual(["museum", "park"]);
+    expect(updates).toHaveLength(1);
+    expect(inserts).toEqual([
+      [
+        {
+          user_id: "user-1",
+          signal: "upvote",
+          category: "park",
+          occurrence_count: 1,
+        },
+      ],
+    ]);
+  });
+
+  it("records nothing when the standing rows cannot be read", async () => {
+    const { client, updates, inserts } = fakeStandingSupabase([], {
+      readError: new Error("boom"),
+    });
+
+    expect(
+      await saveWalkFeedback(client, "user-1", "downvote", ["museum"]),
+    ).toEqual([]);
+    expect(updates).toEqual([]);
+    expect(inserts).toEqual([]);
+  });
+
+  it("lets a failed increment cost only its own category", async () => {
+    const { client } = fakeStandingSupabase(
+      [{ category: "museum", signal: "downvote", occurrence_count: 1 }],
+      { updateError: new Error("boom") },
+    );
+
+    expect(
+      await saveWalkFeedback(client, "user-1", "downvote", ["museum", "park"]),
+    ).toEqual(["park"]);
+  });
+
+  it("writes nothing when no category was rated", async () => {
+    const { client, inserts } = fakeStandingSupabase([]);
+
+    expect(await saveWalkFeedback(client, "user-1", "upvote", [])).toEqual([]);
+    expect(inserts).toEqual([]);
   });
 });
 

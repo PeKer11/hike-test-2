@@ -150,8 +150,25 @@ export async function getProfileDefaults(
 }
 
 /**
- * The categories the walker has voted down as a whole — the other half of what
- * `getPreferredCategories` reads, and until now the half nothing acted on.
+ * A row's `occurrence_count` as a count the ranker can multiply by. The column
+ * is `integer not null default 1 check (> 0)`, but PostgREST can hand a numeric
+ * back as a string and a row written before the column existed reads as null —
+ * anything that is not a whole positive number is one occurrence, which is what
+ * a standing row meant before this was tracked.
+ */
+function toOccurrenceCount(value: unknown): number {
+  const count = Number(value);
+  return Number.isInteger(count) && count > 0 ? count : 1;
+}
+
+/**
+ * The categories the walker has voted down as a whole, each with how many times
+ * that downvote has been repeated — the other half of what
+ * `getPreferredCategories` reads.
+ *
+ * The count is the point: one downvote can be a bad day, an unlucky stop or no
+ * time left, while the same downvote after several walks is a preference. The
+ * ranker scales its penalty on it rather than treating both the same.
  *
  * Category-level rows only (`poi_name is null`, the shape the table's check
  * constraint calls category-level). A downvote on one specific POI says "not
@@ -167,26 +184,35 @@ export async function getProfileDefaults(
 export async function getDownvotedCategories(
   supabase: ServerClient,
   userId: string,
-): Promise<AttractionCategory[]> {
+): Promise<Map<AttractionCategory, number>> {
   const { data, error } = await supabase
     .from("attraction_feedback")
-    .select("category")
+    .select("category, occurrence_count")
     .eq("user_id", userId)
     .eq("signal", "downvote")
     .is("poi_name", null);
 
   if (error || !Array.isArray(data)) {
-    return [];
+    return new Map();
   }
 
   // Same guard as `getPreferredCategories`: a category written by an older
-  // schema is not necessarily one the ranker still knows, and one row per
-  // category is not guaranteed once a POI-level shape sneaks past.
-  const categories = data.map((row) => (row as { category: unknown }).category);
-  return Array.from(new Set(categories)).filter(
-    (category): category is AttractionCategory =>
-      (ATTRACTION_CATEGORIES as string[]).includes(category as string),
-  );
+  // schema is not necessarily one the ranker still knows. One row per category
+  // is not guaranteed either once a POI-level shape sneaks past, so duplicates
+  // collapse to the strongest count rather than to whichever row came last.
+  const counts = new Map<AttractionCategory, number>();
+  for (const row of data as { category: unknown; occurrence_count: unknown }[]) {
+    const category = row.category;
+    if (!(ATTRACTION_CATEGORIES as string[]).includes(category as string)) {
+      continue;
+    }
+
+    const known = category as AttractionCategory;
+    const count = toOccurrenceCount(row.occurrence_count);
+    counts.set(known, Math.max(counts.get(known) ?? 0, count));
+  }
+
+  return counts;
 }
 
 /**
@@ -353,10 +379,34 @@ export async function saveAttractionFeedback(
  * `deriveCategorySignals`.
  *
  * The unique index is (user_id, category, poi_key), and poi_key is a generated
- * column, so a later walk re-rating the same category must replace the standing
- * row. That is done as delete-then-insert rather than an upsert because
- * PostgREST's on_conflict would have to name the generated column, which is not
- * something this code can verify against the live database.
+ * column, so a later walk re-rating the same category has to move the standing
+ * row in place. That is done as read-then-insert-or-update rather than an
+ * upsert because PostgREST's on_conflict would have to name the generated
+ * column, which is not something this code can verify against the live
+ * database.
+ *
+ * Three cases, and `occurrence_count` is what distinguishes them:
+ *
+ *   nothing standing   — insert the signal at one occurrence.
+ *   same signal again  — increment. Repeated evidence in one direction is the
+ *                        whole reason the column exists: the ranker scales its
+ *                        penalty on the count, so "disliked museums on four
+ *                        walks" outweighs "disliked museums once".
+ *   opposite signal    — reset to the new signal at one occurrence.
+ *
+ * The reset is the interesting choice. Decrementing (treating the flip as one
+ * unit of evidence against the accumulated pile) would keep a category the
+ * walker has since come round on suppressed for several more walks, and worse,
+ * it makes the standing row's `signal` disagree with what the walker last said
+ * for as long as the count takes to unwind. Resetting keeps the row honest —
+ * it always names the walker's current opinion — at the cost of throwing away
+ * the old evidence, which is the right trade here because a flip is the walker
+ * explicitly contradicting themselves, not noise. The new direction then has to
+ * earn its strength again from one occurrence up, so a single outlier tap
+ * cannot immediately swing the ranker as hard as the history it replaced.
+ *
+ * Best effort like everything else on this path: a failed read or write costs
+ * that category's standing signal, not the request.
  */
 export async function saveWalkFeedback(
   supabase: ServerClient,
@@ -368,26 +418,70 @@ export async function saveWalkFeedback(
     return [];
   }
 
-  const { error: deleteError } = await supabase
+  const { data, error: readError } = await supabase
     .from("attraction_feedback")
-    .delete()
+    .select("category, signal, occurrence_count")
     .eq("user_id", userId)
     .is("poi_name", null)
     .in("category", categories);
 
-  if (deleteError) {
+  if (readError || !Array.isArray(data)) {
     return [];
+  }
+
+  const standing = new Map<string, { signal: unknown; count: number }>();
+  for (const row of data as {
+    category: unknown;
+    signal: unknown;
+    occurrence_count: unknown;
+  }[]) {
+    standing.set(String(row.category), {
+      signal: row.signal,
+      count: toOccurrenceCount(row.occurrence_count),
+    });
+  }
+
+  const written: AttractionCategory[] = [];
+  const toInsert: AttractionCategory[] = [];
+
+  for (const category of categories) {
+    const existing = standing.get(category);
+
+    if (!existing) {
+      toInsert.push(category);
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from("attraction_feedback")
+      .update(
+        existing.signal === signal
+          ? { occurrence_count: existing.count + 1 }
+          : { signal, occurrence_count: 1 },
+      )
+      .eq("user_id", userId)
+      .eq("category", category)
+      .is("poi_name", null);
+
+    if (!updateError) {
+      written.push(category);
+    }
+  }
+
+  if (toInsert.length === 0) {
+    return written;
   }
 
   const { error: insertError } = await supabase
     .from("attraction_feedback")
     .insert(
-      categories.map((category) => ({
+      toInsert.map((category) => ({
         user_id: userId,
         signal,
         category,
+        occurrence_count: 1,
       })),
     );
 
-  return insertError ? [] : categories;
+  return insertError ? written : [...written, ...toInsert];
 }

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DOWNVOTED_CATEGORY_PENALTY,
+  downvotePenalty,
   EXPLORATION_RATE,
+  MAX_DOWNVOTE_PENALTY,
   MAX_EXPLORATION_PICKS,
+  PER_OCCURRENCE_DOWNVOTE_PENALTY,
   PREFERRED_CATEGORY_BOOST,
   rankAttractions,
   selectFeasibleAttractions,
@@ -180,12 +182,50 @@ describe("rankAttractions — exploration/exploitation", () => {
   });
 });
 
+// How many times a category has been voted down, in the shape the ranker reads.
+function downvotes(
+  ...entries: [AttractionCategory, number][]
+): Map<AttractionCategory, number> {
+  return new Map(entries);
+}
+
+// The scaled penalty is the whole point of the occurrence count: a category
+// disliked once is not the same evidence as one disliked on every walk.
+describe("downvotePenalty", () => {
+  it("charges one occurrence half of what a stated preference is worth", () => {
+    expect(downvotePenalty(1)).toBe(PER_OCCURRENCE_DOWNVOTE_PENALTY);
+    expect(downvotePenalty(1)).toBeLessThan(PREFERRED_CATEGORY_BOOST);
+  });
+
+  it("grows with each repeat of the same downvote", () => {
+    expect(downvotePenalty(2)).toBe(4);
+    expect(downvotePenalty(3)).toBe(6);
+    expect(downvotePenalty(2)).toBeGreaterThan(downvotePenalty(1));
+  });
+
+  // Without the ceiling a walker who dislikes one category every walk would
+  // eventually put it beyond any notability or distance the ranker can offer.
+  it("caps however many times the category was voted down", () => {
+    expect(downvotePenalty(4)).toBe(MAX_DOWNVOTE_PENALTY);
+    expect(downvotePenalty(40)).toBe(MAX_DOWNVOTE_PENALTY);
+  });
+
+  // A row written before occurrence tracking existed still means one standing
+  // downvote, never none.
+  it.each([0, -3, Number.NaN, 1.7])(
+    "reads an unusable count (%s) as a single occurrence",
+    (count) => {
+      expect(downvotePenalty(count)).toBe(PER_OCCURRENCE_DOWNVOTE_PENALTY);
+    },
+  );
+});
+
 describe("rankAttractions — downvoted categories", () => {
   function scoreOf(
     id: string,
     options: {
       preferred?: AttractionCategory[];
-      downvoted?: AttractionCategory[];
+      downvoted?: Map<AttractionCategory, number>;
     },
   ): number {
     const ranked = rankAttractions([museum, viewpoint], {
@@ -212,7 +252,7 @@ describe("rankAttractions — downvoted categories", () => {
 
     const withDownvote = rankAttractions([museum, viewpoint], {
       origin,
-      downvotedCategories: ["viewpoint"],
+      downvotedCategories: downvotes(["viewpoint", 1]),
       availableMinutes: 90,
       walkingPaceMinPerKm: 15,
     });
@@ -221,25 +261,59 @@ describe("rankAttractions — downvoted categories", () => {
 
   it("subtracts the penalty rather than merely withholding the boost", () => {
     expect(scoreOf("viewpoint", {})).toBeCloseTo(
-      scoreOf("viewpoint", { downvoted: ["viewpoint"] }) +
-        DOWNVOTED_CATEGORY_PENALTY,
+      scoreOf("viewpoint", { downvoted: downvotes(["viewpoint", 1]) }) +
+        PER_OCCURRENCE_DOWNVOTE_PENALTY,
+    );
+  });
+
+  // A category disliked on four walks has to cost more than one disliked once,
+  // and the cap has to hold from the score's side too, not just the formula's.
+  it("scales the penalty with how often the category was voted down", () => {
+    const once = scoreOf("viewpoint", { downvoted: downvotes(["viewpoint", 1]) });
+    const thrice = scoreOf("viewpoint", {
+      downvoted: downvotes(["viewpoint", 3]),
+    });
+    const many = scoreOf("viewpoint", { downvoted: downvotes(["viewpoint", 9]) });
+
+    expect(thrice).toBeLessThan(once);
+    expect(many).toBeCloseTo(
+      scoreOf("viewpoint", {}) - MAX_DOWNVOTE_PENALTY,
     );
   });
 
   it("leaves categories the walker never voted on alone", () => {
-    expect(scoreOf("museum", { downvoted: ["viewpoint"] })).toBeCloseTo(
-      scoreOf("museum", {}),
-    );
+    expect(
+      scoreOf("museum", { downvoted: downvotes(["viewpoint", 3]) }),
+    ).toBeCloseTo(scoreOf("museum", {}));
   });
 
   // Liked in a prompt, then voted down after a walk that went badly. Neither
-  // signal carries a timestamp the other can be compared against, so
-  // contradictory evidence ranks as no evidence.
-  it("cancels to neutral when a category is both preferred and downvoted", () => {
-    expect(PREFERRED_CATEGORY_BOOST).toBe(DOWNVOTED_CATEGORY_PENALTY);
+  // signal carries a timestamp the other can be compared against, so a stated
+  // preference stands until the downvote has been repeated enough to match it —
+  // one bad walk no longer cancels what the walker said they like, and two do.
+  it("needs a repeated downvote to cancel a stated preference", () => {
+    const neutral = scoreOf("museum", {});
+
     expect(
-      scoreOf("museum", { preferred: ["museum"], downvoted: ["museum"] }),
-    ).toBeCloseTo(scoreOf("museum", {}));
+      scoreOf("museum", {
+        preferred: ["museum"],
+        downvoted: downvotes(["museum", 1]),
+      }),
+    ).toBeGreaterThan(neutral);
+
+    expect(
+      scoreOf("museum", {
+        preferred: ["museum"],
+        downvoted: downvotes(["museum", 2]),
+      }),
+    ).toBeCloseTo(neutral);
+
+    expect(
+      scoreOf("museum", {
+        preferred: ["museum"],
+        downvoted: downvotes(["museum", 4]),
+      }),
+    ).toBeLessThan(neutral);
   });
 
   // Exploration buys information about a category we know nothing about. A
@@ -248,7 +322,7 @@ describe("rankAttractions — downvoted categories", () => {
     const ranked = rankAttractions([museum, viewpoint], {
       origin,
       preferredCategories: ["museum"],
-      downvotedCategories: ["viewpoint"],
+      downvotedCategories: downvotes(["viewpoint", 1]),
       availableMinutes: 90,
       walkingPaceMinPerKm: 15,
       allowExploration: true,
@@ -265,7 +339,7 @@ describe("rankAttractions — downvoted categories", () => {
       {
         origin,
         preferredCategories: ["museum"],
-        downvotedCategories: ["viewpoint"],
+        downvotedCategories: downvotes(["viewpoint", 1]),
         availableMinutes: 90,
         walkingPaceMinPerKm: 15,
         allowExploration: true,

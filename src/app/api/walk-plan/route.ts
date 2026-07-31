@@ -48,7 +48,8 @@ const FILL_THRESHOLD = 0.9;
 
 interface ProfileCategories {
   preferredCategories: AttractionCategory[] | undefined;
-  downvotedCategories: AttractionCategory[] | undefined;
+  /** Each downvoted category with how many times it has been voted down. */
+  downvotedCategories: Map<AttractionCategory, number> | undefined;
 }
 
 /**
@@ -69,7 +70,7 @@ async function withProfilePreferences(
 ): Promise<ProfileCategories> {
   const body = Array.isArray(fromBody) ? fromBody : [];
   let preferred: AttractionCategory[] = [];
-  let downvoted: AttractionCategory[] = [];
+  let downvoted: Map<AttractionCategory, number> = new Map();
 
   try {
     const supabase = await createClient();
@@ -81,7 +82,9 @@ async function withProfilePreferences(
       // must not throw away what the other already found.
       [preferred, downvoted] = await Promise.all([
         getPreferredCategories(supabase, user.id).catch(() => []),
-        getDownvotedCategories(supabase, user.id).catch(() => []),
+        getDownvotedCategories(supabase, user.id).catch(
+          () => new Map<AttractionCategory, number>(),
+        ),
       ]);
     }
   } catch {
@@ -91,7 +94,7 @@ async function withProfilePreferences(
   const merged = Array.from(new Set([...body, ...preferred]));
   return {
     preferredCategories: merged.length > 0 ? merged : undefined,
-    downvotedCategories: downvoted.length > 0 ? downvoted : undefined,
+    downvotedCategories: downvoted.size > 0 ? downvoted : undefined,
   };
 }
 
@@ -155,7 +158,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     let pinnedAttractionIds = body.pinnedAttractionIds;
     // Topped up from the profile only on the branches that actually rank.
     let preferredCategories = body.preferredCategories;
-    let downvotedCategories: AttractionCategory[] | undefined;
+    let downvotedCategories: Map<AttractionCategory, number> | undefined;
     if (explicitAttractions && explicitAttractions.length > 0) {
       selected = explicitAttractions;
 

@@ -44,35 +44,77 @@ export const EXPLORATION_RATE = 0.15;
  */
 export const MAX_EXPLORATION_PICKS = 1;
 
-/** Added for a category the walker's profile asks for. */
+/**
+ * Added for a category the walker's profile asks for.
+ *
+ * Flat, unlike the downvote penalty below, and the asymmetry is deliberate.
+ * `profiles.preferred_categories` is written by the free-text preference pass
+ * off statements like "I love museums" — explicit, unambiguous language that is
+ * already high confidence on its first occurrence, and there is nothing to
+ * accumulate because the column is a plain array with no per-category history.
+ * Downvotes are the opposite kind of evidence: they arrive from taps at the end
+ * of a walk, where one 👎 can mean the walker was tired, out of time or unlucky
+ * with that one stop. Repetition is what turns that into a preference, so only
+ * that side scales. (An explicit *dislike* in text still removes the category
+ * from `preferred_categories` outright and stays as categorical as it was.)
+ */
 export const PREFERRED_CATEGORY_BOOST = 4;
 
 /**
- * Subtracted for a category the walker has voted down as a whole. Deliberately
- * the same size as the boost: a downvote is exactly as strong a statement as a
- * preference, just the other way, and it has to be a real penalty rather than a
- * missing bonus or a disliked category still outranks a neutral one on base
- * score alone.
+ * Subtracted per recorded occurrence of a standing category-level downvote —
+ * `attraction_feedback.occurrence_count`, the number of times in a row the
+ * walker has voted the category down.
  *
- * The symmetry also settles the contradictory case — a category that is both
- * preferred and downvoted (liked in a prompt, then voted down after a walk that
- * went badly) cancels to neutral. Neither signal is timestamped in a way the
- * other can be compared against — `preferred_categories` is one array with a
- * single `updated_at` for the whole profile — so "most recent wins" is not
- * something this code can actually compute. Ranking contradictory evidence as
- * no evidence is the honest reading, and the next unambiguous signal from
- * either side breaks the tie.
+ * Half the boost, so one downvote is a real but modest penalty: it is enough to
+ * pull a disliked category below a neutral one it only narrowly beat, and not
+ * enough to bury a category the walker may simply have caught on a bad day. Two
+ * occurrences reach the old flat penalty of 4 and cancel a stated preference
+ * exactly; past that a repeatedly disliked category is ranked below neutral
+ * ones outright, which is the behaviour the flat penalty could never express.
  */
-export const DOWNVOTED_CATEGORY_PENALTY = 4;
+export const PER_OCCURRENCE_DOWNVOTE_PENALTY = 2;
+
+/**
+ * Ceiling on the scaled penalty, at twice the boost. Without it a walker who
+ * votes one category down every walk eventually drives its score so far
+ * negative that no notability bonus or short walking distance can ever surface
+ * it again — the category is effectively deleted, which is a stronger claim
+ * than a thumbs-down was ever asked to make. Eight is reached at four
+ * occurrences and already outranks a stated preference two to one.
+ */
+export const MAX_DOWNVOTE_PENALTY = 8;
+
+/**
+ * What a standing downvote costs a candidate's score, given how many times it
+ * has been recorded.
+ *
+ * Exported so the walk-plan path and tests can reason about the curve in one
+ * place. A count at or below zero (a row that predates occurrence tracking, or
+ * one read back as something unparseable) is treated as a single occurrence —
+ * the row is standing, so it means at least that much.
+ */
+export function downvotePenalty(occurrenceCount: number): number {
+  const occurrences = Number.isFinite(occurrenceCount)
+    ? Math.max(1, Math.floor(occurrenceCount))
+    : 1;
+
+  return Math.min(
+    MAX_DOWNVOTE_PENALTY,
+    occurrences * PER_OCCURRENCE_DOWNVOTE_PENALTY,
+  );
+}
 
 export interface RankerOptions {
   origin: Coordinates;
   preferredCategories?: AttractionCategory[];
   /**
-   * Categories carrying a standing category-level downvote. Penalized in the
-   * score and barred from exploration.
+   * Categories carrying a standing category-level downvote, mapped to how many
+   * times that downvote has been repeated. Penalized in the score in proportion
+   * to that count, and barred from exploration however small the count is — a
+   * downvote of any strength is an answer, not a question worth spending the
+   * exploration slot on.
    */
-  downvotedCategories?: AttractionCategory[];
+  downvotedCategories?: ReadonlyMap<AttractionCategory, number>;
   availableMinutes: number;
   walkingPaceMinPerKm: number;
   /**
@@ -114,7 +156,7 @@ type ScoredAttraction = Attraction & {
 function withExplorationPick(
   ranked: ScoredAttraction[],
   preferredCategories: AttractionCategory[],
-  downvotedCategories: AttractionCategory[],
+  downvotedCategories: ReadonlyMap<AttractionCategory, number>,
   random: () => number,
 ): ScoredAttraction[] {
   if (random() >= EXPLORATION_RATE) return ranked;
@@ -126,7 +168,7 @@ function withExplorationPick(
     if (
       picks.length < MAX_EXPLORATION_PICKS &&
       !preferredCategories.includes(attraction.category) &&
-      !downvotedCategories.includes(attraction.category)
+      !downvotedCategories.has(attraction.category)
     ) {
       picks.push({ ...attraction, isExplorationPick: true });
     } else {
@@ -168,8 +210,9 @@ export function rankAttractions(
     if (preferredCategories?.includes(a.category)) {
       score += PREFERRED_CATEGORY_BOOST;
     }
-    if (downvotedCategories?.includes(a.category)) {
-      score -= DOWNVOTED_CATEGORY_PENALTY;
+    const downvoteOccurrences = downvotedCategories?.get(a.category);
+    if (downvoteOccurrences !== undefined) {
+      score -= downvotePenalty(downvoteOccurrences);
     }
 
     score -= distanceMeters / 1000;
@@ -185,7 +228,7 @@ export function rankAttractions(
     return withExplorationPick(
       scored,
       preferredCategories,
-      downvotedCategories ?? [],
+      downvotedCategories ?? new Map(),
       random,
     );
   }

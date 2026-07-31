@@ -103,7 +103,7 @@ function resetMocks(): void {
   mockGetPreferredCategories.mockReset();
   mockGetPreferredCategories.mockResolvedValue([]);
   mockGetDownvotedCategories.mockReset();
-  mockGetDownvotedCategories.mockResolvedValue([]);
+  mockGetDownvotedCategories.mockResolvedValue(new Map());
   mockRankAttractions.mockReset();
 }
 
@@ -378,15 +378,17 @@ describe("POST /api/walk-plan — saved downvotes", () => {
     };
   }
 
-  function downvotedWith(): string[] | undefined {
+  function downvotedWith(): Map<string, number> | undefined {
     return mockRankAttractions.mock.calls[0]?.[1]?.downvotedCategories;
   }
 
-  it("passes the saved downvotes into the ranking", async () => {
+  // The count rides along with the category — it is what the ranker scales its
+  // penalty on, so dropping it here would put the flat penalty back.
+  it("passes the saved downvotes and their counts into the ranking", async () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
-    mockGetDownvotedCategories.mockResolvedValueOnce(["food"]);
+    mockGetDownvotedCategories.mockResolvedValueOnce(new Map([["food", 3]]));
 
     const response = await POST(postRequest(discoveryBody()));
 
@@ -395,7 +397,7 @@ describe("POST /api/walk-plan — saved downvotes", () => {
       expect.anything(),
       "user-1",
     );
-    expect(downvotedWith()).toEqual(["food"]);
+    expect(downvotedWith()).toEqual(new Map([["food", 3]]));
   });
 
   it("passes nothing for a walker with no standing downvotes", async () => {
@@ -446,12 +448,12 @@ describe("POST /api/walk-plan — saved downvotes", () => {
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
     mockGetPreferredCategories.mockRejectedValueOnce(new Error("supabase down"));
-    mockGetDownvotedCategories.mockResolvedValueOnce(["food"]);
+    mockGetDownvotedCategories.mockResolvedValueOnce(new Map([["food", 1]]));
 
     const response = await POST(postRequest(discoveryBody()));
 
     expect(response.status).toBe(200);
-    expect(downvotedWith()).toEqual(["food"]);
+    expect(downvotedWith()).toEqual(new Map([["food", 1]]));
   });
 
   it("applies the downvotes when topping up a named-stops walk too", async () => {
@@ -459,12 +461,12 @@ describe("POST /api/walk-plan — saved downvotes", () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.082, 34.78, 20),
     ]);
-    mockGetDownvotedCategories.mockResolvedValueOnce(["shopping"]);
+    mockGetDownvotedCategories.mockResolvedValueOnce(new Map([["shopping", 2]]));
 
     await POST(
       postRequest({ ...baseBody([named]), fillRemainingTime: true }),
     );
 
-    expect(downvotedWith()).toEqual(["shopping"]);
+    expect(downvotedWith()).toEqual(new Map([["shopping", 2]]));
   });
 });
