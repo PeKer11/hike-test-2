@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { WalkCompanionPanel } from "@/components/route/WalkCompanionPanel";
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
-import type { Coordinates } from "@/lib/types";
+import type { AttractionCategory, Coordinates } from "@/lib/types";
 
 function renderPanel(suggestedOrigin: Coordinates | null) {
   return render(
@@ -63,6 +63,139 @@ describe("WalkCompanionPanel", () => {
     const { lat, lng } = coordinateFields();
     expect(lat.value).toBe("31.7683");
     expect(lng.value).toBe("35.2137");
+  });
+});
+
+// The walk form opens on what the signed-in walker's profile already knows —
+// their measured pace and the kinds of stop they like — instead of asking again.
+// Starting values, not locks: the walker's own taps win from then on.
+describe("WalkCompanionPanel — saved profile pre-fills the form", () => {
+  function profilePanel(
+    suggestedPace: number | null,
+    suggestedCategories: AttractionCategory[] | null,
+  ) {
+    return (
+      <WalkCompanionPanel
+        isLoading={false}
+        onBuildWalk={vi.fn()}
+        walkSettings={DEFAULT_WALK_SETTINGS}
+        onWalkSettingsChange={vi.fn()}
+        suggestedPace={suggestedPace}
+        suggestedCategories={suggestedCategories}
+      />
+    );
+  }
+
+  // The selected pace and interest chips are the ones painted terra.
+  function isSelected(label: string) {
+    return screen.getByText(label).className.includes("border-terra");
+  }
+
+  it("selects the saved pace and ticks the saved interests", () => {
+    render(profilePanel(20, ["museum", "park"]));
+
+    expect(isSelected("Slow (20 min/km)")).toBe(true);
+    expect(isSelected("Museums")).toBe(true);
+    expect(isSelected("Parks")).toBe(true);
+    expect(isSelected("Landmarks")).toBe(false);
+  });
+
+  // The profile records a pace measured off real walks; the picker offers three.
+  it("snaps a measured pace to the nearest offered one", () => {
+    render(profilePanel(12.8, null));
+
+    expect(isSelected("Brisk (12 min/km)")).toBe(true);
+    expect(isSelected("Normal (15 min/km)")).toBe(false);
+  });
+
+  it("keeps the pace the walker tapped when the same profile arrives again", () => {
+    const { rerender } = render(profilePanel(20, null));
+
+    fireEvent.click(screen.getByText("Brisk (12 min/km)"));
+    rerender(profilePanel(20, null));
+
+    expect(isSelected("Brisk (12 min/km)")).toBe(true);
+    expect(isSelected("Slow (20 min/km)")).toBe(false);
+  });
+
+  it("keeps an interest the walker unticked when the same profile arrives again", () => {
+    const { rerender } = render(profilePanel(null, ["museum", "park"]));
+
+    fireEvent.click(screen.getByText("Museums"));
+    // A fresh array with the same contents — what a re-render of the page above
+    // hands down every time.
+    rerender(profilePanel(null, ["museum", "park"]));
+
+    expect(isSelected("Museums")).toBe(false);
+    expect(isSelected("Parks")).toBe(true);
+  });
+
+  it("passes the pre-filled pace and interests into the walk it builds", () => {
+    const onBuildWalk = vi.fn();
+    render(
+      <WalkCompanionPanel
+        isLoading={false}
+        onBuildWalk={onBuildWalk}
+        walkSettings={DEFAULT_WALK_SETTINGS}
+        onWalkSettingsChange={vi.fn()}
+        suggestedOrigin={{ lat: 32.0853, lng: 34.7818 }}
+        suggestedPace={20}
+        suggestedCategories={["museum"]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Build My Walk"));
+
+    expect(onBuildWalk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walkingPaceMinPerKm: 20,
+        preferredCategories: ["museum"],
+      }),
+    );
+  });
+
+  // A logged-out visitor, or one whose profile has never recorded anything.
+  it("opens on its own defaults when nothing is saved", () => {
+    const onBuildWalk = vi.fn();
+    render(
+      <WalkCompanionPanel
+        isLoading={false}
+        onBuildWalk={onBuildWalk}
+        walkSettings={DEFAULT_WALK_SETTINGS}
+        onWalkSettingsChange={vi.fn()}
+        suggestedOrigin={{ lat: 32.0853, lng: 34.7818 }}
+        suggestedPace={null}
+        suggestedCategories={[]}
+      />,
+    );
+
+    expect(isSelected("Normal (15 min/km)")).toBe(true);
+    expect(isSelected("Museums")).toBe(false);
+
+    fireEvent.click(screen.getByText("Build My Walk"));
+
+    expect(onBuildWalk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walkingPaceMinPerKm: 15,
+        preferredCategories: undefined,
+      }),
+    );
+  });
+
+  // The props did not exist until the profile read landed — every other caller
+  // and every earlier walk must behave exactly as before when they are absent.
+  it("behaves identically when the props are not passed at all", () => {
+    render(
+      <WalkCompanionPanel
+        isLoading={false}
+        onBuildWalk={vi.fn()}
+        walkSettings={DEFAULT_WALK_SETTINGS}
+        onWalkSettingsChange={vi.fn()}
+      />,
+    );
+
+    expect(isSelected("Normal (15 min/km)")).toBe(true);
+    expect(isSelected("Parks")).toBe(false);
   });
 });
 

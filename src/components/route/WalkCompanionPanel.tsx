@@ -36,6 +36,23 @@ interface WalkCompanionPanelProps {
    * Outranked by real GPS — see `hasDetectedGpsRef`.
    */
   suggestedOrigin?: Coordinates | null;
+  /**
+   * The walking pace saved on the signed-in walker's profile, learned from the
+   * walks they have actually done. Fills the pace picker the same way
+   * `suggestedMinutes` fills the time field: a starting value, so a returning
+   * walker isn't asked again for something we already know, and one they can
+   * override for this walk by tapping another pace.
+   *
+   * Null for a logged-out visitor and for anyone whose profile has no pace yet —
+   * the picker then opens on its own "Normal" default.
+   */
+  suggestedPace?: number | null;
+  /**
+   * The interests saved on that same profile. Ticks those chips on open, again
+   * as a starting value: the walker can untick any of them, and nothing ticks
+   * them back.
+   */
+  suggestedCategories?: AttractionCategory[] | null;
   onLocationDetected?: (coords: Coordinates) => void;
   onStartWalk?: () => void;
   onStopWalk?: () => void;
@@ -50,6 +67,22 @@ const PACE_OPTIONS = [
   { label: "Normal (15 min/km)", value: 15 },
   { label: "Brisk (12 min/km)", value: 12 },
 ];
+
+/**
+ * The profile stores a measured pace (14.3 min/km, learned from real walks);
+ * the picker offers three. Snap to the nearest one, so a saved pace shows up as
+ * a selected option instead of leaving all three buttons unlit and the walker
+ * unable to tell whether anything was remembered.
+ */
+function nearestPaceOption(pace: number): number {
+  return PACE_OPTIONS.reduce(
+    (closest, option) =>
+      Math.abs(option.value - pace) < Math.abs(closest - pace)
+        ? option.value
+        : closest,
+    PACE_OPTIONS[0].value,
+  );
+}
 
 const CATEGORY_OPTIONS: { label: string; value: AttractionCategory }[] = [
   { label: "Landmarks", value: "landmark" },
@@ -70,6 +103,8 @@ export function WalkCompanionPanel({
   mapClickedCoords,
   suggestedMinutes,
   suggestedOrigin,
+  suggestedPace,
+  suggestedCategories,
   onLocationDetected,
   onStartWalk,
   onStopWalk,
@@ -140,6 +175,35 @@ export function WalkCompanionPanel({
     setLat(suggestedLat.toFixed(6));
     setLng(suggestedLng.toFixed(6));
   }, [suggestedLat, suggestedLng]);
+
+  // Keyed on the number for the same reason: the saved profile arrives again on
+  // every re-render of the page above, and re-applying it would silently undo a
+  // pace the walker has since tapped for this particular walk.
+  useEffect(() => {
+    if (typeof suggestedPace !== "number") {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPace(nearestPaceOption(suggestedPace));
+  }, [suggestedPace]);
+
+  // Keyed on the contents rather than the array, exactly as the origin effect is
+  // keyed on its two numbers and not on the object: the profile comes down as a
+  // fresh array on every render, and re-applying it would tick back a chip the
+  // walker deliberately unticked. Category names never contain a comma, so the
+  // key round-trips losslessly.
+  const suggestedCategoryKey = (suggestedCategories ?? []).join(",");
+  useEffect(() => {
+    if (!suggestedCategoryKey) {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedCategories(
+      suggestedCategoryKey.split(",") as AttractionCategory[],
+    );
+  }, [suggestedCategoryKey]);
 
   const detectLocation = () => {
     setLocationError(null);

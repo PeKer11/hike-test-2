@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import type { AttractionCategory } from "@/lib/types";
+
 import { WalkPlannerApp } from "./WalkPlannerApp";
 
 /* Iconoir-style glyphs (1.5px stroke, round caps) — DESIGN.md forbids icon
@@ -41,6 +43,16 @@ function IconFullscreenExit({ className }: { className?: string }) {
   );
 }
 
+interface PlannerFrameProps {
+  /**
+   * The signed-in walker's saved profile, read on the server by the page above.
+   * Nothing here reads them — they are handed straight down to the walk form,
+   * which decides what to do with them.
+   */
+  suggestedPace?: number | null;
+  suggestedCategories?: AttractionCategory[] | null;
+}
+
 /**
  * The planner's frame — one mounted `WalkPlannerApp`, two sizes.
  *
@@ -52,7 +64,10 @@ function IconFullscreenExit({ className }: { className?: string }) {
  * Deliberately not the browser Fullscreen API: that would hide the site's own
  * chrome (the account indicator / logout), which has to stay reachable.
  */
-export function PlannerFrame() {
+export function PlannerFrame({
+  suggestedPace = null,
+  suggestedCategories = null,
+}: PlannerFrameProps = {}) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Esc collapses, the same reflex a real fullscreen player trains.
@@ -83,7 +98,11 @@ export function PlannerFrame() {
           : "relative h-[min(72vh,620px)] w-full overflow-hidden rounded-xl border border-charcoal/10 bg-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)]"
       }
     >
-      <WalkPlannerApp isExpanded={isExpanded} />
+      <WalkPlannerApp
+        isExpanded={isExpanded}
+        suggestedPace={suggestedPace}
+        suggestedCategories={suggestedCategories}
+      />
 
       <button
         type="button"

@@ -17,7 +17,7 @@ import {
 import { OffRouteNotification } from "@/components/walk/OffRouteNotification";
 import { WalkFeedbackCard } from "@/components/walk/WalkFeedbackCard";
 import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
-import type { Attraction, WalkPlan } from "@/lib/types";
+import type { Attraction, AttractionCategory, WalkPlan } from "@/lib/types";
 import { Button, Card } from "@/components/ui";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
@@ -98,13 +98,21 @@ interface WalkPlannerAppProps {
   /** True while the frame around this planner fills the viewport. Only drives
       density — every control works identically in both states. */
   isExpanded?: boolean;
+  /** The signed-in walker's saved pace and interests, read on the server. Passed
+      straight through to the companion form, which opens on them. */
+  suggestedPace?: number | null;
+  suggestedCategories?: AttractionCategory[] | null;
 }
 
 // The planner fills whatever box it is given: the small embedded frame on /app
 // and the same frame expanded to the viewport are the same mounted component,
 // so nothing here may assume a viewport-sized container. Sizing is `h-full` and
 // the breakpoints are container queries (`@4xl:`), not viewport ones.
-export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
+export function WalkPlannerApp({
+  isExpanded = false,
+  suggestedPace = null,
+  suggestedCategories = null,
+}: WalkPlannerAppProps) {
   // Small-frame density. Never gates functionality — only padding and type size.
   const compact = !isExpanded;
   // The default experience is the City Walk flow alone. Manual/Hike planning,
@@ -1049,6 +1057,8 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
                 mapClickedCoords={mapClickedCoords}
                 suggestedMinutes={promptDurationMinutes}
                 suggestedOrigin={promptOrigin}
+                suggestedPace={suggestedPace}
+                suggestedCategories={suggestedCategories}
                 onLocationDetected={(coords) => {
                   setCurrentPosition(coords);
                   focusOn(coords, 16);

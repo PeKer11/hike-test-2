@@ -12,6 +12,7 @@ import {
   deriveCategorySignals,
   getDownvotedCategories,
   getPreferredCategories,
+  getProfileDefaults,
   saveAttractionFeedback,
   type AttractionRating,
 } from "@/lib/preferences/preference-store";
@@ -75,6 +76,99 @@ describe("getPreferredCategories", () => {
     expect(await getPreferredCategories(fakeSupabase(result), "user-1")).toEqual(
       [],
     );
+  });
+});
+
+// What the walk form opens on. Every failure mode has to read as "nothing
+// saved" rather than as an error: this read runs while the hub page renders.
+describe("getProfileDefaults", () => {
+  it("returns the saved pace and interests", async () => {
+    expect(
+      await getProfileDefaults(
+        fakeSupabase({
+          data: {
+            walking_pace_min_per_km: 13.5,
+            preferred_categories: ["museum", "park"],
+          },
+          error: null,
+        }),
+        "user-1",
+      ),
+    ).toEqual({
+      walkingPaceMinPerKm: 13.5,
+      preferredCategories: ["museum", "park"],
+    });
+  });
+
+  // PostgREST can hand a numeric column back as a string.
+  it("reads a pace that arrived as a string", async () => {
+    const defaults = await getProfileDefaults(
+      fakeSupabase({
+        data: { walking_pace_min_per_km: "18.0", preferred_categories: [] },
+        error: null,
+      }),
+      "user-1",
+    );
+
+    expect(defaults.walkingPaceMinPerKm).toBe(18);
+  });
+
+  it.each([
+    ["never recorded", null],
+    ["out of range", 120],
+    ["not a number", "brisk"],
+  ])("reads a pace that is %s as no saved pace", async (_label, pace) => {
+    const defaults = await getProfileDefaults(
+      fakeSupabase({
+        data: { walking_pace_min_per_km: pace, preferred_categories: [] },
+        error: null,
+      }),
+      "user-1",
+    );
+
+    expect(defaults.walkingPaceMinPerKm).toBeNull();
+  });
+
+  // Same guard as `getPreferredCategories` — a category from an older schema is
+  // not one the form has a chip for.
+  it("drops interests that are no longer known categories", async () => {
+    const defaults = await getProfileDefaults(
+      fakeSupabase({
+        data: {
+          walking_pace_min_per_km: null,
+          preferred_categories: ["cafe", "nature"],
+        },
+        error: null,
+      }),
+      "user-1",
+    );
+
+    expect(defaults.preferredCategories).toEqual(["nature"]);
+  });
+
+  it.each([
+    ["a failed read", { data: null, error: new Error("boom") }],
+    ["no profile row", { data: null, error: null }],
+  ])("reads %s as nothing saved", async (_label, result) => {
+    expect(await getProfileDefaults(fakeSupabase(result), "user-1")).toEqual({
+      walkingPaceMinPerKm: null,
+      preferredCategories: [],
+    });
+  });
+
+  // The page above renders around this call — a client that throws must cost the
+  // pre-fill, not the page.
+  it("reads a client that throws as nothing saved", async () => {
+    const throwing = {
+      from: () => {
+        throw new Error("network down");
+      },
+    } as unknown as Parameters<typeof getProfileDefaults>[0];
+
+    expect(await getProfileDefaults(throwing, "user-1")).toEqual({
+      walkingPaceMinPerKm: null,
+      preferredCategories: [],
+    });
   });
 });
 

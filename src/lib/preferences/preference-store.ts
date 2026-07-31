@@ -49,6 +49,24 @@ export async function learnPreferencesFromText(
 }
 
 /**
+ * The column is `attraction_category[]`, but a value written by an older schema
+ * or by hand is not necessarily a category we still know. Dropping it here
+ * matters beyond scoring: a list of unknown strings is non-empty, which would
+ * switch the ranker's exploration branch on and label a stop nothing was
+ * explored away from as an exploration pick.
+ */
+function toKnownCategories(value: unknown): AttractionCategory[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return (value as unknown[]).filter(
+    (category): category is AttractionCategory =>
+      (ATTRACTION_CATEGORIES as string[]).includes(category as string),
+  );
+}
+
+/**
  * The standing categories on the walker's profile — what every earlier prompt
  * and post-walk rating has taught us they like, as opposed to whatever they
  * ticked for one particular walk.
@@ -67,19 +85,68 @@ export async function getPreferredCategories(
     .eq("id", userId)
     .maybeSingle();
 
-  if (error || !data || !Array.isArray(data.preferred_categories)) {
+  if (error || !data) {
     return [];
   }
 
-  // The column is text[], so a value written by an older schema or by hand is
-  // not necessarily a category we still know. Dropping it here matters beyond
-  // scoring: a list of unknown strings is non-empty, which would switch the
-  // ranker's exploration branch on and label a stop nothing was explored away
-  // from as an exploration pick.
-  return (data.preferred_categories as unknown[]).filter(
-    (category): category is AttractionCategory =>
-      (ATTRACTION_CATEGORIES as string[]).includes(category as string),
-  );
+  return toKnownCategories(data.preferred_categories);
+}
+
+/** What the walk form can pre-fill from a returning walker's saved profile. */
+export interface ProfileDefaults {
+  /** `null` when the profile has never recorded a pace. */
+  walkingPaceMinPerKm: number | null;
+  preferredCategories: AttractionCategory[];
+}
+
+const NO_PROFILE_DEFAULTS: ProfileDefaults = {
+  walkingPaceMinPerKm: null,
+  preferredCategories: [],
+};
+
+/**
+ * The saved profile as *starting values for the walk form* — the walker's pace
+ * and the kinds of stop they like, so a returning walker isn't asked again for
+ * what the app already learned.
+ *
+ * Separate from `getPreferredCategories` on purpose: that one feeds the ranker
+ * on the walk-plan path and reads only what scoring needs, while this is the
+ * form's read and pays for one round trip covering both columns.
+ *
+ * Best effort like every other read here, and then some: this one runs while
+ * the hub page is rendering, so a thrown client error would cost the whole page
+ * rather than one feature. No profile row, no saved values, a failed read or a
+ * client that blew up all come back as "nothing saved" and the form opens on its
+ * own defaults exactly as it did before this existed.
+ */
+export async function getProfileDefaults(
+  supabase: ServerClient,
+  userId: string,
+): Promise<ProfileDefaults> {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("walking_pace_min_per_km, preferred_categories")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return NO_PROFILE_DEFAULTS;
+    }
+
+    // The column is `numeric`, which PostgREST can hand back as a string as
+    // readily as a number, and the check constraint only holds for rows written
+    // through it — so parse and re-check rather than trusting the shape.
+    const pace = Number(data.walking_pace_min_per_km);
+
+    return {
+      walkingPaceMinPerKm:
+        Number.isFinite(pace) && pace > 0 && pace <= 60 ? pace : null,
+      preferredCategories: toKnownCategories(data.preferred_categories),
+    };
+  } catch {
+    return NO_PROFILE_DEFAULTS;
+  }
 }
 
 /**
