@@ -4,6 +4,9 @@ import type { Attraction, Coordinates } from "@/lib/types";
 
 const mockFetchAttractions = vi.fn();
 const mockGetDirections = vi.fn();
+const mockGetUser = vi.fn();
+const mockGetPreferredCategories = vi.fn();
+const mockRankAttractions = vi.fn();
 
 vi.mock("@/lib/attractions/overpass-client", () => ({
   fetchAttractions: (...args: unknown[]) => mockFetchAttractions(...args),
@@ -12,6 +15,33 @@ vi.mock("@/lib/attractions/overpass-client", () => ({
 vi.mock("@/lib/api/ors-client", () => ({
   getDirections: (...args: unknown[]) => mockGetDirections(...args),
 }));
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({ auth: { getUser: mockGetUser } }),
+}));
+
+vi.mock("@/lib/preferences/preference-store", () => ({
+  getPreferredCategories: (...args: unknown[]) =>
+    mockGetPreferredCategories(...args),
+}));
+
+// Real ranking, observed: the route's own output never echoes the categories it
+// ranked with, and that merge is the thing under test.
+vi.mock("@/lib/attractions/attraction-ranker", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@/lib/attractions/attraction-ranker")
+    >();
+  return {
+    ...actual,
+    rankAttractions: (
+      ...args: Parameters<typeof actual.rankAttractions>
+    ) => {
+      mockRankAttractions(...args);
+      return actual.rankAttractions(...args);
+    },
+  };
+});
 
 import { POST } from "@/app/api/walk-plan/route";
 
@@ -53,12 +83,21 @@ function baseBody(explicitAttractions: Attraction[], availableMinutes = 90) {
   };
 }
 
+const SIGNED_IN = { data: { user: { id: "user-1" } } };
+
+function resetMocks(): void {
+  mockFetchAttractions.mockReset();
+  mockGetDirections.mockReset();
+  mockGetDirections.mockRejectedValue(new Error("no ORS in tests"));
+  mockGetUser.mockReset();
+  mockGetUser.mockResolvedValue(SIGNED_IN);
+  mockGetPreferredCategories.mockReset();
+  mockGetPreferredCategories.mockResolvedValue([]);
+  mockRankAttractions.mockReset();
+}
+
 describe("POST /api/walk-plan — explicit attractions + time filling", () => {
-  beforeEach(() => {
-    mockFetchAttractions.mockReset();
-    mockGetDirections.mockReset();
-    mockGetDirections.mockRejectedValue(new Error("no ORS in tests"));
-  });
+  beforeEach(resetMocks);
 
   it("fills leftover time with discovered attractions", async () => {
     const named = makeAttraction("named", 32.081, 34.78, 30);
@@ -170,5 +209,119 @@ describe("POST /api/walk-plan — explicit attractions + time filling", () => {
 
     expect(ids).toContain("named");
     expect(ids).toContain("osm-1");
+  });
+});
+
+describe("POST /api/walk-plan — saved profile preferences", () => {
+  beforeEach(resetMocks);
+
+  function discoveryBody(preferredCategories?: string[]) {
+    return {
+      lat: origin.lat,
+      lng: origin.lng,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      ...(preferredCategories ? { preferredCategories } : {}),
+    };
+  }
+
+  function rankedWith(): string[] | undefined {
+    return mockRankAttractions.mock.calls[0]?.[1]?.preferredCategories;
+  }
+
+  it("ranks with the union of the request's interests and the saved profile", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetPreferredCategories.mockResolvedValueOnce(["nature", "museum"]);
+
+    const response = await POST(
+      postRequest(discoveryBody(["food", "museum"])),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockGetPreferredCategories).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+    );
+    // Union, de-duplicated — neither side replaces the other.
+    expect(rankedWith()).toEqual(["food", "museum", "nature"]);
+  });
+
+  it("uses the saved profile alone when the request ticked no interests", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetPreferredCategories.mockResolvedValueOnce(["park"]);
+
+    await POST(postRequest(discoveryBody()));
+
+    expect(rankedWith()).toEqual(["park"]);
+  });
+
+  it("reads no profile and changes nothing for a walker who is not signed in", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    const response = await POST(postRequest(discoveryBody(["food"])));
+
+    expect(response.status).toBe(200);
+    expect(mockGetPreferredCategories).not.toHaveBeenCalled();
+    expect(rankedWith()).toEqual(["food"]);
+  });
+
+  it("falls back to the request's interests when the profile read fails", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetPreferredCategories.mockRejectedValueOnce(new Error("supabase down"));
+
+    const response = await POST(postRequest(discoveryBody(["food"])));
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(rankedWith()).toEqual(["food"]);
+    expect(plan.orderedAttractions).toHaveLength(1);
+  });
+
+  it("keeps every named and pinned stop even when exploration fires", async () => {
+    // Force the exploration roll: the ranker's default random source is
+    // Math.random, and the route deliberately does not expose it to callers.
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      const named = makeAttraction("named", 32.081, 34.78, 30);
+      mockGetPreferredCategories.mockResolvedValueOnce(["landmark"]);
+      mockFetchAttractions.mockResolvedValueOnce([
+        { ...makeAttraction("osm-food", 32.082, 34.78, 20), category: "food" },
+      ]);
+
+      const response = await POST(
+        postRequest({
+          ...baseBody([named]),
+          fillRemainingTime: true,
+          pinnedAttractionIds: ["osm-food"],
+        }),
+      );
+      const plan = await response.json();
+      const ids = plan.orderedAttractions.map((a: Attraction) => a.id);
+
+      // The off-preference filler leads the discovered ranking, but the named
+      // stop is prepended by the route and can never be pushed out by it.
+      expect(ids).toContain("named");
+      expect(ids).toContain("osm-food");
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it("makes no profile round trip when re-timing a walk already in progress", async () => {
+    const kept = makeAttraction("kept", 32.081, 34.78, 30);
+
+    await POST(postRequest(baseBody([kept])));
+
+    expect(mockGetUser).not.toHaveBeenCalled();
+    expect(mockGetPreferredCategories).not.toHaveBeenCalled();
   });
 });

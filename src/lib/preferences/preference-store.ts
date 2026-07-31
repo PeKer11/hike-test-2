@@ -48,6 +48,32 @@ export async function learnPreferencesFromText(
 }
 
 /**
+ * The standing categories on the walker's profile — what every earlier prompt
+ * and post-walk rating has taught us they like, as opposed to whatever they
+ * ticked for one particular walk.
+ *
+ * Best effort like the writes below: no profile row, no saved preferences or a
+ * failed read all come back as an empty list, and the caller plans the walk from
+ * the request alone exactly as it did before this existed.
+ */
+export async function getPreferredCategories(
+  supabase: ServerClient,
+  userId: string,
+): Promise<AttractionCategory[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("preferred_categories")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error || !data || !Array.isArray(data.preferred_categories)) {
+    return [];
+  }
+
+  return data.preferred_categories as AttractionCategory[];
+}
+
+/**
  * Read-modify-write of `profiles.preferred_categories`. Reads the current list
  * first rather than overwriting it, so a preference learned from one prompt
  * cannot erase what earlier prompts learned.

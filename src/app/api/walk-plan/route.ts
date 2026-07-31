@@ -7,6 +7,8 @@ import {
 } from "@/lib/attractions/attraction-ranker";
 import { getDirections } from "@/lib/api/ors-client";
 import { buildWalkPlan } from "@/lib/optimization/tsp-planner";
+import { getPreferredCategories } from "@/lib/preferences/preference-store";
+import { createClient } from "@/lib/supabase/server";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 import { decodePolyline } from "@/lib/utils/polyline";
 import type {
@@ -40,6 +42,39 @@ const DUPLICATE_RADIUS_METERS = 50;
 // Below this much of the budget spent, the named places leave enough room that
 // discovering filler is worth an Overpass call.
 const FILL_THRESHOLD = 0.9;
+
+/**
+ * What the walker has told us over time, folded into what they ticked for this
+ * particular walk. A union, not a fallback: the "Interests" boxes say what they
+ * are in the mood for today, the profile says who they are, and neither is
+ * allowed to silently erase the other.
+ *
+ * Runs only when we are about to rank discovered POIs, so a pace-triggered
+ * rebuild of a walk already in progress still costs no Supabase round trip.
+ * Signed out, unconfigured, or a failed read all mean "no standing
+ * preferences" — never a failed walk plan.
+ */
+async function withProfilePreferences(
+  fromBody: AttractionCategory[] | undefined,
+): Promise<AttractionCategory[] | undefined> {
+  const body = Array.isArray(fromBody) ? fromBody : [];
+  let profile: AttractionCategory[] = [];
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      profile = await getPreferredCategories(supabase, user.id);
+    }
+  } catch {
+    // Supabase not configured, no session, or a failed read — body only.
+  }
+
+  const merged = Array.from(new Set([...body, ...profile]));
+  return merged.length > 0 ? merged : undefined;
+}
 
 // Same heuristic `selectFeasibleAttractions` uses: walk from the origin to each
 // stop plus its visit time. Rough on purpose — the planner does the real math.
@@ -99,6 +134,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     // attractions the walk must keep.
     let selected: Attraction[];
     let pinnedAttractionIds = body.pinnedAttractionIds;
+    // Topped up from the profile only on the branches that actually rank.
+    let preferredCategories = body.preferredCategories;
     if (explicitAttractions && explicitAttractions.length > 0) {
       selected = explicitAttractions;
 
@@ -115,12 +152,16 @@ export async function POST(request: Request): Promise<NextResponse> {
         explicitMinutes < availableMinutes * FILL_THRESHOLD
       ) {
         const raw = await fetchAttractions(origin, radiusMeters);
+        preferredCategories = await withProfilePreferences(
+          body.preferredCategories,
+        );
 
         const ranked = rankAttractions(raw, {
           origin,
-          preferredCategories: body.preferredCategories,
+          preferredCategories,
           availableMinutes,
           walkingPaceMinPerKm,
+          allowExploration: true,
         });
 
         const explicitIds = new Set(explicitAttractions.map((a) => a.id));
@@ -152,12 +193,16 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     } else {
       const raw = await fetchAttractions(origin, radiusMeters);
+      preferredCategories = await withProfilePreferences(
+        body.preferredCategories,
+      );
 
       const ranked = rankAttractions(raw, {
         origin,
-        preferredCategories: body.preferredCategories,
+        preferredCategories,
         availableMinutes,
         walkingPaceMinPerKm,
+        allowExploration: true,
       });
 
       selected = selectFeasibleAttractions(
@@ -173,7 +218,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       availableMinutes,
       walkingPaceMinPerKm,
       radiusMeters,
-      preferredCategories: body.preferredCategories,
+      preferredCategories,
       explicitAttractions,
       pinnedAttractionIds,
     };

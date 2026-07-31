@@ -21,6 +21,10 @@ export interface Attraction {
   tags: Record<string, string>;
   distanceFromOriginMeters?: number;
   score?: number;
+  // Set by the ranker when this stop was included DESPITE not matching the
+  // walker's preferences, to learn something new about them. Post-walk feedback
+  // on such a stop is a real new signal, not a confirmation of what we assumed.
+  isExplorationPick?: boolean;
 }
 
 export interface WalkPlanRequest {
