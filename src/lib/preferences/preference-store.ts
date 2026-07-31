@@ -167,15 +167,123 @@ export async function saveCategoryPreferences(
   return updateError ? null : merged;
 }
 
+/** One walker rating of one specific stop on a finished walk. */
+export interface AttractionRating {
+  /**
+   * The Overpass element id (`Attraction.id`) when the stop actually came from
+   * Overpass, null otherwise. Null is a valid POI-level row: the table's check
+   * constraint asks for name and coordinates, not an id, precisely because
+   * Overpass ids are not guaranteed stable.
+   */
+  osmId: string | null;
+  name: string;
+  lat: number;
+  lng: number;
+  category: AttractionCategory;
+  signal: WalkFeedbackSignal;
+}
+
 /**
- * Record a whole-walk rating as one category-level `attraction_feedback` row
- * per category the walk actually contained (`poi_name`/`lat`/`lng`/`osm_id` all
- * null, which is the shape the table's check constraint calls category-level).
+ * The standing category-level signal a batch of per-stop ratings adds up to.
  *
- * The table has no "walk" concept, so a single "I liked this walk" row has
- * nowhere to live. Fanning it out over the categories on the route is the
- * closest honest mapping: the useful part of the rating for future planning is
- * which KINDS of stops the walk was made of.
+ * Two stops of the same category rated opposite ways in one walk ("liked that
+ * museum, not that one") cannot both stand: the unique index is one row per
+ * (user, category, target), so the category has exactly one standing signal.
+ * The last rating wins, which is the same rule the delete-then-insert writes
+ * below already follow and the only one that stays consistent whether the two
+ * taps arrive in one request or in two. The per-stop rows keep both opinions
+ * either way — nothing is lost, only the coarse category summary is collapsed.
+ *
+ * `other` is dropped for the same reason the walk-level pass dropped it: every
+ * unclassified POI lands there, so a standing signal on it would tell the
+ * planner to favour (or avoid) anything at all. The POI-level row for such a
+ * stop is still written.
+ */
+export function deriveCategorySignals(ratings: AttractionRating[]): {
+  upvoted: AttractionCategory[];
+  downvoted: AttractionCategory[];
+} {
+  const latest = new Map<AttractionCategory, WalkFeedbackSignal>();
+  for (const rating of ratings) {
+    if (rating.category === "other") {
+      continue;
+    }
+    latest.set(rating.category, rating.signal);
+  }
+
+  const upvoted: AttractionCategory[] = [];
+  const downvoted: AttractionCategory[] = [];
+  for (const [category, signal] of latest) {
+    (signal === "upvote" ? upvoted : downvoted).push(category);
+  }
+
+  return { upvoted, downvoted };
+}
+
+/**
+ * Record per-stop ratings as POI-level `attraction_feedback` rows — the shape
+ * the table has always had columns for and nothing has written until now.
+ *
+ * Written one at a time rather than as one insert so a single bad row (a POI
+ * whose name collides with a row this loop already wrote, say) costs its own
+ * rating and not the whole batch. Each write is preceded by a delete of the
+ * same target so re-rating a stop replaces the old opinion instead of tripping
+ * the unique index — the same reason `saveWalkFeedback` below deletes first.
+ *
+ * Returns how many rows were written; callers treat the rest as lost signal on
+ * a walk that is already over.
+ */
+export async function saveAttractionFeedback(
+  supabase: ServerClient,
+  userId: string,
+  ratings: AttractionRating[],
+): Promise<number> {
+  let written = 0;
+
+  for (const rating of ratings) {
+    // Matched on name rather than the generated `poi_key`, which this side
+    // cannot compute without duplicating the column's SQL definition.
+    const { error: deleteError } = await supabase
+      .from("attraction_feedback")
+      .delete()
+      .eq("user_id", userId)
+      .eq("category", rating.category)
+      .eq("poi_name", rating.name);
+
+    if (deleteError) {
+      continue;
+    }
+
+    const { error: insertError } = await supabase
+      .from("attraction_feedback")
+      .insert({
+        user_id: userId,
+        signal: rating.signal,
+        category: rating.category,
+        osm_id: rating.osmId,
+        poi_name: rating.name,
+        lat: rating.lat,
+        lng: rating.lng,
+      });
+
+    if (!insertError) {
+      written += 1;
+    }
+  }
+
+  return written;
+}
+
+/**
+ * Record a standing category-level rating as one `attraction_feedback` row per
+ * category (`poi_name`/`lat`/`lng`/`osm_id` all null, which is the shape the
+ * table's check constraint calls category-level, and the shape
+ * `getDownvotedCategories` reads).
+ *
+ * This is what the ranker actually acts on: liking one museum has to raise
+ * museums as a whole, not just leave an audit-trail row about that one museum.
+ * The caller derives which categories land on which side — see
+ * `deriveCategorySignals`.
  *
  * The unique index is (user_id, category, poi_key), and poi_key is a generated
  * column, so a later walk re-rating the same category must replace the standing

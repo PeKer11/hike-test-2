@@ -9,8 +9,11 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 import {
+  deriveCategorySignals,
   getDownvotedCategories,
   getPreferredCategories,
+  saveAttractionFeedback,
+  type AttractionRating,
 } from "@/lib/preferences/preference-store";
 
 // Just enough of the PostgREST builder for `.from().select().eq().maybeSingle()`.
@@ -148,5 +151,153 @@ describe("getDownvotedCategories", () => {
     const { client } = fakeFeedbackSupabase(result);
 
     expect(await getDownvotedCategories(client, "user-1")).toEqual([]);
+  });
+});
+
+function rating(overrides: Partial<AttractionRating> = {}): AttractionRating {
+  return {
+    osmId: "osm-node-1234567",
+    name: "Eretz Israel Museum",
+    lat: 32.1,
+    lng: 34.79,
+    category: "museum",
+    signal: "upvote",
+    ...overrides,
+  };
+}
+
+// Just enough of the builder for `.from().delete().eq().eq().eq()` and
+// `.from().insert()`. `deletes` and `inserts` record what each write asked for.
+function fakeWriteSupabase(
+  results: { deleteError?: unknown; insertError?: unknown } = {},
+) {
+  const deletes: Record<string, unknown>[] = [];
+  const inserts: unknown[] = [];
+
+  const deleteBuilder = (filters: Record<string, unknown>) => {
+    const builder = {
+      eq: (column: string, value: unknown) => {
+        filters[column] = value;
+        return builder;
+      },
+      then: (resolve: (result: unknown) => unknown) =>
+        resolve({ error: results.deleteError ?? null }),
+    };
+    return builder;
+  };
+
+  const client = {
+    from: () => ({
+      delete: () => {
+        const filters: Record<string, unknown> = {};
+        deletes.push(filters);
+        return deleteBuilder(filters);
+      },
+      insert: async (row: unknown) => {
+        inserts.push(row);
+        return { error: results.insertError ?? null };
+      },
+    }),
+  };
+
+  return {
+    deletes,
+    inserts,
+    client: client as unknown as Parameters<typeof saveAttractionFeedback>[0],
+  };
+}
+
+describe("saveAttractionFeedback", () => {
+  it("writes a POI-level row with the real place, id and coordinates", async () => {
+    const { client, inserts } = fakeWriteSupabase();
+
+    expect(await saveAttractionFeedback(client, "user-1", [rating()])).toBe(1);
+    expect(inserts).toEqual([
+      {
+        user_id: "user-1",
+        signal: "upvote",
+        category: "museum",
+        osm_id: "osm-node-1234567",
+        poi_name: "Eretz Israel Museum",
+        lat: 32.1,
+        lng: 34.79,
+      },
+    ]);
+  });
+
+  // POI fields are all-or-none per the table's check constraint, and osm_id is
+  // deliberately not part of that group.
+  it("writes a row for a stop with no OSM identity", async () => {
+    const { client, inserts } = fakeWriteSupabase();
+
+    await saveAttractionFeedback(client, "user-1", [rating({ osmId: null })]);
+
+    expect(inserts[0]).toMatchObject({ osm_id: null, poi_name: "Eretz Israel Museum" });
+  });
+
+  it("replaces an earlier opinion of the same stop", async () => {
+    const { client, deletes } = fakeWriteSupabase();
+
+    await saveAttractionFeedback(client, "user-1", [rating()]);
+
+    expect(deletes).toEqual([
+      {
+        user_id: "user-1",
+        category: "museum",
+        poi_name: "Eretz Israel Museum",
+      },
+    ]);
+  });
+
+  it("lets one failed write cost only its own rating", async () => {
+    const { client } = fakeWriteSupabase({ insertError: new Error("boom") });
+
+    expect(
+      await saveAttractionFeedback(client, "user-1", [rating(), rating()]),
+    ).toBe(0);
+  });
+
+  it("skips the insert when the replacing delete fails", async () => {
+    const { client, inserts } = fakeWriteSupabase({
+      deleteError: new Error("boom"),
+    });
+
+    expect(await saveAttractionFeedback(client, "user-1", [rating()])).toBe(0);
+    expect(inserts).toEqual([]);
+  });
+
+  it("writes nothing when nothing was rated", async () => {
+    const { client, deletes } = fakeWriteSupabase();
+
+    expect(await saveAttractionFeedback(client, "user-1", [])).toBe(0);
+    expect(deletes).toEqual([]);
+  });
+});
+
+describe("deriveCategorySignals", () => {
+  it("puts each rated category on the side its rating asked for", () => {
+    expect(
+      deriveCategorySignals([
+        rating(),
+        rating({ name: "Shuk", category: "shopping", signal: "downvote" }),
+      ]),
+    ).toEqual({ upvoted: ["museum"], downvoted: ["shopping"] });
+  });
+
+  // One category can only hold one standing signal — the unique index is one
+  // row per (user, category, target) — so the walker's last word wins.
+  it("resolves two ratings of one category to the most recent", () => {
+    expect(
+      deriveCategorySignals([
+        rating(),
+        rating({ name: "Small Museum", signal: "downvote" }),
+      ]),
+    ).toEqual({ upvoted: [], downvoted: ["museum"] });
+  });
+
+  it("drops 'other', which every unclassified stop lands in", () => {
+    expect(
+      deriveCategorySignals([rating({ category: "other" })]),
+    ).toEqual({ upvoted: [], downvoted: [] });
   });
 });

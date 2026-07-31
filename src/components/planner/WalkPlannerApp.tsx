@@ -17,7 +17,7 @@ import {
 import { OffRouteNotification } from "@/components/walk/OffRouteNotification";
 import { WalkFeedbackCard } from "@/components/walk/WalkFeedbackCard";
 import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
-import type { Attraction, AttractionCategory, WalkPlan } from "@/lib/types";
+import type { Attraction, WalkPlan } from "@/lib/types";
 import { Button, Card } from "@/components/ui";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
@@ -147,10 +147,10 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
   const [isWalkPlanLoading, setIsWalkPlanLoading] = useState(false);
   const { settings: walkSettings, setSettings: setWalkSettings } = useWalkSettings();
   const isSignedIn = useIsSignedIn();
-  // Set when a walk ends: the categories that walk was made of, which is what
-  // the post-walk rating is recorded against. Null means "don't ask".
-  const [feedbackCategories, setFeedbackCategories] = useState<
-    AttractionCategory[] | null
+  // Set when a walk ends: the stops that walk was made of, each of which the
+  // walker can rate on its own. Null means "don't ask".
+  const [feedbackAttractions, setFeedbackAttractions] = useState<
+    Attraction[] | null
   >(null);
   const walkInputRef = useRef<WalkCompanionInput | null>(null);
   const walkStartTimeRef = useRef<number>(0);
@@ -254,13 +254,9 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
       isSignedIn &&
       walkSettings.preferenceLearningEnabled
     ) {
-      const categories = [
-        ...new Set(
-          (walkPlanRef.current?.orderedAttractions ?? []).map((a) => a.category),
-        ),
-      ];
-      if (categories.length > 0) {
-        setFeedbackCategories(categories);
+      const attractions = walkPlanRef.current?.orderedAttractions ?? [];
+      if (attractions.length > 0) {
+        setFeedbackAttractions(attractions);
       }
     }
 
@@ -1026,11 +1022,11 @@ export function WalkPlannerApp({ isExpanded = false }: WalkPlannerAppProps) {
                   learnPreferences={walkSettings.preferenceLearningEnabled}
                 />
               )}
-              {feedbackCategories && (
+              {feedbackAttractions && (
                 <WalkFeedbackCard
-                  categories={feedbackCategories}
+                  attractions={feedbackAttractions}
                   learnPreferences={walkSettings.preferenceLearningEnabled}
-                  onDismiss={() => setFeedbackCategories(null)}
+                  onDismiss={() => setFeedbackAttractions(null)}
                 />
               )}
               <WalkCompanionPanel
