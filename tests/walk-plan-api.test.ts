@@ -307,6 +307,16 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
       const plan = await response.json();
       const ids = plan.orderedAttractions.map((a: Attraction) => a.id);
 
+      // The route has to actually opt in, or the rest of this test passes for
+      // the wrong reason — nothing fired and nothing could have been displaced.
+      expect(mockRankAttractions.mock.calls[0]?.[1]?.allowExploration).toBe(
+        true,
+      );
+      expect(
+        plan.orderedAttractions.find((a: Attraction) => a.id === "osm-food")
+          ?.isExplorationPick,
+      ).toBe(true);
+
       // The off-preference filler leads the discovered ranking, but the named
       // stop is prepended by the route and can never be pushed out by it.
       expect(ids).toContain("named");
@@ -314,6 +324,24 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
     } finally {
       random.mockRestore();
     }
+  });
+
+  // The session lookup is the first thing in the try block, and it is the part
+  // that throws when Supabase is unconfigured. A narrower try that only covered
+  // the profile read would 500 every walk plan in that environment.
+  it("still plans the walk when the session lookup itself blows up", async () => {
+    mockGetUser.mockRejectedValueOnce(new Error("supabase not configured"));
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    const response = await POST(postRequest(discoveryBody(["food"])));
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockGetPreferredCategories).not.toHaveBeenCalled();
+    expect(rankedWith()).toEqual(["food"]);
+    expect(plan.orderedAttractions).toHaveLength(1);
   });
 
   it("makes no profile round trip when re-timing a walk already in progress", async () => {

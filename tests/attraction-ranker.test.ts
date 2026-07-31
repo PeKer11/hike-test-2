@@ -82,6 +82,55 @@ describe("rankAttractions — exploration/exploitation", () => {
     expect(ranked.filter((a) => a.isExplorationPick)).toHaveLength(1);
   });
 
+  // Exploration is meant to offer a real alternative, not just any stop that
+  // happens to be off-preference. With several to choose from it must take the
+  // best-scoring one — "pick the last off-preference candidate" is otherwise
+  // indistinguishable from the correct implementation.
+  it("explores with the best-scoring off-preference candidate, not just any", () => {
+    const ranked = rankAttractions(
+      [
+        museum,
+        // Deliberately out of score order: `shopping` scores lowest of the
+        // three off-preference candidates, `viewpoint` highest.
+        makeAttraction("shopping", "shopping", 32.0805),
+        makeAttraction("other", "other", 32.0806),
+        viewpoint,
+      ],
+      {
+        origin,
+        preferredCategories: ["museum"],
+        availableMinutes: 90,
+        walkingPaceMinPerKm: 15,
+        allowExploration: true,
+        random: () => 0,
+      },
+    );
+
+    expect(ranked[0].id).toBe("viewpoint");
+    expect(ranked[0].isExplorationPick).toBe(true);
+  });
+
+  it("reorders the ranking without dropping or duplicating a candidate", () => {
+    const candidates = [
+      museum,
+      viewpoint,
+      makeAttraction("park", "park", 32.085),
+      makeAttraction("food", "food", 32.086),
+    ];
+    const ranked = rankAttractions(candidates, {
+      origin,
+      preferredCategories: ["museum"],
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      allowExploration: true,
+      random: () => 0,
+    });
+
+    expect(ranked.map((a) => a.id).sort()).toEqual(
+      candidates.map((a) => a.id).sort(),
+    );
+  });
+
   it("never explores when the caller did not opt in", () => {
     const ranked = rank(() => 0, { allowExploration: false });
 

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { AttractionCategory } from "@/lib/types";
 
 import {
+  ATTRACTION_CATEGORIES,
   mergePreferredCategories,
   type CategoryPreference,
 } from "./preference-extractor";
@@ -70,7 +71,15 @@ export async function getPreferredCategories(
     return [];
   }
 
-  return data.preferred_categories as AttractionCategory[];
+  // The column is text[], so a value written by an older schema or by hand is
+  // not necessarily a category we still know. Dropping it here matters beyond
+  // scoring: a list of unknown strings is non-empty, which would switch the
+  // ranker's exploration branch on and label a stop nothing was explored away
+  // from as an exploration pick.
+  return (data.preferred_categories as unknown[]).filter(
+    (category): category is AttractionCategory =>
+      (ATTRACTION_CATEGORIES as string[]).includes(category as string),
+  );
 }
 
 /**
