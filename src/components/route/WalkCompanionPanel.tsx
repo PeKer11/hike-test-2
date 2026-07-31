@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button, Card, LoadingSpinner } from "@/components/ui";
 import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
@@ -32,6 +32,8 @@ interface WalkCompanionPanelProps {
    * Fills the coordinate fields the same way `suggestedMinutes` fills the time
    * one: a starting value the walker can type over, only re-applied when the
    * prompt resolves somewhere new.
+   *
+   * Outranked by real GPS — see `hasDetectedGpsRef`.
    */
   suggestedOrigin?: Coordinates | null;
   onLocationDetected?: (coords: Coordinates) => void;
@@ -85,6 +87,19 @@ export function WalkCompanionPanel({
   const [isDetecting, setIsDetecting] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  /**
+   * True once "Use my current location" has actually returned a fix. A real GPS
+   * reading is where the walker IS; an area parsed out of a sentence is only
+   * where the sentence sounded like. So the prompt is never allowed to move the
+   * origin off a detected position, however much later the prompt arrives.
+   *
+   * Deliberately never reset — not even when the walker then edits the
+   * coordinate fields by hand. Typing coordinates is an explicit choice too, and
+   * the point of the flag is that free text stops outranking explicit input for
+   * the rest of the session. A ref rather than state because nothing renders
+   * from it and flipping it must not re-run the effect it guards.
+   */
+  const hasDetectedGpsRef = useRef(false);
 
   useEffect(() => {
     if (!mapClickedCoords) {
@@ -113,6 +128,11 @@ export function WalkCompanionPanel({
   const suggestedLng = suggestedOrigin?.lng;
   useEffect(() => {
     if (typeof suggestedLat !== "number" || typeof suggestedLng !== "number") {
+      return;
+    }
+
+    // GPS wins for good, whenever it happened.
+    if (hasDetectedGpsRef.current) {
       return;
     }
 
@@ -146,6 +166,7 @@ export function WalkCompanionPanel({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
         };
+        hasDetectedGpsRef.current = true;
         setLat(coords.lat.toFixed(6));
         setLng(coords.lng.toFixed(6));
         onLocationDetected?.(coords);

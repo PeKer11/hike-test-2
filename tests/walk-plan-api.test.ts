@@ -6,6 +6,7 @@ const mockFetchAttractions = vi.fn();
 const mockGetDirections = vi.fn();
 const mockGetUser = vi.fn();
 const mockGetPreferredCategories = vi.fn();
+const mockGetDownvotedCategories = vi.fn();
 const mockRankAttractions = vi.fn();
 
 vi.mock("@/lib/attractions/overpass-client", () => ({
@@ -23,6 +24,8 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/preferences/preference-store", () => ({
   getPreferredCategories: (...args: unknown[]) =>
     mockGetPreferredCategories(...args),
+  getDownvotedCategories: (...args: unknown[]) =>
+    mockGetDownvotedCategories(...args),
 }));
 
 // Real ranking, observed: the route's own output never echoes the categories it
@@ -93,6 +96,8 @@ function resetMocks(): void {
   mockGetUser.mockResolvedValue(SIGNED_IN);
   mockGetPreferredCategories.mockReset();
   mockGetPreferredCategories.mockResolvedValue([]);
+  mockGetDownvotedCategories.mockReset();
+  mockGetDownvotedCategories.mockResolvedValue([]);
   mockRankAttractions.mockReset();
 }
 
@@ -351,5 +356,109 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
 
     expect(mockGetUser).not.toHaveBeenCalled();
     expect(mockGetPreferredCategories).not.toHaveBeenCalled();
+    expect(mockGetDownvotedCategories).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/walk-plan — saved downvotes", () => {
+  beforeEach(resetMocks);
+
+  function discoveryBody() {
+    return {
+      lat: origin.lat,
+      lng: origin.lng,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+    };
+  }
+
+  function downvotedWith(): string[] | undefined {
+    return mockRankAttractions.mock.calls[0]?.[1]?.downvotedCategories;
+  }
+
+  it("passes the saved downvotes into the ranking", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetDownvotedCategories.mockResolvedValueOnce(["food"]);
+
+    const response = await POST(postRequest(discoveryBody()));
+
+    expect(response.status).toBe(200);
+    expect(mockGetDownvotedCategories).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+    );
+    expect(downvotedWith()).toEqual(["food"]);
+  });
+
+  it("passes nothing for a walker with no standing downvotes", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    await POST(postRequest(discoveryBody()));
+
+    expect(downvotedWith()).toBeUndefined();
+  });
+
+  it("reads no downvotes for a walker who is not signed in", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    const response = await POST(postRequest(discoveryBody()));
+
+    expect(response.status).toBe(200);
+    expect(mockGetDownvotedCategories).not.toHaveBeenCalled();
+    expect(downvotedWith()).toBeUndefined();
+  });
+
+  // The two reads share a session lookup but not a fate: one failing must not
+  // throw away what the other already found.
+  it("still applies the preferences when the downvote read fails", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetPreferredCategories.mockResolvedValueOnce(["park"]);
+    mockGetDownvotedCategories.mockRejectedValueOnce(new Error("supabase down"));
+
+    const response = await POST(postRequest(discoveryBody()));
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockRankAttractions.mock.calls[0]?.[1]?.preferredCategories).toEqual([
+      "park",
+    ]);
+    expect(downvotedWith()).toBeUndefined();
+    expect(plan.orderedAttractions).toHaveLength(1);
+  });
+
+  it("still applies the downvotes when the preference read fails", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetPreferredCategories.mockRejectedValueOnce(new Error("supabase down"));
+    mockGetDownvotedCategories.mockResolvedValueOnce(["food"]);
+
+    const response = await POST(postRequest(discoveryBody()));
+
+    expect(response.status).toBe(200);
+    expect(downvotedWith()).toEqual(["food"]);
+  });
+
+  it("applies the downvotes when topping up a named-stops walk too", async () => {
+    const named = makeAttraction("named", 32.081, 34.78, 30);
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.082, 34.78, 20),
+    ]);
+    mockGetDownvotedCategories.mockResolvedValueOnce(["shopping"]);
+
+    await POST(
+      postRequest({ ...baseBody([named]), fillRemainingTime: true }),
+    );
+
+    expect(downvotedWith()).toEqual(["shopping"]);
   });
 });

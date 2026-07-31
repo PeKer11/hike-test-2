@@ -44,9 +44,35 @@ export const EXPLORATION_RATE = 0.15;
  */
 export const MAX_EXPLORATION_PICKS = 1;
 
+/** Added for a category the walker's profile asks for. */
+export const PREFERRED_CATEGORY_BOOST = 4;
+
+/**
+ * Subtracted for a category the walker has voted down as a whole. Deliberately
+ * the same size as the boost: a downvote is exactly as strong a statement as a
+ * preference, just the other way, and it has to be a real penalty rather than a
+ * missing bonus or a disliked category still outranks a neutral one on base
+ * score alone.
+ *
+ * The symmetry also settles the contradictory case — a category that is both
+ * preferred and downvoted (liked in a prompt, then voted down after a walk that
+ * went badly) cancels to neutral. Neither signal is timestamped in a way the
+ * other can be compared against — `preferred_categories` is one array with a
+ * single `updated_at` for the whole profile — so "most recent wins" is not
+ * something this code can actually compute. Ranking contradictory evidence as
+ * no evidence is the honest reading, and the next unambiguous signal from
+ * either side breaks the tie.
+ */
+export const DOWNVOTED_CATEGORY_PENALTY = 4;
+
 export interface RankerOptions {
   origin: Coordinates;
   preferredCategories?: AttractionCategory[];
+  /**
+   * Categories carrying a standing category-level downvote. Penalized in the
+   * score and barred from exploration.
+   */
+  downvotedCategories?: AttractionCategory[];
   availableMinutes: number;
   walkingPaceMinPerKm: number;
   /**
@@ -78,10 +104,17 @@ type ScoredAttraction = Attraction & {
  * named and pins the planner must keep are handled by the caller, which puts
  * them ahead of this list and never lets it drop them — an exploration pick can
  * take a leftover slot, never someone else's.
+ *
+ * A downvoted category is never explored into. Exploration buys information
+ * about a category we know nothing about; a downvote is not missing information,
+ * it is the answer. Handing the walker a guaranteed slot for a kind of place
+ * they have already told us they dislike spends the one exploration stop we
+ * allow on a question that is closed, and reads as the app not listening.
  */
 function withExplorationPick(
   ranked: ScoredAttraction[],
   preferredCategories: AttractionCategory[],
+  downvotedCategories: AttractionCategory[],
   random: () => number,
 ): ScoredAttraction[] {
   if (random() >= EXPLORATION_RATE) return ranked;
@@ -92,7 +125,8 @@ function withExplorationPick(
   for (const attraction of ranked) {
     if (
       picks.length < MAX_EXPLORATION_PICKS &&
-      !preferredCategories.includes(attraction.category)
+      !preferredCategories.includes(attraction.category) &&
+      !downvotedCategories.includes(attraction.category)
     ) {
       picks.push({ ...attraction, isExplorationPick: true });
     } else {
@@ -110,6 +144,7 @@ export function rankAttractions(
   const {
     origin,
     preferredCategories,
+    downvotedCategories,
     availableMinutes,
     walkingPaceMinPerKm,
     allowExploration,
@@ -130,7 +165,12 @@ export function rankAttractions(
     let score = CATEGORY_BASE_SCORE[a.category] ?? 3;
     score += notabilityBonus(a.tags);
 
-    if (preferredCategories?.includes(a.category)) score += 4;
+    if (preferredCategories?.includes(a.category)) {
+      score += PREFERRED_CATEGORY_BOOST;
+    }
+    if (downvotedCategories?.includes(a.category)) {
+      score -= DOWNVOTED_CATEGORY_PENALTY;
+    }
 
     score -= distanceMeters / 1000;
 
@@ -142,7 +182,12 @@ export function rankAttractions(
   // Nothing to explore away from when no preference is known — the ranking is
   // already showing the walker whatever is best nearby.
   if (allowExploration && preferredCategories && preferredCategories.length > 0) {
-    return withExplorationPick(scored, preferredCategories, random);
+    return withExplorationPick(
+      scored,
+      preferredCategories,
+      downvotedCategories ?? [],
+      random,
+    );
   }
 
   return scored;

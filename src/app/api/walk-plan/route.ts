@@ -7,7 +7,10 @@ import {
 } from "@/lib/attractions/attraction-ranker";
 import { getDirections } from "@/lib/api/ors-client";
 import { buildWalkPlan } from "@/lib/optimization/tsp-planner";
-import { getPreferredCategories } from "@/lib/preferences/preference-store";
+import {
+  getDownvotedCategories,
+  getPreferredCategories,
+} from "@/lib/preferences/preference-store";
 import { createClient } from "@/lib/supabase/server";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 import { decodePolyline } from "@/lib/utils/polyline";
@@ -43,22 +46,30 @@ const DUPLICATE_RADIUS_METERS = 50;
 // discovering filler is worth an Overpass call.
 const FILL_THRESHOLD = 0.9;
 
+interface ProfileCategories {
+  preferredCategories: AttractionCategory[] | undefined;
+  downvotedCategories: AttractionCategory[] | undefined;
+}
+
 /**
  * What the walker has told us over time, folded into what they ticked for this
- * particular walk. A union, not a fallback: the "Interests" boxes say what they
- * are in the mood for today, the profile says who they are, and neither is
- * allowed to silently erase the other.
+ * particular walk. The likes are a union, not a fallback: the "Interests" boxes
+ * say what they are in the mood for today, the profile says who they are, and
+ * neither is allowed to silently erase the other. The dislikes only ever come
+ * from the profile — there is no "not this" box on the form.
  *
- * Runs only when we are about to rank discovered POIs, so a pace-triggered
- * rebuild of a walk already in progress still costs no Supabase round trip.
- * Signed out, unconfigured, or a failed read all mean "no standing
- * preferences" — never a failed walk plan.
+ * Both reads share the one session lookup, and both are best effort. Runs only
+ * when we are about to rank discovered POIs, so a pace-triggered rebuild of a
+ * walk already in progress still costs no Supabase round trip. Signed out,
+ * unconfigured, or a failed read all mean "nothing standing on file" — never a
+ * failed walk plan.
  */
 async function withProfilePreferences(
   fromBody: AttractionCategory[] | undefined,
-): Promise<AttractionCategory[] | undefined> {
+): Promise<ProfileCategories> {
   const body = Array.isArray(fromBody) ? fromBody : [];
-  let profile: AttractionCategory[] = [];
+  let preferred: AttractionCategory[] = [];
+  let downvoted: AttractionCategory[] = [];
 
   try {
     const supabase = await createClient();
@@ -66,14 +77,22 @@ async function withProfilePreferences(
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      profile = await getPreferredCategories(supabase, user.id);
+      // Caught per read, not just by the outer try: one of the two blowing up
+      // must not throw away what the other already found.
+      [preferred, downvoted] = await Promise.all([
+        getPreferredCategories(supabase, user.id).catch(() => []),
+        getDownvotedCategories(supabase, user.id).catch(() => []),
+      ]);
     }
   } catch {
     // Supabase not configured, no session, or a failed read — body only.
   }
 
-  const merged = Array.from(new Set([...body, ...profile]));
-  return merged.length > 0 ? merged : undefined;
+  const merged = Array.from(new Set([...body, ...preferred]));
+  return {
+    preferredCategories: merged.length > 0 ? merged : undefined,
+    downvotedCategories: downvoted.length > 0 ? downvoted : undefined,
+  };
 }
 
 // Same heuristic `selectFeasibleAttractions` uses: walk from the origin to each
@@ -136,6 +155,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     let pinnedAttractionIds = body.pinnedAttractionIds;
     // Topped up from the profile only on the branches that actually rank.
     let preferredCategories = body.preferredCategories;
+    let downvotedCategories: AttractionCategory[] | undefined;
     if (explicitAttractions && explicitAttractions.length > 0) {
       selected = explicitAttractions;
 
@@ -152,13 +172,13 @@ export async function POST(request: Request): Promise<NextResponse> {
         explicitMinutes < availableMinutes * FILL_THRESHOLD
       ) {
         const raw = await fetchAttractions(origin, radiusMeters);
-        preferredCategories = await withProfilePreferences(
-          body.preferredCategories,
-        );
+        ({ preferredCategories, downvotedCategories } =
+          await withProfilePreferences(body.preferredCategories));
 
         const ranked = rankAttractions(raw, {
           origin,
           preferredCategories,
+          downvotedCategories,
           availableMinutes,
           walkingPaceMinPerKm,
           allowExploration: true,
@@ -193,13 +213,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     } else {
       const raw = await fetchAttractions(origin, radiusMeters);
-      preferredCategories = await withProfilePreferences(
-        body.preferredCategories,
-      );
+      ({ preferredCategories, downvotedCategories } =
+        await withProfilePreferences(body.preferredCategories));
 
       const ranked = rankAttractions(raw, {
         origin,
         preferredCategories,
+        downvotedCategories,
         availableMinutes,
         walkingPaceMinPerKm,
         allowExploration: true,

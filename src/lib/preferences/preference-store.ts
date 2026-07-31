@@ -83,6 +83,46 @@ export async function getPreferredCategories(
 }
 
 /**
+ * The categories the walker has voted down as a whole — the other half of what
+ * `getPreferredCategories` reads, and until now the half nothing acted on.
+ *
+ * Category-level rows only (`poi_name is null`, the shape the table's check
+ * constraint calls category-level). A downvote on one specific POI says "not
+ * that place", which is a different claim from "not that kind of place", and
+ * suppressing a whole category off one bad museum would be the wrong lesson.
+ * Suppressing the re-discovered POI itself is a fair feature, but a separate
+ * one — it needs the table's `poi_key` identity rebuilt on this side to match a
+ * fresh Overpass result, so it is deliberately not built here.
+ *
+ * Best effort exactly like the reads above: no rows, no session or a failed
+ * read all come back empty and the walk is planned as it was before.
+ */
+export async function getDownvotedCategories(
+  supabase: ServerClient,
+  userId: string,
+): Promise<AttractionCategory[]> {
+  const { data, error } = await supabase
+    .from("attraction_feedback")
+    .select("category")
+    .eq("user_id", userId)
+    .eq("signal", "downvote")
+    .is("poi_name", null);
+
+  if (error || !Array.isArray(data)) {
+    return [];
+  }
+
+  // Same guard as `getPreferredCategories`: a category written by an older
+  // schema is not necessarily one the ranker still knows, and one row per
+  // category is not guaranteed once a POI-level shape sneaks past.
+  const categories = data.map((row) => (row as { category: unknown }).category);
+  return Array.from(new Set(categories)).filter(
+    (category): category is AttractionCategory =>
+      (ATTRACTION_CATEGORIES as string[]).includes(category as string),
+  );
+}
+
+/**
  * Read-modify-write of `profiles.preferred_categories`. Reads the current list
  * first rather than overwriting it, so a preference learned from one prompt
  * cannot erase what earlier prompts learned.
