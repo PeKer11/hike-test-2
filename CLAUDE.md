@@ -46,7 +46,8 @@ The `walk-plan` API (`src/app/api/walk-plan/route.ts`) already wires Phase 2 + 3
 
 ## Decisions Made
 
-- **No OSMnx / street graph.** Haversine distance is sufficient for attraction ordering in city mode. OSMnx adds complexity without meaningful accuracy gain at this scale.
+- **No OSMnx / street graph.** A hand-rolled JS graph benchmarked faster and lighter than OSMnx/Python for local routing (2026-07-27) — no need for a dedicated graph library.
+- **Real walking-network distances for ordering (2026-07-30).** `tsp-planner.ts`'s matrix now comes from ORS Matrix Service (`foot-walking`), with a haversine fallback if that call fails — supersedes the earlier "haversine is sufficient" decision, which undercounted real walking distance on non-straight streets.
 - **Coordinate convention:** internal = `{ lat, lng }`, ORS = `[lng, lat]`. Always use `toOrsCoord()` / `fromOrsCoord()` from `src/lib/utils/geo.ts`.
 - **API keys server-side only.** `ORS_API_KEY` in `.env.local`, only used in `src/app/api/` route handlers.
 - **No Redux/Zustand.** Hook-based state management (`useWaypoints`, `useConstraints`, `useRouteCalculation`, `useMapInteraction`, `useWalkSettings`).
