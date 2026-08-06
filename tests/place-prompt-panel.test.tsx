@@ -441,3 +441,59 @@ describe("PlacePromptPanel — clarifying an under-specified prompt", () => {
     expect(secondBody.prompt).toBe("טיול בזכרון יעקב");
   });
 });
+
+// The two Phase 2 items meet here: "don't pad a named list" must not turn
+// "a walk in Zichron Yaakov" into a two-stop walk with two hours spare.
+describe("PlacePromptPanel — an area-only prompt is not a named list", () => {
+  function stubOnce(response: Record<string, unknown>) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => response })),
+    );
+  }
+
+  function renderWith(onFillRemainingTimeChange: (fill: boolean) => void) {
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        onFillRemainingTimeChange={onFillRemainingTimeChange}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "טיול בזכרון יעקב" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+  }
+
+  it("turns filling on when the prompt only named a town", async () => {
+    const onFill = vi.fn();
+    stubOnce({
+      attractions: FOUND,
+      unresolvedNames: [],
+      areaOnlyPrompt: true,
+      needsClarification: false,
+      clarificationCategories: [],
+    });
+    renderWith(onFill);
+
+    await screen.findByText("זכרון יעקב");
+    expect(onFill).toHaveBeenCalledWith(true);
+  });
+
+  it("leaves filling alone when the walker named their stops", async () => {
+    const onFill = vi.fn();
+    stubOnce({
+      attractions: FOUND,
+      unresolvedNames: [],
+      areaOnlyPrompt: false,
+    });
+    renderWith(onFill);
+
+    await screen.findByText("זכרון יעקב");
+    expect(onFill).not.toHaveBeenCalled();
+  });
+});

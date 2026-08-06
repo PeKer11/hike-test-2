@@ -472,28 +472,48 @@ export const CLARIFICATION_CATEGORIES: AttractionCategory[] = [
 export const MAX_CLARIFICATION_CATEGORIES = 4;
 
 /**
- * Whether the walker named a place and gave us nothing else to go on.
+ * Whether the walker named a town and nothing more specific — "a walk in
+ * Zichron Yaakov" rather than "a walk to Habima Square".
  *
- * All four conditions matter. A `contextLocation` means something smaller was
- * named alongside the area; more than one place means they have a route in
- * mind; a `categoryNeed` is a stated intent already ("somewhere to eat"); and
- * a place that geocoded to something other than an area is a real destination,
- * however bare the sentence around it was.
+ * A `contextLocation` means something smaller was named alongside the area;
+ * more than one place means they have a route in mind; and a place that
+ * geocoded to something other than an area is a real destination, however bare
+ * the sentence around it was.
+ *
+ * Separate from `isUnderSpecifiedPrompt` because it stays true after the walker
+ * answers the clarifying question. They picked a kind of walk, not a stop —
+ * there is still no named list, which is what decides whether leftover time is
+ * an invitation to discover more.
  */
-export function isUnderSpecifiedPrompt(input: {
+export function isAreaOnlyPrompt(input: {
   places: string[];
   contextLocation: string | null;
-  categoryNeeds: AttractionCategory[];
   /** `addresstype` (else `type`) of the one geocoded place, or null if it never resolved. */
   placeKind: string | null;
 }): boolean {
   return (
     input.contextLocation === null &&
     input.places.length === 1 &&
-    input.categoryNeeds.length === 0 &&
     input.placeKind !== null &&
     AREA_PLACE_KINDS.has(input.placeKind)
   );
+}
+
+/**
+ * Whether the walker named a place and gave us nothing else to go on — an area
+ * and no stated intent.
+ *
+ * A `categoryNeed` is a stated intent already ("somewhere to eat"), whether it
+ * came out of the text or off a chip they just tapped, so there is nothing left
+ * to ask.
+ */
+export function isUnderSpecifiedPrompt(input: {
+  places: string[];
+  contextLocation: string | null;
+  categoryNeeds: AttractionCategory[];
+  placeKind: string | null;
+}): boolean {
+  return isAreaOnlyPrompt(input) && input.categoryNeeds.length === 0;
 }
 
 /**

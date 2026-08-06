@@ -54,8 +54,10 @@ export function PaceConfirmationNotification({
 
   return (
     // Absolute like the off-route banner: it belongs to the planner frame,
-    // which is only viewport-sized while expanded.
-    <div className="absolute top-4 left-1/2 z-[500] w-[min(22rem,90%)] -translate-x-1/2 space-y-2 rounded-xl bg-forest px-4 py-3 text-sm text-white shadow-lg">
+    // which is only viewport-sized while expanded. Sits below that banner's
+    // row rather than on it — a walker can be off route and behind schedule at
+    // the same time, and two overlapping banners answer neither question.
+    <div className="absolute top-16 left-1/2 z-[500] w-[min(22rem,90%)] -translate-x-1/2 space-y-2 rounded-xl bg-forest px-4 py-3 text-sm text-white shadow-lg">
       <p>{question}</p>
       <div className="flex gap-2">
         <button

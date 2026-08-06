@@ -9,6 +9,7 @@ import { rankAttractions } from "@/lib/attractions/attraction-ranker";
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
 import {
   buildExtractionResult,
+  isAreaOnlyPrompt,
   isUnderSpecifiedPrompt,
   pickNeedAttractions,
   suggestClarificationCategories,
@@ -350,13 +351,13 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     await learnPreferences(prompt, body.learnPreferences);
 
+    const promptShape = {
+      places,
+      contextLocation: contextLocation ?? null,
+      placeKind: solePlaceKind,
+    };
     const clarificationCategories = await clarificationFor(
-      isUnderSpecifiedPrompt({
-        places,
-        contextLocation: contextLocation ?? null,
-        categoryNeeds: effectiveNeeds,
-        placeKind: solePlaceKind,
-      }),
+      isUnderSpecifiedPrompt({ ...promptShape, categoryNeeds: effectiveNeeds }),
     );
 
     return NextResponse.json({
@@ -373,6 +374,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       // returned — this only offers to make it a walk about something.
       needsClarification: clarificationCategories !== null,
       clarificationCategories: clarificationCategories ?? [],
+      // Still true once they have answered: a kind of walk is not a stop, so
+      // there is no named list here and leftover time really is an invitation
+      // to discover more. The panel reads this to pre-tick its fill toggle.
+      areaOnlyPrompt: isAreaOnlyPrompt(promptShape),
     });
   } catch (error) {
     const message =

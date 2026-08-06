@@ -4,6 +4,7 @@ import {
   buildExtractionResult,
   CANONICAL_NAME_SYSTEM_PROMPT,
   CLARIFICATION_CATEGORIES,
+  isAreaOnlyPrompt,
   isUnderSpecifiedPrompt,
   MAX_CLARIFICATION_CATEGORIES,
   suggestClarificationCategories,
@@ -525,5 +526,32 @@ describe("suggestClarificationCategories", () => {
     expect(
       suggestClarificationCategories([], CLARIFICATION_CATEGORIES),
     ).toEqual(CLARIFICATION_CATEGORIES.slice(0, MAX_CLARIFICATION_CATEGORIES));
+  });
+});
+
+// Separate from `isUnderSpecifiedPrompt` because it has to survive the answer:
+// picking a kind of walk is not naming a stop, so there is still no named list.
+describe("isAreaOnlyPrompt", () => {
+  const base = {
+    places: ["זכרון יעקב"],
+    contextLocation: null,
+    placeKind: "town",
+  };
+
+  it("stays true after the walker answers the clarifying question", () => {
+    expect(isAreaOnlyPrompt(base)).toBe(true);
+    expect(
+      isUnderSpecifiedPrompt({ ...base, categoryNeeds: ["food"] }),
+    ).toBe(false);
+  });
+
+  it("is false for a real destination", () => {
+    expect(isAreaOnlyPrompt({ ...base, placeKind: "square" })).toBe(false);
+  });
+
+  it("is false once a smaller place was named alongside the area", () => {
+    expect(
+      isAreaOnlyPrompt({ ...base, contextLocation: "זכרון יעקב" }),
+    ).toBe(false);
   });
 });

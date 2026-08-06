@@ -688,3 +688,57 @@ describe("POST /api/extract-places — under-specified prompts", () => {
     expect(data.needsClarification).toBe(true);
   });
 });
+
+describe("POST /api/extract-places — area-only prompts", () => {
+  beforeEach(() => {
+    mockExtractPlaceNames.mockReset();
+    mockResolveCanonicalName.mockReset();
+    mockResolveCanonicalName.mockResolvedValue(null);
+    mockSearchPlaces.mockReset();
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockLearnPreferencesFromText.mockReset();
+    mockLearnPreferencesFromText.mockResolvedValue(null);
+    mockFetchAttractions.mockReset();
+    mockFetchAttractions.mockResolvedValue([]);
+    mockGetPreferredCategories.mockReset();
+    mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDownvotedCategories.mockReset();
+    mockGetDownvotedCategories.mockResolvedValue(new Map());
+  });
+
+  // Survives the answer: a kind of walk is not a stop, so the panel should
+  // still top the walk up rather than hand over a two-stop afternoon.
+  it("still reports an area-only prompt once a chip has been tapped", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["זכרון יעקב"],
+      contextLocation: null,
+    });
+    mockSearchPlaces.mockResolvedValue([
+      { lat: "32.5736", lon: "34.9522", addresstype: "town" },
+    ]);
+
+    const response = await POST(
+      postRequest({ prompt: "טיול בזכרון יעקב", categoryNeeds: ["food"] }),
+    );
+    const data = await response.json();
+
+    expect(data.needsClarification).toBe(false);
+    expect(data.areaOnlyPrompt).toBe(true);
+  });
+
+  it("does not report a named list as area-only", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["Habima Square"],
+      contextLocation: null,
+    });
+    mockSearchPlaces.mockResolvedValue([
+      { lat: "32.0736", lon: "34.7752", addresstype: "square" },
+    ]);
+
+    const response = await POST(postRequest({ prompt: "Habima Square" }));
+    const data = await response.json();
+
+    expect(data.areaOnlyPrompt).toBe(false);
+  });
+});

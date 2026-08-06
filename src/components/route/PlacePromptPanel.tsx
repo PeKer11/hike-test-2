@@ -14,6 +14,8 @@ interface ExtractPlacesResponse {
   /** The prompt named a place and nothing else — ask what kind of walk. */
   needsClarification?: boolean;
   clarificationCategories?: AttractionCategory[];
+  /** The prompt named a town and nothing more specific. */
+  areaOnlyPrompt?: boolean;
   error?: string;
 }
 
@@ -142,6 +144,14 @@ export function PlacePromptPanel({
       setClarificationCategories(
         data.needsClarification ? (data.clarificationCategories ?? []) : [],
       );
+
+      // "A walk in Zichron Yaakov" is the other reading of a named stop —
+      // start me here, surprise me with the rest — so the leftover time really
+      // is an invitation to discover more, and the fill toggle starts on. It
+      // stays a toggle: this proposes an answer, it does not lock one in.
+      if (data.areaOnlyPrompt) {
+        onFillRemainingTimeChange?.(true);
+      }
 
       if (typeof data.durationMinutes === "number") {
         onDurationDetected?.(data.durationMinutes);
