@@ -99,6 +99,11 @@ const SIGNED_IN = { data: { user: { id: "user-1" } } };
 
 function resetMocks(): void {
   mockFetchAttractions.mockReset();
+  // The route may fetch more than once now that a thin plan is retried with a
+  // wider radius. Tests that care set the first result with `...Once`; this is
+  // what every attempt after theirs sees, and "nothing new out there" is what
+  // keeps the retry from changing what those tests measure.
+  mockFetchAttractions.mockResolvedValue([]);
   mockGetDirections.mockReset();
   mockGetDirections.mockRejectedValue(new Error("no ORS in tests"));
   mockGetMatrix.mockReset();
@@ -825,5 +830,118 @@ describe("POST /api/walk-plan — max end distance from origin", () => {
     expect(response.status).toBe(200);
     // Measured from 32.09 the far stop is the one already in range.
     expect(plan.orderedAttractions.at(-1).id).toBe("far");
+  });
+});
+
+describe("POST /api/walk-plan — retry loop", () => {
+  beforeEach(resetMocks);
+
+  function retryBody(extra: Record<string, unknown> = {}) {
+    return {
+      lat: origin.lat,
+      lng: origin.lng,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      ...extra,
+    };
+  }
+
+  /** One 20-minute stop against a 90-minute budget — a collapsed plan. */
+  function thin(): Attraction[] {
+    return [makeAttraction("thin-1", 32.081, 34.78, 20)];
+  }
+
+  /** Enough to spend most of the budget. */
+  function rich(): Attraction[] {
+    return [
+      makeAttraction("rich-1", 32.082, 34.78, 30),
+      makeAttraction("rich-2", 32.083, 34.78, 30),
+    ];
+  }
+
+  it("does not retry a plan that already fills the walker's time", async () => {
+    mockFetchAttractions.mockResolvedValueOnce(rich());
+
+    const response = await POST(postRequest(retryBody()));
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockFetchAttractions).toHaveBeenCalledOnce();
+    expect(mockRankAttractions).toHaveBeenCalledOnce();
+    expect(plan.warnings.join(" ")).not.toContain("original settings");
+  });
+
+  it("retries a collapsed plan with a wider radius and keeps the better one", async () => {
+    mockFetchAttractions.mockResolvedValueOnce(thin());
+    mockFetchAttractions.mockResolvedValueOnce(rich());
+
+    const response = await POST(postRequest(retryBody()));
+    const plan = await response.json();
+    const ids = plan.orderedAttractions.map((a: Attraction) => a.id);
+
+    expect(response.status).toBe(200);
+    expect(mockFetchAttractions).toHaveBeenCalledTimes(2);
+    // Default 2000 m, then doubled.
+    expect(mockFetchAttractions.mock.calls[0][1]).toBe(2000);
+    expect(mockFetchAttractions.mock.calls[1][1]).toBe(4000);
+    expect(ids).toEqual(["rich-1", "rich-2"]);
+    expect(plan.warnings.join(" ")).toContain("4000 m");
+  });
+
+  it("keeps the first plan when the relaxed retry comes back worse", async () => {
+    mockFetchAttractions.mockResolvedValueOnce(thin());
+    mockFetchAttractions.mockResolvedValueOnce([]);
+
+    const response = await POST(postRequest(retryBody()));
+    const plan = await response.json();
+    const ids = plan.orderedAttractions.map((a: Attraction) => a.id);
+
+    expect(ids).toEqual(["thin-1"]);
+    // A relaxation that did not win is not announced to the walker.
+    expect(plan.warnings.join(" ")).not.toContain("original settings");
+  });
+
+  it("stops at the attempt cap when nothing ever improves", async () => {
+    mockFetchAttractions.mockResolvedValue(thin());
+
+    const response = await POST(
+      postRequest(
+        // An end-distance constraint gives the ladder a second, distinct rung;
+        // without one the two relaxations collapse to the same parameters.
+        retryBody({ maxEndDistanceFromOriginMeters: 5000 }),
+      ),
+    );
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    // One attempt per ranking pass: the first plus both relaxations, no more.
+    expect(mockRankAttractions).toHaveBeenCalledTimes(3);
+    expect(plan.orderedAttractions).toHaveLength(1);
+  });
+
+  it("does not spend an attempt on a relaxation that changes nothing", async () => {
+    mockFetchAttractions.mockResolvedValue(thin());
+
+    // Already at the radius clamp with no end-distance limit, so both rungs of
+    // the ladder resolve to the request that was just tried.
+    const response = await POST(postRequest(retryBody({ radiusMeters: 10_000 })));
+
+    expect(response.status).toBe(200);
+    expect(mockRankAttractions).toHaveBeenCalledOnce();
+    expect(mockFetchAttractions).toHaveBeenCalledOnce();
+  });
+
+  it("does not retry a re-timing of stops the walker is already walking", async () => {
+    const named = makeAttraction("named", 32.081, 34.78, 10);
+
+    const response = await POST(postRequest(baseBody([named])));
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    // Explicit-only mode discovers nothing, so there is nothing to relax.
+    expect(mockFetchAttractions).not.toHaveBeenCalled();
+    expect(plan.orderedAttractions.map((a: Attraction) => a.id)).toEqual([
+      "named",
+    ]);
   });
 });

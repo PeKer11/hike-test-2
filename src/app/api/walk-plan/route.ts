@@ -21,6 +21,7 @@ import type {
   Attraction,
   AttractionCategory,
   Coordinates,
+  WalkPlan,
   WalkPlanRequest,
 } from "@/lib/types";
 
@@ -125,6 +126,106 @@ async function withProfilePreferences(
   };
 }
 
+/**
+ * How many times a single request may build a plan, the first pass included.
+ *
+ * Bounded rather than "loop until good enough" because every attempt is one
+ * Overpass call and one ORS matrix call against shared, rate-limited public
+ * APIs — an unbounded loop on a request nobody can satisfy (a 20-minute budget
+ * in an empty suburb) would burn the daily quota for every other walker. Three
+ * is the smallest number that lets the ladder below actually finish: one pass on
+ * what the walker asked for, one on a wider search, one with the end-distance
+ * constraint out of the way.
+ */
+const MAX_PLAN_ATTEMPTS = 3;
+
+/**
+ * Below this share of the requested time actually spent walking and visiting,
+ * a plan counts as a failed attempt worth retrying. Someone who asked for 90
+ * minutes and got a 30-minute walk did not get what they asked for, even though
+ * nothing about that plan is infeasible.
+ *
+ * Half, not something stricter: the budget is an upper bound the walker chose,
+ * and a genuinely quiet area will never fill it however wide the search goes.
+ * The point is to catch the plan that collapsed, not to chase the last minute.
+ */
+const MIN_TIME_COVERAGE = 0.5;
+
+/** What a single plan attempt is allowed to vary. */
+interface PlanAttemptParams {
+  radiusMeters: number;
+  maxEndDistanceFromOriginMeters: number | undefined;
+}
+
+/**
+ * The retry ladder, loosest-last. Index 0 is the walker's own request, so the
+ * common case — a good first plan — never pays for any of this.
+ *
+ * Order is deliberate. Widening the search area first only adds candidates and
+ * changes nothing the walker explicitly asked for, so it is the cheap fix for
+ * the usual cause of a collapsed plan (too few POIs nearby). Dropping
+ * `maxEndDistanceFromOriginMeters` comes last because it overrides a constraint
+ * the walker typed in, and it is the only remaining lever when the candidates
+ * exist but the planner keeps dropping them for finishing too far out. When a
+ * relaxed attempt is the one that wins, the response says so in `warnings` —
+ * quietly ignoring "finish near my car" is not something to do silently.
+ */
+const RELAXATIONS: ReadonlyArray<{
+  describe: (params: PlanAttemptParams) => string;
+  apply: (base: PlanAttemptParams) => PlanAttemptParams;
+}> = [
+  {
+    describe: (p) =>
+      `searched a wider ${Math.round(p.radiusMeters)} m area than requested`,
+    apply: (base) => ({
+      ...base,
+      // Same 10 km ceiling the request validation applies — a relaxation must
+      // not be able to produce a query the clamp would have rejected.
+      radiusMeters: Math.min(base.radiusMeters * 2, 10_000),
+    }),
+  },
+  {
+    describe: (p) =>
+      `searched a wider ${Math.round(p.radiusMeters)} m area and ignored the "finish near the start" limit`,
+    apply: (base) => ({
+      radiusMeters: Math.min(base.radiusMeters * 2, 10_000),
+      maxEndDistanceFromOriginMeters: undefined,
+    }),
+  },
+];
+
+function sameParams(a: PlanAttemptParams, b: PlanAttemptParams): boolean {
+  return (
+    a.radiusMeters === b.radiusMeters &&
+    a.maxEndDistanceFromOriginMeters === b.maxEndDistanceFromOriginMeters
+  );
+}
+
+/**
+ * How well a finished plan answers the request, in [0, 1], so attempts can be
+ * compared and the best one returned rather than the last one — a retry that
+ * comes back worse must not be able to overwrite a decent first plan.
+ *
+ * Built only from numbers the plan already reports: how much of the budget it
+ * fills, and whether the planner called it feasible. An infeasible plan is
+ * halved rather than zeroed because it is still a walk — it just overruns —
+ * and one real walk beats an empty result.
+ */
+function planQuality(plan: WalkPlan, availableMinutes: number): number {
+  if (plan.orderedAttractions.length === 0) return 0;
+  const coverage = Math.min(plan.totalMinutes / availableMinutes, 1);
+  return plan.feasible ? coverage : coverage * 0.5;
+}
+
+/** Whether a plan is good enough to stop retrying on. */
+function isGoodEnough(plan: WalkPlan, availableMinutes: number): boolean {
+  return (
+    plan.feasible &&
+    plan.orderedAttractions.length > 0 &&
+    plan.totalMinutes >= availableMinutes * MIN_TIME_COVERAGE
+  );
+}
+
 // Same heuristic `selectFeasibleAttractions` uses: walk from the origin to each
 // stop plus its visit time. Rough on purpose — the planner does the real math.
 function estimateMinutes(
@@ -200,129 +301,217 @@ export async function POST(request: Request): Promise<NextResponse> {
       ? body.explicitAttractions
       : undefined;
 
-    // 1 + 2. Fetch raw attractions from Overpass, then rank and pre-filter by
-    // time budget — skipped entirely when the caller already knows which
-    // attractions the walk must keep.
-    let selected: Attraction[];
-    let pinnedAttractionIds = body.pinnedAttractionIds;
-    // Topped up from the profile only on the branches that actually rank.
-    let preferredCategories = body.preferredCategories;
-    let downvotedCategories: Map<AttractionCategory, number> | undefined;
-    let upvotedCategories: Map<AttractionCategory, number> | undefined;
-    let downvotedPoiKeys: Set<string> | undefined;
-    if (explicitAttractions && explicitAttractions.length > 0) {
-      selected = explicitAttractions;
+    // Raw Overpass results keyed by the radius they were fetched at, so a retry
+    // that only loosens the end-distance constraint costs no second POI fetch.
+    const rawByRadius = new Map<number, Attraction[]>();
+    const fetchRaw = async (radius: number): Promise<Attraction[]> => {
+      const cached = rawByRadius.get(radius);
+      if (cached) return cached;
+      const fetched = await fetchAttractions(origin, radius);
+      rawByRadius.set(radius, fetched);
+      return fetched;
+    };
 
-      const explicitMinutes = estimateMinutes(
-        origin,
-        explicitAttractions,
-        walkingPaceMinPerKm,
-      );
+    // The profile describes the walker, not the attempt — read once and reused,
+    // so retrying never multiplies the Supabase round trips.
+    let profilePromise: Promise<ProfileCategories> | undefined;
+    const profilePreferences = (): Promise<ProfileCategories> => {
+      profilePromise ??= withProfilePreferences(body.preferredCategories);
+      return profilePromise;
+    };
 
-      // The named places barely dent the budget — fill the rest the same way an
-      // open-mode walk is built, but never at the cost of a place the user named.
-      if (
-        body.fillRemainingTime === true &&
-        explicitMinutes < availableMinutes * FILL_THRESHOLD
-      ) {
-        const raw = await fetchAttractions(origin, radiusMeters);
-        ({
-          preferredCategories,
-          downvotedCategories,
-          upvotedCategories,
-          downvotedPoiKeys,
-        } = await withProfilePreferences(body.preferredCategories));
+    /**
+     * One full pass: discover, rank, pre-filter, order. Everything that varies
+     * between retries arrives in `params`; everything else is fixed by the
+     * request.
+     */
+    const attemptPlan = async (
+      params: PlanAttemptParams,
+    ): Promise<{ plan: WalkPlan; planRequest: WalkPlanRequest }> => {
+      // 1 + 2. Fetch raw attractions from Overpass, then rank and pre-filter by
+      // time budget — skipped entirely when the caller already knows which
+      // attractions the walk must keep.
+      let selected: Attraction[];
+      let pinnedAttractionIds = body.pinnedAttractionIds;
+      // Topped up from the profile only on the branches that actually rank.
+      let preferredCategories = body.preferredCategories;
+      if (explicitAttractions && explicitAttractions.length > 0) {
+        selected = explicitAttractions;
+
+        const explicitMinutes = estimateMinutes(
+          origin,
+          explicitAttractions,
+          walkingPaceMinPerKm,
+        );
+
+        // The named places barely dent the budget — fill the rest the same way an
+        // open-mode walk is built, but never at the cost of a place the user named.
+        if (
+          body.fillRemainingTime === true &&
+          explicitMinutes < availableMinutes * FILL_THRESHOLD
+        ) {
+          const raw = await fetchRaw(params.radiusMeters);
+          const profile = await profilePreferences();
+          preferredCategories = profile.preferredCategories;
+
+          const ranked = rankAttractions(raw, {
+            origin,
+            preferredCategories,
+            downvotedCategories: profile.downvotedCategories,
+            upvotedCategories: profile.upvotedCategories,
+            downvotedPoiKeys: profile.downvotedPoiKeys,
+            availableMinutes,
+            walkingPaceMinPerKm,
+            allowExploration: true,
+          });
+
+          const explicitIds = new Set(explicitAttractions.map((a) => a.id));
+          const filler = ranked.filter(
+            (candidate) =>
+              !explicitIds.has(candidate.id) &&
+              !explicitAttractions.some(
+                (e) =>
+                  haversineDistance(e.coordinates, candidate.coordinates) <=
+                  DUPLICATE_RADIUS_METERS,
+              ),
+          );
+
+          // The named places are charged to the budget up front and the filler
+          // only gets what they leave behind, rather than the two competing in one
+          // pre-filter pass. They cannot compete fairly: `selectFeasibleAttractions`
+          // re-sorts what is left after every acceptance on the ranker's score, and
+          // a named place has never been through the ranker — it scores 0 and sinks
+          // below every discovered candidate, so the filler would spend the whole
+          // budget and the named stops (re-added unconditionally below either way)
+          // would land on top of it.
+          const fillerBudget = Math.max(0, availableMinutes - explicitMinutes);
+          const feasible = selectFeasibleAttractions(
+            filler,
+            fillerBudget,
+            walkingPaceMinPerKm,
+            Math.max(0, MAX_WALK_STOPS - explicitAttractions.length),
+          ).selected;
+
+          // Every named place stays in, whatever the pre-filter decided; only the
+          // filler is allowed to be trimmed here (and later by the planner).
+          selected = [...explicitAttractions, ...feasible];
+          pinnedAttractionIds = Array.from(
+            new Set([...(body.pinnedAttractionIds ?? []), ...explicitIds]),
+          );
+        }
+      } else {
+        const raw = await fetchRaw(params.radiusMeters);
+        const profile = await profilePreferences();
+        preferredCategories = profile.preferredCategories;
 
         const ranked = rankAttractions(raw, {
           origin,
           preferredCategories,
-          downvotedCategories,
-          upvotedCategories,
-          downvotedPoiKeys,
+          downvotedCategories: profile.downvotedCategories,
+          upvotedCategories: profile.upvotedCategories,
+          downvotedPoiKeys: profile.downvotedPoiKeys,
           availableMinutes,
           walkingPaceMinPerKm,
           allowExploration: true,
         });
 
-        const explicitIds = new Set(explicitAttractions.map((a) => a.id));
-        const filler = ranked.filter(
-          (candidate) =>
-            !explicitIds.has(candidate.id) &&
-            !explicitAttractions.some(
-              (e) =>
-                haversineDistance(e.coordinates, candidate.coordinates) <=
-                DUPLICATE_RADIUS_METERS,
-            ),
-        );
-
-        // The named places are charged to the budget up front and the filler
-        // only gets what they leave behind, rather than the two competing in one
-        // pre-filter pass. They cannot compete fairly: `selectFeasibleAttractions`
-        // re-sorts what is left after every acceptance on the ranker's score, and
-        // a named place has never been through the ranker — it scores 0 and sinks
-        // below every discovered candidate, so the filler would spend the whole
-        // budget and the named stops (re-added unconditionally below either way)
-        // would land on top of it.
-        const fillerBudget = Math.max(0, availableMinutes - explicitMinutes);
-        const feasible = selectFeasibleAttractions(
-          filler,
-          fillerBudget,
+        selected = selectFeasibleAttractions(
+          ranked,
+          availableMinutes,
           walkingPaceMinPerKm,
-          Math.max(0, MAX_WALK_STOPS - explicitAttractions.length),
         ).selected;
-
-        // Every named place stays in, whatever the pre-filter decided; only the
-        // filler is allowed to be trimmed here (and later by the planner).
-        selected = [...explicitAttractions, ...feasible];
-        pinnedAttractionIds = Array.from(
-          new Set([...(body.pinnedAttractionIds ?? []), ...explicitIds]),
-        );
       }
-    } else {
-      const raw = await fetchAttractions(origin, radiusMeters);
-      ({
-        preferredCategories,
-        downvotedCategories,
-        upvotedCategories,
-        downvotedPoiKeys,
-      } = await withProfilePreferences(body.preferredCategories));
 
-      const ranked = rankAttractions(raw, {
+      // 3. Build walk plan with TSP ordering
+      const planRequest: WalkPlanRequest = {
         origin,
+        availableMinutes,
+        walkingPaceMinPerKm,
+        radiusMeters: params.radiusMeters,
+        maxEndDistanceFromOriginMeters: params.maxEndDistanceFromOriginMeters,
+        endAnchor,
         preferredCategories,
-        downvotedCategories,
-        upvotedCategories,
-        downvotedPoiKeys,
-        availableMinutes,
-        walkingPaceMinPerKm,
-        allowExploration: true,
-      });
+        explicitAttractions,
+        pinnedAttractionIds,
+      };
 
-      selected = selectFeasibleAttractions(
-        ranked,
-        availableMinutes,
-        walkingPaceMinPerKm,
-      ).selected;
-    }
-
-    // 3. Build walk plan with TSP ordering
-    const planRequest: WalkPlanRequest = {
-      origin,
-      availableMinutes,
-      walkingPaceMinPerKm,
-      radiusMeters,
-      maxEndDistanceFromOriginMeters,
-      endAnchor,
-      preferredCategories,
-      explicitAttractions,
-      pinnedAttractionIds,
+      return { plan: await buildWalkPlan(planRequest, selected), planRequest };
     };
 
-    const plan = await buildWalkPlan(planRequest, selected);
+    const baseParams: PlanAttemptParams = {
+      radiusMeters,
+      maxEndDistanceFromOriginMeters,
+    };
+
+    // A pace-triggered rebuild ("re-time exactly these stops") is the one mode
+    // with nothing to relax: no POIs are discovered, so a wider radius changes
+    // nothing, and dropping the end-distance limit there would override a
+    // constraint on a walk the user is already partway through. Single pass.
+    const canRetry = !(
+      explicitAttractions &&
+      explicitAttractions.length > 0 &&
+      body.fillRemainingTime !== true
+    );
+
+    const warnings: string[] = [];
+
+    const hasExplicit = Boolean(
+      explicitAttractions && explicitAttractions.length > 0,
+    );
+
+    /**
+     * An unsatisfactory plan is only worth retrying if a relaxation could
+     * plausibly fix it. The exception is a plan built around places the walker
+     * named that came back infeasible: it overruns because of *their* stops,
+     * which are never dropped, and every relaxation here only offers the filler
+     * more candidates — widening the search cannot shorten an overrun the named
+     * places caused, it can only lengthen it.
+     */
+    const worthRetrying = (plan: WalkPlan): boolean =>
+      !isGoodEnough(plan, availableMinutes) && !(hasExplicit && !plan.feasible);
+
+    let best = await attemptPlan(baseParams);
+    let bestQuality = planQuality(best.plan, availableMinutes);
+    let bestParams = baseParams;
+    let attempts = 1;
+
+    if (canRetry && worthRetrying(best.plan)) {
+      for (const relaxation of RELAXATIONS) {
+        if (attempts >= MAX_PLAN_ATTEMPTS) break;
+        const params = relaxation.apply(baseParams);
+        // Nothing left to loosen — the radius is already at the clamp and there
+        // was no end-distance constraint to drop. Another identical attempt
+        // would spend an Overpass call to get the same answer back.
+        if (sameParams(params, bestParams) || sameParams(params, baseParams)) {
+          continue;
+        }
+
+        attempts += 1;
+        const candidate = await attemptPlan(params);
+        const quality = planQuality(candidate.plan, availableMinutes);
+        // Strictly better, so a retry that ties keeps the walker's own settings.
+        if (quality > bestQuality) {
+          best = candidate;
+          bestQuality = quality;
+          bestParams = params;
+        }
+        if (isGoodEnough(candidate.plan, availableMinutes)) break;
+      }
+
+      if (!sameParams(bestParams, baseParams)) {
+        const relaxation = RELAXATIONS.find((r) =>
+          sameParams(r.apply(baseParams), bestParams),
+        );
+        warnings.push(
+          `No good walk fit your original settings, so this one ${relaxation?.describe(bestParams) ?? "used relaxed settings"}.`,
+        );
+      }
+    }
+
+    const plan = best.plan;
 
     // 4. Fetch ORS geometry for the ordered route (origin → attraction 1 → 2 → ...)
     let geometry: Coordinates[] | undefined;
-    const warnings: string[] = [];
 
     if (plan.orderedAttractions.length > 0) {
       if (!process.env.ORS_API_KEY) {
