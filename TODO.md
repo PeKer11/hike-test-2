@@ -187,3 +187,7 @@
 - [ ] Add dynamic mid-walk replanning — let the user update intent during the walk (for example, keep remaining planned stops but also add food), rebuild the route from the current position, preserve already-visited stops as completed, and avoid generating them again
 - [x] GPX export — `gpx-exporter.ts` (GPX + CSV) wired into `WalkRecordingPanel`
 - [ ] Share routes via URL
+
+## Next Phase (flagged 2026-08-07 by Ariel)
+- [ ] **Unit tests** — broaden/systematize test coverage as its own pass, not just per-feature tests added alongside each change. Not yet scoped (which layers, what coverage target, whether this means a coverage-gap audit across the existing suite or a new testing strategy).
+- [ ] **Social capabilities** — add social features to the app. Not yet scoped at all (no spec on what "social" means here — sharing walks, following other walkers, leaderboards, etc. — needs a scoping/design pass before any build).
