@@ -162,9 +162,50 @@ function toOccurrenceCount(value: unknown): number {
 }
 
 /**
+ * Category-level `attraction_feedback` rows for one signal direction, each
+ * with how many times that signal has been repeated. Shared by
+ * `getDownvotedCategories` and `getUpvotedCategories` — same query, same
+ * "unknown category / duplicate row" guards, only the `signal` filter differs.
+ */
+async function getCategorySignalCounts(
+  supabase: ServerClient,
+  userId: string,
+  signal: WalkFeedbackSignal,
+): Promise<Map<AttractionCategory, number>> {
+  const { data, error } = await supabase
+    .from("attraction_feedback")
+    .select("category, occurrence_count")
+    .eq("user_id", userId)
+    .eq("signal", signal)
+    .is("poi_name", null);
+
+  if (error || !Array.isArray(data)) {
+    return new Map();
+  }
+
+  // A category written by an older schema is not necessarily one the ranker
+  // still knows. One row per category is not guaranteed either once a
+  // POI-level shape sneaks past, so duplicates collapse to the strongest count
+  // rather than to whichever row came last.
+  const counts = new Map<AttractionCategory, number>();
+  for (const row of data as { category: unknown; occurrence_count: unknown }[]) {
+    const category = row.category;
+    if (!(ATTRACTION_CATEGORIES as string[]).includes(category as string)) {
+      continue;
+    }
+
+    const known = category as AttractionCategory;
+    const count = toOccurrenceCount(row.occurrence_count);
+    counts.set(known, Math.max(counts.get(known) ?? 0, count));
+  }
+
+  return counts;
+}
+
+/**
  * The categories the walker has voted down as a whole, each with how many times
- * that downvote has been repeated — the other half of what
- * `getPreferredCategories` reads.
+ * that downvote has been repeated — one of two behavioural signals that fold
+ * into the ranker, alongside `getUpvotedCategories` below.
  *
  * The count is the point: one downvote can be a bad day, an unlucky stop or no
  * time left, while the same downvote after several walks is a preference. The
@@ -185,34 +226,26 @@ export async function getDownvotedCategories(
   supabase: ServerClient,
   userId: string,
 ): Promise<Map<AttractionCategory, number>> {
-  const { data, error } = await supabase
-    .from("attraction_feedback")
-    .select("category, occurrence_count")
-    .eq("user_id", userId)
-    .eq("signal", "downvote")
-    .is("poi_name", null);
+  return getCategorySignalCounts(supabase, userId, "downvote");
+}
 
-  if (error || !Array.isArray(data)) {
-    return new Map();
-  }
-
-  // Same guard as `getPreferredCategories`: a category written by an older
-  // schema is not necessarily one the ranker still knows. One row per category
-  // is not guaranteed either once a POI-level shape sneaks past, so duplicates
-  // collapse to the strongest count rather than to whichever row came last.
-  const counts = new Map<AttractionCategory, number>();
-  for (const row of data as { category: unknown; occurrence_count: unknown }[]) {
-    const category = row.category;
-    if (!(ATTRACTION_CATEGORIES as string[]).includes(category as string)) {
-      continue;
-    }
-
-    const known = category as AttractionCategory;
-    const count = toOccurrenceCount(row.occurrence_count);
-    counts.set(known, Math.max(counts.get(known) ?? 0, count));
-  }
-
-  return counts;
+/**
+ * The categories the walker has voted up as a whole from post-walk feedback,
+ * each with how many times that upvote has been repeated — the positive-side
+ * counterpart to `getDownvotedCategories`.
+ *
+ * This is `attraction_feedback` behavioural evidence (end-of-walk taps), not
+ * `profiles.preferred_categories` (explicit free-text statements read by
+ * `getPreferredCategories`) — the two are different kinds of evidence and the
+ * ranker treats them differently (see `PREFERRED_CATEGORY_BOOST` vs
+ * `occurrencePreferenceBoost` in `attraction-ranker.ts`), so both are read and
+ * both feed the score, additively rather than one replacing the other.
+ */
+export async function getUpvotedCategories(
+  supabase: ServerClient,
+  userId: string,
+): Promise<Map<AttractionCategory, number>> {
+  return getCategorySignalCounts(supabase, userId, "upvote");
 }
 
 /**

@@ -47,15 +47,20 @@ export const MAX_EXPLORATION_PICKS = 1;
 /**
  * Added for a category the walker's profile asks for.
  *
- * Flat, unlike the downvote penalty below, and the asymmetry is deliberate.
- * `profiles.preferred_categories` is written by the free-text preference pass
+ * Flat, unlike both feedback-driven signals below, and the asymmetry is
+ * deliberate — it is between kinds of evidence, not between liking and
+ * disliking. `profiles.preferred_categories` is written by the free-text pass
  * off statements like "I love museums" — explicit, unambiguous language that is
  * already high confidence on its first occurrence, and there is nothing to
  * accumulate because the column is a plain array with no per-category history.
- * Downvotes are the opposite kind of evidence: they arrive from taps at the end
- * of a walk, where one 👎 can mean the walker was tired, out of time or unlucky
- * with that one stop. Repetition is what turns that into a preference, so only
- * that side scales. (An explicit *dislike* in text still removes the category
+ * Post-walk feedback is the other kind of evidence: it arrives from taps at the
+ * end of a walk, where one 👎 can mean the walker was tired, out of time or
+ * unlucky with that one stop, and one 👍 can be one good stop. Repetition is
+ * what turns either into a preference, so both feedback sides scale — see
+ * `downvotePenalty` and `occurrencePreferenceBoost` below, and note that this
+ * flat boost is added on top of the latter rather than replaced by it, because
+ * "they said they love museums" and "they keep liking museums" are two separate
+ * pieces of evidence. (An explicit *dislike* in text still removes the category
  * from `preferred_categories` outright and stays as categorical as it was.)
  */
 export const PREFERRED_CATEGORY_BOOST = 4;
@@ -104,6 +109,35 @@ export function downvotePenalty(occurrenceCount: number): number {
   );
 }
 
+/**
+ * Mirrors `PER_OCCURRENCE_DOWNVOTE_PENALTY`/`MAX_DOWNVOTE_PENALTY` for the
+ * other direction: a standing category-level UPVOTE from post-walk feedback
+ * (`attraction_feedback`, signal='upvote'). This is separate from
+ * `PREFERRED_CATEGORY_BOOST` above, which stays flat on purpose — that boost is
+ * explicit free-text evidence ("I love museums") with nothing to accumulate.
+ * A repeated end-of-walk 👍 on a category is the same kind of evidence as a
+ * repeated 👎: one thumbs-up can be one good stop, several is a preference, so
+ * it scales the same way the downvote does.
+ */
+export const PER_OCCURRENCE_PREFERENCE_BOOST = 2;
+export const MAX_OCCURRENCE_PREFERENCE_BOOST = 8;
+
+/**
+ * What a standing category-level upvote adds to a candidate's score, given how
+ * many times it has been recorded. Same curve as `downvotePenalty`, added
+ * rather than subtracted.
+ */
+export function occurrencePreferenceBoost(occurrenceCount: number): number {
+  const occurrences = Number.isFinite(occurrenceCount)
+    ? Math.max(1, Math.floor(occurrenceCount))
+    : 1;
+
+  return Math.min(
+    MAX_OCCURRENCE_PREFERENCE_BOOST,
+    occurrences * PER_OCCURRENCE_PREFERENCE_BOOST,
+  );
+}
+
 export interface RankerOptions {
   origin: Coordinates;
   preferredCategories?: AttractionCategory[];
@@ -115,6 +149,16 @@ export interface RankerOptions {
    * exploration slot on.
    */
   downvotedCategories?: ReadonlyMap<AttractionCategory, number>;
+  /**
+   * Categories carrying a standing category-level upvote from post-walk
+   * feedback, mapped to how many times it has been repeated. Boosted in the
+   * score in proportion to that count (`occurrencePreferenceBoost`), on top of
+   * — not instead of — the flat `PREFERRED_CATEGORY_BOOST` a category gets from
+   * `preferred_categories`. Also kept out of exploration, same reasoning as a
+   * downvote: repeated behavioural evidence is an answer, not a question worth
+   * spending the exploration slot on.
+   */
+  upvotedCategories?: ReadonlyMap<AttractionCategory, number>;
   availableMinutes: number;
   walkingPaceMinPerKm: number;
   /**
@@ -157,6 +201,7 @@ function withExplorationPick(
   ranked: ScoredAttraction[],
   preferredCategories: AttractionCategory[],
   downvotedCategories: ReadonlyMap<AttractionCategory, number>,
+  upvotedCategories: ReadonlyMap<AttractionCategory, number>,
   random: () => number,
 ): ScoredAttraction[] {
   if (random() >= EXPLORATION_RATE) return ranked;
@@ -168,7 +213,8 @@ function withExplorationPick(
     if (
       picks.length < MAX_EXPLORATION_PICKS &&
       !preferredCategories.includes(attraction.category) &&
-      !downvotedCategories.has(attraction.category)
+      !downvotedCategories.has(attraction.category) &&
+      !upvotedCategories.has(attraction.category)
     ) {
       picks.push({ ...attraction, isExplorationPick: true });
     } else {
@@ -187,6 +233,7 @@ export function rankAttractions(
     origin,
     preferredCategories,
     downvotedCategories,
+    upvotedCategories,
     availableMinutes,
     walkingPaceMinPerKm,
     allowExploration,
@@ -214,6 +261,10 @@ export function rankAttractions(
     if (downvoteOccurrences !== undefined) {
       score -= downvotePenalty(downvoteOccurrences);
     }
+    const upvoteOccurrences = upvotedCategories?.get(a.category);
+    if (upvoteOccurrences !== undefined) {
+      score += occurrencePreferenceBoost(upvoteOccurrences);
+    }
 
     score -= distanceMeters / 1000;
 
@@ -229,6 +280,7 @@ export function rankAttractions(
       scored,
       preferredCategories,
       downvotedCategories ?? new Map(),
+      upvotedCategories ?? new Map(),
       random,
     );
   }

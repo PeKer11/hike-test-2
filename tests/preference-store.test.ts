@@ -13,6 +13,7 @@ import {
   getDownvotedCategories,
   getPreferredCategories,
   getProfileDefaults,
+  getUpvotedCategories,
   saveAttractionFeedback,
   saveWalkFeedback,
   type AttractionRating,
@@ -273,6 +274,81 @@ describe("getDownvotedCategories", () => {
     const { client } = fakeFeedbackSupabase(result);
 
     expect(await getDownvotedCategories(client, "user-1")).toEqual(new Map());
+  });
+});
+
+// Mirrors `getDownvotedCategories` for the other signal direction — same
+// query shape, same guards, only `signal: "upvote"` differs.
+describe("getUpvotedCategories", () => {
+  it("returns each upvoted category with how often it was voted up", async () => {
+    const { client } = fakeFeedbackSupabase({
+      data: [
+        { category: "museum", occurrence_count: 2 },
+        { category: "nature", occurrence_count: 5 },
+      ],
+      error: null,
+    });
+
+    expect(await getUpvotedCategories(client, "user-1")).toEqual(
+      new Map([
+        ["museum", 2],
+        ["nature", 5],
+      ]),
+    );
+  });
+
+  it.each([
+    ["a count that arrived as a string", "3", 3],
+    ["a row from before occurrence tracking", null, 1],
+    ["a count that is not a whole number", 2.5, 1],
+    ["a count of zero", 0, 1],
+  ])("reads %s as %s occurrences", async (_label, stored, expected) => {
+    const { client } = fakeFeedbackSupabase({
+      data: [{ category: "museum", occurrence_count: stored }],
+      error: null,
+    });
+
+    expect(await getUpvotedCategories(client, "user-1")).toEqual(
+      new Map([["museum", expected]]),
+    );
+  });
+
+  it("asks only for this user's category-level upvotes", async () => {
+    const { client, filters } = fakeFeedbackSupabase({ data: [], error: null });
+
+    await getUpvotedCategories(client, "user-1");
+
+    expect(filters).toEqual({
+      user_id: "user-1",
+      signal: "upvote",
+      poi_name: null,
+    });
+  });
+
+  it("de-duplicates to the highest count and drops unknown categories", async () => {
+    const { client } = fakeFeedbackSupabase({
+      data: [
+        { category: "museum", occurrence_count: 2 },
+        { category: "cafe", occurrence_count: 9 },
+        { category: "museum", occurrence_count: 5 },
+        { category: null, occurrence_count: 2 },
+      ],
+      error: null,
+    });
+
+    expect(await getUpvotedCategories(client, "user-1")).toEqual(
+      new Map([["museum", 5]]),
+    );
+  });
+
+  it.each([
+    ["a failed read", { data: null, error: new Error("boom") }],
+    ["no feedback rows", { data: [], error: null }],
+    ["a null payload", { data: null, error: null }],
+  ])("returns no upvotes for %s", async (_label, result) => {
+    const { client } = fakeFeedbackSupabase(result);
+
+    expect(await getUpvotedCategories(client, "user-1")).toEqual(new Map());
   });
 });
 

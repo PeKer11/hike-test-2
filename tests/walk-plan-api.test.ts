@@ -8,6 +8,7 @@ const mockGetMatrix = vi.fn();
 const mockGetUser = vi.fn();
 const mockGetPreferredCategories = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
+const mockGetUpvotedCategories = vi.fn();
 const mockRankAttractions = vi.fn();
 
 vi.mock("@/lib/attractions/overpass-client", () => ({
@@ -30,6 +31,8 @@ vi.mock("@/lib/preferences/preference-store", () => ({
     mockGetPreferredCategories(...args),
   getDownvotedCategories: (...args: unknown[]) =>
     mockGetDownvotedCategories(...args),
+  getUpvotedCategories: (...args: unknown[]) =>
+    mockGetUpvotedCategories(...args),
 }));
 
 // Real ranking, observed: the route's own output never echoes the categories it
@@ -104,6 +107,8 @@ function resetMocks(): void {
   mockGetPreferredCategories.mockResolvedValue([]);
   mockGetDownvotedCategories.mockReset();
   mockGetDownvotedCategories.mockResolvedValue(new Map());
+  mockGetUpvotedCategories.mockReset();
+  mockGetUpvotedCategories.mockResolvedValue(new Map());
   mockRankAttractions.mockReset();
 }
 
@@ -363,6 +368,7 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
     expect(mockGetUser).not.toHaveBeenCalled();
     expect(mockGetPreferredCategories).not.toHaveBeenCalled();
     expect(mockGetDownvotedCategories).not.toHaveBeenCalled();
+    expect(mockGetUpvotedCategories).not.toHaveBeenCalled();
   });
 });
 
@@ -468,5 +474,125 @@ describe("POST /api/walk-plan — saved downvotes", () => {
     );
 
     expect(downvotedWith()).toEqual(new Map([["shopping", 2]]));
+  });
+});
+
+// Mirrors the downvote block for the positive side. These rows existed and were
+// written on every post-walk rating long before anything read them back — the
+// route is the piece that finally does, so "was it actually threaded into the
+// ranking?" is the thing worth asserting.
+describe("POST /api/walk-plan — saved upvotes", () => {
+  beforeEach(resetMocks);
+
+  function discoveryBody() {
+    return {
+      lat: origin.lat,
+      lng: origin.lng,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+    };
+  }
+
+  function upvotedWith(): Map<string, number> | undefined {
+    return mockRankAttractions.mock.calls[0]?.[1]?.upvotedCategories;
+  }
+
+  function downvotedWith(): Map<string, number> | undefined {
+    return mockRankAttractions.mock.calls[0]?.[1]?.downvotedCategories;
+  }
+
+  // The count rides along with the category for the same reason it does on the
+  // downvote side: the boost scales on it, so dropping it here would flatten
+  // "liked museums on four walks" back down to "liked museums once".
+  it("passes the saved upvotes and their counts into the ranking", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetUpvotedCategories.mockResolvedValueOnce(new Map([["museum", 3]]));
+
+    const response = await POST(postRequest(discoveryBody()));
+
+    expect(response.status).toBe(200);
+    expect(mockGetUpvotedCategories).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+    );
+    expect(upvotedWith()).toEqual(new Map([["museum", 3]]));
+  });
+
+  it("passes nothing for a walker with no standing upvotes", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    await POST(postRequest(discoveryBody()));
+
+    expect(upvotedWith()).toBeUndefined();
+  });
+
+  it("reads no upvotes for a walker who is not signed in", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    const response = await POST(postRequest(discoveryBody()));
+
+    expect(response.status).toBe(200);
+    expect(mockGetUpvotedCategories).not.toHaveBeenCalled();
+    expect(upvotedWith()).toBeUndefined();
+  });
+
+  // Three reads now share the one session lookup but not a fate. The per-read
+  // catch is what holds that up, and a third read is exactly where a `Promise.all`
+  // that had been rewritten to a single outer catch would start silently
+  // blanking the other two.
+  it("still applies the other two reads when the upvote read fails", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetPreferredCategories.mockResolvedValueOnce(["park"]);
+    mockGetDownvotedCategories.mockResolvedValueOnce(new Map([["food", 2]]));
+    mockGetUpvotedCategories.mockRejectedValueOnce(new Error("supabase down"));
+
+    const response = await POST(postRequest(discoveryBody()));
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockRankAttractions.mock.calls[0]?.[1]?.preferredCategories).toEqual([
+      "park",
+    ]);
+    expect(downvotedWith()).toEqual(new Map([["food", 2]]));
+    expect(upvotedWith()).toBeUndefined();
+    expect(plan.orderedAttractions).toHaveLength(1);
+  });
+
+  it("still applies the upvotes when both other reads fail", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetPreferredCategories.mockRejectedValueOnce(new Error("supabase down"));
+    mockGetDownvotedCategories.mockRejectedValueOnce(new Error("supabase down"));
+    mockGetUpvotedCategories.mockResolvedValueOnce(new Map([["museum", 1]]));
+
+    const response = await POST(postRequest(discoveryBody()));
+
+    expect(response.status).toBe(200);
+    expect(upvotedWith()).toEqual(new Map([["museum", 1]]));
+    expect(downvotedWith()).toBeUndefined();
+  });
+
+  it("applies the upvotes when topping up a named-stops walk too", async () => {
+    const named = makeAttraction("named", 32.081, 34.78, 30);
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.082, 34.78, 20),
+    ]);
+    mockGetUpvotedCategories.mockResolvedValueOnce(new Map([["nature", 2]]));
+
+    await POST(
+      postRequest({ ...baseBody([named]), fillRemainingTime: true }),
+    );
+
+    expect(upvotedWith()).toEqual(new Map([["nature", 2]]));
   });
 });

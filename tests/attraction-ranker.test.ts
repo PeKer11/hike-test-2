@@ -5,7 +5,10 @@ import {
   EXPLORATION_RATE,
   MAX_DOWNVOTE_PENALTY,
   MAX_EXPLORATION_PICKS,
+  MAX_OCCURRENCE_PREFERENCE_BOOST,
+  occurrencePreferenceBoost,
   PER_OCCURRENCE_DOWNVOTE_PENALTY,
+  PER_OCCURRENCE_PREFERENCE_BOOST,
   PREFERRED_CATEGORY_BOOST,
   rankAttractions,
   selectFeasibleAttractions,
@@ -349,5 +352,195 @@ describe("rankAttractions — downvoted categories", () => {
 
     expect(ranked[0].id).toBe("food");
     expect(ranked[0].isExplorationPick).toBe(true);
+  });
+});
+
+// How many times a category has been voted up from post-walk feedback, in the
+// shape the ranker reads.
+function upvotes(
+  ...entries: [AttractionCategory, number][]
+): Map<AttractionCategory, number> {
+  return new Map(entries);
+}
+
+// Mirrors `downvotePenalty` for the other direction — same curve, added
+// instead of subtracted.
+describe("occurrencePreferenceBoost", () => {
+  it("charges the same per-occurrence rate as a downvote", () => {
+    expect(occurrencePreferenceBoost(1)).toBe(PER_OCCURRENCE_PREFERENCE_BOOST);
+    expect(occurrencePreferenceBoost(1)).toBe(downvotePenalty(1));
+  });
+
+  it("grows with each repeat of the same upvote", () => {
+    expect(occurrencePreferenceBoost(2)).toBe(4);
+    expect(occurrencePreferenceBoost(3)).toBe(6);
+    expect(occurrencePreferenceBoost(2)).toBeGreaterThan(
+      occurrencePreferenceBoost(1),
+    );
+  });
+
+  it("caps however many times the category was voted up", () => {
+    expect(occurrencePreferenceBoost(4)).toBe(MAX_OCCURRENCE_PREFERENCE_BOOST);
+    expect(occurrencePreferenceBoost(40)).toBe(MAX_OCCURRENCE_PREFERENCE_BOOST);
+  });
+
+  it.each([0, -3, Number.NaN, 1.7])(
+    "reads an unusable count (%s) as a single occurrence",
+    (count) => {
+      expect(occurrencePreferenceBoost(count)).toBe(
+        PER_OCCURRENCE_PREFERENCE_BOOST,
+      );
+    },
+  );
+});
+
+describe("rankAttractions — upvoted categories", () => {
+  function scoreOf(
+    id: string,
+    options: {
+      preferred?: AttractionCategory[];
+      upvoted?: Map<AttractionCategory, number>;
+      downvoted?: Map<AttractionCategory, number>;
+    },
+  ): number {
+    const ranked = rankAttractions([museum, viewpoint], {
+      origin,
+      preferredCategories: options.preferred,
+      upvotedCategories: options.upvoted,
+      downvotedCategories: options.downvoted,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+    });
+
+    return ranked.find((a) => a.id === id)?.score ?? NaN;
+  }
+
+  it("ranks a repeatedly upvoted category above a neutral one it would otherwise lose to", () => {
+    const neutral = rankAttractions([museum, viewpoint], {
+      origin,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+    });
+    expect(neutral.map((a) => a.id)).toEqual(["viewpoint", "museum"]);
+
+    const withUpvotes = rankAttractions([museum, viewpoint], {
+      origin,
+      upvotedCategories: upvotes(["museum", 4]),
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+    });
+    expect(withUpvotes.map((a) => a.id)).toEqual(["museum", "viewpoint"]);
+  });
+
+  it("adds on top of the flat preferred-category boost rather than replacing it", () => {
+    const flatOnly = scoreOf("museum", { preferred: ["museum"] });
+    const flatPlusUpvotes = scoreOf("museum", {
+      preferred: ["museum"],
+      upvoted: upvotes(["museum", 2]),
+    });
+
+    expect(flatPlusUpvotes).toBeCloseTo(flatOnly + occurrencePreferenceBoost(2));
+  });
+
+  it("scales the boost with how often the category was voted up", () => {
+    const once = scoreOf("museum", { upvoted: upvotes(["museum", 1]) });
+    const thrice = scoreOf("museum", { upvoted: upvotes(["museum", 3]) });
+    const many = scoreOf("museum", { upvoted: upvotes(["museum", 9]) });
+
+    expect(thrice).toBeGreaterThan(once);
+    expect(many).toBeCloseTo(
+      scoreOf("museum", {}) + MAX_OCCURRENCE_PREFERENCE_BOOST,
+    );
+  });
+
+  it("leaves categories the walker never rated alone", () => {
+    expect(
+      scoreOf("viewpoint", { upvoted: upvotes(["museum", 3]) }),
+    ).toBeCloseTo(scoreOf("viewpoint", {}));
+  });
+
+  // Repeated behavioural evidence is an answer, not a question worth spending
+  // the one exploration slot on — same reasoning as a downvoted category.
+  it("never spends the exploration slot on an upvoted category", () => {
+    const ranked = rankAttractions([museum, viewpoint], {
+      origin,
+      preferredCategories: ["museum"],
+      upvotedCategories: upvotes(["viewpoint", 1]),
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      allowExploration: true,
+      random: () => 0,
+    });
+
+    expect(ranked.some((a) => a.isExplorationPick)).toBe(false);
+  });
+
+  // The exclusion has to be narrow: barring upvoted categories must not bar
+  // the untouched ones, which are the only thing exploration exists to find.
+  it("still explores into a category carrying no standing signal", () => {
+    const ranked = rankAttractions(
+      [museum, viewpoint, makeAttraction("food", "food", 32.0805)],
+      {
+        origin,
+        preferredCategories: ["museum"],
+        upvotedCategories: upvotes(["viewpoint", 2]),
+        availableMinutes: 90,
+        walkingPaceMinPerKm: 15,
+        allowExploration: true,
+        random: () => 0,
+      },
+    );
+
+    expect(ranked[0].id).toBe("food");
+    expect(ranked[0].isExplorationPick).toBe(true);
+  });
+
+  // The three signals cannot all land on one category through the app — the
+  // unique index is one `attraction_feedback` row per (user, category), so the
+  // standing row is an upvote or a downvote and never both, and the ranker's
+  // own API has no such guard. Pinning the arithmetic down anyway: the two
+  // occurrence-scaled sides are a plain sum, so equal counts cancel exactly and
+  // leave the flat stated preference standing rather than being counted twice
+  // or dropped entirely.
+  it("nets the two occurrence-scaled signals against each other, leaving the flat boost", () => {
+    const neutral = scoreOf("museum", {});
+
+    expect(
+      scoreOf("museum", {
+        preferred: ["museum"],
+        upvoted: upvotes(["museum", 2]),
+        downvoted: downvotes(["museum", 2]),
+      }),
+    ).toBeCloseTo(neutral + PREFERRED_CATEGORY_BOOST);
+
+    // And the stronger side wins when the counts differ.
+    expect(
+      scoreOf("museum", {
+        upvoted: upvotes(["museum", 4]),
+        downvoted: downvotes(["museum", 1]),
+      }),
+    ).toBeCloseTo(
+      neutral + MAX_OCCURRENCE_PREFERENCE_BOOST - PER_OCCURRENCE_DOWNVOTE_PENALTY,
+    );
+  });
+
+  // Both exclusions are unions, not alternatives — a downvoted category stays
+  // barred from exploration when an upvote map is also in play.
+  it("keeps barring downvoted categories from exploration alongside upvoted ones", () => {
+    const ranked = rankAttractions(
+      [museum, viewpoint, makeAttraction("food", "food", 32.0805)],
+      {
+        origin,
+        preferredCategories: ["museum"],
+        upvotedCategories: upvotes(["food", 1]),
+        downvotedCategories: downvotes(["viewpoint", 1]),
+        availableMinutes: 90,
+        walkingPaceMinPerKm: 15,
+        allowExploration: true,
+        random: () => 0,
+      },
+    );
+
+    expect(ranked.some((a) => a.isExplorationPick)).toBe(false);
   });
 });

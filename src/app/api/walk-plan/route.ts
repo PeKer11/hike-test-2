@@ -10,6 +10,7 @@ import { buildWalkPlan } from "@/lib/optimization/tsp-planner";
 import {
   getDownvotedCategories,
   getPreferredCategories,
+  getUpvotedCategories,
 } from "@/lib/preferences/preference-store";
 import { createClient } from "@/lib/supabase/server";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
@@ -50,16 +51,19 @@ interface ProfileCategories {
   preferredCategories: AttractionCategory[] | undefined;
   /** Each downvoted category with how many times it has been voted down. */
   downvotedCategories: Map<AttractionCategory, number> | undefined;
+  /** Each upvoted category with how many times it has been voted up. */
+  upvotedCategories: Map<AttractionCategory, number> | undefined;
 }
 
 /**
  * What the walker has told us over time, folded into what they ticked for this
  * particular walk. The likes are a union, not a fallback: the "Interests" boxes
  * say what they are in the mood for today, the profile says who they are, and
- * neither is allowed to silently erase the other. The dislikes only ever come
- * from the profile — there is no "not this" box on the form.
+ * neither is allowed to silently erase the other. The standing up- and
+ * downvotes only ever come from the profile — the form has no "not this" box,
+ * and no way to say a category has worked out well before.
  *
- * Both reads share the one session lookup, and both are best effort. Runs only
+ * All three reads share the one session lookup, and each is best effort. Runs only
  * when we are about to rank discovered POIs, so a pace-triggered rebuild of a
  * walk already in progress still costs no Supabase round trip. Signed out,
  * unconfigured, or a failed read all mean "nothing standing on file" — never a
@@ -71,6 +75,7 @@ async function withProfilePreferences(
   const body = Array.isArray(fromBody) ? fromBody : [];
   let preferred: AttractionCategory[] = [];
   let downvoted: Map<AttractionCategory, number> = new Map();
+  let upvoted: Map<AttractionCategory, number> = new Map();
 
   try {
     const supabase = await createClient();
@@ -78,11 +83,14 @@ async function withProfilePreferences(
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      // Caught per read, not just by the outer try: one of the two blowing up
-      // must not throw away what the other already found.
-      [preferred, downvoted] = await Promise.all([
+      // Caught per read, not just by the outer try: one of the three blowing up
+      // must not throw away what the others already found.
+      [preferred, downvoted, upvoted] = await Promise.all([
         getPreferredCategories(supabase, user.id).catch(() => []),
         getDownvotedCategories(supabase, user.id).catch(
+          () => new Map<AttractionCategory, number>(),
+        ),
+        getUpvotedCategories(supabase, user.id).catch(
           () => new Map<AttractionCategory, number>(),
         ),
       ]);
@@ -95,6 +103,7 @@ async function withProfilePreferences(
   return {
     preferredCategories: merged.length > 0 ? merged : undefined,
     downvotedCategories: downvoted.size > 0 ? downvoted : undefined,
+    upvotedCategories: upvoted.size > 0 ? upvoted : undefined,
   };
 }
 
@@ -159,6 +168,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Topped up from the profile only on the branches that actually rank.
     let preferredCategories = body.preferredCategories;
     let downvotedCategories: Map<AttractionCategory, number> | undefined;
+    let upvotedCategories: Map<AttractionCategory, number> | undefined;
     if (explicitAttractions && explicitAttractions.length > 0) {
       selected = explicitAttractions;
 
@@ -175,13 +185,14 @@ export async function POST(request: Request): Promise<NextResponse> {
         explicitMinutes < availableMinutes * FILL_THRESHOLD
       ) {
         const raw = await fetchAttractions(origin, radiusMeters);
-        ({ preferredCategories, downvotedCategories } =
+        ({ preferredCategories, downvotedCategories, upvotedCategories } =
           await withProfilePreferences(body.preferredCategories));
 
         const ranked = rankAttractions(raw, {
           origin,
           preferredCategories,
           downvotedCategories,
+          upvotedCategories,
           availableMinutes,
           walkingPaceMinPerKm,
           allowExploration: true,
@@ -216,13 +227,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     } else {
       const raw = await fetchAttractions(origin, radiusMeters);
-      ({ preferredCategories, downvotedCategories } =
+      ({ preferredCategories, downvotedCategories, upvotedCategories } =
         await withProfilePreferences(body.preferredCategories));
 
       const ranked = rankAttractions(raw, {
         origin,
         preferredCategories,
         downvotedCategories,
+        upvotedCategories,
         availableMinutes,
         walkingPaceMinPerKm,
         allowExploration: true,
