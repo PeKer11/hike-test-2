@@ -22,6 +22,103 @@ const AVG_VISIT_MINUTES: Record<AttractionCategory, number> = {
   other: 15,
 };
 
+/**
+ * Multiplier bounds on the per-category base above.
+ *
+ * The base numbers come from what a visitor typically does at that kind of
+ * place, and tags are a weak proxy for size — a mapper who drew a footprint or
+ * filled in `building:levels` was not estimating anybody's visit. Halving and
+ * doubling is as far as that evidence stretches; past it the category itself is
+ * the better guess.
+ */
+const MIN_VISIT_MULTIPLIER = 0.5;
+const MAX_VISIT_MULTIPLIER = 2;
+
+/** Nothing is worth stopping for less than this, whatever the tags say. */
+const MIN_VISIT_MINUTES = 5;
+
+/**
+ * OSM subtypes that are a two-minute look, not a visit, regardless of what
+ * their category's base says. A statue and a castle are both `historic` and
+ * both rank as `landmark`, and charging 20 minutes for the statue is what
+ * pushes the castle out of the plan.
+ */
+const GLANCEABLE_MULTIPLIER = 0.5;
+const GLANCEABLE_HISTORIC = new Set([
+  "memorial",
+  "monument",
+  "wayside_cross",
+  "wayside_shrine",
+  "milestone",
+  "boundary_stone",
+  "tomb",
+]);
+
+/**
+ * Visit length for one element: the category base, adjusted by whatever size
+ * signals the element's own OSM tags happen to carry.
+ *
+ * Scoped to tags Overpass already returns, deliberately. The original item also
+ * wanted per-country and per-city variation, which needs a geo dataset nothing
+ * here has — a hand-written table of guesses would look like data and be worth
+ * less than the flat constant it replaced. Everything below is read off the
+ * element itself.
+ *
+ * `area` is not used as a size signal despite being an obvious candidate: in
+ * OSM it is a boolean that marks a closed way as a polygon rather than a line,
+ * so it says nothing about how big the polygon is. What it hints at — the place
+ * has a footprint at all — is already covered better by the element being a way
+ * or relation rather than a node.
+ *
+ * Multipliers compound, so a six-storey museum drawn as a building gets both
+ * adjustments, then the clamp keeps the product honest.
+ */
+export function visitMinutesForElement(
+  category: AttractionCategory,
+  tags: Record<string, string>,
+  elementType: OverpassElement["type"],
+): number {
+  const base = AVG_VISIT_MINUTES[category];
+  let multiplier = 1;
+
+  // Drawn as a footprint rather than dropped as a point: somebody thought this
+  // place had an outline worth tracing, which is the closest thing to a size
+  // signal available without downloading geometry and computing the area.
+  if (elementType === "way" || elementType === "relation") multiplier *= 1.25;
+
+  // Storeys are a real proxy for how much there is to walk through inside.
+  const levels = Number(tags["building:levels"]);
+  if (Number.isFinite(levels)) {
+    if (levels >= 6) multiplier *= 1.5;
+    else if (levels >= 3) multiplier *= 1.25;
+  }
+
+  // How many people the place is built to hold — a 2000-seat theatre is a
+  // different evening from a 60-seat one.
+  const capacity = Number(tags.capacity);
+  if (Number.isFinite(capacity)) {
+    if (capacity >= 500) multiplier *= 1.5;
+    else if (capacity >= 100) multiplier *= 1.25;
+  }
+
+  if (
+    GLANCEABLE_HISTORIC.has(tags.historic) ||
+    tags.tourism === "artwork" ||
+    tags.man_made === "survey_point"
+  ) {
+    multiplier *= GLANCEABLE_MULTIPLIER;
+  }
+
+  const clamped = Math.min(
+    Math.max(multiplier, MIN_VISIT_MULTIPLIER),
+    MAX_VISIT_MULTIPLIER,
+  );
+
+  // Rounded to five minutes: these are estimates shown to a person planning an
+  // afternoon, and "27 min visit" claims a precision none of this has.
+  return Math.max(MIN_VISIT_MINUTES, Math.round((base * clamped) / 5) * 5);
+}
+
 // OSM tag → category mapping
 function inferCategory(tags: Record<string, string>): AttractionCategory {
   const { tourism, amenity, leisure, historic, natural, shop } = tags;
@@ -116,7 +213,7 @@ function elementToAttraction(el: OverpassElement): Attraction | null {
     name,
     coordinates: { lat, lng },
     category,
-    avgVisitMinutes: AVG_VISIT_MINUTES[category],
+    avgVisitMinutes: visitMinutesForElement(category, tags, el.type),
     tags,
   };
 }
