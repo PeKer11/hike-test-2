@@ -211,6 +211,11 @@ export function WalkPlannerApp({
   const [promptAttractions, setPromptAttractions] = useState<Attraction[] | null>(
     null,
   );
+  // Whether those named stops are the whole walk or just its must-haves. Off
+  // because naming three places and allowing three hours asks for three places,
+  // not for as many places as three hours holds — leftover time is not a
+  // request. The walker turns it on in the prompt panel when it is.
+  const [fillPromptWalk, setFillPromptWalk] = useState(false);
   // Walk length read out of that same free text, handed to the companion panel
   // as a starting value for its time field. Null until a prompt states one.
   const [promptDurationMinutes, setPromptDurationMinutes] = useState<
@@ -1115,6 +1120,8 @@ export function WalkPlannerApp({
                   onDurationDetected={setPromptDurationMinutes}
                   onOriginDetected={setPromptOrigin}
                   learnPreferences={walkSettings.preferenceLearningEnabled}
+                  fillRemainingTime={fillPromptWalk}
+                  onFillRemainingTimeChange={setFillPromptWalk}
                 />
               )}
               {feedbackAttractions && (
@@ -1132,9 +1139,9 @@ export function WalkPlannerApp({
                     promptAttractions && promptAttractions.length > 0
                       ? {
                           keepAttractions: promptAttractions,
-                          // Named stops are the must-haves, not the whole walk —
-                          // let discovery use up whatever time is left over.
-                          fillRemainingTime: true,
+                          // Only when the walker ticked the box. Leftover time
+                          // on its own is not a reason to insert more stops.
+                          fillRemainingTime: fillPromptWalk,
                         }
                       : undefined,
                   );

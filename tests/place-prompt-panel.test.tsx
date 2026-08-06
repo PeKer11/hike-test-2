@@ -252,3 +252,98 @@ describe("PlacePromptPanel", () => {
     expect(onOriginDetected).not.toHaveBeenCalled();
   });
 });
+
+// Naming three places and allowing three hours is a request for three places,
+// not for as many places as three hours holds. The old code read the leftover
+// budget as an instruction and there was no way to say otherwise.
+describe("PlacePromptPanel — filling leftover time", () => {
+  function renderAccepted(
+    fillRemainingTime: boolean,
+    onFillRemainingTimeChange = vi.fn(),
+  ) {
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={FOUND}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        fillRemainingTime={fillRemainingTime}
+        onFillRemainingTimeChange={onFillRemainingTimeChange}
+      />,
+    );
+    return onFillRemainingTimeChange;
+  }
+
+  async function acceptStops() {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ attractions: FOUND, unresolvedNames: [] }),
+      })),
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "מדרחוב וגן טייל" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+    await screen.findByText("זכרון יעקב");
+  }
+
+  it("offers the choice once stops have been accepted", async () => {
+    renderAccepted(false);
+    await acceptStops();
+
+    const toggle = screen.getByRole("checkbox", {
+      name: /Add more stops to fill my time/,
+    });
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    expect(
+      screen.getByText(/a walk through exactly these stops/),
+    ).toBeTruthy();
+  });
+
+  it("reports the walker turning it on", async () => {
+    const onChange = renderAccepted(false);
+    await acceptStops();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Add more stops to fill my time/,
+      }),
+    );
+
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it("says what it will do once it is on", async () => {
+    renderAccepted(true);
+    await acceptStops();
+
+    const toggle = screen.getByRole("checkbox", {
+      name: /Add more stops to fill my time/,
+    });
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText(/use up whatever time is left over/)).toBeTruthy();
+  });
+
+  // No accepted stops means no named list to leave alone.
+  it("does not ask before any stops are accepted", () => {
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        onFillRemainingTimeChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("checkbox", {
+        name: /Add more stops to fill my time/,
+      }),
+    ).toBeNull();
+  });
+});

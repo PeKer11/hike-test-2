@@ -43,6 +43,19 @@ interface PlacePromptPanelProps {
    * are signed in. Defaults to off so nothing is learned unless asked for.
    */
   learnPreferences?: boolean;
+  /**
+   * Whether the walk may add discovered stops on top of the named ones.
+   *
+   * Off by default, and that is the whole point of it existing. Naming three
+   * places and allowing three hours is not a request for as many stops as three
+   * hours holds — it is a request for those three places, with time to spare.
+   * The app used to read the leftover budget as an instruction to keep
+   * inserting POIs, which is only right for the other reading of a named stop
+   * ("start me here, surprise me with the rest"), and there was no way to say
+   * which of the two the walker meant.
+   */
+  fillRemainingTime?: boolean;
+  onFillRemainingTimeChange?: (fill: boolean) => void;
 }
 
 export function PlacePromptPanel({
@@ -54,6 +67,8 @@ export function PlacePromptPanel({
   onDurationDetected,
   onOriginDetected,
   learnPreferences = false,
+  fillRemainingTime = false,
+  onFillRemainingTimeChange,
 }: PlacePromptPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [attractions, setAttractions] = useState<Attraction[]>([]);
@@ -217,6 +232,27 @@ export function PlacePromptPanel({
               {acceptedAttractions.length === 1 ? "" : "s"} will be used for the
               next walk you build.
             </p>
+            {/* Asked here rather than in settings because this is the only
+                moment the question exists — the walker has just named stops and
+                is about to build the walk around them. */}
+            <label className="flex items-start gap-2 text-xs text-charcoal/70">
+              <input
+                type="checkbox"
+                checked={fillRemainingTime}
+                onChange={(event) =>
+                  onFillRemainingTimeChange?.(event.target.checked)
+                }
+                className="mt-0.5 h-4 w-4 rounded border-charcoal/15 text-terra focus:ring-terra"
+              />
+              <span>
+                Add more stops to fill my time
+                <span className="block text-charcoal/50">
+                  {fillRemainingTime
+                    ? "We'll find extra places to use up whatever time is left over."
+                    : "Off — you'll get a walk through exactly these stops, even if time is left over."}
+                </span>
+              </span>
+            </label>
             <Button
               variant="secondary"
               fullWidth
