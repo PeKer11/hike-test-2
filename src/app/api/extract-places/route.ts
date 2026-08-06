@@ -9,10 +9,17 @@ import { rankAttractions } from "@/lib/attractions/attraction-ranker";
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
 import {
   buildExtractionResult,
+  isUnderSpecifiedPrompt,
   pickNeedAttractions,
+  suggestClarificationCategories,
   type GeocodedPlaceName,
 } from "@/lib/places/place-extractor";
-import { learnPreferencesFromText } from "@/lib/preferences/preference-store";
+import { ATTRACTION_CATEGORIES } from "@/lib/preferences/preference-extractor";
+import {
+  getDownvotedCategories,
+  getPreferredCategories,
+  learnPreferencesFromText,
+} from "@/lib/preferences/preference-store";
 import { createClient } from "@/lib/supabase/server";
 import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
 
@@ -21,6 +28,25 @@ interface ExtractPlacesRequest {
   nearLocation?: Coordinates;
   /** Client-side "Remember my preferences" setting. Absent means off. */
   learnPreferences?: boolean;
+  /**
+   * Set only by the clarifying-question chips: the walker answered "what kind
+   * of walk?" by tapping one, and this re-runs the same prompt with that answer
+   * supplied. It replaces what the model read out of the text rather than
+   * adding to it — the text said nothing, which is why we asked.
+   */
+  categoryNeeds?: AttractionCategory[];
+}
+
+function toRequestedNeeds(value: unknown): AttractionCategory[] | null {
+  if (!Array.isArray(value) || value.length === 0) {
+    return null;
+  }
+
+  const needs = value.filter((category): category is AttractionCategory =>
+    (ATTRACTION_CATEGORIES as string[]).includes(category as string),
+  );
+
+  return needs.length > 0 ? needs : null;
 }
 
 const MAX_PROMPT_LENGTH = 1000;
@@ -55,6 +81,12 @@ function toBias(value: Coordinates | undefined): Coordinates | undefined {
   return { lat, lng };
 }
 
+/** A located name, plus what Nominatim thinks it is. */
+interface GeocodeMatch {
+  coordinates: Coordinates;
+  kind: string | null;
+}
+
 /**
  * Best-effort geocode of a single name. Returns null instead of throwing — one
  * failed lookup shouldn't sink the whole prompt, the name falls through to
@@ -63,13 +95,18 @@ function toBias(value: Coordinates | undefined): Coordinates | undefined {
 async function geocode(
   name: string,
   bias: Coordinates | undefined,
-): Promise<Coordinates | null> {
+): Promise<GeocodeMatch | null> {
   try {
     const [match] = await searchPlaces(name, 1, bias);
     const lat = Number(match?.lat);
     const lng = Number(match?.lon);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      return { lat, lng };
+      return {
+        coordinates: { lat, lng },
+        // `addresstype` is the more specific of the two and is what says
+        // "city" for a city; `type` is the fallback for older replies.
+        kind: match?.addresstype ?? match?.type ?? null,
+      };
     }
   } catch {
     // Fall through to null.
@@ -165,6 +202,47 @@ async function learnPreferences(
   }
 }
 
+/**
+ * The categories to offer when the prompt named a place and nothing else, or
+ * null when there is nothing to ask.
+ *
+ * Read from the walker's saved profile so the question is theirs rather than a
+ * generic one: what they have said they like leads, what they have voted down
+ * is not asked about at all. Best effort like every other profile read on this
+ * path — signed out, unconfigured or a failed read all fall back to the plain
+ * list, because a preference-blind question still beats silently guessing a
+ * walk, which is what this replaces.
+ */
+async function clarificationFor(
+  underSpecified: boolean,
+): Promise<AttractionCategory[] | null> {
+  if (!underSpecified) {
+    return null;
+  }
+
+  let preferred: AttractionCategory[] = [];
+  let downvoted: Map<AttractionCategory, number> = new Map();
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      [preferred, downvoted] = await Promise.all([
+        getPreferredCategories(supabase, user.id).catch(() => []),
+        getDownvotedCategories(supabase, user.id).catch(
+          () => new Map<AttractionCategory, number>(),
+        ),
+      ]);
+    }
+  } catch {
+    // No session, no Supabase, or a failed read — the plain list.
+  }
+
+  return suggestClarificationCategories(preferred, downvoted.keys());
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const body = (await request.json()) as ExtractPlacesRequest;
@@ -190,6 +268,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     const { places, contextLocation, durationMinutes, categoryNeeds } =
       await extractPlaceNames(prompt);
 
+    // A chip the walker tapped answers the question the text left open, so it
+    // stands in for what the model read (nothing) rather than joining it.
+    const requestedNeeds = toRequestedNeeds(body.categoryNeeds);
+    const effectiveNeeds = requestedNeeds ?? categoryNeeds;
+
     // Where the user says they want to walk beats where they happen to be
     // standing: geocode the area named in the prompt first, unbiased (it is the
     // anchor, not something to anchor), and search the rest around it. Without
@@ -202,7 +285,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const spacedGeocode = async (
       name: string,
       searchBias: Coordinates | undefined,
-    ): Promise<Coordinates | null> => {
+    ): Promise<GeocodeMatch | null> => {
       if (geocodeCalls > 0) {
         await delay(GEOCODE_DELAY_MS);
       }
@@ -214,28 +297,37 @@ export async function POST(request: Request): Promise<NextResponse> {
     // walk starts, so the companion form can fill its origin from it.
     let contextCoordinates: Coordinates | null = null;
     if (contextLocation) {
-      contextCoordinates = await spacedGeocode(contextLocation, undefined);
-      if (contextCoordinates) {
-        bias = contextCoordinates;
+      const contextMatch = await spacedGeocode(contextLocation, undefined);
+      if (contextMatch) {
+        contextCoordinates = contextMatch.coordinates;
+        bias = contextMatch.coordinates;
       }
     }
 
     const entries: GeocodedPlaceName[] = [];
+    // What Nominatim called the one place, when there is exactly one — the only
+    // thing that tells "a walk in Zichron Yaakov" apart from "a walk to Habima
+    // Square", both of which arrive as one entry with no context location.
+    let solePlaceKind: string | null = null;
     for (const name of places) {
-      let coordinates = await spacedGeocode(name, bias);
+      let match = await spacedGeocode(name, bias);
 
       // Nothing in the box under the user's wording. OpenStreetMap often tags
       // such a place only under its formal name ("מדרחוב" is mapped as the
       // street "המייסדים"), so ask the model for that name and try once more —
       // once, never in a loop. The stop keeps the user's own wording either way.
-      if (!coordinates) {
+      if (!match) {
         const canonical = await canonicalNameFor(name, contextLocation);
         if (canonical) {
-          coordinates = await spacedGeocode(canonical, bias);
+          match = await spacedGeocode(canonical, bias);
         }
       }
 
-      entries.push({ name, coordinates });
+      if (places.length === 1) {
+        solePlaceKind = match?.kind ?? null;
+      }
+
+      entries.push({ name, coordinates: match?.coordinates ?? null });
     }
 
     const { attractions, unresolvedNames } = buildExtractionResult(entries);
@@ -244,12 +336,28 @@ export async function POST(request: Request): Promise<NextResponse> {
     // area the walker asked about if we could locate it, otherwise where they
     // are standing.
     const needAttractions = await findNeedAttractions(
-      categoryNeeds,
-      bias,
+      effectiveNeeds,
+      // One place and no context area means that place IS where the walk is —
+      // "a walk in Zichron Yaakov" with a chip tapped has to look for food in
+      // Zichron Yaakov, not around whatever GPS fix the browser handed us.
+      // With several places, or an area named separately, the bias already
+      // points at the right neighbourhood.
+      (places.length === 1 && !contextLocation
+        ? entries[0]?.coordinates
+        : undefined) ?? bias,
       durationMinutes,
     );
 
     await learnPreferences(prompt, body.learnPreferences);
+
+    const clarificationCategories = await clarificationFor(
+      isUnderSpecifiedPrompt({
+        places,
+        contextLocation: contextLocation ?? null,
+        categoryNeeds: effectiveNeeds,
+        placeKind: solePlaceKind,
+      }),
+    );
 
     return NextResponse.json({
       extractedNames: places,
@@ -260,7 +368,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       durationMinutes: durationMinutes ?? null,
       // Reported so a need that found nothing is still visible when debugging —
       // no UI reads this yet.
-      categoryNeeds,
+      categoryNeeds: effectiveNeeds,
+      // The walker named a place and nothing else. The walk is still built and
+      // returned — this only offers to make it a walk about something.
+      needsClarification: clarificationCategories !== null,
+      clarificationCategories: clarificationCategories ?? [],
     });
   } catch (error) {
     const message =

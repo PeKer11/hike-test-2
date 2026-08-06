@@ -6,6 +6,8 @@ const mockSearchPlaces = vi.fn();
 const mockGetUser = vi.fn();
 const mockLearnPreferencesFromText = vi.fn();
 const mockFetchAttractions = vi.fn();
+const mockGetPreferredCategories = vi.fn();
+const mockGetDownvotedCategories = vi.fn();
 
 vi.mock("@/lib/api/gemini-client", () => ({
   // The real `extractPlaceNames` always returns all four fields, so the mock
@@ -31,6 +33,10 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/preferences/preference-store", () => ({
   learnPreferencesFromText: (...args: unknown[]) =>
     mockLearnPreferencesFromText(...args),
+  getPreferredCategories: (...args: unknown[]) =>
+    mockGetPreferredCategories(...args),
+  getDownvotedCategories: (...args: unknown[]) =>
+    mockGetDownvotedCategories(...args),
 }));
 
 vi.mock("@/lib/api/nominatim-client", () => ({
@@ -61,6 +67,10 @@ describe("POST /api/extract-places", () => {
     mockLearnPreferencesFromText.mockResolvedValue(null);
     mockFetchAttractions.mockReset();
     mockFetchAttractions.mockResolvedValue([]);
+    mockGetPreferredCategories.mockReset();
+    mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDownvotedCategories.mockReset();
+    mockGetDownvotedCategories.mockResolvedValue(new Map());
   });
 
   it("reports a name with no in-box match as unresolved", async () => {
@@ -508,5 +518,173 @@ describe("POST /api/extract-places", () => {
 
     // Unlike preference learning, an immediate need needs no login.
     expect(mockFetchAttractions).toHaveBeenCalled();
+  });
+});
+
+// "bring me a walk in Zichron Yaakov" — a place and no intent at all. The old
+// answer was a silently guessed generic walk.
+describe("POST /api/extract-places — under-specified prompts", () => {
+  beforeEach(() => {
+    mockExtractPlaceNames.mockReset();
+    mockResolveCanonicalName.mockReset();
+    mockResolveCanonicalName.mockResolvedValue(null);
+    mockSearchPlaces.mockReset();
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockLearnPreferencesFromText.mockReset();
+    mockLearnPreferencesFromText.mockResolvedValue(null);
+    mockFetchAttractions.mockReset();
+    mockFetchAttractions.mockResolvedValue([]);
+    mockGetPreferredCategories.mockReset();
+    mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDownvotedCategories.mockReset();
+    mockGetDownvotedCategories.mockResolvedValue(new Map());
+  });
+
+  function geocodesTo(kind: string) {
+    mockSearchPlaces.mockResolvedValue([
+      { lat: "32.5736", lon: "34.9522", addresstype: kind },
+    ]);
+  }
+
+  it("asks what kind of walk when the prompt names only an area", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["זכרון יעקב"],
+      contextLocation: null,
+    });
+    geocodesTo("town");
+
+    const response = await POST(
+      postRequest({ prompt: "תביא לי טיול בזכרון יעקב" }),
+    );
+    const data = await response.json();
+
+    expect(data.needsClarification).toBe(true);
+    expect(data.clarificationCategories.length).toBeGreaterThan(0);
+    // The guessed walk is still there — the question does not block it.
+    expect(data.attractions).toHaveLength(1);
+  });
+
+  it("does not ask when the one place is a real destination", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["Habima Square"],
+      contextLocation: null,
+    });
+    geocodesTo("square");
+
+    const response = await POST(postRequest({ prompt: "Habima Square" }));
+    const data = await response.json();
+
+    expect(data.needsClarification).toBe(false);
+    expect(data.clarificationCategories).toEqual([]);
+  });
+
+  it("does not ask when the prompt already stated a need", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["זכרון יעקב"],
+      contextLocation: null,
+      categoryNeeds: ["food"],
+    });
+    geocodesTo("town");
+
+    const response = await POST(
+      postRequest({ prompt: "טיול בזכרון יעקב, ומשהו לאכול" }),
+    );
+    const data = await response.json();
+
+    expect(data.needsClarification).toBe(false);
+  });
+
+  it("does not ask when the area could not be located at all", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["Nowheresville"],
+      contextLocation: null,
+    });
+    mockSearchPlaces.mockResolvedValue([]);
+
+    const response = await POST(postRequest({ prompt: "Nowheresville" }));
+    const data = await response.json();
+
+    expect(data.needsClarification).toBe(false);
+  });
+
+  it("leads with a category the walker is known to like", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["זכרון יעקב"],
+      contextLocation: null,
+    });
+    geocodesTo("town");
+    mockGetPreferredCategories.mockResolvedValue(["shopping"]);
+    mockGetDownvotedCategories.mockResolvedValue(new Map([["museum", 2]]));
+
+    const response = await POST(postRequest({ prompt: "טיול בזכרון יעקב" }));
+    const data = await response.json();
+
+    expect(data.clarificationCategories[0]).toBe("shopping");
+    expect(data.clarificationCategories).not.toContain("museum");
+  });
+
+  it("still asks a generic question when the profile read fails", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["זכרון יעקב"],
+      contextLocation: null,
+    });
+    geocodesTo("town");
+    mockGetPreferredCategories.mockRejectedValue(new Error("supabase down"));
+    mockGetDownvotedCategories.mockRejectedValue(new Error("supabase down"));
+
+    const response = await POST(postRequest({ prompt: "טיול בזכרון יעקב" }));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.needsClarification).toBe(true);
+    expect(data.clarificationCategories[0]).toBe("landmark");
+  });
+
+  // The chip the walker tapped comes back as `categoryNeeds`, which is what
+  // makes the second run find a real stop of that kind.
+  it("plans for a tapped chip and stops asking", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["זכרון יעקב"],
+      contextLocation: null,
+    });
+    geocodesTo("town");
+    mockFetchAttractions.mockResolvedValue([
+      {
+        id: "osm-node-1",
+        name: "Winery",
+        coordinates: { lat: 32.574, lng: 34.952 },
+        category: "food",
+        avgVisitMinutes: 45,
+        tags: {},
+      },
+    ]);
+
+    const response = await POST(
+      postRequest({ prompt: "טיול בזכרון יעקב", categoryNeeds: ["food"] }),
+    );
+    const data = await response.json();
+
+    expect(data.needsClarification).toBe(false);
+    expect(data.categoryNeeds).toEqual(["food"]);
+    expect(
+      data.attractions.map((a: { name: string }) => a.name),
+    ).toContain("Winery");
+  });
+
+  it("ignores a chip value that is not a known category", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["זכרון יעקב"],
+      contextLocation: null,
+    });
+    geocodesTo("town");
+
+    const response = await POST(
+      postRequest({ prompt: "טיול בזכרון יעקב", categoryNeeds: ["sushi"] }),
+    );
+    const data = await response.json();
+
+    expect(data.categoryNeeds).toEqual([]);
+    expect(data.needsClarification).toBe(true);
   });
 });

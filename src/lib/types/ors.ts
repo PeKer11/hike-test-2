@@ -94,4 +94,11 @@ export interface NominatimPlace {
   display_name: string;
   lat: string;
   lon: string;
+  /**
+   * What kind of thing was found — `city`, `town`, `theatre`, `pedestrian`.
+   * Optional because it is only present on `jsonv2` replies and only used to
+   * tell an area apart from a destination (`place-extractor.ts`).
+   */
+  addresstype?: string;
+  type?: string;
 }

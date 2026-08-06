@@ -413,3 +413,125 @@ export function buildExtractionResult(
 
   return { attractions, unresolvedNames };
 }
+
+// ---------------------------------------------------------------------------
+// Under-specified prompts
+// ---------------------------------------------------------------------------
+
+/**
+ * Nominatim place kinds (`addresstype`, else `type`) that describe an AREA
+ * rather than somewhere you can stand in front of.
+ *
+ * This is the signal that separates "bring me a walk in Zichron Yaakov" from
+ * "bring me a walk to Habima Square". The extraction schema cannot tell them
+ * apart — both come back as one entry in `places` with a null `contextLocation`,
+ * because the prompt's own rule is that an area stays in `places` when nothing
+ * smaller was named. The geocode already ran, and it knows which one it found.
+ */
+const AREA_PLACE_KINDS = new Set([
+  "administrative",
+  "borough",
+  "city",
+  "city_district",
+  "county",
+  "district",
+  "hamlet",
+  "island",
+  "locality",
+  "municipality",
+  "neighbourhood",
+  "province",
+  "quarter",
+  "region",
+  "state",
+  "suburb",
+  "town",
+  "village",
+]);
+
+/**
+ * The kinds of walk worth offering someone who named a place and nothing else.
+ *
+ * Deliberately short and deliberately not `ATTRACTION_CATEGORIES`: this is a
+ * question, and a question with ten options is a form. These are the ones that
+ * describe a walk rather than a stop on one — nobody sets out for an afternoon
+ * of "other", and "shopping" or "entertainment" are things you do somewhere,
+ * not reasons to walk a town. They still reach a walker who has told us they
+ * like them, through the preferred-first ordering below.
+ */
+export const CLARIFICATION_CATEGORIES: AttractionCategory[] = [
+  "landmark",
+  "nature",
+  "food",
+  "museum",
+  "viewpoint",
+  "park",
+];
+
+/** How many chips to offer. Four fits one row on a phone and still asks a real question. */
+export const MAX_CLARIFICATION_CATEGORIES = 4;
+
+/**
+ * Whether the walker named a place and gave us nothing else to go on.
+ *
+ * All four conditions matter. A `contextLocation` means something smaller was
+ * named alongside the area; more than one place means they have a route in
+ * mind; a `categoryNeed` is a stated intent already ("somewhere to eat"); and
+ * a place that geocoded to something other than an area is a real destination,
+ * however bare the sentence around it was.
+ */
+export function isUnderSpecifiedPrompt(input: {
+  places: string[];
+  contextLocation: string | null;
+  categoryNeeds: AttractionCategory[];
+  /** `addresstype` (else `type`) of the one geocoded place, or null if it never resolved. */
+  placeKind: string | null;
+}): boolean {
+  return (
+    input.contextLocation === null &&
+    input.places.length === 1 &&
+    input.categoryNeeds.length === 0 &&
+    input.placeKind !== null &&
+    AREA_PLACE_KINDS.has(input.placeKind)
+  );
+}
+
+/**
+ * What to ask about, for this walker rather than for walkers in general.
+ *
+ * Two rules, and they are not the same rule mirrored. A downvoted category is
+ * removed outright: asking someone whether they want the thing they have
+ * already told us they do not is the app not listening, and it costs one of
+ * only four slots. A liked category is moved to the front rather than being the
+ * whole answer — the question is what they want *today*, and someone who
+ * usually likes museums may still be out for a walk by the sea.
+ *
+ * Preferences the short list does not contain are still offered when the walker
+ * has one, which is the point of leading with them rather than filtering the
+ * fixed list by them.
+ *
+ * The empty case falls back to the plain list: if every suggestion has been
+ * voted down, asking something is still better than asking nothing, and the
+ * walker can ignore the chips and just build the walk.
+ */
+export function suggestClarificationCategories(
+  preferredCategories: AttractionCategory[],
+  downvotedCategories: Iterable<AttractionCategory>,
+  limit: number = MAX_CLARIFICATION_CATEGORIES,
+): AttractionCategory[] {
+  const downvoted = new Set(downvotedCategories);
+  const ordered: AttractionCategory[] = [];
+
+  for (const category of [...preferredCategories, ...CLARIFICATION_CATEGORIES]) {
+    if (category === "other") continue;
+    if (downvoted.has(category)) continue;
+    if (ordered.includes(category)) continue;
+    ordered.push(category);
+  }
+
+  if (ordered.length === 0) {
+    return CLARIFICATION_CATEGORIES.slice(0, limit);
+  }
+
+  return ordered.slice(0, limit);
+}

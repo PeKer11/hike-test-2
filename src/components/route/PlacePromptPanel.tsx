@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Button, Card, LoadingSpinner } from "@/components/ui";
-import type { Attraction, Coordinates } from "@/lib/types";
+import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
 
 interface ExtractPlacesResponse {
   extractedNames?: string[];
@@ -11,8 +11,26 @@ interface ExtractPlacesResponse {
   unresolvedNames?: string[];
   contextCoordinates?: Coordinates | null;
   durationMinutes?: number | null;
+  /** The prompt named a place and nothing else — ask what kind of walk. */
+  needsClarification?: boolean;
+  clarificationCategories?: AttractionCategory[];
   error?: string;
 }
+
+// Chip labels. The stored category names are a scoring vocabulary, not the
+// words anyone would answer "what kind of walk?" with.
+const CATEGORY_LABELS: Record<AttractionCategory, string> = {
+  landmark: "History & landmarks",
+  museum: "Museums",
+  park: "Parks",
+  food: "Food",
+  viewpoint: "Views",
+  religious: "Religious sites",
+  shopping: "Shopping",
+  entertainment: "Things to do",
+  nature: "Nature",
+  other: "Anything",
+};
 
 interface PlacePromptPanelProps {
   /** Biases geocoding so "Habima" resolves in the right city. */
@@ -72,6 +90,12 @@ export function PlacePromptPanel({
 }: PlacePromptPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [attractions, setAttractions] = useState<Attraction[]>([]);
+  // Set when the prompt named a place and stated no intent at all. Cleared as
+  // soon as one is picked — the question has been answered, and leaving the
+  // chips up would invite the walker to answer it again.
+  const [clarificationCategories, setClarificationCategories] = useState<
+    AttractionCategory[]
+  >([]);
   // Extraction is fuzzy — the user drops the ones we got wrong before accepting.
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [unresolvedNames, setUnresolvedNames] = useState<string[]>([]);
@@ -79,7 +103,7 @@ export function PlacePromptPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const extract = async () => {
+  const extract = async (categoryNeeds?: AttractionCategory[]) => {
     const trimmed = prompt.trim();
     if (!trimmed) {
       setError("Describe the places you want to see.");
@@ -89,6 +113,7 @@ export function PlacePromptPanel({
     setIsLoading(true);
     setError(null);
     setHasResult(false);
+    setClarificationCategories([]);
     // Drop the previous run's pins now — a failed extraction must not leave the
     // old candidates sitting on the map.
     onFoundPlacesChange([]);
@@ -100,6 +125,7 @@ export function PlacePromptPanel({
           prompt: trimmed,
           nearLocation: nearLocation ?? undefined,
           learnPreferences,
+          categoryNeeds,
         }),
       });
       const data = (await res.json()) as ExtractPlacesResponse;
@@ -113,6 +139,9 @@ export function PlacePromptPanel({
       onFoundPlacesChange(data.attractions ?? []);
       setUnresolvedNames(data.unresolvedNames ?? []);
       setHasResult(true);
+      setClarificationCategories(
+        data.needsClarification ? (data.clarificationCategories ?? []) : [],
+      );
 
       if (typeof data.durationMinutes === "number") {
         onDurationDetected?.(data.durationMinutes);
@@ -169,6 +198,30 @@ export function PlacePromptPanel({
 
       {error && (
         <p className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">{error}</p>
+      )}
+
+      {/* Asked instead of silently guessing a generic walk. The walk we would
+          have guessed is still there underneath — tapping a chip just re-runs
+          the same prompt with an answer, it does not block anything. */}
+      {clarificationCategories.length > 0 && (
+        <div className="space-y-2 rounded-md bg-cream/70 p-2">
+          <p className="text-xs text-charcoal/80">
+            What kind of walk are you after?
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {clarificationCategories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                disabled={isLoading}
+                onClick={() => void extract([category])}
+                className="cursor-pointer rounded-full border border-terra/40 bg-white px-3 py-1 text-xs text-forest transition hover:bg-terra/10 disabled:cursor-default disabled:opacity-50"
+              >
+                {CATEGORY_LABELS[category]}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {hasResult && selectedAttractions.length > 0 && (

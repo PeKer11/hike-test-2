@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildExtractionResult,
   CANONICAL_NAME_SYSTEM_PROMPT,
+  CLARIFICATION_CATEGORIES,
+  isUnderSpecifiedPrompt,
+  MAX_CLARIFICATION_CATEGORIES,
+  suggestClarificationCategories,
   parseCanonicalName,
   parseCategoryNeeds,
   parseContextLocation,
@@ -14,7 +18,7 @@ import {
   toExplicitAttraction,
 } from "@/lib/places/place-extractor";
 import { ATTRACTION_CATEGORIES } from "@/lib/preferences/preference-extractor";
-import type { Attraction } from "@/lib/types";
+import type { Attraction, AttractionCategory } from "@/lib/types";
 
 describe("PLACE_EXTRACTION_SYSTEM_PROMPT", () => {
   it("tells the model that an area named only as location context is not a stop", () => {
@@ -415,5 +419,111 @@ describe("buildExtractionResult", () => {
       attractions: [],
       unresolvedNames: [],
     });
+  });
+});
+
+describe("isUnderSpecifiedPrompt", () => {
+  const base = {
+    places: ["זכרון יעקב"],
+    contextLocation: null,
+    categoryNeeds: [] as AttractionCategory[],
+    placeKind: "town",
+  };
+
+  it("recognises a place named with no stated intent", () => {
+    expect(isUnderSpecifiedPrompt(base)).toBe(true);
+  });
+
+  it.each(["city", "village", "suburb", "neighbourhood", "administrative"])(
+    "treats %s as an area",
+    (placeKind) => {
+      expect(isUnderSpecifiedPrompt({ ...base, placeKind })).toBe(true);
+    },
+  );
+
+  // The whole distinction the extraction schema cannot make: both arrive as one
+  // entry with a null context location.
+  it.each(["square", "theatre", "pedestrian", "museum"])(
+    "treats %s as a real destination",
+    (placeKind) => {
+      expect(isUnderSpecifiedPrompt({ ...base, placeKind })).toBe(false);
+    },
+  );
+
+  it("says nothing about a prompt that named a context area", () => {
+    expect(
+      isUnderSpecifiedPrompt({ ...base, contextLocation: "זכרון יעקב" }),
+    ).toBe(false);
+  });
+
+  it("says nothing about a prompt with a route in mind", () => {
+    expect(
+      isUnderSpecifiedPrompt({ ...base, places: ["מדרחוב", "גן טייל"] }),
+    ).toBe(false);
+  });
+
+  it("says nothing when an intent was already stated", () => {
+    expect(isUnderSpecifiedPrompt({ ...base, categoryNeeds: ["food"] })).toBe(
+      false,
+    );
+  });
+
+  it("says nothing when the place never geocoded", () => {
+    expect(isUnderSpecifiedPrompt({ ...base, placeKind: null })).toBe(false);
+  });
+});
+
+describe("suggestClarificationCategories", () => {
+  it("asks a generic question when nothing is known about the walker", () => {
+    expect(suggestClarificationCategories([], [])).toEqual(
+      CLARIFICATION_CATEGORIES.slice(0, MAX_CLARIFICATION_CATEGORIES),
+    );
+  });
+
+  it("leads with what the walker likes", () => {
+    const suggested = suggestClarificationCategories(["food"], []);
+
+    expect(suggested[0]).toBe("food");
+    expect(suggested).toHaveLength(MAX_CLARIFICATION_CATEGORIES);
+  });
+
+  // The point of leading rather than filtering: a liked category the short list
+  // does not contain still gets offered.
+  it("offers a liked category the fixed list does not carry", () => {
+    expect(suggestClarificationCategories(["shopping"], [])).toContain(
+      "shopping",
+    );
+  });
+
+  // Asymmetric on purpose. A downvote is an answer; a like is not the question.
+  it("never asks about something already voted down", () => {
+    const suggested = suggestClarificationCategories([], ["landmark", "food"]);
+
+    expect(suggested).not.toContain("landmark");
+    expect(suggested).not.toContain("food");
+    expect(suggested).toHaveLength(MAX_CLARIFICATION_CATEGORIES);
+  });
+
+  it("drops a liked category that has since been voted down", () => {
+    expect(suggestClarificationCategories(["museum"], ["museum"])).not.toContain(
+      "museum",
+    );
+  });
+
+  it("never offers `other` — it is not a kind of walk", () => {
+    expect(suggestClarificationCategories(["other"], [])).not.toContain("other");
+  });
+
+  it("does not repeat a liked category that is also on the fixed list", () => {
+    const suggested = suggestClarificationCategories(["nature"], []);
+
+    expect(new Set(suggested).size).toBe(suggested.length);
+  });
+
+  // Asking something beats asking nothing; the chips can simply be ignored.
+  it("falls back to the plain list when every suggestion is voted down", () => {
+    expect(
+      suggestClarificationCategories([], CLARIFICATION_CATEGORIES),
+    ).toEqual(CLARIFICATION_CATEGORIES.slice(0, MAX_CLARIFICATION_CATEGORIES));
   });
 });

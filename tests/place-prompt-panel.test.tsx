@@ -347,3 +347,97 @@ describe("PlacePromptPanel — filling leftover time", () => {
     ).toBeNull();
   });
 });
+
+describe("PlacePromptPanel — clarifying an under-specified prompt", () => {
+  function stubExtract(
+    responses: Record<string, unknown>[],
+  ): ReturnType<typeof vi.fn> {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => responses.shift() ?? {},
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  function renderPanel() {
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "טיול בזכרון יעקב" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+  }
+
+  it("offers the suggested categories as chips", async () => {
+    stubExtract([
+      {
+        attractions: [],
+        unresolvedNames: [],
+        needsClarification: true,
+        clarificationCategories: ["nature", "landmark", "food"],
+      },
+    ]);
+    renderPanel();
+
+    await screen.findByText("What kind of walk are you after?");
+    expect(screen.getByRole("button", { name: "Nature" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "History & landmarks" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Food" })).toBeTruthy();
+  });
+
+  it("says nothing when the prompt was specific enough", async () => {
+    stubExtract([
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        needsClarification: false,
+        clarificationCategories: [],
+      },
+    ]);
+    renderPanel();
+
+    await screen.findByText("זכרון יעקב");
+    expect(screen.queryByText("What kind of walk are you after?")).toBeNull();
+  });
+
+  it("re-runs the prompt with the tapped category and takes the question down", async () => {
+    const fetchMock = stubExtract([
+      {
+        attractions: [],
+        unresolvedNames: [],
+        needsClarification: true,
+        clarificationCategories: ["nature", "food"],
+      },
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        needsClarification: false,
+        clarificationCategories: [],
+      },
+    ]);
+    renderPanel();
+
+    await screen.findByText("What kind of walk are you after?");
+    fireEvent.click(screen.getByRole("button", { name: "Food" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText("What kind of walk are you after?"),
+      ).toBeNull(),
+    );
+
+    const secondBody = JSON.parse(
+      (fetchMock.mock.calls[1][1] as { body: string }).body,
+    );
+    expect(secondBody.categoryNeeds).toEqual(["food"]);
+    expect(secondBody.prompt).toBe("טיול בזכרון יעקב");
+  });
+});
