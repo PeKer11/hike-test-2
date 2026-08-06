@@ -12,6 +12,8 @@ export interface WalkCompanionInput {
   availableMinutes: number;
   walkingPaceMinPerKm: number;
   radiusMeters: number;
+  /** Undefined when the walker left the end-distance field blank. */
+  maxEndDistanceFromOriginMeters?: number;
   preferredCategories?: AttractionCategory[];
 }
 
@@ -118,6 +120,10 @@ export function WalkCompanionPanel({
   const [availableMinutes, setAvailableMinutes] = useState("90");
   const [pace, setPace] = useState(15);
   const [radiusKm, setRadiusKm] = useState("2");
+  // Blank on purpose, and stays blank unless the walker asks for it: most walks
+  // do not care where they end, and defaulting to a number would quietly start
+  // dropping stops from walks nobody constrained.
+  const [endDistanceKm, setEndDistanceKm] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<AttractionCategory[]>([]);
   const [isDetecting, setIsDetecting] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -275,11 +281,24 @@ export function WalkCompanionPanel({
       return;
     }
 
+    const trimmedEndDistance = endDistanceKm.trim();
+    const parsedEndDistanceKm =
+      trimmedEndDistance === "" ? null : parseFloat(trimmedEndDistance);
+    if (
+      parsedEndDistanceKm !== null &&
+      (!Number.isFinite(parsedEndDistanceKm) || parsedEndDistanceKm <= 0)
+    ) {
+      setFormError("Enter a valid finish distance (km > 0), or leave it blank.");
+      return;
+    }
+
     onBuildWalk({
       origin: { lat: parsedLat, lng: parsedLng },
       availableMinutes: parsedMinutes,
       walkingPaceMinPerKm: pace,
       radiusMeters: parsedRadiusKm * 1000,
+      maxEndDistanceFromOriginMeters:
+        parsedEndDistanceKm === null ? undefined : parsedEndDistanceKm * 1000,
       preferredCategories:
         selectedCategories.length > 0 ? selectedCategories : undefined,
     });
@@ -354,6 +373,26 @@ export function WalkCompanionPanel({
           onChange={(e) => setRadiusKm(e.target.value)}
           className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
         />
+      </div>
+
+      {/* Finish distance from the start */}
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-charcoal/80">
+          Max distance from start at end (km)
+        </label>
+        <input
+          type="number"
+          min={0.1}
+          max={50}
+          step={0.5}
+          placeholder="Any"
+          value={endDistanceKm}
+          onChange={(e) => setEndDistanceKm(e.target.value)}
+          className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
+        />
+        <p className="text-[11px] text-charcoal/50">
+          Leave blank to finish anywhere. Set it to come back near your car or hotel.
+        </p>
       </div>
 
       {/* Walking pace */}

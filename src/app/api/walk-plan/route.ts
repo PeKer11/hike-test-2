@@ -29,6 +29,9 @@ interface WalkPlanApiRequest {
   availableMinutes: number;
   walkingPaceMinPerKm?: number;
   radiusMeters?: number;
+  // Optional "don't strand me far from the start" constraint. Nothing to do
+  // with `radiusMeters`, which only bounds where candidates are searched for.
+  maxEndDistanceFromOriginMeters?: number;
   preferredCategories?: AttractionCategory[];
   // Set by the automatic pace-triggered rebuild: re-time the walk the user is
   // already on instead of discovering a whole new set of POIs.
@@ -166,6 +169,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       ? Math.min(Math.max(requestedRadius, 100), 10_000)
       : 2000;
 
+    // Blank in the form means "no constraint", so anything that is not a
+    // usable positive number is treated as absent rather than as zero — a zero
+    // limit would silently empty every walk.
+    const requestedEndDistance = body.maxEndDistanceFromOriginMeters;
+    const maxEndDistanceFromOriginMeters =
+      typeof requestedEndDistance === "number" &&
+      Number.isFinite(requestedEndDistance) &&
+      requestedEndDistance > 0
+        ? Math.min(requestedEndDistance, 50_000)
+        : undefined;
+
     const explicitAttractions = Array.isArray(body.explicitAttractions)
       ? body.explicitAttractions
       : undefined;
@@ -274,6 +288,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       availableMinutes,
       walkingPaceMinPerKm,
       radiusMeters,
+      maxEndDistanceFromOriginMeters,
       preferredCategories,
       explicitAttractions,
       pinnedAttractionIds,

@@ -415,6 +415,7 @@ export function WalkPlannerApp({
           availableMinutes: input.availableMinutes,
           walkingPaceMinPerKm: input.walkingPaceMinPerKm,
           radiusMeters: input.radiusMeters,
+          maxEndDistanceFromOriginMeters: input.maxEndDistanceFromOriginMeters,
           preferredCategories: input.preferredCategories,
           explicitAttractions: keepAttractions,
           pinnedAttractionIds: activePinnedIds,

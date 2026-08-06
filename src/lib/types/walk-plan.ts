@@ -37,6 +37,15 @@ export interface WalkPlanRequest {
   // Attractions the user pinned as "must keep". Never dropped by the planner,
   // even when they push the plan over the time budget (`feasible` goes false instead).
   pinnedAttractionIds?: string[];
+  /**
+   * How far from the start the walk is allowed to *finish*, straight-line —
+   * "don't strand me from my car/hotel". Distinct from `radiusMeters`, which
+   * only bounds where candidate attractions are looked for: a walk built
+   * entirely from POIs within 2 km of the origin can still end 2 km away on
+   * the far side of it. Undefined means no constraint, which is the behaviour
+   * every caller had before this existed.
+   */
+  maxEndDistanceFromOriginMeters?: number;
 }
 
 export interface WalkSegment {

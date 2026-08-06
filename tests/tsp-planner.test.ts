@@ -272,3 +272,128 @@ describe("planWalkOrder — haversine fallback", () => {
     expect(result.droppedAttractions.map((a) => a.id)).toEqual(["broken"]);
   });
 });
+
+// "Search radius" only bounds where candidates are looked for; a walk built
+// entirely from POIs 2 km out can still finish 2 km from the start, on the far
+// side of it. This constraint is the separate promise that it will not.
+describe("planWalkOrder — max end distance from origin", () => {
+  // ~111 m, ~556 m and ~1112 m from the origin, on one line north.
+  const near = makeAttraction("near", 32.081, 34.78);
+  const middle = makeAttraction("middle", 32.085, 34.78);
+  const far = makeAttraction("far", 32.09, 34.78);
+
+  it("leaves an unconstrained walk exactly as it was", async () => {
+    const result = await planWalkOrder(baseRequest, [near, middle, far]);
+
+    expect(result.orderedAttractions.map((a) => a.id)).toEqual([
+      "near",
+      "middle",
+      "far",
+    ]);
+    expect(result.droppedAttractions).toEqual([]);
+    expect(result.feasible).toBe(true);
+  });
+
+  it("leaves a walk that already finishes in range as it was", async () => {
+    const result = await planWalkOrder(
+      { ...baseRequest, maxEndDistanceFromOriginMeters: 2000 },
+      [near, middle, far],
+    );
+
+    expect(result.orderedAttractions.map((a) => a.id)).toEqual([
+      "near",
+      "middle",
+      "far",
+    ]);
+    expect(result.droppedAttractions).toEqual([]);
+    expect(result.feasible).toBe(true);
+  });
+
+  // The cheap fix: every stop is still visited, only the order changes.
+  it("reorders so the walk finishes in range, keeping every stop", async () => {
+    const result = await planWalkOrder(
+      { ...baseRequest, maxEndDistanceFromOriginMeters: 800 },
+      [near, middle, far],
+    );
+
+    // `middle` moves last — nearer the start than `far`, and the cheaper of the
+    // two rearrangements that finish in range.
+    expect(result.orderedAttractions.map((a) => a.id)).toEqual([
+      "near",
+      "far",
+      "middle",
+    ]);
+    expect(result.droppedAttractions).toEqual([]);
+    expect(
+      haversineDistance(origin, result.orderedAttractions.at(-1)!.coordinates),
+    ).toBeLessThanOrEqual(800);
+    expect(result.feasible).toBe(true);
+  });
+
+  // ~2224 m out: walking back from it to a nearer stop costs more time than
+  // the walker has, so there is no rearrangement to buy.
+  const stranding = makeAttraction("stranding", 32.1, 34.78);
+
+  it("drops the stop that strands the walker when no affordable order fits", async () => {
+    const result = await planWalkOrder(
+      {
+        ...baseRequest,
+        availableMinutes: 90,
+        maxEndDistanceFromOriginMeters: 500,
+      },
+      [near, stranding],
+    );
+
+    expect(result.orderedAttractions.map((a) => a.id)).toEqual(["near"]);
+    expect(result.droppedAttractions.map((a) => a.id)).toEqual(["stranding"]);
+    expect(result.feasible).toBe(true);
+  });
+
+  // Same as above, except the walker asked for that place by name. A pin
+  // already beats the time budget; it beats this too, and says so.
+  it("keeps a pinned final stop and reports the walk as infeasible", async () => {
+    const result = await planWalkOrder(
+      {
+        ...baseRequest,
+        availableMinutes: 90,
+        maxEndDistanceFromOriginMeters: 500,
+        pinnedAttractionIds: ["stranding"],
+      },
+      [near, stranding],
+    );
+
+    expect(result.orderedAttractions.map((a) => a.id)).toEqual([
+      "near",
+      "stranding",
+    ]);
+    expect(result.droppedAttractions).toEqual([]);
+    expect(result.feasible).toBe(false);
+  });
+
+  it("reports the trimmed walk's own distance and segments, not the dropped stop's", async () => {
+    const result = await planWalkOrder(
+      {
+        ...baseRequest,
+        availableMinutes: 90,
+        maxEndDistanceFromOriginMeters: 500,
+      },
+      [near, stranding],
+    );
+
+    expect(result.segments).toHaveLength(1);
+    expect(result.totalDistanceMeters).toBeCloseTo(
+      haversineDistance(origin, near.coordinates),
+      0,
+    );
+  });
+
+  it("ignores a constraint that is not a usable distance", async () => {
+    const result = await planWalkOrder(
+      { ...baseRequest, maxEndDistanceFromOriginMeters: Number.NaN },
+      [near, middle, far],
+    );
+
+    expect(result.orderedAttractions).toHaveLength(3);
+    expect(result.feasible).toBe(true);
+  });
+});

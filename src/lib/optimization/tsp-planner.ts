@@ -158,6 +158,181 @@ function twoOpt(tour: number[], matrix: number[][], originIndex: number): number
 }
 
 // ---------------------------------------------------------------------------
+// End-distance-from-origin constraint
+// ---------------------------------------------------------------------------
+
+/** Walking plus visit minutes for a tour starting at the origin. */
+function tourMinutes(
+  ordered: Attraction[],
+  originPoint: Point,
+  dist: (a: Point, b: Point) => number,
+  walkingPaceMinPerKm: number,
+): number {
+  let total = 0;
+  let prev: Point = originPoint;
+
+  for (const attraction of ordered) {
+    total += (dist(prev, attraction) / 1000) * walkingPaceMinPerKm;
+    total += attraction.avgVisitMinutes;
+    prev = attraction;
+  }
+
+  return total;
+}
+
+/** Straight-line metres from the tour's last stop back to the start. */
+function endDistanceMeters(
+  ordered: Attraction[],
+  origin: { lat: number; lng: number },
+): number {
+  const last = ordered[ordered.length - 1];
+  // Deliberately haversine and not the matrix: the constraint is "how far am I
+  // from my car when I stop walking", which is a distance on the ground, not a
+  // walking-route length. It matches the fallback convention in this file too.
+  return last ? haversineDistance(origin, last.coordinates) : 0;
+}
+
+/** Whether the walk finishes inside the stated end-distance constraint (or has none). */
+function endsWithinConstraint(
+  ordered: Attraction[],
+  request: WalkPlanRequest,
+): boolean {
+  const limitMeters = request.maxEndDistanceFromOriginMeters;
+  if (limitMeters === undefined || !Number.isFinite(limitMeters) || limitMeters < 0) {
+    return true;
+  }
+
+  return endDistanceMeters(ordered, request.origin) <= limitMeters;
+}
+
+/**
+ * The cheapest rearrangement that finishes inside the constraint, or null if
+ * none is worth what it costs.
+ *
+ * Only "move one stop to the end" is tried, rather than a general re-search.
+ * 2-opt has already picked a good order and every candidate here is a stop the
+ * walk was going to make anyway — the question is only which one it makes
+ * last. Trying every permutation to shave a few metres off a tour that is
+ * about to be handed to a human is not worth the factorial.
+ *
+ * The time budget is the cost threshold. A rearrangement is a detour by
+ * definition, and the honest limit on how much detour is acceptable is the one
+ * the walker already stated: the time they have. A tour that was already over
+ * budget (a pin can do that) is held to its own length instead, so this can
+ * never make an over-budget walk longer.
+ */
+function bestEndDistanceReorder(
+  ordered: Attraction[],
+  request: WalkPlanRequest,
+  originPoint: Point,
+  dist: (a: Point, b: Point) => number,
+  limitMeters: number,
+  budgetMinutes: number,
+): Attraction[] | null {
+  let best: Attraction[] | null = null;
+  let bestDistance = Infinity;
+
+  for (let i = 0; i < ordered.length - 1; i++) {
+    if (haversineDistance(request.origin, ordered[i].coordinates) > limitMeters) {
+      continue;
+    }
+
+    const trial = [...ordered.slice(0, i), ...ordered.slice(i + 1), ordered[i]];
+    if (
+      tourMinutes(trial, originPoint, dist, request.walkingPaceMinPerKm) >
+      budgetMinutes + 1e-6
+    ) {
+      continue;
+    }
+
+    let trialDistance = 0;
+    let prev: Point = originPoint;
+    for (const attraction of trial) {
+      trialDistance += dist(prev, attraction);
+      prev = attraction;
+    }
+
+    if (trialDistance < bestDistance) {
+      best = trial;
+      bestDistance = trialDistance;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Make the walk actually end within `maxEndDistanceFromOriginMeters` of where
+ * it started, by rearranging if that is affordable and by dropping the stops
+ * that strand the walker if it is not.
+ *
+ * Reordering is tried first because it costs the walker nothing: every stop is
+ * still visited, just in a different order. Only when no affordable
+ * arrangement finishes in range does this start trimming from the end — one
+ * stop at a time, re-checking after each, since dropping the far stop often
+ * leaves a new last stop that is already in range.
+ *
+ * A pinned stop is the one thing that can defeat the constraint, exactly as it
+ * is the one thing that can defeat the time budget: the walker asked for that
+ * place by name, and silently dropping it to honour a radius they typed into a
+ * secondary field is the wrong trade. `feasible` goes false instead, which is
+ * the same signal an over-budget pin already raises.
+ */
+function enforceEndDistance(
+  ordered: Attraction[],
+  request: WalkPlanRequest,
+  originPoint: Point,
+  dist: (a: Point, b: Point) => number,
+  pinnedIds: Set<string>,
+): { ordered: Attraction[]; dropped: Attraction[] } {
+  const limitMeters = request.maxEndDistanceFromOriginMeters;
+  const dropped: Attraction[] = [];
+
+  if (
+    limitMeters === undefined ||
+    !Number.isFinite(limitMeters) ||
+    limitMeters < 0
+  ) {
+    return { ordered, dropped };
+  }
+
+  let current = [...ordered];
+  const budgetMinutes = Math.max(
+    request.availableMinutes,
+    tourMinutes(current, originPoint, dist, request.walkingPaceMinPerKm),
+  );
+
+  while (
+    current.length > 0 &&
+    endDistanceMeters(current, request.origin) > limitMeters
+  ) {
+    const reordered = bestEndDistanceReorder(
+      current,
+      request,
+      originPoint,
+      dist,
+      limitMeters,
+      budgetMinutes,
+    );
+
+    if (reordered) {
+      current = reordered;
+      break;
+    }
+
+    const last = current[current.length - 1];
+    if (pinnedIds.has(last.id)) {
+      break;
+    }
+
+    current.pop();
+    dropped.push(last);
+  }
+
+  return { ordered: current, dropped };
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -310,7 +485,19 @@ export async function planWalkOrder(
     }
   }
 
-  // Build segments from final feasibleAttractions order
+  // Only now, once the budget pass has settled which stops are actually on the
+  // walk, is there a final stop whose distance from the origin means anything.
+  const endConstrained = enforceEndDistance(
+    feasibleAttractions,
+    request,
+    originPoint,
+    dist,
+    pinnedIds,
+  );
+  const finalAttractions = endConstrained.ordered;
+  droppedAttractions.push(...endConstrained.dropped);
+
+  // Build segments from the final order
   const segments: WalkSegment[] = [];
   let totalDistanceMeters = 0;
   let totalWalkingMinutes = 0;
@@ -318,7 +505,7 @@ export async function planWalkOrder(
   let prevPoint: Point = originPoint;
   let prevLabel: WalkSegment["from"] = { name: "origin", coordinates: origin };
 
-  for (const attraction of feasibleAttractions) {
+  for (const attraction of finalAttractions) {
     const segDistMeters = dist(prevPoint, attraction);
     const segWalkMinutes = (segDistMeters / 1000) * walkingPaceMinPerKm;
 
@@ -338,16 +525,18 @@ export async function planWalkOrder(
   }
 
   return {
-    orderedAttractions: feasibleAttractions,
+    orderedAttractions: finalAttractions,
     segments,
     totalDistanceMeters,
     totalWalkingMinutes,
     totalVisitMinutes,
-    // Without pins the loop above never lets the total exceed the budget, so this
-    // only turns false when a pinned attraction no longer fits the remaining time.
+    // Without pins neither pass above lets the total exceed the budget or the
+    // walk end out of range, so these only turn false when a pinned attraction
+    // no longer fits the remaining time, or strands the walker at the end.
     feasible:
-      feasibleAttractions.length > 0 &&
-      totalWalkingMinutes + totalVisitMinutes <= availableMinutes + 1e-6,
+      finalAttractions.length > 0 &&
+      totalWalkingMinutes + totalVisitMinutes <= availableMinutes + 1e-6 &&
+      endsWithinConstraint(finalAttractions, request),
     droppedAttractions,
   };
 }

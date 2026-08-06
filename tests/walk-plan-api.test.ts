@@ -683,3 +683,53 @@ describe("POST /api/walk-plan — saved POI-level downvotes", () => {
     expect(plan.orderedAttractions).toHaveLength(1);
   });
 });
+
+describe("POST /api/walk-plan — max end distance from origin", () => {
+  beforeEach(resetMocks);
+
+  function endDistanceBody(maxEndDistanceFromOriginMeters?: unknown) {
+    return {
+      lat: origin.lat,
+      lng: origin.lng,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      radiusMeters: 3000,
+      maxEndDistanceFromOriginMeters,
+    };
+  }
+
+  function discovered(): Attraction[] {
+    return [
+      makeAttraction("near", 32.081, 34.78, 20),
+      makeAttraction("middle", 32.085, 34.78, 20),
+      makeAttraction("far", 32.09, 34.78, 20),
+    ];
+  }
+
+  it("makes the walk finish within the stated distance of the start", async () => {
+    mockFetchAttractions.mockResolvedValueOnce(discovered());
+
+    const response = await POST(postRequest(endDistanceBody(800)));
+    const plan = await response.json();
+    const last = plan.orderedAttractions.at(-1);
+
+    expect(response.status).toBe(200);
+    expect(last.id).not.toBe("far");
+  });
+
+  // The form's field is optional, and a blank one must not arrive as a zero —
+  // a zero limit would empty every walk it touched.
+  it.each([
+    ["a blank field", undefined],
+    ["a zero", 0],
+    ["something that is not a number", "soon"],
+  ])("treats %s as no constraint at all", async (_label, value) => {
+    mockFetchAttractions.mockResolvedValueOnce(discovered());
+
+    const response = await POST(postRequest(endDistanceBody(value)));
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(plan.orderedAttractions.at(-1).id).toBe("far");
+  });
+});
