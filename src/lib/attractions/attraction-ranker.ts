@@ -288,7 +288,57 @@ export function rankAttractions(
   return scored;
 }
 
-// Return the top N attractions that fit within the time budget
+/**
+ * Straight-line metres a walker standing at `from` has to cover to reach this
+ * candidate. `from` is undefined only before the first stop is accepted, when
+ * the walker is still at the origin — and the origin distance is already baked
+ * into the candidate by `rankAttractions`, so there is nothing to recompute yet.
+ */
+function stepDistanceMeters(
+  candidate: Attraction,
+  from: Coordinates | undefined,
+): number {
+  if (!from) return candidate.distanceFromOriginMeters ?? 0;
+  return haversineDistance(from, candidate.coordinates);
+}
+
+/**
+ * `rankAttractions` bakes a `- distanceFromOrigin/1000` term into `score`. Once
+ * the walker has moved, that term is about a place they are no longer standing
+ * at, so it is added back out and replaced with the distance from where they
+ * actually are. Everything else in the score (category, notability, standing
+ * preferences) is position-independent and survives untouched.
+ *
+ * A candidate with no `score` (an explicitly named stop threaded straight
+ * through by the walk-plan route, never run through the ranker) scores 0 before
+ * the distance term, which leaves the remaining list sorted purely by
+ * proximity — the best available answer when there is no relevance signal.
+ */
+function scoreFrom(candidate: Attraction, from: Coordinates | undefined): number {
+  const positionFree =
+    (candidate.score ?? 0) + (candidate.distanceFromOriginMeters ?? 0) / 1000;
+
+  return positionFree - stepDistanceMeters(candidate, from) / 1000;
+}
+
+/**
+ * Return the top N attractions that fit within the time budget.
+ *
+ * Greedy, but re-evaluated against the route as it grows: after each accepted
+ * stop every remaining candidate is re-costed and re-sorted by its distance
+ * from that stop rather than from the origin. Costing every candidate off a
+ * frozen origin distance (as this did until 2026-08-06) both dropped stops that
+ * were a two-minute walk from the previous one — because they happened to sit
+ * far from the start — and accepted ones that looked cheap from the origin but
+ * sat on the opposite side of it from where the walk had actually reached.
+ * Nothing downstream rescued those: `tsp-planner.ts`'s reinsertion pass only
+ * reorders what this step already selected.
+ *
+ * Still haversine, still a heuristic. The real walking-network distances come
+ * from the ORS matrix in `tsp-planner.ts`'s ordering step, which runs after
+ * this one — a network call per candidate per accepted stop here would be
+ * quadratic against a rate-limited API to sharpen a pre-filter.
+ */
 export function selectFeasibleAttractions(
   ranked: Attraction[],
   availableMinutes: number,
@@ -298,25 +348,34 @@ export function selectFeasibleAttractions(
   const selected: Attraction[] = [];
   const dropped: Attraction[] = [];
   let usedMinutes = 0;
+  // Where the walk has reached. Undefined until the first stop is accepted.
+  let lastStop: Coordinates | undefined;
 
-  for (const attraction of ranked) {
+  let remaining = [...ranked];
+
+  while (remaining.length > 0) {
     if (selected.length >= maxAttractions) {
-      dropped.push(attraction);
-      continue;
+      dropped.push(...remaining);
+      break;
     }
 
-    // Rough walking time from previous stop (or origin) to this attraction
-    // This is a heuristic — TSP planner will compute exact order + times later
-    const walkingMinutes =
-      ((attraction.distanceFromOriginMeters ?? 0) / 1000) * walkingPaceMinPerKm;
+    const candidate = remaining.shift() as Attraction;
 
-    const totalCost = walkingMinutes + attraction.avgVisitMinutes;
+    const walkingMinutes =
+      (stepDistanceMeters(candidate, lastStop) / 1000) * walkingPaceMinPerKm;
+    const totalCost = walkingMinutes + candidate.avgVisitMinutes;
 
     if (usedMinutes + totalCost <= availableMinutes) {
-      selected.push(attraction);
+      selected.push(candidate);
       usedMinutes += totalCost;
+      lastStop = candidate.coordinates;
+      // Only an acceptance moves the walker, so only an acceptance can change
+      // the order of what is left. A rejection leaves the sort still valid.
+      remaining = [...remaining].sort(
+        (a, b) => scoreFrom(b, lastStop) - scoreFrom(a, lastStop),
+      );
     } else {
-      dropped.push(attraction);
+      dropped.push(candidate);
     }
   }
 

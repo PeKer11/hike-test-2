@@ -137,9 +137,13 @@ describe("POST /api/walk-plan — explicit attractions + time filling", () => {
   it("keeps every named stop when the combined set exceeds the budget", async () => {
     const north = makeAttraction("north", 32.09, 34.78, 20);
     const south = makeAttraction("south", 32.07, 34.78, 20);
+    // `osm-2` sits a long walk past `osm-1` rather than next door to it: the
+    // budget pre-filter now costs each candidate from the stop before it, so a
+    // second filler 100 m along the same street is genuinely affordable and no
+    // longer proves anything about dropping.
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.085, 34.78, 25),
-      makeAttraction("osm-2", 32.086, 34.78, 25),
+      makeAttraction("osm-2", 32.105, 34.78, 25),
     ]);
 
     const response = await POST(

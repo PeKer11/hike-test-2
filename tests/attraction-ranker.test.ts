@@ -14,6 +14,7 @@ import {
   selectFeasibleAttractions,
 } from "@/lib/attractions/attraction-ranker";
 import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
+import { haversineDistance } from "@/lib/utils/geo";
 
 const origin: Coordinates = { lat: 32.08, lng: 34.78 };
 
@@ -542,5 +543,122 @@ describe("rankAttractions — upvoted categories", () => {
     );
 
     expect(ranked.some((a) => a.isExplorationPick)).toBe(false);
+  });
+});
+
+// The budget-fit pass used to cost every candidate off a frozen origin
+// distance, so where the walk had actually reached never entered the decision.
+// These build the two shapes that got wrong, in both directions.
+describe("selectFeasibleAttractions — cost against the growing route", () => {
+  const budgetOrigin: Coordinates = { lat: 32, lng: 34.78 };
+  const pace = 15;
+
+  // Shaped the way `rankAttractions` leaves a candidate: origin distance and
+  // score already baked in.
+  function scored(
+    id: string,
+    lat: number,
+    score: number,
+    avgVisitMinutes = 10,
+  ): Attraction {
+    const coordinates = { lat, lng: budgetOrigin.lng };
+    return {
+      id,
+      name: id,
+      coordinates,
+      category: "landmark",
+      avgVisitMinutes,
+      tags: {},
+      distanceFromOriginMeters: haversineDistance(budgetOrigin, coordinates),
+      score,
+    };
+  }
+
+  // What the old pass charged: every stop walked from the origin.
+  function originOnlyCost(attractions: Attraction[]): number {
+    return attractions.reduce(
+      (sum, a) =>
+        sum + ((a.distanceFromOriginMeters ?? 0) / 1000) * pace + a.avgVisitMinutes,
+      0,
+    );
+  }
+
+  it("keeps a candidate that is far from the origin but close to the last accepted stop", () => {
+    // `far` is twice as far out as `near`, but on the same bearing — from
+    // `near` it is the same short hop `near` was from the origin.
+    const near = scored("near", 32.01, 10);
+    const far = scored("far", 32.02, 9);
+    const availableMinutes = 60;
+
+    // The old pass could not have afforded both: it billed `far` for the whole
+    // walk out from the origin a second time.
+    expect(originOnlyCost([near, far])).toBeGreaterThan(availableMinutes);
+
+    const { selected, dropped } = selectFeasibleAttractions(
+      [near, far],
+      availableMinutes,
+      pace,
+    );
+
+    expect(selected.map((a) => a.id)).toEqual(["near", "far"]);
+    expect(dropped).toEqual([]);
+  });
+
+  it("drops a candidate that looked cheap from the origin but sits far from where the walk reached", () => {
+    // `cheap` outranks `detour` and is nearer the origin — but it lies on the
+    // opposite side of it, so once `first` is accepted it is the long way back.
+    const first = scored("first", 32.005, 12);
+    const cheap = scored("cheap", 31.994, 11);
+    const detour = scored("detour", 32.012, 10);
+
+    const { selected, dropped } = selectFeasibleAttractions(
+      [first, cheap, detour],
+      60,
+      pace,
+    );
+
+    // Re-sorted after `first`: `detour` is now the cheaper next step, and once
+    // it is taken `cheap` no longer fits at all.
+    expect(selected.map((a) => a.id)).toEqual(["first", "detour"]);
+    expect(dropped.map((a) => a.id)).toEqual(["cheap"]);
+  });
+
+  it("still caps the walk at maxAttractions and reports the rest as dropped", () => {
+    const candidates = [
+      scored("a", 32.001, 10),
+      scored("b", 32.002, 9),
+      scored("c", 32.003, 8),
+    ];
+
+    const { selected, dropped } = selectFeasibleAttractions(
+      candidates,
+      600,
+      pace,
+      2,
+    );
+
+    expect(selected).toHaveLength(2);
+    expect(dropped.map((a) => a.id)).toEqual(["c"]);
+  });
+
+  it("falls back to proximity ordering for stops carrying no ranker score", () => {
+    // Explicitly named stops reach this function straight from the walk-plan
+    // route with no score — proximity is the only signal left to sort on.
+    const unscored = (id: string, lat: number): Attraction => ({
+      id,
+      name: id,
+      coordinates: { lat, lng: budgetOrigin.lng },
+      category: "landmark",
+      avgVisitMinutes: 10,
+      tags: {},
+    });
+
+    const { selected } = selectFeasibleAttractions(
+      [unscored("start", 32.001), unscored("beyond", 32.02), unscored("next", 32.002)],
+      600,
+      pace,
+    );
+
+    expect(selected.map((a) => a.id)).toEqual(["start", "next", "beyond"]);
   });
 });
