@@ -215,6 +215,58 @@ describe("POST /api/walk-plan — explicit attractions + time filling", () => {
     ]);
   });
 
+  // The pre-filter re-sorts what is left after every acceptance on the ranker's
+  // score, and a named stop has never been through the ranker — it scores 0 and
+  // sinks below every discovered candidate. Charging the named stops to the
+  // budget up front is what keeps the filler from spending all of it.
+  it("only lets filler have the time the named stops leave over", async () => {
+    // 70 of the 90 minutes, before any walking.
+    const named = makeAttraction("named", 32.081, 34.78, 70);
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.0815, 34.78, 15),
+      makeAttraction("osm-2", 32.082, 34.78, 15),
+      makeAttraction("osm-3", 32.0825, 34.78, 15),
+    ]);
+
+    const response = await POST(
+      postRequest({ ...baseBody([named]), fillRemainingTime: true }),
+    );
+    const plan = await response.json();
+    const filler = plan.orderedAttractions.filter(
+      (a: Attraction) => a.id !== "named",
+    );
+
+    expect(plan.orderedAttractions.map((a: Attraction) => a.id)).toContain(
+      "named",
+    );
+    // One 15-minute stop fits in what is left; three plainly do not.
+    expect(filler).toHaveLength(1);
+  });
+
+  it("caps the whole walk at the stop limit, named stops included", async () => {
+    const named = Array.from({ length: 6 }, (_, i) =>
+      makeAttraction(`named-${i}`, 32.0801 + i * 0.0001, 34.78, 1),
+    );
+    mockFetchAttractions.mockResolvedValueOnce(
+      Array.from({ length: 6 }, (_, i) =>
+        makeAttraction(`osm-${i}`, 32.0811 + i * 0.0001, 34.78, 1),
+      ),
+    );
+
+    const response = await POST(
+      postRequest({ ...baseBody(named), fillRemainingTime: true }),
+    );
+    const plan = await response.json();
+
+    // MAX_WALK_STOPS is 8, and six of them are already spoken for.
+    expect(plan.orderedAttractions.length).toBeLessThanOrEqual(8);
+    expect(
+      plan.orderedAttractions.filter((a: Attraction) =>
+        a.id.startsWith("named-"),
+      ),
+    ).toHaveLength(6);
+  });
+
   it("merges caller pins with the named stops", async () => {
     const named = makeAttraction("named", 32.081, 34.78, 30);
     mockFetchAttractions.mockResolvedValueOnce([
@@ -730,6 +782,48 @@ describe("POST /api/walk-plan — max end distance from origin", () => {
     const plan = await response.json();
 
     expect(response.status).toBe(200);
+    expect(plan.orderedAttractions.at(-1).id).toBe("far");
+  });
+
+  // A mid-walk rebuild posts the walker's current position as `lat`/`lng` and
+  // the walk's real start as `endAnchor`. Without the anchor, "finish near my
+  // car" would quietly re-anchor to wherever they had got to.
+  it("measures the constraint from `endAnchor` when the rebuild moved the origin", async () => {
+    mockFetchAttractions.mockResolvedValueOnce(discovered());
+
+    const response = await POST(
+      postRequest({
+        ...endDistanceBody(400),
+        // Re-planning from ~1.1 km north; the anchor stays at the start.
+        lat: 32.09,
+        lng: 34.78,
+        endAnchor: origin,
+      }),
+    );
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(plan.orderedAttractions.at(-1).id).toBe("near");
+  });
+
+  it.each([
+    ["a missing anchor", undefined],
+    ["a half-parsed anchor", { lat: 32.08, lng: "west" }],
+  ])("falls back to the origin for %s", async (_label, endAnchor) => {
+    mockFetchAttractions.mockResolvedValueOnce(discovered());
+
+    const response = await POST(
+      postRequest({
+        ...endDistanceBody(400),
+        lat: 32.09,
+        lng: 34.78,
+        endAnchor,
+      }),
+    );
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    // Measured from 32.09 the far stop is the one already in range.
     expect(plan.orderedAttractions.at(-1).id).toBe("far");
   });
 });

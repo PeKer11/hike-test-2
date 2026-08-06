@@ -46,6 +46,17 @@ export interface WalkPlanRequest {
    * every caller had before this existed.
    */
   maxEndDistanceFromOriginMeters?: number;
+  /**
+   * Where `maxEndDistanceFromOriginMeters` is measured from. Defaults to
+   * `origin`, which is the same thing for a walk planned from a standing start.
+   *
+   * A mid-walk rebuild is where they come apart: it re-plans from wherever the
+   * walker is now, so `origin` moves with them — and the constraint means "near
+   * my car", which does not. Without this, walking two kilometres and hitting a
+   * pace-triggered rebuild would quietly re-anchor "finish within 500 m of the
+   * start" to a point 2 km from the start.
+   */
+  endAnchor?: Coordinates;
 }
 
 export interface WalkSegment {

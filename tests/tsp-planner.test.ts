@@ -396,4 +396,56 @@ describe("planWalkOrder — max end distance from origin", () => {
     expect(result.orderedAttractions).toHaveLength(3);
     expect(result.feasible).toBe(true);
   });
+
+  // A mid-walk rebuild re-plans from where the walker has got to, so `origin`
+  // moves with them. "Finish near my car" does not.
+  it("measures from `endAnchor` rather than the origin when one is given", async () => {
+    // Re-planning from `far`, with the anchor still at the walk's real start:
+    // `near` is the only stop within 300 m of it, so it has to end the walk.
+    // Measured from `far` instead, `middle` is the nearer of the two and the
+    // walk would have been left running away from where the walker parked.
+    const result = await planWalkOrder(
+      {
+        ...baseRequest,
+        origin: far.coordinates,
+        endAnchor: origin,
+        maxEndDistanceFromOriginMeters: 300,
+      },
+      [near, middle],
+    );
+
+    expect(result.orderedAttractions.map((a) => a.id)).toEqual([
+      "middle",
+      "near",
+    ]);
+    expect(result.droppedAttractions).toEqual([]);
+    expect(
+      haversineDistance(origin, result.orderedAttractions.at(-1)!.coordinates),
+    ).toBeLessThanOrEqual(300);
+  });
+
+  it("falls back to the origin when no anchor is given", async () => {
+    // Same request without the anchor: measured from `far`, finishing at
+    // `middle` (~556 m from `far`) is what breaches, not what satisfies.
+    const anchored = await planWalkOrder(
+      {
+        ...baseRequest,
+        origin: far.coordinates,
+        endAnchor: origin,
+        maxEndDistanceFromOriginMeters: 700,
+      },
+      [near, middle],
+    );
+    const unanchored = await planWalkOrder(
+      {
+        ...baseRequest,
+        origin: far.coordinates,
+        maxEndDistanceFromOriginMeters: 700,
+      },
+      [near, middle],
+    );
+
+    expect(anchored.orderedAttractions.at(-1)?.id).toBe("near");
+    expect(unanchored.orderedAttractions.at(-1)?.id).toBe("middle");
+  });
 });

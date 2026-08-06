@@ -79,7 +79,12 @@ function coordinateText(value: number): string {
 }
 
 export interface PoiIdentity {
-  /** `Attraction.id` — the Overpass element id, e.g. `node/1234567`. */
+  /**
+   * `Attraction.id` as `overpass-client.ts` builds it — `osm-node-1234567`,
+   * not the `node/1234567` form the migration's comment quotes. Both sides of
+   * a match write and read this same string, so the shape only matters to
+   * anyone reading it back out of the table by hand.
+   */
   osmId?: string | null;
   name?: string | null;
   lat: number;

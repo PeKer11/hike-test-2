@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
 import {
+  MAX_WALK_STOPS,
   rankAttractions,
   selectFeasibleAttractions,
 } from "@/lib/attractions/attraction-ranker";
@@ -32,6 +33,10 @@ interface WalkPlanApiRequest {
   // Optional "don't strand me far from the start" constraint. Nothing to do
   // with `radiusMeters`, which only bounds where candidates are searched for.
   maxEndDistanceFromOriginMeters?: number;
+  // Where that constraint is measured from when it is not `lat`/`lng` — set by
+  // a mid-walk rebuild, whose origin is the walker's current position while the
+  // place they want to finish near has not moved.
+  endAnchor?: Coordinates;
   preferredCategories?: AttractionCategory[];
   // Set by the automatic pace-triggered rebuild: re-time the walk the user is
   // already on instead of discovering a whole new set of POIs.
@@ -180,6 +185,17 @@ export async function POST(request: Request): Promise<NextResponse> {
         ? Math.min(requestedEndDistance, 50_000)
         : undefined;
 
+    // Same "not a usable number means absent" rule as everything else here: a
+    // half-parsed anchor would silently move the constraint somewhere nobody
+    // asked for, where falling back to the origin is at least the old behaviour.
+    const requestedAnchor = body.endAnchor;
+    const endAnchor =
+      requestedAnchor &&
+      Number.isFinite(requestedAnchor.lat) &&
+      Number.isFinite(requestedAnchor.lng)
+        ? { lat: requestedAnchor.lat, lng: requestedAnchor.lng }
+        : undefined;
+
     const explicitAttractions = Array.isArray(body.explicitAttractions)
       ? body.explicitAttractions
       : undefined;
@@ -239,18 +255,25 @@ export async function POST(request: Request): Promise<NextResponse> {
             ),
         );
 
+        // The named places are charged to the budget up front and the filler
+        // only gets what they leave behind, rather than the two competing in one
+        // pre-filter pass. They cannot compete fairly: `selectFeasibleAttractions`
+        // re-sorts what is left after every acceptance on the ranker's score, and
+        // a named place has never been through the ranker — it scores 0 and sinks
+        // below every discovered candidate, so the filler would spend the whole
+        // budget and the named stops (re-added unconditionally below either way)
+        // would land on top of it.
+        const fillerBudget = Math.max(0, availableMinutes - explicitMinutes);
         const feasible = selectFeasibleAttractions(
-          [...explicitAttractions, ...filler],
-          availableMinutes,
+          filler,
+          fillerBudget,
           walkingPaceMinPerKm,
+          Math.max(0, MAX_WALK_STOPS - explicitAttractions.length),
         ).selected;
 
         // Every named place stays in, whatever the pre-filter decided; only the
         // filler is allowed to be trimmed here (and later by the planner).
-        selected = [
-          ...explicitAttractions,
-          ...feasible.filter((a) => !explicitIds.has(a.id)),
-        ];
+        selected = [...explicitAttractions, ...feasible];
         pinnedAttractionIds = Array.from(
           new Set([...(body.pinnedAttractionIds ?? []), ...explicitIds]),
         );
@@ -289,6 +312,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       walkingPaceMinPerKm,
       radiusMeters,
       maxEndDistanceFromOriginMeters,
+      endAnchor,
       preferredCategories,
       explicitAttractions,
       pinnedAttractionIds,

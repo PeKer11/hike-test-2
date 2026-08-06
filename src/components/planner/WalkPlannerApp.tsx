@@ -444,6 +444,7 @@ export function WalkPlannerApp({
           walkingPaceMinPerKm: input.walkingPaceMinPerKm,
           radiusMeters: input.radiusMeters,
           maxEndDistanceFromOriginMeters: input.maxEndDistanceFromOriginMeters,
+          endAnchor: input.endAnchor,
           preferredCategories: input.preferredCategories,
           explicitAttractions: keepAttractions,
           pinnedAttractionIds: activePinnedIds,
@@ -513,7 +514,12 @@ export function WalkPlannerApp({
   // on from where they are now, and drop them straight back into tracking.
   // Extracted from the PaceChecker callback so the "ask first" path can run
   // exactly the same rebuild once the walker says yes.
-  const runPaceTriggeredRebuild = () => {
+  //
+  // The direction decides whether discovery runs. Behind plan, the answer is to
+  // re-time what is left. Ahead of plan, the whole offer — in the banner and in
+  // the setting's own wording — is another stop, and re-timing the same list
+  // would have delivered nothing while telling the walker it had.
+  const runPaceTriggeredRebuild = (reason: ReplanReason) => {
     const orig = walkInputRef.current;
     if (!orig) return;
     // Only rebuild when the user is actually walking (CRITICAL-2) — the tracker
@@ -528,12 +534,17 @@ export function WalkPlannerApp({
         ...orig,
         origin: currentPos,
         availableMinutes: remainingMinutes,
+        // The walk moved; the car did not. Pin the end-distance constraint to
+        // wherever it was already anchored, or to the start of this walk if this
+        // is the first rebuild — never to the walker's current position.
+        endAnchor: orig.endAnchor ?? orig.origin,
       },
       {
         autoResume: true,
-        // Re-time the walk the user is already on — no fresh POI discovery.
+        // Keep the walk the user is already on rather than rediscovering it.
         keepAttractions: walkPlanRef.current?.orderedAttractions,
         pinnedIds: pinnedAttractionIdsRef.current,
+        fillRemainingTime: replanPaceDirection(reason) === "fast",
       },
     );
   };
@@ -559,7 +570,7 @@ export function WalkPlannerApp({
       paceConfirmTimeoutRef.current = null;
       setPaceConfirmation(null);
       if (replanPaceDirection(reason) === "slow") {
-        runPaceTriggeredRebuild();
+        runPaceTriggeredRebuild(reason);
       }
     }, PACE_CONFIRMATION_TIMEOUT_MS);
   };
@@ -719,7 +730,7 @@ export function WalkPlannerApp({
 
     const checker = new PaceChecker(walkSettings, trigger, (reason, response) => {
       if (response === "auto") {
-        runPaceTriggeredRebuild();
+        runPaceTriggeredRebuild(reason);
         return;
       }
 
@@ -911,8 +922,9 @@ export function WalkPlannerApp({
       <PaceConfirmationNotification
         reason={paceConfirmation}
         onConfirm={() => {
+          const reason = paceConfirmation;
           clearPaceConfirmation();
-          runPaceTriggeredRebuild();
+          if (reason) runPaceTriggeredRebuild(reason);
         }}
         onDismiss={clearPaceConfirmation}
       />

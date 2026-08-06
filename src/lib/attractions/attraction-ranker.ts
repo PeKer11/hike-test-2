@@ -139,6 +139,13 @@ export function occurrencePreferenceBoost(occurrenceCount: number): number {
   );
 }
 
+/**
+ * How many stops one walk gets, unless a caller asks for fewer. Exported so a
+ * caller that pre-spends part of the walk on stops this function never sees
+ * (the walk-plan route's named places) can subtract from the same number.
+ */
+export const MAX_WALK_STOPS = 8;
+
 export interface RankerOptions {
   origin: Coordinates;
   preferredCategories?: AttractionCategory[];
@@ -368,7 +375,7 @@ export function selectFeasibleAttractions(
   ranked: Attraction[],
   availableMinutes: number,
   walkingPaceMinPerKm: number,
-  maxAttractions = 8,
+  maxAttractions = MAX_WALK_STOPS,
 ): { selected: Attraction[]; dropped: Attraction[] } {
   const selected: Attraction[] = [];
   const dropped: Attraction[] = [];

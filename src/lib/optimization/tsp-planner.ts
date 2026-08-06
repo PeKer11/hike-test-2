@@ -180,16 +180,25 @@ function tourMinutes(
   return total;
 }
 
-/** Straight-line metres from the tour's last stop back to the start. */
+/**
+ * Where the end-distance constraint is measured from. `origin` is where this
+ * particular plan starts, which a mid-walk rebuild moves to the walker's
+ * current position — `endAnchor` is the fixed place they want to finish near.
+ */
+function endAnchorOf(request: WalkPlanRequest): { lat: number; lng: number } {
+  return request.endAnchor ?? request.origin;
+}
+
+/** Straight-line metres from the tour's last stop back to the anchor. */
 function endDistanceMeters(
   ordered: Attraction[],
-  origin: { lat: number; lng: number },
+  anchor: { lat: number; lng: number },
 ): number {
   const last = ordered[ordered.length - 1];
   // Deliberately haversine and not the matrix: the constraint is "how far am I
   // from my car when I stop walking", which is a distance on the ground, not a
   // walking-route length. It matches the fallback convention in this file too.
-  return last ? haversineDistance(origin, last.coordinates) : 0;
+  return last ? haversineDistance(anchor, last.coordinates) : 0;
 }
 
 /** Whether the walk finishes inside the stated end-distance constraint (or has none). */
@@ -202,7 +211,7 @@ function endsWithinConstraint(
     return true;
   }
 
-  return endDistanceMeters(ordered, request.origin) <= limitMeters;
+  return endDistanceMeters(ordered, endAnchorOf(request)) <= limitMeters;
 }
 
 /**
@@ -231,9 +240,10 @@ function bestEndDistanceReorder(
 ): Attraction[] | null {
   let best: Attraction[] | null = null;
   let bestDistance = Infinity;
+  const anchor = endAnchorOf(request);
 
   for (let i = 0; i < ordered.length - 1; i++) {
-    if (haversineDistance(request.origin, ordered[i].coordinates) > limitMeters) {
+    if (haversineDistance(anchor, ordered[i].coordinates) > limitMeters) {
       continue;
     }
 
@@ -297,6 +307,7 @@ function enforceEndDistance(
   }
 
   let current = [...ordered];
+  const anchor = endAnchorOf(request);
   const budgetMinutes = Math.max(
     request.availableMinutes,
     tourMinutes(current, originPoint, dist, request.walkingPaceMinPerKm),
@@ -304,7 +315,7 @@ function enforceEndDistance(
 
   while (
     current.length > 0 &&
-    endDistanceMeters(current, request.origin) > limitMeters
+    endDistanceMeters(current, anchor) > limitMeters
   ) {
     const reordered = bestEndDistanceReorder(
       current,
