@@ -5,19 +5,31 @@ import { useCallback, useState } from "react";
 import {
   clampPaceCheckInterval,
   DEFAULT_WALK_SETTINGS,
+  toPaceResponseMode,
   type WalkSettings,
 } from "@/lib/types/walk-settings";
 
 const WALK_SETTINGS_STORAGE_KEY = "walk-settings";
 
+/**
+ * A stored blob is not necessarily one this version wrote — the key has been
+ * in localStorage since before the pace modes were split out of a single
+ * `paceCheckEnabled` boolean, so the parse is deliberately untyped and every
+ * field is re-derived rather than trusted. `toPaceResponseMode` is where the
+ * old flag is honoured.
+ */
 function sanitizeSettings(
-  candidate: Partial<WalkSettings> | null | undefined,
+  candidate: (Partial<WalkSettings> & { paceCheckEnabled?: unknown }) | null | undefined,
 ): WalkSettings {
   return {
-    paceCheckEnabled:
-      typeof candidate?.paceCheckEnabled === "boolean"
-        ? candidate.paceCheckEnabled
-        : DEFAULT_WALK_SETTINGS.paceCheckEnabled,
+    fastPaceMode: toPaceResponseMode(
+      candidate?.fastPaceMode,
+      candidate?.paceCheckEnabled,
+    ),
+    slowPaceMode: toPaceResponseMode(
+      candidate?.slowPaceMode,
+      candidate?.paceCheckEnabled,
+    ),
     paceCheckIntervalMs: clampPaceCheckInterval(
       typeof candidate?.paceCheckIntervalMs === "number"
         ? candidate.paceCheckIntervalMs
@@ -41,7 +53,9 @@ function readStoredSettings(): WalkSettings {
       return DEFAULT_WALK_SETTINGS;
     }
 
-    const parsed = JSON.parse(raw) as Partial<WalkSettings>;
+    const parsed = JSON.parse(raw) as Partial<WalkSettings> & {
+      paceCheckEnabled?: unknown;
+    };
     return sanitizeSettings(parsed);
   } catch {
     return DEFAULT_WALK_SETTINGS;

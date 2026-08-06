@@ -1,6 +1,19 @@
 import type { ChangeEvent } from "react";
 
-import type { WalkSettings } from "@/lib/types/walk-settings";
+import type { PaceResponseMode, WalkSettings } from "@/lib/types/walk-settings";
+
+// The two directions read as one setting with two halves, so they render as a
+// pair rather than as two unrelated rows scattered through the panel.
+const PACE_SETTINGS: { key: "slowPaceMode" | "fastPaceMode"; label: string }[] = [
+  { key: "slowPaceMode", label: "When I fall behind" },
+  { key: "fastPaceMode", label: "When I'm ahead" },
+];
+
+const PACE_MODE_LABELS: { value: PaceResponseMode; text: string }[] = [
+  { value: "auto", text: "Reshape the walk" },
+  { value: "ask", text: "Ask me first" },
+  { value: "off", text: "Leave it alone" },
+];
 
 interface WalkSettingsPanelProps {
   settings: WalkSettings;
@@ -25,15 +38,30 @@ export function WalkSettingsPanel({
 
   return (
     <section className="space-y-4 rounded-[10px] border border-charcoal/10 bg-cream/60 p-3">
-      <label className="flex items-center justify-between gap-3 text-sm text-charcoal/80">
-        <span>Reshape the walk if I fall behind</span>
-        <input
-          type="checkbox"
-          checked={settings.paceCheckEnabled}
-          onChange={(event) => onChange({ paceCheckEnabled: event.target.checked })}
-          className="h-4 w-4 rounded border-charcoal/15 text-terra focus:ring-terra"
-        />
-      </label>
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-charcoal/80">If my pace drifts</p>
+        {PACE_SETTINGS.map(({ key, label }) => (
+          <label
+            key={key}
+            className="flex items-center justify-between gap-3 text-sm text-charcoal/80"
+          >
+            <span>{label}</span>
+            <select
+              value={settings[key]}
+              onChange={(event) =>
+                onChange({ [key]: event.target.value as PaceResponseMode })
+              }
+              className="rounded-md border border-charcoal/15 bg-white px-2 py-1 text-sm text-forest outline-none ring-terra transition focus:ring-2"
+            >
+              {PACE_MODE_LABELS.map(({ value, text }) => (
+                <option key={value} value={value}>
+                  {text}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
 
       <label className="space-y-1 text-sm text-charcoal/80">
         <span className="block">How often we check your pace (seconds)</span>

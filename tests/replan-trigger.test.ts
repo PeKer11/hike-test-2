@@ -1,13 +1,18 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   ReplanTrigger,
+  replanPaceDirection,
   FULL_STOP_WINDOW_MS,
   SUSTAINED_SLOW_WINDOW_MS,
   REPLAN_COOLDOWN_MS,
 } from "@/lib/walk/replan-trigger";
 import type { ReplanReason } from "@/lib/walk/replan-trigger";
 import { PaceChecker } from "@/lib/walk/pace-checker";
-import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
+import {
+  DEFAULT_WALK_SETTINGS,
+  toPaceResponseMode,
+  type WalkSettings,
+} from "@/lib/types/walk-settings";
 import type { Coordinates } from "@/lib/types";
 
 const START: Coordinates = { lat: 32.08, lng: 34.78 };
@@ -160,5 +165,184 @@ describe("ReplanTrigger — cooldown", () => {
     trigger.reset();
     const afterReset = walk(trigger, end + SAMPLE_INTERVAL_MS, FULL_STOP_WINDOW_MS, null);
     expect(trigger.evaluate(afterReset)).toBe("full-stop");
+  });
+});
+
+describe("ReplanTrigger — sustained fast pace", () => {
+  it("fires when the 15-minute rolling average is well under the planned pace", () => {
+    const trigger = new ReplanTrigger(15); // threshold: 11.55 min/km
+    const end = walk(trigger, T0, SUSTAINED_SLOW_WINDOW_MS, 9);
+    expect(trigger.evaluate(end)).toBe("sustained-fast-pace");
+  });
+
+  // Being ahead for one downhill stretch is no more a pace than being behind
+  // for one uphill one — the fast side shares the slow side's window on purpose.
+  it("does not fire on a quick stretch that has not filled the window", () => {
+    const trigger = new ReplanTrigger(15);
+    const walked = { meters: 0 };
+    const afterNormal = walk(trigger, T0, 10 * 60_000, 15, walked);
+    const end = walk(trigger, afterNormal + SAMPLE_INTERVAL_MS, 3 * 60_000, 8, walked);
+    expect(trigger.evaluate(end)).toBeNull();
+  });
+
+  it("does not fire when the rolling average is on plan", () => {
+    const trigger = new ReplanTrigger(15);
+    const end = walk(trigger, T0, SUSTAINED_SLOW_WINDOW_MS, 15);
+    expect(trigger.evaluate(end)).toBeNull();
+  });
+
+  it("classifies each reason's direction, counting a full stop as slow", () => {
+    expect(replanPaceDirection("sustained-fast-pace")).toBe("fast");
+    expect(replanPaceDirection("sustained-slow-pace")).toBe("slow");
+    // The extreme end of the same complaint: the walk no longer fits the time.
+    expect(replanPaceDirection("full-stop")).toBe("slow");
+  });
+});
+
+// The two directions are independent settings, and each has three modes. What
+// matters is that `off` is genuinely silent, `auto` still behaves the way the
+// old single flag did, and `ask` reaches the caller as a question rather than
+// as a rebuild.
+describe("PaceChecker — per-direction pace modes", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  type Fired = [ReplanReason, "auto" | "ask"];
+
+  function runUntilTrigger(
+    settings: Partial<WalkSettings>,
+    paceMinPerKm: number | null,
+    windowMs: number,
+  ): Fired[] {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+
+    const trigger = new ReplanTrigger(15);
+    const fired: Fired[] = [];
+    const checker = new PaceChecker(
+      { ...DEFAULT_WALK_SETTINGS, ...settings },
+      trigger,
+      (reason, response) => fired.push([reason, response]),
+    );
+    checker.start();
+
+    const walked = { meters: 0 };
+    let t = T0;
+    while (t <= T0 + windowMs) {
+      checker.recordSample({
+        coordinates: eastOf(START, walked.meters),
+        timestamp: t,
+      });
+      if (paceMinPerKm !== null) {
+        walked.meters += (SAMPLE_INTERVAL_MS / 60_000 / paceMinPerKm) * 1000;
+      }
+      t += SAMPLE_INTERVAL_MS;
+    }
+
+    vi.setSystemTime(T0 + windowMs);
+    vi.advanceTimersByTime(DEFAULT_WALK_SETTINGS.paceCheckIntervalMs);
+    checker.stop();
+
+    return fired;
+  }
+
+  const slow = (settings: Partial<WalkSettings>) =>
+    runUntilTrigger(settings, 25, SUSTAINED_SLOW_WINDOW_MS);
+  const fast = (settings: Partial<WalkSettings>) =>
+    runUntilTrigger(settings, 9, SUSTAINED_SLOW_WINDOW_MS);
+
+  it("never raises a slow trigger when the slow direction is off", () => {
+    expect(slow({ slowPaceMode: "off" })).toEqual([]);
+  });
+
+  it("never raises a fast trigger when the fast direction is off", () => {
+    expect(fast({ fastPaceMode: "off" })).toEqual([]);
+  });
+
+  it("asks for an immediate rebuild when the direction is on auto", () => {
+    expect(slow({ slowPaceMode: "auto" })).toEqual([
+      ["sustained-slow-pace", "auto"],
+    ]);
+    expect(fast({ fastPaceMode: "auto" })).toEqual([
+      ["sustained-fast-pace", "auto"],
+    ]);
+  });
+
+  it("asks the walker first when the direction is on ask", () => {
+    expect(slow({ slowPaceMode: "ask" })).toEqual([
+      ["sustained-slow-pace", "ask"],
+    ]);
+    expect(fast({ fastPaceMode: "ask" })).toEqual([
+      ["sustained-fast-pace", "ask"],
+    ]);
+  });
+
+  // The whole point of the split: one direction silenced must not silence the
+  // other.
+  it("keeps each direction's setting to itself", () => {
+    expect(slow({ slowPaceMode: "auto", fastPaceMode: "off" })).toEqual([
+      ["sustained-slow-pace", "auto"],
+    ]);
+    expect(fast({ fastPaceMode: "auto", slowPaceMode: "off" })).toEqual([
+      ["sustained-fast-pace", "auto"],
+    ]);
+  });
+
+  it("treats a full stop as the slow direction", () => {
+    expect(
+      runUntilTrigger({ slowPaceMode: "off" }, null, FULL_STOP_WINDOW_MS),
+    ).toEqual([]);
+    expect(
+      runUntilTrigger({ slowPaceMode: "ask" }, null, FULL_STOP_WINDOW_MS),
+    ).toEqual([["full-stop", "ask"]]);
+  });
+
+  // `evaluate` is what arms the cooldown and clears the window, so gating on
+  // the setting before calling it would leave a stale window behind.
+  it("still consumes the trigger window for a direction that is off", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+
+    const trigger = new ReplanTrigger(15);
+    const fired: Fired[] = [];
+    const checker = new PaceChecker(
+      { ...DEFAULT_WALK_SETTINGS, slowPaceMode: "off" },
+      trigger,
+      (reason, response) => fired.push([reason, response]),
+    );
+    checker.start();
+
+    for (let t = T0; t <= T0 + FULL_STOP_WINDOW_MS; t += SAMPLE_INTERVAL_MS) {
+      checker.recordSample({ coordinates: START, timestamp: t });
+    }
+    vi.setSystemTime(T0 + FULL_STOP_WINDOW_MS);
+    vi.advanceTimersByTime(DEFAULT_WALK_SETTINGS.paceCheckIntervalMs);
+    expect(fired).toEqual([]);
+
+    // Turned back on, still standing still — the cooldown from the suppressed
+    // evaluation holds, rather than a stale window firing instantly.
+    checker.updateSettings({ ...DEFAULT_WALK_SETTINGS, slowPaceMode: "auto" });
+    vi.advanceTimersByTime(DEFAULT_WALK_SETTINGS.paceCheckIntervalMs);
+    expect(fired).toEqual([]);
+    checker.stop();
+  });
+});
+
+describe("toPaceResponseMode", () => {
+  it("takes a stored mode at face value", () => {
+    expect(toPaceResponseMode("ask", undefined)).toBe("ask");
+    expect(toPaceResponseMode("off", true)).toBe("off");
+  });
+
+  // A returning walker's localStorage blob predates the split entirely.
+  it("reads the old paceCheckEnabled flag when there is no mode yet", () => {
+    expect(toPaceResponseMode(undefined, false)).toBe("off");
+    expect(toPaceResponseMode(undefined, true)).toBe("auto");
+  });
+
+  it("defaults to auto for a blob that says nothing either way", () => {
+    expect(toPaceResponseMode(undefined, undefined)).toBe("auto");
+    expect(toPaceResponseMode("sometimes", undefined)).toBe("auto");
   });
 });

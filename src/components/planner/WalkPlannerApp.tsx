@@ -33,6 +33,10 @@ import {
 import type { Coordinates } from "@/lib/types";
 import { downloadCsv, downloadGpx } from "@/lib/walk/gpx-exporter";
 import { AttractionDistancesPanel } from "@/components/walk/AttractionDistancesPanel";
+import {
+  PaceConfirmationNotification,
+  PACE_CONFIRMATION_TIMEOUT_MS,
+} from "@/components/walk/PaceConfirmationNotification";
 import { PaceChecker } from "@/lib/walk/pace-checker";
 import { detectDeviation, remainingRoute } from "@/lib/walk/deviation-detector";
 import { WalkRecorder } from "@/lib/walk/walk-recorder";
@@ -43,7 +47,11 @@ import { WalkRecordingPanel } from "@/components/WalkRecordingPanel";
 import { PoiAlerter } from "@/lib/walk/poi-alerter";
 import type { PoiAlert } from "@/lib/walk/poi-alerter";
 import { VisitTracker, excludeVisited } from "@/lib/walk/visit-tracker";
-import { ReplanTrigger } from "@/lib/walk/replan-trigger";
+import {
+  replanPaceDirection,
+  ReplanTrigger,
+  type ReplanReason,
+} from "@/lib/walk/replan-trigger";
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -183,6 +191,14 @@ export function WalkPlannerApp({
   // trigger owned by the checker would reset its cooldown on every re-plan and
   // never actually throttle them.
   const replanTriggerRef = useRef<ReplanTrigger | null>(null);
+  // The standing mid-walk question, for a direction the walker set to "ask".
+  // Null when there is nothing to ask.
+  const [paceConfirmation, setPaceConfirmation] = useState<ReplanReason | null>(
+    null,
+  );
+  const paceConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [poiAlert, setPoiAlert] = useState<PoiAlert | null>(null);
   const poiAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buildWalkRequestIdRef = useRef(0);
@@ -225,6 +241,17 @@ export function WalkPlannerApp({
   } = useTrailIntelligence(route, routeAnchor);
   const { center, zoom, clickMode, setClickMode, focusOn } = useMapInteraction();
 
+  // Take the standing mid-walk question down, and disarm the timer that would
+  // have answered it. Called on every walk teardown as well as on an answer:
+  // a question about a walk that has ended has nothing left to act on.
+  const clearPaceConfirmation = () => {
+    if (paceConfirmTimeoutRef.current !== null) {
+      clearTimeout(paceConfirmTimeoutRef.current);
+      paceConfirmTimeoutRef.current = null;
+    }
+    setPaceConfirmation(null);
+  };
+
   const stopWalkTracking = () => {
     paceCheckerRef.current?.stop();
     paceCheckerRef.current = null;
@@ -247,6 +274,7 @@ export function WalkPlannerApp({
     setWalkTrackingMessage(null);
     setAttractionDistances({});
     setPoiAlert(null);
+    clearPaceConfirmation();
   };
 
   // Ending the walk tears down everything scoped to *this walk*, not just the GPS
@@ -481,6 +509,61 @@ export function WalkPlannerApp({
     }
   };
 
+  // The rebuild a pace trigger asks for: re-time the walk the walker is already
+  // on from where they are now, and drop them straight back into tracking.
+  // Extracted from the PaceChecker callback so the "ask first" path can run
+  // exactly the same rebuild once the walker says yes.
+  const runPaceTriggeredRebuild = () => {
+    const orig = walkInputRef.current;
+    if (!orig) return;
+    // Only rebuild when the user is actually walking (CRITICAL-2) — the tracker
+    // still being alive is how this closure reads that, since it cannot see
+    // `walkPhase` from a render it did not participate in.
+    if (walkTrackerRef.current === null) return;
+    const elapsedMinutes = (Date.now() - walkStartTimeRef.current) / 60_000;
+    const remainingMinutes = Math.max(15, orig.availableMinutes - elapsedMinutes);
+    const currentPos = latestPaceUpdateRef.current?.currentPosition ?? orig.origin;
+    void handleBuildWalk(
+      {
+        ...orig,
+        origin: currentPos,
+        availableMinutes: remainingMinutes,
+      },
+      {
+        autoResume: true,
+        // Re-time the walk the user is already on — no fresh POI discovery.
+        keepAttractions: walkPlanRef.current?.orderedAttractions,
+        pinnedIds: pinnedAttractionIdsRef.current,
+      },
+    );
+  };
+
+  /**
+   * Raise the question instead of rebuilding, for a direction the walker set to
+   * "ask". A banner, not a dialog — see `PaceConfirmationNotification`.
+   *
+   * No answer times out differently by direction, and the asymmetry is the
+   * point. Ignoring a slow-pace question has a cost the walker can't see coming
+   * — they run past the time they said they had — so silence falls back to the
+   * old auto behaviour and the route is adjusted. Ignoring an ahead-of-plan
+   * question costs nothing: they finish early. Adding a stop to someone's walk
+   * because they didn't look at their phone is not a reasonable default.
+   */
+  const askBeforeRebuilding = (reason: ReplanReason) => {
+    if (walkTrackerRef.current === null) return;
+
+    clearPaceConfirmation();
+    setPaceConfirmation(reason);
+
+    paceConfirmTimeoutRef.current = setTimeout(() => {
+      paceConfirmTimeoutRef.current = null;
+      setPaceConfirmation(null);
+      if (replanPaceDirection(reason) === "slow") {
+        runPaceTriggeredRebuild();
+      }
+    }, PACE_CONFIRMATION_TIMEOUT_MS);
+  };
+
   // `planOverride` is passed by the auto-resume path, where `walkPlan` state has just
   // been set and this closure would still read the previous (null) value.
   const handleStartWalk = (planOverride?: WalkPlan) => {
@@ -634,34 +717,14 @@ export function WalkPlannerApp({
       replanTriggerRef.current ?? new ReplanTrigger(input.walkingPaceMinPerKm);
     replanTriggerRef.current = trigger;
 
-    const checker = new PaceChecker(
-      walkSettings,
-      trigger,
-      () => {
-        const orig = walkInputRef.current;
-        if (!orig) return;
-        // Only auto-rebuild when the user is actually walking (CRITICAL-2)
-        // This ref closure captures the live walkPhase via the setter comparison below
-        // We re-read walkPhase by checking the tracker is still active
-        if (walkTrackerRef.current === null) return;
-        const elapsedMinutes = (Date.now() - walkStartTimeRef.current) / 60_000;
-        const remainingMinutes = Math.max(15, orig.availableMinutes - elapsedMinutes);
-        const currentPos = latestPaceUpdateRef.current?.currentPosition ?? orig.origin;
-        void handleBuildWalk(
-          {
-            ...orig,
-            origin: currentPos,
-            availableMinutes: remainingMinutes,
-          },
-          {
-            autoResume: true,
-            // Re-time the walk the user is already on — no fresh POI discovery.
-            keepAttractions: walkPlanRef.current?.orderedAttractions,
-            pinnedIds: pinnedAttractionIdsRef.current,
-          },
-        );
-      },
-    );
+    const checker = new PaceChecker(walkSettings, trigger, (reason, response) => {
+      if (response === "auto") {
+        runPaceTriggeredRebuild();
+        return;
+      }
+
+      askBeforeRebuilding(reason);
+    });
     paceCheckerRef.current = checker;
     checker.start();
   };
@@ -772,6 +835,9 @@ export function WalkPlannerApp({
       if (poiAlertTimeoutRef.current !== null) {
         clearTimeout(poiAlertTimeoutRef.current);
       }
+      if (paceConfirmTimeoutRef.current !== null) {
+        clearTimeout(paceConfirmTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -841,6 +907,14 @@ export function WalkPlannerApp({
       <OffRouteNotification
         visible={isOffRoute}
         deviationMeters={offRouteDeviation}
+      />
+      <PaceConfirmationNotification
+        reason={paceConfirmation}
+        onConfirm={() => {
+          clearPaceConfirmation();
+          runPaceTriggeredRebuild();
+        }}
+        onDismiss={clearPaceConfirmation}
       />
       {/* POI alert overlay (CRITICAL-1) — absolute, so it lands inside the
           planner frame rather than at the bottom of the window when embedded. */}
