@@ -99,6 +99,10 @@ function IconCollapse({ className }: { className?: string }) {
   );
 }
 
+// Comfortably past `deviation-detector.ts`'s 50 m re-route threshold, and not
+// so far that the stray leaves the map view it was triggered from.
+const SIMULATED_STRAY_METERS = 80;
+
 const REPLAN_FAILED_MESSAGE =
   "Couldn't build an updated route just now — keeping you on your current one.";
 
@@ -179,6 +183,9 @@ export function WalkPlannerApp({
   const [pinnedTimeWarning, setPinnedTimeWarning] = useState<string | null>(null);
   const walkTrackerRef = useRef<WalkTracker | SimulatedWalkTracker | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  // Whether the simulated walker is currently off the planned line. Mirrors the
+  // tracker's own flag, which is a ref and so cannot re-label the button.
+  const [isSimulatedStray, setIsSimulatedStray] = useState(false);
   const paceCheckerRef = useRef<PaceChecker | null>(null);
   const walkRecorderRef = useRef<WalkRecorder | null>(null);
   const poiAlerterRef = useRef<PoiAlerter | null>(null);
@@ -258,6 +265,7 @@ export function WalkPlannerApp({
   };
 
   const stopWalkTracking = () => {
+    setIsSimulatedStray(false);
     paceCheckerRef.current?.stop();
     paceCheckerRef.current = null;
     walkTrackerRef.current?.stop();
@@ -1282,6 +1290,40 @@ export function WalkPlannerApp({
                   />
                   Simulate this walk (10× speed)
                 </label>
+              )}
+              {/* The off-route chain has no other way to be seen working: real
+                  GPS drift is not something you can ask for on demand, and the
+                  simulator only ever walked the route's own geometry. This
+                  moves the reported position, so what fires downstream is the
+                  real detector on a real position stream. */}
+              {walkPhase === "walking" && isSimulating && (
+                <div className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-white px-3 py-2">
+                  <p className="text-xs text-charcoal/60">
+                    {isSimulatedStray
+                      ? `Walking ${SIMULATED_STRAY_METERS} m off the planned line.`
+                      : "Send the simulated walker off the planned line to exercise the off-route warning."}
+                  </p>
+                  <Button
+                    variant="secondary"
+                    fullWidth
+                    onClick={() => {
+                      const tracker = walkTrackerRef.current;
+                      if (!(tracker instanceof SimulatedWalkTracker)) return;
+
+                      if (tracker.isStraying) {
+                        tracker.returnToRoute();
+                        setIsSimulatedStray(false);
+                      } else {
+                        tracker.strayOffRoute(SIMULATED_STRAY_METERS);
+                        setIsSimulatedStray(true);
+                      }
+                    }}
+                  >
+                    {isSimulatedStray
+                      ? "Rejoin the route"
+                      : `Stray ${SIMULATED_STRAY_METERS} m off route`}
+                  </Button>
+                </div>
               )}
               <TrailIntelligencePanel
                 report={trailBriefing}
