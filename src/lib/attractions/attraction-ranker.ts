@@ -1,3 +1,4 @@
+import { poiIdentityKeys } from "@/lib/preferences/poi-key";
 import type { Attraction, AttractionCategory } from "@/lib/types";
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
@@ -159,6 +160,19 @@ export interface RankerOptions {
    * spending the exploration slot on.
    */
   upvotedCategories?: ReadonlyMap<AttractionCategory, number>;
+  /**
+   * `poi_key` identities of specific places the walker has voted down. Dropped
+   * from the ranking outright rather than penalized: a category downvote means
+   * "less of this kind of place" and is a matter of degree, but a POI downvote
+   * names one place and means "not that one again", and any penalty leaves a
+   * notable enough place able to out-score its way back onto the walk.
+   *
+   * Only discovered candidates pass through here. A place the walker names
+   * themselves reaches the planner through `explicitAttractions` and is never
+   * ranked, which is the right asymmetry — asking for somewhere by name today
+   * outranks having disliked it once.
+   */
+  downvotedPoiKeys?: ReadonlySet<string>;
   availableMinutes: number;
   walkingPaceMinPerKm: number;
   /**
@@ -234,6 +248,7 @@ export function rankAttractions(
     preferredCategories,
     downvotedCategories,
     upvotedCategories,
+    downvotedPoiKeys,
     availableMinutes,
     walkingPaceMinPerKm,
     allowExploration,
@@ -247,6 +262,16 @@ export function rankAttractions(
   const scored: ScoredAttraction[] = [];
 
   for (const a of attractions) {
+    if (downvotedPoiKeys && downvotedPoiKeys.size > 0) {
+      const keys = poiIdentityKeys({
+        osmId: a.id,
+        name: a.name,
+        lat: a.coordinates.lat,
+        lng: a.coordinates.lng,
+      });
+      if (keys.some((key) => downvotedPoiKeys.has(key))) continue;
+    }
+
     const distanceMeters = haversineDistance(origin, a.coordinates);
 
     if (distanceMeters > maxReachableMeters) continue;

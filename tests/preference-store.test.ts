@@ -11,6 +11,7 @@ vi.mock("@/lib/supabase/server", () => ({
 import {
   deriveCategorySignals,
   getDownvotedCategories,
+  getDownvotedPoiKeys,
   getPreferredCategories,
   getProfileDefaults,
   getUpvotedCategories,
@@ -687,5 +688,106 @@ describe("deriveCategorySignals", () => {
     expect(
       deriveCategorySignals([rating({ category: "other" })]),
     ).toEqual({ upvoted: [], downvoted: [] });
+  });
+});
+
+// The POI-level read ends on `.not("poi_name", "is", null)` rather than `.is()`,
+// so it needs its own tail on the builder.
+function fakePoiSupabase(result: Result) {
+  const filters: Record<string, unknown> = {};
+  const builder = {
+    select: () => builder,
+    eq: (column: string, value: unknown) => {
+      filters[column] = value;
+      return builder;
+    },
+    not: (column: string, operator: string, value: unknown) => {
+      filters[column] = `not ${operator} ${String(value)}`;
+      return Promise.resolve(result);
+    },
+  };
+  return {
+    filters,
+    client: { from: () => builder } as unknown as Parameters<
+      typeof getDownvotedPoiKeys
+    >[0],
+  };
+}
+
+describe("getDownvotedPoiKeys", () => {
+  it("keys a downvoted POI by its OSM id and by name and coordinates", async () => {
+    const { client } = fakePoiSupabase({
+      data: [
+        {
+          osm_id: "node/42",
+          poi_name: "Carmel Market",
+          lat: 32.0685,
+          lng: 34.7689,
+        },
+      ],
+      error: null,
+    });
+
+    expect(await getDownvotedPoiKeys(client, "user-1")).toEqual(
+      new Set(["node/42", "carmel market@32.0685,34.7689"]),
+    );
+  });
+
+  // `saveAttractionFeedback` writes a null id for a stop the walker named
+  // themselves — the table asks for a name and coordinates, not an id.
+  it("keys a row with no OSM id by name and coordinates alone", async () => {
+    const { client } = fakePoiSupabase({
+      data: [{ osm_id: null, poi_name: "Gordon Beach", lat: 32.08, lng: 34.78 }],
+      error: null,
+    });
+
+    expect(await getDownvotedPoiKeys(client, "user-1")).toEqual(
+      new Set(["gordon beach@32.0800,34.7800"]),
+    );
+  });
+
+  // `lat`/`lng` are numeric, which PostgREST may hand back as strings.
+  it("reads coordinates that arrived as strings", async () => {
+    const { client } = fakePoiSupabase({
+      data: [
+        { osm_id: null, poi_name: "Gordon Beach", lat: "32.080000", lng: "34.780000" },
+      ],
+      error: null,
+    });
+
+    expect(await getDownvotedPoiKeys(client, "user-1")).toEqual(
+      new Set(["gordon beach@32.0800,34.7800"]),
+    );
+  });
+
+  // A coordinate that will not parse costs the name key, not the whole row.
+  it("still returns the id of a row with unusable coordinates", async () => {
+    const { client } = fakePoiSupabase({
+      data: [{ osm_id: "way/7", poi_name: "Broken", lat: null, lng: null }],
+      error: null,
+    });
+
+    expect(await getDownvotedPoiKeys(client, "user-1")).toEqual(new Set(["way/7"]));
+  });
+
+  it("asks only for this user's POI-level downvotes", async () => {
+    const { client, filters } = fakePoiSupabase({ data: [], error: null });
+
+    await getDownvotedPoiKeys(client, "user-1");
+
+    expect(filters).toEqual({
+      user_id: "user-1",
+      signal: "downvote",
+      poi_name: "not is null",
+    });
+  });
+
+  it.each([
+    ["a failed read", { data: null, error: new Error("boom") }],
+    ["a response that is not a list", { data: {}, error: null }],
+  ])("suppresses nothing on %s", async (_label, result) => {
+    const { client } = fakePoiSupabase(result);
+
+    expect(await getDownvotedPoiKeys(client, "user-1")).toEqual(new Set());
   });
 });

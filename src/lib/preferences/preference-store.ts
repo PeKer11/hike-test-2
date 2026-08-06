@@ -4,6 +4,7 @@ import { extractCategoryPreferences } from "@/lib/api/gemini-client";
 import { createClient } from "@/lib/supabase/server";
 import type { AttractionCategory } from "@/lib/types";
 
+import { poiIdentityKeys } from "./poi-key";
 import {
   ATTRACTION_CATEGORIES,
   mergePreferredCategories,
@@ -215,9 +216,8 @@ async function getCategorySignalCounts(
  * constraint calls category-level). A downvote on one specific POI says "not
  * that place", which is a different claim from "not that kind of place", and
  * suppressing a whole category off one bad museum would be the wrong lesson.
- * Suppressing the re-discovered POI itself is a fair feature, but a separate
- * one — it needs the table's `poi_key` identity rebuilt on this side to match a
- * fresh Overpass result, so it is deliberately not built here.
+ * The POI-level half of that signal is read separately, by
+ * `getDownvotedPoiKeys` below.
  *
  * Best effort exactly like the reads above: no rows, no session or a failed
  * read all come back empty and the walk is planned as it was before.
@@ -246,6 +246,77 @@ export async function getUpvotedCategories(
   userId: string,
 ): Promise<Map<AttractionCategory, number>> {
   return getCategorySignalCounts(supabase, userId, "upvote");
+}
+
+/** A `numeric` coordinate column as a number, or null if it is not one. */
+function toCoordinate(value: unknown): number | null {
+  if (typeof value !== "number" && typeof value !== "string") {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * The specific places the walker has voted down, as `poi_key` identities the
+ * ranker can test a freshly-discovered Overpass result against.
+ *
+ * Distinct from `getDownvotedCategories` in what it claims and in what it
+ * costs the candidate. A category downvote says "less of this kind of place"
+ * and is priced into the score; a POI downvote says "not THAT place again",
+ * which no amount of score can honour — a strong enough notability bonus would
+ * put the rejected place back at the top of the walk. So this one is a hard
+ * exclusion rather than a penalty.
+ *
+ * No occurrence count, unlike the category reads: repetition is what turns a
+ * category tap into evidence, because one bad museum is not an opinion about
+ * museums. A POI downvote is already about the only thing it could be about.
+ *
+ * Both identities of each row are returned — see `poiIdentityKeys`. Best
+ * effort like every read here: no rows, no session or a failed read all come
+ * back empty and nothing is suppressed.
+ */
+export async function getDownvotedPoiKeys(
+  supabase: ServerClient,
+  userId: string,
+): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("attraction_feedback")
+    .select("osm_id, poi_name, lat, lng")
+    .eq("user_id", userId)
+    .eq("signal", "downvote")
+    .not("poi_name", "is", null);
+
+  if (error || !Array.isArray(data)) {
+    return new Set();
+  }
+
+  const keys = new Set<string>();
+  for (const row of data as {
+    osm_id: unknown;
+    poi_name: unknown;
+    lat: unknown;
+    lng: unknown;
+  }[]) {
+    // `lat`/`lng` are `numeric`, which PostgREST hands back as a string as
+    // readily as a number. A row that fails to parse has no usable coordinate
+    // key, but may still carry an OSM id worth matching on — hence the explicit
+    // null check, since `Number(null)` is a perfectly finite 0 on the equator.
+    const lat = toCoordinate(row.lat);
+    const lng = toCoordinate(row.lng);
+    const hasCoords = lat !== null && lng !== null;
+
+    for (const key of poiIdentityKeys({
+      osmId: typeof row.osm_id === "string" ? row.osm_id : null,
+      name: hasCoords && typeof row.poi_name === "string" ? row.poi_name : null,
+      lat: lat ?? 0,
+      lng: lng ?? 0,
+    })) {
+      keys.add(key);
+    }
+  }
+
+  return keys;
 }
 
 /**

@@ -9,6 +9,7 @@ const mockGetUser = vi.fn();
 const mockGetPreferredCategories = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
 const mockGetUpvotedCategories = vi.fn();
+const mockGetDownvotedPoiKeys = vi.fn();
 const mockRankAttractions = vi.fn();
 
 vi.mock("@/lib/attractions/overpass-client", () => ({
@@ -33,6 +34,7 @@ vi.mock("@/lib/preferences/preference-store", () => ({
     mockGetDownvotedCategories(...args),
   getUpvotedCategories: (...args: unknown[]) =>
     mockGetUpvotedCategories(...args),
+  getDownvotedPoiKeys: (...args: unknown[]) => mockGetDownvotedPoiKeys(...args),
 }));
 
 // Real ranking, observed: the route's own output never echoes the categories it
@@ -109,6 +111,8 @@ function resetMocks(): void {
   mockGetDownvotedCategories.mockResolvedValue(new Map());
   mockGetUpvotedCategories.mockReset();
   mockGetUpvotedCategories.mockResolvedValue(new Map());
+  mockGetDownvotedPoiKeys.mockReset();
+  mockGetDownvotedPoiKeys.mockResolvedValue(new Set());
   mockRankAttractions.mockReset();
 }
 
@@ -598,5 +602,84 @@ describe("POST /api/walk-plan — saved upvotes", () => {
     );
 
     expect(upvotedWith()).toEqual(new Map([["nature", 2]]));
+  });
+});
+
+describe("POST /api/walk-plan — saved POI-level downvotes", () => {
+  beforeEach(resetMocks);
+
+  function discoveryBody() {
+    return {
+      lat: origin.lat,
+      lng: origin.lng,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+    };
+  }
+
+  it("keeps a downvoted place out of the plan when Overpass rediscovers it", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("node/42", 32.081, 34.78, 20),
+      makeAttraction("node/43", 32.082, 34.78, 20),
+    ]);
+    mockGetDownvotedPoiKeys.mockResolvedValueOnce(new Set(["node/42"]));
+
+    const response = await POST(postRequest(discoveryBody()));
+    const plan = await response.json();
+    const seenIds = [
+      ...plan.orderedAttractions.map((a: Attraction) => a.id),
+      ...plan.droppedAttractions.map((a: Attraction) => a.id),
+    ];
+
+    expect(response.status).toBe(200);
+    // Not merely dropped by the planner — never a candidate in the first place.
+    expect(seenIds).toEqual(["node/43"]);
+  });
+
+  it("passes nothing for a walker who has never downvoted a place", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    await POST(postRequest(discoveryBody()));
+
+    expect(
+      mockRankAttractions.mock.calls[0]?.[1]?.downvotedPoiKeys,
+    ).toBeUndefined();
+  });
+
+  it("reads no POI downvotes for a walker who is not signed in", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    const response = await POST(postRequest(discoveryBody()));
+
+    expect(response.status).toBe(200);
+    expect(mockGetDownvotedPoiKeys).not.toHaveBeenCalled();
+  });
+
+  // Four reads on one session lookup, still not one fate — a failed POI read
+  // must cost the suppression and nothing else.
+  it("still applies the other three reads when the POI read fails", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    mockGetPreferredCategories.mockResolvedValueOnce(["park"]);
+    mockGetDownvotedCategories.mockResolvedValueOnce(new Map([["food", 2]]));
+    mockGetUpvotedCategories.mockResolvedValueOnce(new Map([["museum", 1]]));
+    mockGetDownvotedPoiKeys.mockRejectedValueOnce(new Error("supabase down"));
+
+    const response = await POST(postRequest(discoveryBody()));
+    const plan = await response.json();
+    const options = mockRankAttractions.mock.calls[0]?.[1];
+
+    expect(response.status).toBe(200);
+    expect(options?.preferredCategories).toEqual(["park"]);
+    expect(options?.downvotedCategories).toEqual(new Map([["food", 2]]));
+    expect(options?.upvotedCategories).toEqual(new Map([["museum", 1]]));
+    expect(options?.downvotedPoiKeys).toBeUndefined();
+    expect(plan.orderedAttractions).toHaveLength(1);
   });
 });

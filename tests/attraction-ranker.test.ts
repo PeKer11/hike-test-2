@@ -662,3 +662,60 @@ describe("selectFeasibleAttractions — cost against the growing route", () => {
     expect(selected.map((a) => a.id)).toEqual(["start", "next", "beyond"]);
   });
 });
+
+// A category downvote is priced into the score; a downvote on one specific
+// place cannot be, because a notable enough place would out-score its way back
+// onto the walk. These prove the exclusion is a hard one.
+describe("rankAttractions — POI-level downvote suppression", () => {
+  const suppressed: Attraction = {
+    id: "node/42",
+    name: "Carmel Market",
+    coordinates: { lat: 32.081, lng: 34.78 },
+    category: "shopping",
+    avgVisitMinutes: 20,
+    // Notable enough to lead the ranking on score alone.
+    tags: { wikidata: "Q1", wikipedia: "he:X", heritage: "2" },
+  };
+
+  function ranked(downvotedPoiKeys: Set<string>): string[] {
+    return rankAttractions([suppressed, museum], {
+      origin,
+      downvotedPoiKeys,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+    }).map((a) => a.id);
+  }
+
+  it("drops a rediscovered POI matched by its OSM id", () => {
+    expect(ranked(new Set(["node/42"]))).toEqual(["museum"]);
+  });
+
+  // The walker downvoted it as a stop they named themselves, so it was stored
+  // with no OSM id — Overpass hands the same place back with one.
+  it("drops a rediscovered POI matched by name and coordinates", () => {
+    expect(ranked(new Set(["carmel market@32.0810,34.7800"]))).toEqual(["museum"]);
+  });
+
+  it("keeps a POI whose coordinates have moved beyond the key's precision", () => {
+    expect(ranked(new Set(["carmel market@32.0900,34.7800"]))).toEqual([
+      "node/42",
+      "museum",
+    ]);
+  });
+
+  it("suppresses nothing when no POI has been voted down", () => {
+    expect(ranked(new Set())).toEqual(["node/42", "museum"]);
+  });
+
+  // The whole point of the hard exclusion: score is not allowed to overrule it.
+  it("drops it however well it scores", () => {
+    const withoutSuppression = rankAttractions([suppressed, museum], {
+      origin,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+    });
+
+    expect(withoutSuppression[0].id).toBe("node/42");
+    expect(ranked(new Set(["node/42"]))).not.toContain("node/42");
+  });
+});
