@@ -228,6 +228,13 @@ export function WalkPlannerApp({
   const [promptDurationMinutes, setPromptDurationMinutes] = useState<
     number | null
   >(null);
+  // How many stops that same free text asked for ("bring me 3 famous places"),
+  // and whether it asked for famous ones. Both describe the current prompt, not
+  // the form, so they are sent with every build until a new prompt replaces
+  // them — including the "+ 15 min and retry" rebuild, which is still the same
+  // request for three places.
+  const [promptStopCount, setPromptStopCount] = useState<number | null>(null);
+  const [promptNotableOnly, setPromptNotableOnly] = useState(false);
   // The area that same free text named, geocoded — handed to the companion panel
   // as a starting value for its origin. Null until a prompt resolves one.
   const [promptOrigin, setPromptOrigin] = useState<Coordinates | null>(null);
@@ -462,6 +469,8 @@ export function WalkPlannerApp({
           explicitAttractions: keepAttractions,
           pinnedAttractionIds: activePinnedIds,
           fillRemainingTime: options?.fillRemainingTime ?? false,
+          stopCount: promptStopCount ?? undefined,
+          notableOnly: promptNotableOnly,
         }),
       });
       const data = (await res.json()) as WalkPlan & { error?: string };
@@ -1126,6 +1135,8 @@ export function WalkPlannerApp({
                   onPreview={(coordinates) => focusOn(coordinates, 16)}
                   onFoundPlacesChange={setPreviewPlaces}
                   onDurationDetected={setPromptDurationMinutes}
+                  onStopCountDetected={setPromptStopCount}
+                  onNotableOnlyDetected={setPromptNotableOnly}
                   onOriginDetected={setPromptOrigin}
                   learnPreferences={walkSettings.preferenceLearningEnabled}
                   fillRemainingTime={fillPromptWalk}

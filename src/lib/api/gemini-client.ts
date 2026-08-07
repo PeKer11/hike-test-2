@@ -50,6 +50,23 @@ const PLACES_SCHEMA: Schema = {
       description:
         "Kinds of stop asked for on this walk without naming a place, for example food for 'I also want to eat'.",
     },
+    stopCount: {
+      type: Type.INTEGER,
+      nullable: true,
+      description:
+        "How many stops the walker asked for, when the text states a count unambiguously, or null.",
+    },
+    // A quality asked of every stop, not a kind of stop, so it is its own field
+    // rather than a value in `categoryNeeds`. That enum is `ATTRACTION_CATEGORIES`,
+    // shared with the preference learner and the ranker's category score table —
+    // a pseudo-category "famous" would immediately be learnable as a standing
+    // preference and would need a base score, neither of which means anything.
+    notableOnly: {
+      type: Type.BOOLEAN,
+      nullable: true,
+      description:
+        "True when the walker asks specifically for famous or well-known places, otherwise null.",
+    },
   },
   // Everything past `places` stays optional: most prompts have none of it, and a
   // missing field parses to null / an empty list just like an explicit one.

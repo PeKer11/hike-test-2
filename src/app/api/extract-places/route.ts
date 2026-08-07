@@ -266,8 +266,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     let bias = toBias(body.nearLocation);
-    const { places, contextLocation, durationMinutes, categoryNeeds } =
-      await extractPlaceNames(prompt);
+    const {
+      places,
+      contextLocation,
+      durationMinutes,
+      categoryNeeds,
+      stopCount,
+      notableOnly,
+    } = await extractPlaceNames(prompt);
 
     // A chip the walker tapped answers the question the text left open, so it
     // stands in for what the model read (nothing) rather than joining it.
@@ -367,6 +373,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       contextLocation: contextLocation ?? null,
       contextCoordinates,
       durationMinutes: durationMinutes ?? null,
+      // Both ride through to the walk-plan request untouched: this endpoint
+      // finds named places, and "three of them" / "famous ones" are answers
+      // about a walk it does not build.
+      stopCount: stopCount ?? null,
+      notableOnly: notableOnly ?? null,
       // Reported so a need that found nothing is still visible when debugging —
       // no UI reads this yet.
       categoryNeeds: effectiveNeeds,

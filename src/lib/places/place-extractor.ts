@@ -19,6 +19,18 @@ const MAX_CATEGORY_NEEDS = 3;
 const MIN_DURATION_MINUTES = 5;
 const MAX_DURATION_MINUTES = 600;
 
+/**
+ * Bounds on a stated stop count. One is the smallest walk anybody can ask for;
+ * the ceiling is `MAX_WALK_STOPS`, spelled out rather than imported because the
+ * ranker imports nothing from here and this module is already tangled with
+ * `preference-extractor` — see the circular-import note above. A count outside
+ * the range is clamped rather than dropped: "give me 20 famous places" is a
+ * real request for as many as the walk can hold, and dropping it is the exact
+ * bug this field exists to fix.
+ */
+const MIN_STOP_COUNT = 1;
+const MAX_STOP_COUNT = 8;
+
 // Explicit-mode places carry no OSM tags, so there is nothing to infer a
 // category or a realistic dwell time from. 30 minutes matches the mid-range of
 // the Overpass category defaults.
@@ -81,6 +93,19 @@ export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   '"תביא לי גם לראות בית כנסת באיזור" -> categoryNeeds ["religious"] — a kind of place, not a named one.',
   '"אני אוהב דברים טבעיים" -> categoryNeeds [] — a taste, not a request for a stop on this walk.',
   '"I want to see Habima Square" -> categoryNeeds [] — the stop is named, so it is in `places` instead.',
+  "",
+  "`stopCount`: how many stops the walker asked for, as a whole number.",
+  "Only fill it in when the text states a count of places to visit unambiguously — 'bring me 3 famous places' -> 3, 'four stops' -> 4, 'תביא לי 5 מקומות' -> 5.",
+  "Return null for a vague quantity ('a few places', 'some stops'), for a number that counts something else (a duration, a distance, a street number, a party size), and whenever the walker named the places themselves — a list of names already says how many there are.",
+  "Never guess a count that was not stated. null is the normal answer.",
+  "",
+  "`notableOnly`: true only when the walker asks specifically for well-known places — 'famous', 'iconic', 'the highlights', 'must-see', 'the best-known', 'מפורסמים', 'הכי מפורסם'.",
+  "It is a quality asked of every stop on the walk, not a kind of place, so it never belongs in `categoryNeeds`.",
+  "Return null for a plain request with no such wording, and for praise of a place the walker already named ('the famous Carmel Market' — they named it, so there is nothing to select for).",
+  "null is the normal answer.",
+  "Examples:",
+  '"bring me 3 famous places in Tel Aviv" -> places ["Tel Aviv"], contextLocation null, stopCount 3, notableOnly true.',
+  '"תן לי 90 דקות בתל אביב" -> stopCount null, notableOnly null, durationMinutes 90 — a time budget is not a stop count.',
 ].join("\n");
 
 /**
@@ -132,6 +157,20 @@ export interface PlaceExtraction {
    * for this walk only — standing tastes are the preference pass's job.
    */
   categoryNeeds: AttractionCategory[];
+  /**
+   * How many stops the text asked for, or null when it stated no count. Caps
+   * the discovery selection instead of the time budget doing it alone: "3
+   * famous places in Tel Aviv" is a request for three stops, and a 90-minute
+   * budget would otherwise hand back eight.
+   */
+  stopCount: number | null;
+  /**
+   * Set when the walker asked for well-known places rather than just places.
+   * Null, not false, for the same reason `durationMinutes` is nullable: absent
+   * and "explicitly not" are the same request here, and a tri-state keeps the
+   * "don't guess" instruction honest in the schema itself.
+   */
+  notableOnly: boolean | null;
 }
 
 function toStringArray(value: unknown): string[] | null {
@@ -284,6 +323,47 @@ export function parseCategoryNeeds(input: unknown): AttractionCategory[] {
 }
 
 /**
+ * Read a stated stop count off the reply. Out-of-range counts are clamped, not
+ * dropped — see `MIN_STOP_COUNT`/`MAX_STOP_COUNT`. A non-number is dropped: the
+ * model was told to answer null when no count was stated, and anything else
+ * arriving in that field is not a count.
+ */
+export function parseStopCount(input: unknown): number | null {
+  const candidate = toCandidate(input);
+
+  if (candidate === null || typeof candidate !== "object") {
+    return null;
+  }
+
+  const raw = (candidate as Record<string, unknown>).stopCount;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return null;
+  }
+
+  const count = Math.round(raw);
+  if (count < 1) return null;
+
+  return Math.min(Math.max(count, MIN_STOP_COUNT), MAX_STOP_COUNT);
+}
+
+/**
+ * Read the "famous places only" signal off the reply. Only a literal `true`
+ * counts: a string "true", a 1, or a missing field are all read as "not asked
+ * for", which is the answer that changes nothing.
+ */
+export function parseNotableOnly(input: unknown): boolean | null {
+  const candidate = toCandidate(input);
+
+  if (candidate === null || typeof candidate !== "object") {
+    return null;
+  }
+
+  return (candidate as Record<string, unknown>).notableOnly === true
+    ? true
+    : null;
+}
+
+/**
  * Read every field off one reply. The context area is dropped when it also
  * appears in `places` — the model occasionally returns it twice, and biasing a
  * search for a city by that same city is pointless.
@@ -304,6 +384,11 @@ export function parsePlaceExtraction(input: unknown): PlaceExtraction {
     contextLocation: repeatsAPlace ? null : contextLocation,
     durationMinutes,
     categoryNeeds,
+    // A count only means anything for a walk the app has to choose stops for.
+    // When the walker named the places, the list is the count, and a model that
+    // also filled this in would be capping their own named stops.
+    stopCount: places.length > 1 ? null : parseStopCount(candidate),
+    notableOnly: parseNotableOnly(candidate),
   };
 }
 

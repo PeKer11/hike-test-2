@@ -146,6 +146,15 @@ export function occurrencePreferenceBoost(occurrenceCount: number): number {
  */
 export const MAX_WALK_STOPS = 8;
 
+/**
+ * How much harder the notability signal counts when the walker asked for famous
+ * places. Four, so a place carrying both wikidata and wikipedia goes from +5 to
+ * +20 — decisively past the widest category-base gap (10) and past the
+ * kilometre-scale distance term, which is what it takes to actually reorder a
+ * list rather than nudge it. Notability is untouched at ×1 otherwise.
+ */
+export const NOTABLE_ONLY_MULTIPLIER = 4;
+
 export interface RankerOptions {
   origin: Coordinates;
   preferredCategories?: AttractionCategory[];
@@ -189,6 +198,18 @@ export interface RankerOptions {
    * asked for. The walk-plan builder turns it on.
    */
   allowExploration?: boolean;
+  /**
+   * The walker asked for famous places, not just places ("bring me 3 famous
+   * places in Tel Aviv"). Weights the notability signal this function already
+   * computes — wikidata, wikipedia, heritage, star rating — rather than adding
+   * a "famous" category: notability cuts across every category, and a place is
+   * a museum whether or not anybody has heard of it.
+   *
+   * Emphasis, not a filter. A neighbourhood where nothing carries a wikidata
+   * tag still produces a walk, ranked exactly as it would have been; filtering
+   * would hand back an empty plan for a request that was perfectly reasonable.
+   */
+  notableOnly?: boolean;
   /**
    * Injected so a test can force the exploration roll either way. Ranking is
    * otherwise pure, and should stay reproducible under test.
@@ -259,6 +280,7 @@ export function rankAttractions(
     availableMinutes,
     walkingPaceMinPerKm,
     allowExploration,
+    notableOnly,
     random = Math.random,
   } = options;
 
@@ -284,7 +306,11 @@ export function rankAttractions(
     if (distanceMeters > maxReachableMeters) continue;
 
     let score = CATEGORY_BASE_SCORE[a.category] ?? 3;
-    score += notabilityBonus(a.tags);
+    // Folded into `score` rather than applied as a separate sort key, because
+    // `selectFeasibleAttractions` re-sorts the remaining candidates by score
+    // after every accepted stop — a comparator here would be undone one stop in.
+    score +=
+      notabilityBonus(a.tags) * (notableOnly ? NOTABLE_ONLY_MULTIPLIER : 1);
 
     if (preferredCategories?.includes(a.category)) {
       score += PREFERRED_CATEGORY_BOOST;

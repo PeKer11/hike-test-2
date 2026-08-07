@@ -12,8 +12,10 @@ import {
   parseCategoryNeeds,
   parseContextLocation,
   parseDurationMinutes,
+  parseNotableOnly,
   parsePlaceExtraction,
   parsePlaceNames,
+  parseStopCount,
   pickNeedAttractions,
   PLACE_EXTRACTION_SYSTEM_PROMPT,
   toExplicitAttraction,
@@ -208,6 +210,8 @@ describe("parsePlaceExtraction", () => {
       contextLocation: "זכרון יעקב",
       durationMinutes: null,
       categoryNeeds: [],
+      stopCount: null,
+      notableOnly: null,
     });
   });
 
@@ -219,6 +223,8 @@ describe("parsePlaceExtraction", () => {
       contextLocation: null,
       durationMinutes: null,
       categoryNeeds: [],
+      stopCount: null,
+      notableOnly: null,
     });
   });
 
@@ -233,6 +239,8 @@ describe("parsePlaceExtraction", () => {
       contextLocation: null,
       durationMinutes: null,
       categoryNeeds: [],
+      stopCount: null,
+      notableOnly: null,
     });
   });
 
@@ -242,7 +250,74 @@ describe("parsePlaceExtraction", () => {
       contextLocation: null,
       durationMinutes: null,
       categoryNeeds: [],
+      stopCount: null,
+      notableOnly: null,
     });
+  });
+});
+
+describe("stop count and notability extraction", () => {
+  it("asks for a stop count only when the text states one", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "'bring me 3 famous places' -> 3",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "Never guess a count that was not stated",
+    );
+  });
+
+  it("tells the model that famous is a quality, not a category", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "never belongs in `categoryNeeds`",
+    );
+  });
+
+  it("reads a stated stop count", () => {
+    expect(parseStopCount('{"stopCount": 3}')).toBe(3);
+    expect(parseStopCount({ stopCount: 3.4 })).toBe(3);
+  });
+
+  it("returns null when no count was stated", () => {
+    expect(parseStopCount({ stopCount: null })).toBeNull();
+    expect(parseStopCount({ places: [] })).toBeNull();
+    expect(parseStopCount({ stopCount: "three" })).toBeNull();
+    expect(parseStopCount({ stopCount: 0 })).toBeNull();
+  });
+
+  it("clamps a count bigger than a walk can hold instead of dropping it", () => {
+    expect(parseStopCount({ stopCount: 20 })).toBe(8);
+  });
+
+  it("reads the famous-places signal only from a literal true", () => {
+    expect(parseNotableOnly({ notableOnly: true })).toBe(true);
+    expect(parseNotableOnly({ notableOnly: false })).toBeNull();
+    expect(parseNotableOnly({ notableOnly: "true" })).toBeNull();
+    expect(parseNotableOnly({ places: [] })).toBeNull();
+  });
+
+  it("carries both fields through a full extraction", () => {
+    expect(
+      parsePlaceExtraction(
+        '{"places": ["Tel Aviv"], "stopCount": 3, "notableOnly": true}',
+      ),
+    ).toEqual({
+      places: ["Tel Aviv"],
+      contextLocation: null,
+      durationMinutes: null,
+      categoryNeeds: [],
+      stopCount: 3,
+      notableOnly: true,
+    });
+  });
+
+  it("ignores a count when the walker named the places themselves", () => {
+    // The list of names is the count; capping it would drop a named stop.
+    expect(
+      parsePlaceExtraction({
+        places: ["Habima Square", "Carmel Market", "Jaffa Port"],
+        stopCount: 2,
+      }).stopCount,
+    ).toBeNull();
   });
 });
 

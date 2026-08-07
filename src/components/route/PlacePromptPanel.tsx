@@ -11,6 +11,10 @@ interface ExtractPlacesResponse {
   unresolvedNames?: string[];
   contextCoordinates?: Coordinates | null;
   durationMinutes?: number | null;
+  /** How many stops the prompt asked for, or null when it stated no count. */
+  stopCount?: number | null;
+  /** The prompt asked for famous places rather than just places. */
+  notableOnly?: boolean | null;
   /** The prompt named a place and nothing else — ask what kind of walk. */
   needsClarification?: boolean;
   clarificationCategories?: AttractionCategory[];
@@ -51,6 +55,15 @@ interface PlacePromptPanelProps {
    */
   onDurationDetected?: (minutes: number) => void;
   /**
+   * Always called on a successful extraction, with null when the prompt stated
+   * no count. Unlike `onDurationDetected` — which only fires on a real number
+   * because it pre-fills a form field the walker may have typed in themselves —
+   * these two describe the current prompt and nothing else, so a new prompt
+   * without them has to clear what the last one set.
+   */
+  onStopCountDetected?: (count: number | null) => void;
+  onNotableOnlyDetected?: (notableOnly: boolean) => void;
+  /**
    * Fired when the text named an area we could locate ("in Zichron Yaakov"), so
    * the companion panel's coordinate fields can start from it. Nothing is fired
    * when no area was named or it could not be geocoded — the fields keep
@@ -85,6 +98,8 @@ export function PlacePromptPanel({
   onPreview,
   onFoundPlacesChange,
   onDurationDetected,
+  onStopCountDetected,
+  onNotableOnlyDetected,
   onOriginDetected,
   learnPreferences = false,
   fillRemainingTime = false,
@@ -156,6 +171,11 @@ export function PlacePromptPanel({
       if (typeof data.durationMinutes === "number") {
         onDurationDetected?.(data.durationMinutes);
       }
+
+      onStopCountDetected?.(
+        typeof data.stopCount === "number" ? data.stopCount : null,
+      );
+      onNotableOnlyDetected?.(data.notableOnly === true);
 
       if (data.contextCoordinates) {
         onOriginDetected?.(data.contextCoordinates);

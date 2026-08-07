@@ -43,6 +43,15 @@ interface WalkPlanApiRequest {
   // already on instead of discovering a whole new set of POIs.
   explicitAttractions?: Attraction[];
   pinnedAttractionIds?: string[];
+  /**
+   * How many stops the walker asked for in words ("bring me 3 famous places").
+   * Caps the discovery selection on top of the time budget, never instead of
+   * it: three stops that do not fit in the time available are still three stops
+   * too many.
+   */
+  stopCount?: number;
+  /** The walker asked for famous places — see `RankerOptions.notableOnly`. */
+  notableOnly?: boolean;
   // Set by the "Name your own stops" flow: the named places are a starting point,
   // not the whole walk — top up the leftover time with discovered POIs. Off by
   // default so the pace-triggered rebuild keeps meaning "only these".
@@ -301,6 +310,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       ? body.explicitAttractions
       : undefined;
 
+    // Same "absent unless it is a usable number" rule as every other optional
+    // field here, clamped to the planner's own stop ceiling so a client cannot
+    // ask for more stops than a walk holds.
+    const requestedStopCount = body.stopCount;
+    const stopCount =
+      typeof requestedStopCount === "number" &&
+      Number.isFinite(requestedStopCount) &&
+      requestedStopCount >= 1
+        ? Math.min(Math.round(requestedStopCount), MAX_WALK_STOPS)
+        : undefined;
+
+    const notableOnly = body.notableOnly === true;
+
     // Raw Overpass results keyed by the radius they were fetched at, so a retry
     // that only loosens the end-distance constraint costs no second POI fetch.
     const rawByRadius = new Map<number, Attraction[]>();
@@ -363,6 +385,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             availableMinutes,
             walkingPaceMinPerKm,
             allowExploration: true,
+            notableOnly,
           });
 
           const explicitIds = new Set(explicitAttractions.map((a) => a.id));
@@ -385,11 +408,14 @@ export async function POST(request: Request): Promise<NextResponse> {
           // budget and the named stops (re-added unconditionally below either way)
           // would land on top of it.
           const fillerBudget = Math.max(0, availableMinutes - explicitMinutes);
+          // A stated count is a count of the whole walk, so the named stops
+          // come off it before the filler gets a ceiling.
+          const stopCeiling = stopCount ?? MAX_WALK_STOPS;
           const feasible = selectFeasibleAttractions(
             filler,
             fillerBudget,
             walkingPaceMinPerKm,
-            Math.max(0, MAX_WALK_STOPS - explicitAttractions.length),
+            Math.max(0, stopCeiling - explicitAttractions.length),
           ).selected;
 
           // Every named place stays in, whatever the pre-filter decided; only the
@@ -413,12 +439,16 @@ export async function POST(request: Request): Promise<NextResponse> {
           availableMinutes,
           walkingPaceMinPerKm,
           allowExploration: true,
+          notableOnly,
         });
 
         selected = selectFeasibleAttractions(
           ranked,
           availableMinutes,
           walkingPaceMinPerKm,
+          // On top of the time budget, not instead of it: three stops that do
+          // not fit in the time available are still three stops too many.
+          stopCount ?? MAX_WALK_STOPS,
         ).selected;
       }
 

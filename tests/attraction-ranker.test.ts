@@ -719,3 +719,47 @@ describe("rankAttractions — POI-level downvote suppression", () => {
     expect(ranked(new Set(["node/42"]))).not.toContain("node/42");
   });
 });
+
+describe("rankAttractions — notableOnly", () => {
+  // A famous but low-scoring category against an anonymous high-scoring one.
+  // Without the notability weighting the viewpoint wins on category base alone.
+  const famousShop: Attraction = {
+    ...makeAttraction("famous-shop", "shopping", 32.081),
+    tags: { wikidata: "Q42", wikipedia: "en:Famous Shop" },
+  };
+  const anonymousViewpoint = makeAttraction("plain-view", "viewpoint", 32.081);
+
+  function rankNotable(notableOnly: boolean): string[] {
+    return rankAttractions([famousShop, anonymousViewpoint], {
+      origin,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      notableOnly,
+    }).map((a) => a.id);
+  }
+
+  it("leaves the ordering alone when the walker did not ask for famous places", () => {
+    expect(rankNotable(false)).toEqual(["plain-view", "famous-shop"]);
+  });
+
+  it("puts the well-known place first when they did", () => {
+    expect(rankNotable(true)).toEqual(["famous-shop", "plain-view"]);
+  });
+
+  it("still returns a walk in an area where nothing is notable", () => {
+    const plain = [
+      makeAttraction("a", "park", 32.081),
+      makeAttraction("b", "food", 32.082),
+    ];
+
+    // Emphasis, not a filter — an untagged neighbourhood ranks as it always did.
+    expect(
+      rankAttractions(plain, {
+        origin,
+        availableMinutes: 90,
+        walkingPaceMinPerKm: 15,
+        notableOnly: true,
+      }).map((a) => a.id),
+    ).toEqual(["a", "b"]);
+  });
+});
