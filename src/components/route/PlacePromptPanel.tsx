@@ -10,6 +10,8 @@ interface ExtractPlacesResponse {
   attractions?: Attraction[];
   unresolvedNames?: string[];
   contextCoordinates?: Coordinates | null;
+  /** The area's geocode didn't look like the area asked for — don't trust it. */
+  contextLocationSuspect?: boolean;
   durationMinutes?: number | null;
   /** How many stops the prompt asked for, or null when it stated no count. */
   stopCount?: number | null;
@@ -177,7 +179,11 @@ export function PlacePromptPanel({
       );
       onNotableOnlyDetected?.(data.notableOnly === true);
 
-      if (data.contextCoordinates) {
+      // A suspect area (the geocoder's own name for what it found doesn't look
+      // like the area that was asked for) still comes back, but it does not get
+      // to overwrite the origin field — whatever is there, typed or detected,
+      // is better than a confident wrong city.
+      if (data.contextCoordinates && data.contextLocationSuspect !== true) {
         onOriginDetected?.(data.contextCoordinates);
       }
     } catch (extractError) {

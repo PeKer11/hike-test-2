@@ -360,6 +360,58 @@ describe("POST /api/extract-places", () => {
     });
   });
 
+  it("does not flag an area whose geocode result is named after it", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: "זכרון יעקב",
+    });
+    mockSearchPlaces.mockResolvedValueOnce([
+      {
+        lat: "32.5736",
+        lon: "34.9522",
+        display_name: "זכרון יעקב, מחוז חיפה, ישראל",
+      },
+    ]);
+
+    const body = await (await POST(postRequest({ prompt: "טיול בזכרון יעקב" })))
+      .json();
+
+    expect(body.contextLocationSuspect).toBe(false);
+    expect(body.contextCoordinates).toEqual({ lat: 32.5736, lng: 34.9522 });
+  });
+
+  it("flags — without failing — an area the geocoder resolved to somewhere else", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: "Zichron Yaakov",
+    });
+    mockSearchPlaces.mockResolvedValueOnce([
+      { lat: "48.8566", lon: "2.3522", display_name: "Paris, France" },
+    ]);
+
+    const response = await POST(postRequest({ prompt: "a walk in Zichron Yaakov" }));
+    const body = await response.json();
+
+    // Flagged, not thrown: the walk is still built, the coordinate is still
+    // reported, it just no longer passes as a verified origin.
+    expect(response.status).toBe(200);
+    expect(body.contextLocationSuspect).toBe(true);
+    expect(body.contextCoordinates).toEqual({ lat: 48.8566, lng: 2.3522 });
+  });
+
+  it("does not flag an area when Nominatim returned no name to compare", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: [],
+      contextLocation: "זכרון יעקב",
+    });
+    mockSearchPlaces.mockResolvedValueOnce([{ lat: "32.5736", lon: "34.9522" }]);
+
+    const body = await (await POST(postRequest({ prompt: "טיול בזכרון יעקב" })))
+      .json();
+
+    expect(body.contextLocationSuspect).toBe(false);
+  });
+
   it("reports null context coordinates when the text names no area", async () => {
     mockExtractPlaceNames.mockResolvedValueOnce({
       places: [],

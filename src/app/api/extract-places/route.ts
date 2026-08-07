@@ -7,6 +7,7 @@ import {
 import { searchPlaces } from "@/lib/api/nominatim-client";
 import { rankAttractions } from "@/lib/attractions/attraction-ranker";
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
+import { isPlausibleGeocodeMatch } from "@/lib/places/geocode-plausibility";
 import {
   buildExtractionResult,
   isAreaOnlyPrompt,
@@ -86,6 +87,8 @@ function toBias(value: Coordinates | undefined): Coordinates | undefined {
 interface GeocodeMatch {
   coordinates: Coordinates;
   kind: string | null;
+  /** Nominatim's own full name for what it matched, kept for the sanity check. */
+  displayName: string | null;
 }
 
 /**
@@ -107,6 +110,7 @@ async function geocode(
         // `addresstype` is the more specific of the two and is what says
         // "city" for a city; `type` is the fallback for older replies.
         kind: match?.addresstype ?? match?.type ?? null,
+        displayName: match?.display_name ?? null,
       };
     }
   } catch {
@@ -303,11 +307,28 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Kept beyond the bias it is used for: it is also the best guess at where the
     // walk starts, so the companion form can fill its origin from it.
     let contextCoordinates: Coordinates | null = null;
+    // Set when the area Gemini named and the place Nominatim returned for it do
+    // not appear to be the same place. See `geocode-plausibility.ts`: this is a
+    // string-overlap heuristic against the one geocoder already in use, not the
+    // independent second-geocoder cross-check the TODO envisioned (that needs a
+    // second paid API and is out of scope). It flags rather than fails — a
+    // suspect area still biases the search and is still reported, it just does
+    // not get to quietly fill in the walk's origin.
+    let contextLocationSuspect = false;
     if (contextLocation) {
       const contextMatch = await spacedGeocode(contextLocation, undefined);
       if (contextMatch) {
         contextCoordinates = contextMatch.coordinates;
         bias = contextMatch.coordinates;
+        contextLocationSuspect = !isPlausibleGeocodeMatch(
+          contextLocation,
+          contextMatch.displayName,
+        );
+        if (contextLocationSuspect) {
+          console.warn(
+            `[extract-places] geocode for context area "${contextLocation}" returned "${contextMatch.displayName}" — names do not overlap, treating the origin as unverified.`,
+          );
+        }
       }
     }
 
@@ -372,6 +393,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       unresolvedNames,
       contextLocation: contextLocation ?? null,
       contextCoordinates,
+      // True when `contextCoordinates` came back from a geocode whose own name
+      // for the result doesn't look like what was asked for. The panel reads
+      // this and declines to auto-fill the origin from it.
+      contextLocationSuspect,
       durationMinutes: durationMinutes ?? null,
       // Both ride through to the walk-plan request untouched: this endpoint
       // finds named places, and "three of them" / "famous ones" are answers

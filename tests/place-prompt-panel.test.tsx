@@ -251,6 +251,40 @@ describe("PlacePromptPanel", () => {
     await screen.findByText("זכרון יעקב");
     expect(onOriginDetected).not.toHaveBeenCalled();
   });
+
+  it("does not fill the coordinate fields from an area the API flagged as suspect", async () => {
+    const onOriginDetected = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          attractions: FOUND,
+          unresolvedNames: [],
+          contextCoordinates: { lat: 48.8566, lng: 2.3522 },
+          contextLocationSuspect: true,
+        }),
+      })),
+    );
+
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        onOriginDetected={onOriginDetected}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "הבימה בזכרון יעקב" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+
+    await screen.findByText("זכרון יעקב");
+    expect(onOriginDetected).not.toHaveBeenCalled();
+  });
 });
 
 // Naming three places and allowing three hours is a request for three places,
