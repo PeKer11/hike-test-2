@@ -61,6 +61,22 @@ export function WalkSettingsPanel({
             </select>
           </label>
         ))}
+        <label className="flex items-center justify-between gap-3 text-sm text-charcoal/80">
+          <span>Start the new walk for me</span>
+          <input
+            type="checkbox"
+            checked={settings.autoResumeAfterRebuild}
+            onChange={(event) =>
+              onChange({ autoResumeAfterRebuild: event.target.checked })
+            }
+            className="h-4 w-4 rounded border-charcoal/15 text-terra focus:ring-terra"
+          />
+        </label>
+        <p className="text-xs text-charcoal/60">
+          {settings.autoResumeAfterRebuild
+            ? "On — once we reshape your walk, tracking picks straight up on the new route."
+            : "Off — we'll show you the reshaped walk and wait for you to press Start Walk."}
+        </p>
       </div>
 
       <label className="space-y-1 text-sm text-charcoal/80">

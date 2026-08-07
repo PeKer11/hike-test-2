@@ -30,6 +30,13 @@ function sanitizeSettings(
       candidate?.slowPaceMode,
       candidate?.paceCheckEnabled,
     ),
+    // A blob written before this flag existed has no opinion on it, and the
+    // behaviour it was written under was "resume automatically" — so a missing
+    // field has to fill in as true, not false.
+    autoResumeAfterRebuild:
+      typeof candidate?.autoResumeAfterRebuild === "boolean"
+        ? candidate.autoResumeAfterRebuild
+        : DEFAULT_WALK_SETTINGS.autoResumeAfterRebuild,
     paceCheckIntervalMs: clampPaceCheckInterval(
       typeof candidate?.paceCheckIntervalMs === "number"
         ? candidate.paceCheckIntervalMs

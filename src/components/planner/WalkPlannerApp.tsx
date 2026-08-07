@@ -31,6 +31,7 @@ import {
   useWaypoints,
 } from "@/lib/hooks";
 import type { Coordinates } from "@/lib/types";
+import type { WalkSettings } from "@/lib/types/walk-settings";
 import { downloadCsv, downloadGpx } from "@/lib/walk/gpx-exporter";
 import { AttractionDistancesPanel } from "@/components/walk/AttractionDistancesPanel";
 import {
@@ -105,6 +106,9 @@ const SIMULATED_STRAY_METERS = 80;
 
 const REPLAN_FAILED_MESSAGE =
   "Couldn't build an updated route just now — keeping you on your current one.";
+
+const MANUAL_RESUME_MESSAGE =
+  "We reshaped your walk for your pace. Take a look, then press Start Walk when you're ready.";
 
 interface WalkPlannerAppProps {
   /** True while the frame around this planner fills the viewport. Only drives
@@ -187,6 +191,7 @@ export function WalkPlannerApp({
   // tracker's own flag, which is a ref and so cannot re-label the button.
   const [isSimulatedStray, setIsSimulatedStray] = useState(false);
   const paceCheckerRef = useRef<PaceChecker | null>(null);
+  const walkSettingsRef = useRef<WalkSettings>(walkSettings);
   const walkRecorderRef = useRef<WalkRecorder | null>(null);
   const poiAlerterRef = useRef<PoiAlerter | null>(null);
   // Lives for the whole walk — a re-plan must not forget what was already seen.
@@ -393,6 +398,16 @@ export function WalkPlannerApp({
     input: WalkCompanionInput,
     options?: {
       autoResume?: boolean;
+      /**
+       * Whether an automatic rebuild ends in live tracking, or hands the walker
+       * the new route to start themselves. Only read alongside `autoResume`,
+       * and deliberately a second flag rather than just turning that one off:
+       * everything else `autoResume` guards — the undo snapshot, the pins, the
+       * visit history — still has to hold for a rebuild the walker didn't ask
+       * for, or opting out of auto-resume would quietly plan stops they already
+       * visited back into the route. Defaults to resuming.
+       */
+      resumeTracking?: boolean;
       keepAttractions?: Attraction[];
       pinnedIds?: string[];
       fillRemainingTime?: boolean;
@@ -514,7 +529,14 @@ export function WalkPlannerApp({
           data.orderedAttractions.length > 0 &&
           (data.geometry?.length ?? 0) >= 2
         ) {
-          handleStartWalk(data);
+          if (options.resumeTracking === false) {
+            // Opted out of auto-resume: the walk is already stopped and the new
+            // plan is on screen, so all that's missing is telling the walker why
+            // they're looking at it.
+            setWalkTrackingMessage(MANUAL_RESUME_MESSAGE);
+          } else {
+            handleStartWalk(data);
+          }
         }
       }
     } catch {
@@ -563,6 +585,7 @@ export function WalkPlannerApp({
       },
       {
         autoResume: true,
+        resumeTracking: walkSettingsRef.current.autoResumeAfterRebuild,
         // Keep the walk the user is already on rather than rediscovering it.
         keepAttractions: walkPlanRef.current?.orderedAttractions,
         pinnedIds: pinnedAttractionIdsRef.current,
@@ -855,6 +878,10 @@ export function WalkPlannerApp({
   // Keep PaceChecker in sync when settings change while a walk is active
   useEffect(() => {
     paceCheckerRef.current?.updateSettings(walkSettings);
+    // The rebuild runs out of a closure captured when the walk started, so it
+    // has to read settings through a ref — otherwise turning auto-resume off
+    // mid-walk wouldn't take effect until the next walk.
+    walkSettingsRef.current = walkSettings;
   }, [walkSettings]);
 
   // Tear down the GPS watch, timers and in-flight searches if the page unmounts mid-walk

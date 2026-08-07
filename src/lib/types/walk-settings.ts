@@ -25,6 +25,14 @@ export interface WalkSettings {
    */
   fastPaceMode: PaceResponseMode;
   slowPaceMode: PaceResponseMode;
+  /**
+   * After a pace-triggered rebuild, whether live GPS tracking picks straight up
+   * on the new route or the walker is handed the plan to start themselves.
+   * Separate from the modes above because it answers a different question: those
+   * decide whether the route changes at all, this decides whether the walker
+   * gets to look at the change before they are walking it.
+   */
+  autoResumeAfterRebuild: boolean;
   paceCheckIntervalMs: number; // enforced min: 30_000
   // Gates both learning ends: the preference pass over the "name your own
   // stops" text, and the post-walk feedback question. Client-side only — the
@@ -39,6 +47,9 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   // sees exactly what they saw before the split.
   fastPaceMode: "auto",
   slowPaceMode: "auto",
+  // Also the old behaviour: before this flag existed, a pace rebuild always
+  // resumed tracking on its own.
+  autoResumeAfterRebuild: true,
   paceCheckIntervalMs: 60_000,
   preferenceLearningEnabled: true,
 };
