@@ -117,6 +117,44 @@ describe("autoResumeAfterRebuild default and migration", () => {
   });
 });
 
+describe("first render matches what the server can render", () => {
+  // The panel renders the stored settings as text, so if the first client
+  // render read localStorage it would disagree with the server-rendered
+  // markup and React would throw a hydration mismatch. The server has no
+  // localStorage, so the only safe first render is the defaults.
+  it("renders the defaults before effects run, even with a stored blob", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...DEFAULT_WALK_SETTINGS,
+        autoResumeAfterRebuild: false,
+        slowPaceMode: "off",
+      }),
+    );
+
+    let firstRender: WalkSettings | null = null;
+    function Probe() {
+      const { settings } = useWalkSettings();
+      firstRender ??= settings;
+      return null;
+    }
+    render(<Probe />);
+
+    expect(firstRender).toEqual(DEFAULT_WALK_SETTINGS);
+  });
+
+  it("still lands on the stored settings once mounted", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...DEFAULT_WALK_SETTINGS, autoResumeAfterRebuild: false }),
+    );
+
+    const { result } = renderHook(() => useWalkSettings());
+
+    expect(result.current.settings.autoResumeAfterRebuild).toBe(false);
+  });
+});
+
 describe("auto-resume settings checkbox", () => {
   it("is checked, and explains that tracking picks straight up, when auto-resume is on", () => {
     renderSettings({ autoResumeAfterRebuild: true });
