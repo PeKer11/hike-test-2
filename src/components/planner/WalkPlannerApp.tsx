@@ -53,6 +53,11 @@ import {
   ReplanTrigger,
   type ReplanReason,
 } from "@/lib/walk/replan-trigger";
+import {
+  buildPaceRebuildRequest,
+  promptWalkBuildOptions,
+  toggleSimulatedStray,
+} from "@/lib/walk/planner-actions";
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -570,28 +575,16 @@ export function WalkPlannerApp({
     // still being alive is how this closure reads that, since it cannot see
     // `walkPhase` from a render it did not participate in.
     if (walkTrackerRef.current === null) return;
-    const elapsedMinutes = (Date.now() - walkStartTimeRef.current) / 60_000;
-    const remainingMinutes = Math.max(15, orig.availableMinutes - elapsedMinutes);
-    const currentPos = latestPaceUpdateRef.current?.currentPosition ?? orig.origin;
-    void handleBuildWalk(
-      {
-        ...orig,
-        origin: currentPos,
-        availableMinutes: remainingMinutes,
-        // The walk moved; the car did not. Pin the end-distance constraint to
-        // wherever it was already anchored, or to the start of this walk if this
-        // is the first rebuild — never to the walker's current position.
-        endAnchor: orig.endAnchor ?? orig.origin,
-      },
-      {
-        autoResume: true,
-        resumeTracking: walkSettingsRef.current.autoResumeAfterRebuild,
-        // Keep the walk the user is already on rather than rediscovering it.
-        keepAttractions: walkPlanRef.current?.orderedAttractions,
-        pinnedIds: pinnedAttractionIdsRef.current,
-        fillRemainingTime: replanPaceDirection(reason) === "fast",
-      },
-    );
+    const { input, options } = buildPaceRebuildRequest(reason, {
+      originalInput: orig,
+      walkStartTime: walkStartTimeRef.current,
+      now: Date.now(),
+      currentPosition: latestPaceUpdateRef.current?.currentPosition ?? null,
+      settings: walkSettingsRef.current,
+      currentAttractions: walkPlanRef.current?.orderedAttractions,
+      pinnedIds: pinnedAttractionIdsRef.current,
+    });
+    void handleBuildWalk(input, options);
   };
 
   /**
@@ -1182,14 +1175,9 @@ export function WalkPlannerApp({
                 onBuildWalk={(input) => {
                   void handleBuildWalk(
                     input,
-                    promptAttractions && promptAttractions.length > 0
-                      ? {
-                          keepAttractions: promptAttractions,
-                          // Only when the walker ticked the box. Leftover time
-                          // on its own is not a reason to insert more stops.
-                          fillRemainingTime: fillPromptWalk,
-                        }
-                      : undefined,
+                    // Only when the walker ticked the box. Leftover time on its
+                    // own is not a reason to insert more stops.
+                    promptWalkBuildOptions(promptAttractions, fillPromptWalk),
                   );
                 }}
                 walkSettings={walkSettings}
@@ -1348,13 +1336,9 @@ export function WalkPlannerApp({
                       const tracker = walkTrackerRef.current;
                       if (!(tracker instanceof SimulatedWalkTracker)) return;
 
-                      if (tracker.isStraying) {
-                        tracker.returnToRoute();
-                        setIsSimulatedStray(false);
-                      } else {
-                        tracker.strayOffRoute(SIMULATED_STRAY_METERS);
-                        setIsSimulatedStray(true);
-                      }
+                      setIsSimulatedStray(
+                        toggleSimulatedStray(tracker, SIMULATED_STRAY_METERS),
+                      );
                     }}
                   >
                     {isSimulatedStray

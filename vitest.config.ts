@@ -5,6 +5,15 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts", "src/**/*.tsx"],
+      // Types have nothing to execute; the design-exploration preview is
+      // explicitly non-production (see its own commit) and isn't held to the
+      // same coverage bar as shipped code.
+      exclude: ["src/**/*.d.ts", "src/lib/types/**", "src/app/design/**"],
+      reporter: ["text", "json-summary"],
+    },
   },
   resolve: {
     alias: {
