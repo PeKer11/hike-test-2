@@ -12,7 +12,10 @@ const MAX_NAME_LENGTH = 120;
 
 // One prompt can reasonably say "I also want to eat and see a synagogue"; more
 // than a handful is the model over-reading, and each one costs a POI search.
-const MAX_CATEGORY_NEEDS = 3;
+// Exported because the clarification chips are bound by it too: offering the
+// walker more selections than the parser would keep is a promise the extraction
+// silently breaks.
+export const MAX_CATEGORY_NEEDS = 3;
 
 // Bounds on a stated walk length. Anything outside them is the model having
 // misread a number (a year, a street number, a price) rather than a walk.

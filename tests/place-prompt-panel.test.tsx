@@ -421,7 +421,7 @@ describe("PlacePromptPanel — clarifying an under-specified prompt", () => {
     ]);
     renderPanel();
 
-    await screen.findByText("What kind of walk are you after?");
+    await screen.findByText(/What kind of walk are you after\?/);
     expect(screen.getByRole("button", { name: "Nature" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "History & landmarks" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Food" })).toBeTruthy();
@@ -439,7 +439,7 @@ describe("PlacePromptPanel — clarifying an under-specified prompt", () => {
     renderPanel();
 
     await screen.findByText("זכרון יעקב");
-    expect(screen.queryByText("What kind of walk are you after?")).toBeNull();
+    expect(screen.queryByText(/What kind of walk are you after\?/)).toBeNull();
   });
 
   it("re-runs the prompt with the tapped category and takes the question down", async () => {
@@ -455,16 +455,19 @@ describe("PlacePromptPanel — clarifying an under-specified prompt", () => {
         unresolvedNames: [],
         needsClarification: false,
         clarificationCategories: [],
+        durationMinutes: 120,
+        maxEndDistanceKm: 1,
       },
     ]);
     renderPanel();
 
-    await screen.findByText("What kind of walk are you after?");
+    await screen.findByText(/What kind of walk are you after\?/);
     fireEvent.click(screen.getByRole("button", { name: "Food" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() =>
       expect(
-        screen.queryByText("What kind of walk are you after?"),
+        screen.queryByText(/What kind of walk are you after\?/),
       ).toBeNull(),
     );
 
@@ -473,6 +476,123 @@ describe("PlacePromptPanel — clarifying an under-specified prompt", () => {
     );
     expect(secondBody.categoryNeeds).toEqual(["food"]);
     expect(secondBody.prompt).toBe("טיול בזכרון יעקב");
+  });
+
+  it("does not answer the question until Continue is pressed", async () => {
+    const fetchMock = stubExtract([
+      {
+        attractions: [],
+        unresolvedNames: [],
+        needsClarification: true,
+        clarificationCategories: ["nature", "food"],
+      },
+    ]);
+    renderPanel();
+
+    await screen.findByText(/What kind of walk are you after\?/);
+    fireEvent.click(screen.getByRole("button", { name: "Food" }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Food" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "Nature" }).getAttribute("aria-pressed"),
+    ).toBe("false");
+  });
+
+  it("sends every chip the walker ticked, not just the last one", async () => {
+    const fetchMock = stubExtract([
+      {
+        attractions: [],
+        unresolvedNames: [],
+        needsClarification: true,
+        clarificationCategories: ["nature", "food", "museum"],
+      },
+      { attractions: FOUND, unresolvedNames: [], durationMinutes: 120, maxEndDistanceKm: 1 },
+    ]);
+    renderPanel();
+
+    await screen.findByText(/What kind of walk are you after\?/);
+    fireEvent.click(screen.getByRole("button", { name: "Nature" }));
+    fireEvent.click(screen.getByRole("button", { name: "Food" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const secondBody = JSON.parse(
+      (fetchMock.mock.calls[1][1] as { body: string }).body,
+    );
+    expect(secondBody.categoryNeeds).toEqual(["nature", "food"]);
+  });
+
+  it("un-ticks a chip that is tapped a second time", async () => {
+    const fetchMock = stubExtract([
+      {
+        attractions: [],
+        unresolvedNames: [],
+        needsClarification: true,
+        clarificationCategories: ["nature", "food"],
+      },
+      { attractions: FOUND, unresolvedNames: [], durationMinutes: 120, maxEndDistanceKm: 1 },
+    ]);
+    renderPanel();
+
+    await screen.findByText(/What kind of walk are you after\?/);
+    fireEvent.click(screen.getByRole("button", { name: "Nature" }));
+    fireEvent.click(screen.getByRole("button", { name: "Food" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nature" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const secondBody = JSON.parse(
+      (fetchMock.mock.calls[1][1] as { body: string }).body,
+    );
+    expect(secondBody.categoryNeeds).toEqual(["food"]);
+  });
+
+  // The extractor keeps only `MAX_CATEGORY_NEEDS` of them, so offering a
+  // fourth selection would promise a stop that never gets searched for.
+  it("stops the walker selecting more chips than the extractor keeps", async () => {
+    stubExtract([
+      {
+        attractions: [],
+        unresolvedNames: [],
+        needsClarification: true,
+        clarificationCategories: ["nature", "food", "museum", "park"],
+      },
+    ]);
+    renderPanel();
+
+    await screen.findByText(/What kind of walk are you after\?/);
+    for (const label of ["Nature", "Food", "Museums"]) {
+      fireEvent.click(screen.getByRole("button", { name: label }));
+    }
+
+    const overflow = screen.getByRole("button", { name: "Parks" });
+    expect((overflow as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(overflow);
+    expect(overflow.getAttribute("aria-pressed")).toBe("false");
+    expect(
+      screen.getByRole("button", { name: "Museums" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("cannot be continued before a chip is ticked", async () => {
+    stubExtract([
+      {
+        attractions: [],
+        unresolvedNames: [],
+        needsClarification: true,
+        clarificationCategories: ["nature", "food"],
+      },
+    ]);
+    renderPanel();
+
+    await screen.findByText(/What kind of walk are you after\?/);
+    expect(
+      (screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
 });
 

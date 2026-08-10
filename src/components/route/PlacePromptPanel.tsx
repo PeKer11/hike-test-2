@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button, Card, LoadingSpinner } from "@/components/ui";
+import { MAX_CATEGORY_NEEDS } from "@/lib/places/place-extractor";
 import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
 
 interface ExtractPlacesResponse {
@@ -125,6 +126,12 @@ export function PlacePromptPanel({
   const [clarificationCategories, setClarificationCategories] = useState<
     AttractionCategory[]
   >([]);
+  // The chips the walker has ticked but not yet sent. "Nature AND food" is a
+  // normal answer to "what kind of walk?", so the question stays up until they
+  // say they are done with it.
+  const [selectedCategories, setSelectedCategories] = useState<
+    AttractionCategory[]
+  >([]);
   // Extraction is fuzzy — the user drops the ones we got wrong before accepting.
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [unresolvedNames, setUnresolvedNames] = useState<string[]>([]);
@@ -143,6 +150,7 @@ export function PlacePromptPanel({
     setError(null);
     setHasResult(false);
     setClarificationCategories([]);
+    setSelectedCategories([]);
     // Drop the previous run's pins now — a failed extraction must not leave the
     // old candidates sitting on the map.
     onFoundPlacesChange([]);
@@ -251,26 +259,56 @@ export function PlacePromptPanel({
       )}
 
       {/* Asked instead of silently guessing a generic walk. The walk we would
-          have guessed is still there underneath — tapping a chip just re-runs
-          the same prompt with an answer, it does not block anything. */}
+          have guessed is still there underneath — answering just re-runs the
+          same prompt with an answer, it does not block anything.
+
+          The chips toggle rather than firing on tap: "nature and food" is a
+          normal answer, and a chip that resolves the walk the moment it is
+          touched makes the second one unreachable. */}
       {clarificationCategories.length > 0 && (
         <div className="space-y-2 rounded-md bg-cream/70 p-2">
           <p className="text-xs text-charcoal/80">
-            What kind of walk are you after?
+            What kind of walk are you after? Pick up to {MAX_CATEGORY_NEEDS}.
           </p>
           <div className="flex flex-wrap gap-2">
-            {clarificationCategories.map((category) => (
-              <button
-                key={category}
-                type="button"
-                disabled={isLoading}
-                onClick={() => void extract([category])}
-                className="cursor-pointer rounded-full border border-terra/40 bg-white px-3 py-1 text-xs text-forest transition hover:bg-terra/10 disabled:cursor-default disabled:opacity-50"
-              >
-                {CATEGORY_LABELS[category]}
-              </button>
-            ))}
+            {clarificationCategories.map((category) => {
+              const isSelected = selectedCategories.includes(category);
+              // The cap is the extractor's own: offering a fourth selection
+              // that `parseCategoryNeeds` would then drop is a lie.
+              const isFull = selectedCategories.length >= MAX_CATEGORY_NEEDS;
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  aria-pressed={isSelected}
+                  disabled={isLoading || (isFull && !isSelected)}
+                  onClick={() =>
+                    setSelectedCategories((current) =>
+                      current.includes(category)
+                        ? current.filter((item) => item !== category)
+                        : current.length >= MAX_CATEGORY_NEEDS
+                          ? current
+                          : [...current, category],
+                    )
+                  }
+                  className={`cursor-pointer rounded-full px-3 py-1 text-xs transition disabled:cursor-default disabled:opacity-50 ${
+                    isSelected
+                      ? "bg-terra text-white shadow-sm"
+                      : "border border-terra/40 bg-white text-forest hover:bg-terra/10"
+                  }`}
+                >
+                  {CATEGORY_LABELS[category]}
+                </button>
+              );
+            })}
           </div>
+          <Button
+            fullWidth
+            disabled={isLoading || selectedCategories.length === 0}
+            onClick={() => void extract(selectedCategories)}
+          >
+            Continue
+          </Button>
         </div>
       )}
 
