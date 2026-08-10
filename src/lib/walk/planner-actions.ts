@@ -125,3 +125,32 @@ export function toggleSimulatedStray(
   tracker.strayOffRoute(strayMeters);
   return true;
 }
+
+/** Which way the simulated walker's pace has been pushed, if at all. */
+export type SimulatedPaceDrift = "slow" | "fast" | null;
+
+/**
+ * Comfortably past the 1.3× / 0.77× re-plan ratios rather than sitting on them,
+ * so the trigger fires on the drift and not on where GPS noise rounded.
+ */
+export const SIMULATED_SLOW_PACE_FACTOR = 1.6;
+export const SIMULATED_FAST_PACE_FACTOR = 0.6;
+
+/**
+ * Put the simulated walker on a drifted pace, or back on the planned one, and
+ * report which so the buttons' state can follow.
+ */
+export function setSimulatedPaceDrift(
+  tracker: SimulatedWalkTracker,
+  drift: SimulatedPaceDrift,
+): SimulatedPaceDrift {
+  if (drift === null) {
+    tracker.resetPace();
+    return null;
+  }
+
+  const factor =
+    drift === "slow" ? SIMULATED_SLOW_PACE_FACTOR : SIMULATED_FAST_PACE_FACTOR;
+  tracker.setPace(tracker.plannedPace * factor);
+  return drift;
+}

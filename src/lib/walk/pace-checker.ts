@@ -25,6 +25,7 @@ export class PaceChecker {
   ) => void;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
+  private lastSampleTimestamp: number | null = null;
 
   // The trigger is owned by the caller, not by this instance: a re-plan tears the
   // PaceChecker down and builds a new one, and a cooldown that died with the old
@@ -44,7 +45,23 @@ export class PaceChecker {
 
   /** Feed every accepted GPS position here — the trigger windows are built from these. */
   recordSample(sample: ReplanSample): void {
+    this.lastSampleTimestamp = sample.timestamp;
     this.trigger.recordSample(sample);
+  }
+
+  /**
+   * The walk's own clock: the timestamp of the last position we were handed.
+   *
+   * The trigger's windows are built entirely out of sample timestamps, so
+   * evaluating them against `Date.now()` compares two different clocks. With
+   * real GPS the two agree to within a tick and it never showed. With the
+   * simulator they do not agree at all — its timestamps run `speedMultiplier`×
+   * ahead of the wall clock, which put every sample in the *future* relative to
+   * `Date.now()` and made the "does this window cover 15 minutes" check come out
+   * negative forever. Falls back to the wall clock before any sample arrives.
+   */
+  private evaluationTime(): number {
+    return this.lastSampleTimestamp ?? Date.now();
   }
 
   start(): void {
@@ -57,7 +74,7 @@ export class PaceChecker {
     const intervalMs = clampPaceCheckInterval(this.settings.paceCheckIntervalMs);
 
     this.intervalId = setInterval(() => {
-      const reason = this.trigger.evaluate(Date.now());
+      const reason = this.trigger.evaluate(this.evaluationTime());
       if (reason === null) {
         return;
       }

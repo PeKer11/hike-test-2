@@ -7,7 +7,9 @@ import {
   type WalkSettings,
 } from "@/lib/types/walk-settings";
 import { PaceChecker, type ReplanResponse } from "@/lib/walk/pace-checker";
+import { SIMULATED_SLOW_PACE_FACTOR } from "@/lib/walk/planner-actions";
 import { ReplanTrigger, type ReplanReason } from "@/lib/walk/replan-trigger";
+import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 
 /**
  * A ReplanTrigger that reports whatever the test wants on the next evaluate.
@@ -153,6 +155,47 @@ describe("PaceChecker pace-mode gate", () => {
 
     expect(calls).toEqual([]);
     checker.stop();
+  });
+
+  // The checker's own clock, not the wall clock. The trigger's windows are
+  // built out of sample timestamps, and the simulator's run ahead of real time
+  // by its speed multiplier — comparing the two put every sample in the future
+  // and made the coverage check unsatisfiable, so a simulated walk could never
+  // trigger a re-plan however far off pace it went.
+  it("fires for a simulated walker whose timestamps run ahead of the wall clock", () => {
+    const calls: ReplanReason[] = [];
+    const checker = new PaceChecker(
+      settings({ slowPaceMode: "auto" }),
+      new ReplanTrigger(15),
+      (reason) => calls.push(reason),
+    );
+
+    const tracker = new SimulatedWalkTracker(
+      // ~10 km due north: long enough for a slow walker to spend a full window on.
+      [
+        { lat: 32.08, lng: 34.78 },
+        { lat: 32.17, lng: 34.78 },
+      ],
+      (update) =>
+        checker.recordSample({
+          coordinates: update.currentPosition,
+          timestamp: update.timestamp,
+        }),
+      [],
+      15,
+      10,
+      500,
+    );
+
+    checker.start();
+    tracker.start();
+    tracker.setPace(15 * SIMULATED_SLOW_PACE_FACTOR);
+    // 100 s of wall clock = ~16 simulated minutes, one full 15-minute window.
+    vi.advanceTimersByTime(100_000);
+    tracker.stop();
+    checker.stop();
+
+    expect(calls).toContain("sustained-slow-pace");
   });
 
   it("refuses a check interval faster than the 30s floor", () => {

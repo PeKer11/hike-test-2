@@ -3,6 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
 import { detectDeviation } from "@/lib/walk/deviation-detector";
+import {
+  SIMULATED_FAST_PACE_FACTOR,
+  SIMULATED_SLOW_PACE_FACTOR,
+} from "@/lib/walk/planner-actions";
+import {
+  replanPaceDirection,
+  ReplanTrigger,
+  type ReplanReason,
+} from "@/lib/walk/replan-trigger";
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 import type { PaceUpdate } from "@/lib/walk/walk-tracker";
 
@@ -12,6 +21,13 @@ import type { PaceUpdate } from "@/lib/walk/walk-tracker";
 const ROUTE: Coordinates[] = [
   { lat: 32.08, lng: 34.78 },
   { lat: 32.089, lng: 34.78 },
+];
+
+// Long enough that a slow walker can spend a full 15-minute window on it
+// without running out of route and being stopped by `totalDistance`.
+const LONG_ROUTE: Coordinates[] = [
+  { lat: 32.08, lng: 34.78 },
+  { lat: 32.17, lng: 34.78 },
 ];
 
 const PACE_MIN_PER_KM = 15;
@@ -185,5 +201,195 @@ describe("SimulatedWalkTracker — straying off the route", () => {
     tracker.stop();
 
     expect(tracker.isStraying).toBe(false);
+  });
+});
+
+// The pace equivalent of the stray suite: `ReplanTrigger`'s 15-minute average
+// is not something a human can produce by clicking, so the slow/fast re-plan
+// path had no end-to-end exercise at all. Everything below runs the real
+// trigger over the real emitted stream — no stubbed reasons.
+describe("SimulatedWalkTracker — drifting off the planned pace", () => {
+  // One tick is `tickMs * SPEED` = 5 simulated seconds, so a 15-minute window
+  // takes 180 ticks to fill. 200 clears the 90% coverage rule with room.
+  const TICKS_PER_WINDOW = 200;
+
+  function makeLongTracker(onUpdate: (update: PaceUpdate) => void) {
+    return new SimulatedWalkTracker(
+      LONG_ROUTE,
+      onUpdate,
+      [],
+      PACE_MIN_PER_KM,
+      SPEED,
+      TICK_MS,
+    );
+  }
+
+  /** What the real trigger makes of a slice of the reported stream. */
+  function evaluateOver(updates: PaceUpdate[]): ReplanReason | null {
+    const trigger = new ReplanTrigger(PACE_MIN_PER_KM);
+    for (const update of updates) {
+      trigger.recordSample({
+        coordinates: update.currentPosition,
+        timestamp: update.timestamp,
+      });
+    }
+    return trigger.evaluate(updates[updates.length - 1].timestamp);
+  }
+
+  it("reports the new pace on every update after the change", () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeLongTracker(onUpdate);
+
+    tracker.start();
+    vi.advanceTimersByTime(TICK_MS * 2);
+    tracker.setPace(24);
+    vi.advanceTimersByTime(TICK_MS * 2);
+    tracker.stop();
+
+    expect(updates.map((u) => u.paceMinPerKm)).toEqual([15, 15, 24, 24]);
+  });
+
+  it("covers less ground per tick once the pace slows", () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeLongTracker(onUpdate);
+
+    tracker.start();
+    vi.advanceTimersByTime(TICK_MS * 2);
+    tracker.setPace(30); // half speed
+    vi.advanceTimersByTime(TICK_MS * 2);
+    tracker.stop();
+
+    const plannedHop = haversineDistance(
+      updates[0].currentPosition,
+      updates[1].currentPosition,
+    );
+    const slowHop = haversineDistance(
+      updates[2].currentPosition,
+      updates[3].currentPosition,
+    );
+
+    expect(plannedHop).toBeCloseTo(METERS_PER_TICK, 1);
+    expect(slowHop).toBeCloseTo(METERS_PER_TICK / 2, 1);
+  });
+
+  it("drives the real trigger to sustained-slow-pace after a full window", () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeLongTracker(onUpdate);
+
+    tracker.start();
+    tracker.setPace(PACE_MIN_PER_KM * SIMULATED_SLOW_PACE_FACTOR);
+    vi.advanceTimersByTime(TICK_MS * TICKS_PER_WINDOW);
+    tracker.stop();
+
+    const reason = evaluateOver(updates);
+    expect(reason).toBe("sustained-slow-pace");
+    expect(replanPaceDirection(reason!)).toBe("slow");
+  });
+
+  it("drives the real trigger to sustained-fast-pace after a full window", () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeLongTracker(onUpdate);
+
+    tracker.start();
+    tracker.setPace(PACE_MIN_PER_KM * SIMULATED_FAST_PACE_FACTOR);
+    vi.advanceTimersByTime(TICK_MS * TICKS_PER_WINDOW);
+    tracker.stop();
+
+    const reason = evaluateOver(updates);
+    expect(reason).toBe("sustained-fast-pace");
+    expect(replanPaceDirection(reason!)).toBe("fast");
+  });
+
+  it("says nothing while the walker holds the planned pace", () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeLongTracker(onUpdate);
+
+    tracker.start();
+    vi.advanceTimersByTime(TICK_MS * TICKS_PER_WINDOW);
+    tracker.stop();
+
+    expect(evaluateOver(updates)).toBeNull();
+  });
+
+  // 18 min/km against a planned 15 is 1.2×, inside the 1.3× threshold: behind,
+  // but not far enough behind that the plan stops fitting.
+  it("says nothing for a drift too small to cross the slow ratio", () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeLongTracker(onUpdate);
+
+    tracker.start();
+    tracker.setPace(18);
+    vi.advanceTimersByTime(TICK_MS * TICKS_PER_WINDOW);
+    tracker.stop();
+
+    expect(evaluateOver(updates)).toBeNull();
+  });
+
+  it("does not fire before the window has been drifted for long enough", () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeLongTracker(onUpdate);
+
+    tracker.start();
+    tracker.setPace(PACE_MIN_PER_KM * SIMULATED_SLOW_PACE_FACTOR);
+    // Half a window's worth of ticks at the drifted pace.
+    vi.advanceTimersByTime(TICK_MS * (TICKS_PER_WINDOW / 2));
+    tracker.stop();
+
+    expect(evaluateOver(updates)).toBeNull();
+  });
+
+  // Five samples is the floor, and four of them spread over a full window is
+  // still not a pace — the coverage and count rules have to both hold.
+  it("does not fire on too few samples, however slow they are", () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeLongTracker(onUpdate);
+
+    tracker.start();
+    tracker.setPace(PACE_MIN_PER_KM * SIMULATED_SLOW_PACE_FACTOR);
+    vi.advanceTimersByTime(TICK_MS * TICKS_PER_WINDOW);
+    tracker.stop();
+
+    // The same drifted walk, thinned to four widely-spaced fixes.
+    const sparse = [0, 60, 120, 179].map((i) => updates[i]);
+    expect(evaluateOver(sparse)).toBeNull();
+  });
+
+  it("stops triggering once the pace is put back to normal", () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeLongTracker(onUpdate);
+
+    tracker.start();
+    tracker.setPace(PACE_MIN_PER_KM * SIMULATED_SLOW_PACE_FACTOR);
+    vi.advanceTimersByTime(TICK_MS * TICKS_PER_WINDOW);
+    const drifted = updates.length;
+
+    tracker.resetPace();
+    vi.advanceTimersByTime(TICK_MS * TICKS_PER_WINDOW);
+    tracker.stop();
+
+    // The window that was all slow fires; the window after the reset does not.
+    expect(evaluateOver(updates.slice(0, drifted))).toBe("sustained-slow-pace");
+    expect(evaluateOver(updates.slice(drifted))).toBeNull();
+    expect(tracker.currentPaceMinPerKm).toBe(PACE_MIN_PER_KM);
+  });
+
+  it("ignores a pace that is not a usable speed", () => {
+    const tracker = makeLongTracker(vi.fn());
+
+    for (const bad of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      tracker.setPace(bad);
+      expect(tracker.currentPaceMinPerKm).toBe(PACE_MIN_PER_KM);
+    }
+  });
+
+  it("drops a drifted pace when the walk is stopped", () => {
+    const tracker = makeLongTracker(vi.fn());
+
+    tracker.start();
+    tracker.setPace(24);
+    tracker.stop();
+
+    expect(tracker.currentPaceMinPerKm).toBe(PACE_MIN_PER_KM);
+    expect(tracker.plannedPace).toBe(PACE_MIN_PER_KM);
   });
 });

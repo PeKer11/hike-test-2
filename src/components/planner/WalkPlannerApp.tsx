@@ -56,7 +56,9 @@ import {
 import {
   buildPaceRebuildRequest,
   promptWalkBuildOptions,
+  setSimulatedPaceDrift,
   toggleSimulatedStray,
+  type SimulatedPaceDrift,
 } from "@/lib/walk/planner-actions";
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
@@ -195,6 +197,9 @@ export function WalkPlannerApp({
   // Whether the simulated walker is currently off the planned line. Mirrors the
   // tracker's own flag, which is a ref and so cannot re-label the button.
   const [isSimulatedStray, setIsSimulatedStray] = useState(false);
+  // Which way the simulated walker's pace has been pushed, for the buttons' state.
+  const [simulatedPaceDrift, setSimulatedPaceDriftState] =
+    useState<SimulatedPaceDrift>(null);
   const paceCheckerRef = useRef<PaceChecker | null>(null);
   const walkSettingsRef = useRef<WalkSettings>(walkSettings);
   const walkRecorderRef = useRef<WalkRecorder | null>(null);
@@ -286,6 +291,7 @@ export function WalkPlannerApp({
 
   const stopWalkTracking = () => {
     setIsSimulatedStray(false);
+    setSimulatedPaceDriftState(null);
     paceCheckerRef.current?.stop();
     paceCheckerRef.current = null;
     walkTrackerRef.current?.stop();
@@ -1350,6 +1356,43 @@ export function WalkPlannerApp({
                       ? "Rejoin the route"
                       : `Stray ${SIMULATED_STRAY_METERS} m off route`}
                   </Button>
+                </div>
+              )}
+              {/* The pace side of the same problem: the re-plan trigger needs a
+                  15-minute average to be off plan, which no amount of clicking
+                  can produce by hand. This walks the route at the wrong speed
+                  for it, so the real ReplanTrigger measures a real drift off a
+                  real position stream. At 10× that is ~90 seconds of watching. */}
+              {walkPhase === "walking" && isSimulating && (
+                <div className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-white px-3 py-2">
+                  <p className="text-xs text-charcoal/60">
+                    {simulatedPaceDrift === null
+                      ? "Walk the route at the wrong speed for it to exercise the pace re-plan. Takes about 90 seconds to trigger."
+                      : `Walking ${simulatedPaceDrift === "slow" ? "60% slower" : "40% faster"} than planned.`}
+                  </p>
+                  <div className="flex gap-2">
+                    {(["slow", "fast", null] as const).map((drift) => (
+                      <Button
+                        key={drift ?? "normal"}
+                        variant="secondary"
+                        fullWidth
+                        onClick={() => {
+                          const tracker = walkTrackerRef.current;
+                          if (!(tracker instanceof SimulatedWalkTracker)) return;
+
+                          setSimulatedPaceDriftState(
+                            setSimulatedPaceDrift(tracker, drift),
+                          );
+                        }}
+                      >
+                        {drift === "slow"
+                          ? "Slow pace"
+                          : drift === "fast"
+                            ? "Fast pace"
+                            : "Normal pace"}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               )}
               <TrailIntelligencePanel

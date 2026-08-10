@@ -20,6 +20,7 @@ export class SimulatedWalkTracker {
   private geometry: Coordinates[];
   private attractions: Attraction[];
   private paceMinPerKm: number;
+  private readonly plannedPaceMinPerKm: number;
   private speedMultiplier: number;
   private tickMs: number;
   private onUpdate: PaceUpdateHandler;
@@ -41,6 +42,7 @@ export class SimulatedWalkTracker {
     this.geometry = geometry;
     this.attractions = attractions;
     this.paceMinPerKm = paceMinPerKm;
+    this.plannedPaceMinPerKm = paceMinPerKm;
     this.speedMultiplier = speedMultiplier;
     this.tickMs = tickMs;
     this.onUpdate = onUpdate;
@@ -53,14 +55,14 @@ export class SimulatedWalkTracker {
     this.distanceCovered = 0;
     this.simulatedTime = Date.now();
 
-    // e.g. 15 min/km → 1.11 m/s real → ×10 = 11.1 m/s simulated
-    const metersPerTick =
-      (1000 / (this.paceMinPerKm * 60)) * this.speedMultiplier * (this.tickMs / 1000);
+    // Time compression is the walker's own doing, not the pace's: a tick is
+    // always the same slice of simulated time, whatever speed they walk it at.
     const simMsPerTick = this.tickMs * this.speedMultiplier;
 
     this.intervalId = setInterval(() => {
+      // Read per tick, not once here, so `setPace` takes effect mid-walk.
       this.distanceCovered = Math.min(
-        this.distanceCovered + metersPerTick,
+        this.distanceCovered + this.metersPerTick(),
         this.totalDistance,
       );
       this.simulatedTime += simMsPerTick;
@@ -90,6 +92,49 @@ export class SimulatedWalkTracker {
     }
     this.distanceCovered = 0;
     this.stray = null;
+    this.paceMinPerKm = this.plannedPaceMinPerKm;
+  }
+
+  /** e.g. 15 min/km → 1.11 m/s real → ×10 = 11.1 m/s simulated. */
+  private metersPerTick(): number {
+    return (1000 / (this.paceMinPerKm * 60)) * this.speedMultiplier * (this.tickMs / 1000);
+  }
+
+  /**
+   * Walk the rest of the route at a different pace, starting on the next tick.
+   *
+   * This moves how far the walker actually gets per tick, not just the
+   * `paceMinPerKm` field on the update — and that is the whole point rather
+   * than an implementation detail. `ReplanTrigger` derives the pace it judges
+   * from the positions and timestamps it is handed; it never reads the reported
+   * pace field. A drift that only relabelled that field would leave the walker
+   * covering exactly as much ground as before and nothing downstream would move.
+   * So the dot does visibly slow down or speed up, which is also the honest
+   * picture: a slow walker covers less ground in the same time. Time compression
+   * stays `speedMultiplier`'s job alone, so the *simulated* pace the trigger
+   * measures is exactly what was asked for here, at any playback speed.
+   *
+   * @param paceMinPerKm minutes per kilometre. The re-plan thresholds are 1.3×
+   *                     the planned pace on the slow side and 0.77× on the fast.
+   */
+  setPace(paceMinPerKm: number): void {
+    if (!Number.isFinite(paceMinPerKm) || paceMinPerKm <= 0) return;
+    this.paceMinPerKm = paceMinPerKm;
+  }
+
+  /** Back to the pace the walk was planned at. */
+  resetPace(): void {
+    this.paceMinPerKm = this.plannedPaceMinPerKm;
+  }
+
+  /** The pace currently being walked and reported. */
+  get currentPaceMinPerKm(): number {
+    return this.paceMinPerKm;
+  }
+
+  /** The pace the walk was planned at, whatever is being walked now. */
+  get plannedPace(): number {
+    return this.plannedPaceMinPerKm;
   }
 
   /**
