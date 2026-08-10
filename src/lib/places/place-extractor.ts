@@ -31,6 +31,16 @@ const MAX_DURATION_MINUTES = 600;
 const MIN_STOP_COUNT = 1;
 const MAX_STOP_COUNT = 8;
 
+/**
+ * Bounds on a stated finish distance, in kilometres. They are the form field's
+ * own `min`/`max` rather than a second opinion — this only ever pre-fills that
+ * input, and a value the field would reject is not worth pre-filling it with.
+ * Clamped rather than dropped, as the stop count is: "finish within 100 metres
+ * of here" is a real request for as tight a finish as the app allows.
+ */
+const MIN_END_DISTANCE_KM = 0.1;
+const MAX_END_DISTANCE_KM = 50;
+
 // Explicit-mode places carry no OSM tags, so there is nothing to infer a
 // category or a realistic dwell time from. 30 minutes matches the mid-range of
 // the Overpass category defaults.
@@ -106,6 +116,16 @@ export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   "Examples:",
   '"bring me 3 famous places in Tel Aviv" -> places ["Tel Aviv"], contextLocation null, stopCount 3, notableOnly true.',
   '"תן לי 90 דקות בתל אביב" -> stopCount null, notableOnly null, durationMinutes 90 — a time budget is not a stop count.',
+  "",
+  "`maxEndDistanceKm`: how far from where the walker is or started the walk is allowed to FINISH, in kilometres.",
+  "Only fill it in when the text states such a distance unambiguously — 'finish within 1km of here' -> 1, 'עד 1 ק\"מ ממה שאני נמצא' -> 1, 'keep it within 500m of my start' -> 0.5, 'תחזיר אותי עד חצי ק\"מ ממה שהתחלתי' -> 0.5.",
+  "This is about where the walk ENDS, not how far to look for attractions — 'find me things within 2km' is a search radius, not a finish distance, and returns null here.",
+  "It is also not a walk length: 'a 5km walk' and 'שלוש שעות' say how long the walk is, not where it ends, and return null here.",
+  "Return null for vague phrasing ('finish near where I started', 'not too far from here') and whenever no such distance was stated.",
+  "Never guess a finish distance that was not stated. null is the normal answer.",
+  "Examples:",
+  '"תן לי טיול של שעתיים שמסתיים עד 500 מטר ממה שאני נמצא" -> durationMinutes 120, maxEndDistanceKm 0.5.',
+  '"find me attractions within 2km" -> maxEndDistanceKm null — that is how far to search, not where to finish.',
 ].join("\n");
 
 /**
@@ -171,6 +191,12 @@ export interface PlaceExtraction {
    * "don't guess" instruction honest in the schema itself.
    */
   notableOnly: boolean | null;
+  /**
+   * How far from the start the walk may finish, in kilometres, or null when the
+   * text stated no such limit. Distinct from the search radius: a walk built
+   * from POIs 2 km out can still end 2 km the other side of the start.
+   */
+  maxEndDistanceKm: number | null;
 }
 
 function toStringArray(value: unknown): string[] | null {
@@ -347,6 +373,30 @@ export function parseStopCount(input: unknown): number | null {
 }
 
 /**
+ * Read a stated finish distance off the reply, in kilometres. Out-of-range
+ * values are clamped, not dropped — see `MIN_END_DISTANCE_KM`/
+ * `MAX_END_DISTANCE_KM`. A non-number is dropped, and so is zero or less: the
+ * model was told to answer null when no distance was stated, and a zero limit
+ * would mean a walk that has to end exactly where it began.
+ */
+export function parseMaxEndDistanceKm(input: unknown): number | null {
+  const candidate = toCandidate(input);
+
+  if (candidate === null || typeof candidate !== "object") {
+    return null;
+  }
+
+  const raw = (candidate as Record<string, unknown>).maxEndDistanceKm;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return null;
+  }
+
+  if (raw <= 0) return null;
+
+  return Math.min(Math.max(raw, MIN_END_DISTANCE_KM), MAX_END_DISTANCE_KM);
+}
+
+/**
  * Read the "famous places only" signal off the reply. Only a literal `true`
  * counts: a string "true", a 1, or a missing field are all read as "not asked
  * for", which is the answer that changes nothing.
@@ -389,6 +439,10 @@ export function parsePlaceExtraction(input: unknown): PlaceExtraction {
     // also filled this in would be capping their own named stops.
     stopCount: places.length > 1 ? null : parseStopCount(candidate),
     notableOnly: parseNotableOnly(candidate),
+    // Unconditional, unlike `stopCount`: where the walk has to finish is the
+    // walker's own constraint either way, and naming the stops says nothing
+    // about how far from the start the last one may be.
+    maxEndDistanceKm: parseMaxEndDistanceKm(candidate),
   };
 }
 

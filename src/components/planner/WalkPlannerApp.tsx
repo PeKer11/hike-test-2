@@ -244,6 +244,9 @@ export function WalkPlannerApp({
   // them — including the "+ 15 min and retry" rebuild, which is still the same
   // request for three places.
   const [promptStopCount, setPromptStopCount] = useState<number | null>(null);
+  const [promptMaxEndDistanceKm, setPromptMaxEndDistanceKm] = useState<
+    number | null
+  >(null);
   const [promptNotableOnly, setPromptNotableOnly] = useState(false);
   // The area that same free text named, geocoded — handed to the companion panel
   // as a starting value for its origin. Null until a prompt resolves one.
@@ -1155,6 +1158,7 @@ export function WalkPlannerApp({
                   onPreview={(coordinates) => focusOn(coordinates, 16)}
                   onFoundPlacesChange={setPreviewPlaces}
                   onDurationDetected={setPromptDurationMinutes}
+                  onMaxEndDistanceDetected={setPromptMaxEndDistanceKm}
                   onStopCountDetected={setPromptStopCount}
                   onNotableOnlyDetected={setPromptNotableOnly}
                   onOriginDetected={setPromptOrigin}
@@ -1184,6 +1188,7 @@ export function WalkPlannerApp({
                 onWalkSettingsChange={setWalkSettings}
                 mapClickedCoords={mapClickedCoords}
                 suggestedMinutes={promptDurationMinutes}
+                suggestedMaxEndDistanceKm={promptMaxEndDistanceKm}
                 suggestedOrigin={promptOrigin}
                 suggestedPace={suggestedPace}
                 suggestedCategories={suggestedCategories}

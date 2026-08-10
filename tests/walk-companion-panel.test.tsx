@@ -1,6 +1,15 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { PlacePromptPanel } from "@/components/route/PlacePromptPanel";
 import { WalkCompanionPanel } from "@/components/route/WalkCompanionPanel";
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
@@ -293,5 +302,133 @@ describe("WalkCompanionPanel — GPS outranks the prompt's area", () => {
     rerender(panel({ lat: 31.7683, lng: 35.2137 }));
 
     expect(coordinateFields().lat.value).toBe("31.768300");
+  });
+});
+
+// The prompt box and the walk form are siblings under `WalkPlannerApp`, wired
+// through it: PlacePromptPanel fires `onMaxEndDistanceDetected`, the app holds
+// the number, and WalkCompanionPanel takes it as `suggestedMaxEndDistanceKm`.
+// This harness reproduces exactly that wiring so the round trip is tested, not
+// each half's own prop contract.
+function PromptToFormHarness() {
+  const [maxEndDistanceKm, setMaxEndDistanceKm] = useState<number | null>(null);
+  // Wired too, so a prompt that states only a walk length has somewhere to land
+  // and the blank max-distance field is a real negative rather than a no-op.
+  const [minutes, setMinutes] = useState<number | null>(null);
+
+  return (
+    <>
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        onDurationDetected={setMinutes}
+        onMaxEndDistanceDetected={setMaxEndDistanceKm}
+      />
+      <WalkCompanionPanel
+        isLoading={false}
+        onBuildWalk={vi.fn()}
+        walkSettings={DEFAULT_WALK_SETTINGS}
+        onWalkSettingsChange={vi.fn()}
+        suggestedMinutes={minutes}
+        suggestedMaxEndDistanceKm={maxEndDistanceKm}
+      />
+    </>
+  );
+}
+
+function promptBox() {
+  return screen.getByPlaceholderText(
+    "I want to see Habima Square, the Jaffa port, and a good market",
+  );
+}
+
+function endDistanceField() {
+  return screen.getByPlaceholderText("Any") as HTMLInputElement;
+}
+
+async function submitPrompt(text: string, response: Record<string, unknown>) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ attractions: [], unresolvedNames: [], ...response }),
+    })),
+  );
+
+  render(<PromptToFormHarness />);
+
+  fireEvent.change(promptBox(), { target: { value: text } });
+  fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+  await waitFor(() => expect(fetch).toHaveBeenCalled());
+}
+
+describe("a finish distance stated in the prompt", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("fills the max-distance field from a distance the prompt stated", async () => {
+    await submitPrompt("finish within 1km of here", { maxEndDistanceKm: 1 });
+
+    await waitFor(() => expect(endDistanceField().value).toBe("1"));
+  });
+
+  it("fills it with half a kilometre from a 500m request", async () => {
+    await submitPrompt('תחזיר אותי עד חצי ק"מ ממה שהתחלתי', {
+      maxEndDistanceKm: 0.5,
+    });
+
+    await waitFor(() => expect(endDistanceField().value).toBe("0.5"));
+  });
+
+  it("leaves the field blank when the prompt stated no finish distance", async () => {
+    await submitPrompt("I have three hours in Tel Aviv", {
+      durationMinutes: 180,
+      maxEndDistanceKm: null,
+    });
+
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("180")).toBeInstanceOf(
+        HTMLInputElement,
+      ),
+    );
+    expect(endDistanceField().value).toBe("");
+  });
+
+  it("overwrites a distance the walker typed, as a starting value not a lock", async () => {
+    // Same convention as the time field: a newly detected value wins, because
+    // the prompt is the walker speaking too, and more recently.
+    const responses = [{ maxEndDistanceKm: 1 }, { maxEndDistanceKm: 0.5 }];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          attractions: [],
+          unresolvedNames: [],
+          ...responses.shift(),
+        }),
+      })),
+    );
+
+    render(<PromptToFormHarness />);
+    fireEvent.change(promptBox(), {
+      target: { value: "finish within 1km of here" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+    await waitFor(() => expect(endDistanceField().value).toBe("1"));
+
+    fireEvent.change(endDistanceField(), { target: { value: "3" } });
+    expect(endDistanceField().value).toBe("3");
+
+    fireEvent.change(promptBox(), {
+      target: { value: "actually keep it within 500m of my start" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+
+    await waitFor(() => expect(endDistanceField().value).toBe("0.5"));
   });
 });

@@ -67,6 +67,15 @@ const PLACES_SCHEMA: Schema = {
       description:
         "True when the walker asks specifically for famous or well-known places, otherwise null.",
     },
+    // Deliberately not the search radius: this is where the walk has to END,
+    // the same distinction `maxEndDistanceFromOriginMeters` already makes
+    // downstream. A number, not an integer, because "half a kilometre" is 0.5.
+    maxEndDistanceKm: {
+      type: Type.NUMBER,
+      nullable: true,
+      description:
+        "How far from the start the walk may finish, in kilometres, when the text states one unambiguously, or null.",
+    },
   },
   // Everything past `places` stays optional: most prompts have none of it, and a
   // missing field parses to null / an empty list just like an explicit one.

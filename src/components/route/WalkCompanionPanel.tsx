@@ -37,6 +37,13 @@ interface WalkCompanionPanelProps {
    */
   suggestedMinutes?: number | null;
   /**
+   * A finish distance read out of that same box ("finish within 1km of here"),
+   * in kilometres. Fills the max-distance field exactly as `suggestedMinutes`
+   * fills the time one: a starting value the walker can type over, re-applied
+   * each time a new one is detected.
+   */
+  suggestedMaxEndDistanceKm?: number | null;
+  /**
    * The area named in that same free-text box ("in Zichron Yaakov"), geocoded.
    * Fills the coordinate fields the same way `suggestedMinutes` fills the time
    * one: a starting value the walker can type over, only re-applied when the
@@ -111,6 +118,7 @@ export function WalkCompanionPanel({
   onWalkSettingsChange,
   mapClickedCoords,
   suggestedMinutes,
+  suggestedMaxEndDistanceKm,
   suggestedOrigin,
   suggestedPace,
   suggestedCategories,
@@ -167,6 +175,15 @@ export function WalkCompanionPanel({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAvailableMinutes(String(suggestedMinutes));
   }, [suggestedMinutes]);
+
+  useEffect(() => {
+    if (typeof suggestedMaxEndDistanceKm !== "number") {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEndDistanceKm(String(suggestedMaxEndDistanceKm));
+  }, [suggestedMaxEndDistanceKm]);
 
   // Depends on the two numbers, not the object: a prompt that resolves to the
   // same place again must not overwrite coordinates the walker has since typed

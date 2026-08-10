@@ -17,6 +17,8 @@ interface ExtractPlacesResponse {
   stopCount?: number | null;
   /** The prompt asked for famous places rather than just places. */
   notableOnly?: boolean | null;
+  /** How far from the start the prompt said the walk may finish, in km. */
+  maxEndDistanceKm?: number | null;
   /** The prompt named a place and nothing else — ask what kind of walk. */
   needsClarification?: boolean;
   clarificationCategories?: AttractionCategory[];
@@ -66,6 +68,13 @@ interface PlacePromptPanelProps {
   onStopCountDetected?: (count: number | null) => void;
   onNotableOnlyDetected?: (notableOnly: boolean) => void;
   /**
+   * Fired when the text said how far from the start the walk may finish
+   * ("finish within 1km of here"), so the companion panel's max-distance field
+   * can start from it. Mirrors `onDurationDetected`: nothing is fired when no
+   * distance was stated, and the field keeps whatever it had.
+   */
+  onMaxEndDistanceDetected?: (km: number) => void;
+  /**
    * Fired when the text named an area we could locate ("in Zichron Yaakov"), so
    * the companion panel's coordinate fields can start from it. Nothing is fired
    * when no area was named or it could not be geocoded — the fields keep
@@ -102,6 +111,7 @@ export function PlacePromptPanel({
   onDurationDetected,
   onStopCountDetected,
   onNotableOnlyDetected,
+  onMaxEndDistanceDetected,
   onOriginDetected,
   learnPreferences = false,
   fillRemainingTime = false,
@@ -178,6 +188,10 @@ export function PlacePromptPanel({
         typeof data.stopCount === "number" ? data.stopCount : null,
       );
       onNotableOnlyDetected?.(data.notableOnly === true);
+
+      if (typeof data.maxEndDistanceKm === "number") {
+        onMaxEndDistanceDetected?.(data.maxEndDistanceKm);
+      }
 
       // A suspect area (the geocoder's own name for what it found doesn't look
       // like the area that was asked for) still comes back, but it does not get

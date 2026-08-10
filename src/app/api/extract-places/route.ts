@@ -277,6 +277,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       categoryNeeds,
       stopCount,
       notableOnly,
+      maxEndDistanceKm,
     } = await extractPlaceNames(prompt);
 
     // A chip the walker tapped answers the question the text left open, so it
@@ -403,6 +404,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       // about a walk it does not build.
       stopCount: stopCount ?? null,
       notableOnly: notableOnly ?? null,
+      // Rides through the same way: this endpoint finds named places, and
+      // "finish within 1 km of here" is a constraint on a walk it does not
+      // build — the panel reads it to pre-fill the form field.
+      maxEndDistanceKm: maxEndDistanceKm ?? null,
       // Reported so a need that found nothing is still visible when debugging —
       // no UI reads this yet.
       categoryNeeds: effectiveNeeds,

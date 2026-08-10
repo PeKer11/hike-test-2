@@ -12,6 +12,7 @@ import {
   parseCategoryNeeds,
   parseContextLocation,
   parseDurationMinutes,
+  parseMaxEndDistanceKm,
   parseNotableOnly,
   parsePlaceExtraction,
   parsePlaceNames,
@@ -212,6 +213,7 @@ describe("parsePlaceExtraction", () => {
       categoryNeeds: [],
       stopCount: null,
       notableOnly: null,
+      maxEndDistanceKm: null,
     });
   });
 
@@ -225,6 +227,7 @@ describe("parsePlaceExtraction", () => {
       categoryNeeds: [],
       stopCount: null,
       notableOnly: null,
+      maxEndDistanceKm: null,
     });
   });
 
@@ -241,6 +244,7 @@ describe("parsePlaceExtraction", () => {
       categoryNeeds: [],
       stopCount: null,
       notableOnly: null,
+      maxEndDistanceKm: null,
     });
   });
 
@@ -252,6 +256,7 @@ describe("parsePlaceExtraction", () => {
       categoryNeeds: [],
       stopCount: null,
       notableOnly: null,
+      maxEndDistanceKm: null,
     });
   });
 });
@@ -307,6 +312,7 @@ describe("stop count and notability extraction", () => {
       categoryNeeds: [],
       stopCount: 3,
       notableOnly: true,
+      maxEndDistanceKm: null,
     });
   });
 
@@ -318,6 +324,90 @@ describe("stop count and notability extraction", () => {
         stopCount: 2,
       }).stopCount,
     ).toBeNull();
+  });
+});
+
+describe("finish-distance extraction", () => {
+  it("asks for a finish distance only when the text states one", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "'keep it within 500m of my start' -> 0.5",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      'עד 1 ק"מ ממה שאני נמצא',
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      'תחזיר אותי עד חצי ק"מ ממה שהתחלתי',
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "Never guess a finish distance that was not stated",
+    );
+  });
+
+  it("tells the model a finish distance is neither a search radius nor a walk length", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "not how far to look for attractions",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "not where it ends",
+    );
+  });
+
+  it("reads a stated finish distance in kilometres", () => {
+    expect(parseMaxEndDistanceKm('{"maxEndDistanceKm": 1}')).toBe(1);
+    expect(parseMaxEndDistanceKm({ maxEndDistanceKm: 0.5 })).toBe(0.5);
+  });
+
+  it("returns null when no finish distance was stated", () => {
+    expect(parseMaxEndDistanceKm({ maxEndDistanceKm: null })).toBeNull();
+    expect(parseMaxEndDistanceKm({ places: [] })).toBeNull();
+    expect(parseMaxEndDistanceKm({ maxEndDistanceKm: "1km" })).toBeNull();
+    expect(parseMaxEndDistanceKm({ maxEndDistanceKm: 0 })).toBeNull();
+    expect(parseMaxEndDistanceKm({ maxEndDistanceKm: -2 })).toBeNull();
+  });
+
+  it("clamps a distance the form field would reject instead of dropping it", () => {
+    expect(parseMaxEndDistanceKm({ maxEndDistanceKm: 0.05 })).toBe(0.1);
+    expect(parseMaxEndDistanceKm({ maxEndDistanceKm: 400 })).toBe(50);
+  });
+
+  it("does not read a finish distance out of a duration or a search radius", () => {
+    // Both are separate fields on the same reply; a prompt that states one of
+    // them and no finish distance leaves this one null.
+    expect(
+      parsePlaceExtraction('{"places": [], "durationMinutes": 120}')
+        .maxEndDistanceKm,
+    ).toBeNull();
+    expect(
+      parsePlaceExtraction('{"places": [], "radiusMeters": 2000}')
+        .maxEndDistanceKm,
+    ).toBeNull();
+  });
+
+  it("carries a finish distance through a full extraction", () => {
+    expect(
+      parsePlaceExtraction(
+        '{"places": [], "durationMinutes": 120, "maxEndDistanceKm": 0.5}',
+      ),
+    ).toEqual({
+      places: [],
+      contextLocation: null,
+      durationMinutes: 120,
+      categoryNeeds: [],
+      stopCount: null,
+      notableOnly: null,
+      maxEndDistanceKm: 0.5,
+    });
+  });
+
+  it("keeps a finish distance even when the walker named the stops themselves", () => {
+    // Unlike `stopCount`: naming the stops says nothing about how far from the
+    // start the last one may be.
+    expect(
+      parsePlaceExtraction({
+        places: ["Habima Square", "Carmel Market"],
+        maxEndDistanceKm: 1,
+      }).maxEndDistanceKm,
+    ).toBe(1);
   });
 });
 
