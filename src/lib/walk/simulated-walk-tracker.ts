@@ -149,10 +149,11 @@ export class SimulatedWalkTracker {
    * `PaceUpdateHandler` — nothing downstream is told it is being tested.
    *
    * The offset is applied perpendicular to the segment the walker is on, which
-   * is exactly `offsetMeters` from *that* segment. Where the route doubles back
-   * on itself the nearest point may lie on a different segment and the measured
-   * deviation come out smaller — a straight stretch is the honest place to
-   * point this at.
+   * is exactly `offsetMeters` from *that* segment. On a route that doubles back
+   * that used to measure smaller, because the detector matched whichever
+   * segment of the whole route was nearest; it now searches only around the
+   * walker's last known segment, so a stray off a loop reads as the offset it
+   * was given.
    *
    * @param offsetMeters how far off the line. The re-route threshold is 50 m.
    * @param forMeters   route distance to cover before rejoining. Omit to stray

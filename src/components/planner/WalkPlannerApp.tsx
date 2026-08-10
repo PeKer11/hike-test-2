@@ -228,6 +228,11 @@ export function WalkPlannerApp({
   const hikeSearchTokenRef = useRef(0);
   const lastGpsUpdateRef = useRef<number>(0);
   const walkGeometryRef = useRef<Coordinates[]>([]);
+  // Where the walker was last matched onto `walkGeometryRef.current`, so the
+  // next fix can be matched near it instead of anywhere on the route. Reset to
+  // null whenever a walk starts — including the re-plan restart, which swaps in
+  // new geometry an old index means nothing against.
+  const lastSegmentIndexRef = useRef<number | null>(null);
   const [lastWalkInput, setLastWalkInput] = useState<WalkCompanionInput | null>(null);
   // Explicit mode: stops the user named in free text, applied to the next build.
   const [promptAttractions, setPromptAttractions] = useState<Attraction[] | null>(
@@ -640,6 +645,7 @@ export function WalkPlannerApp({
 
     stopWalkTracking();
     latestPaceUpdateRef.current = null;
+    lastSegmentIndexRef.current = null;
     setRecordedPointCount(0);
     setCurrentPosition(initialPosition);
     setIsOffRoute(false);
@@ -652,6 +658,7 @@ export function WalkPlannerApp({
         initialPosition,
         walkGeometryRef.current,
       );
+      lastSegmentIndexRef.current = initialDeviation.closestSegmentIndex;
       setRemainingGeometry(
         remainingRoute(
           walkGeometryRef.current,
@@ -714,7 +721,9 @@ export function WalkPlannerApp({
       const deviation = detectDeviation(
         update.currentPosition,
         walkGeometryRef.current,
+        lastSegmentIndexRef.current,
       );
+      lastSegmentIndexRef.current = deviation.closestSegmentIndex;
 
       if (deviation.needsReroute) {
         setIsOffRoute(true);
