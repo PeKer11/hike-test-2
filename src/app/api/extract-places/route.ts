@@ -37,6 +37,29 @@ interface ExtractPlacesRequest {
    * adding to it — the text said nothing, which is why we asked.
    */
   categoryNeeds?: AttractionCategory[];
+  /**
+   * Set by the second turn of the clarifying conversation: the walker has
+   * already picked a kind of walk, and this text answers "how much time do you
+   * have, and how far do you want to end up?".
+   *
+   * It is a different question about the same walk, not a new prompt, so the
+   * handler reads the numbers out of it and stops there — the stops were found
+   * on the first turn and re-geocoding them would cost a second round of
+   * Nominatim calls to arrive at the same list.
+   */
+  followUp?: boolean;
+  /** What the earlier turns already established. Only read on a follow-up. */
+  knownDurationMinutes?: number | null;
+  knownMaxEndDistanceKm?: number | null;
+}
+
+/**
+ * A number the client says it already knows, or null. Anything that isn't a
+ * usable number is read as "not known" — this only ever backfills a field the
+ * follow-up text didn't answer, so a doubtful value is worth less than nothing.
+ */
+function toKnownNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function toRequestedNeeds(value: unknown): AttractionCategory[] | null {
@@ -267,6 +290,28 @@ export async function POST(request: Request): Promise<NextResponse> {
         { error: `prompt must be ${MAX_PROMPT_LENGTH} characters or fewer.` },
         { status: 400 },
       );
+    }
+
+    // The second turn of the clarifying conversation. Same extraction pass and
+    // the same parsers as the first — this is one more sentence about the walk,
+    // not a second way of reading a duration — but nothing else runs, and what
+    // the earlier turns established survives whatever this one failed to say.
+    if (body.followUp === true) {
+      const followUp = await extractPlaceNames(prompt);
+      return NextResponse.json({
+        followUp: true,
+        // The new answer wins where there is one; where the walker answered
+        // only half the question, the half they had already given stands.
+        durationMinutes:
+          followUp.durationMinutes ?? toKnownNumber(body.knownDurationMinutes),
+        maxEndDistanceKm:
+          followUp.maxEndDistanceKm ??
+          toKnownNumber(body.knownMaxEndDistanceKm),
+        // Echoed back the way the chip turn does it: what the walker explicitly
+        // picked stands in for whatever this sentence happens to sound like.
+        // "Three hours, up to 1km" is not a request to drop the food stop.
+        categoryNeeds: toRequestedNeeds(body.categoryNeeds) ?? followUp.categoryNeeds,
+      });
     }
 
     let bias = toBias(body.nearLocation);

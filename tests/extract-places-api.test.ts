@@ -794,3 +794,157 @@ describe("POST /api/extract-places — area-only prompts", () => {
     expect(data.areaOnlyPrompt).toBe(false);
   });
 });
+
+// Turn two of the clarifying conversation: the walker has picked a kind of
+// walk, and now answers "how much time do you have, and how far do you want to
+// end up?" in plain words. The stops were already found — this turn must add to
+// what is known without taking anything away.
+describe("POST /api/extract-places — the follow-up turn", () => {
+  beforeEach(() => {
+    mockExtractPlaceNames.mockReset();
+    mockSearchPlaces.mockReset();
+    mockFetchAttractions.mockReset();
+    mockFetchAttractions.mockResolvedValue([]);
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockLearnPreferencesFromText.mockReset();
+    mockLearnPreferencesFromText.mockResolvedValue(null);
+  });
+
+  it("reads the time and the finish distance out of the follow-up text", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: [],
+      contextLocation: null,
+      durationMinutes: 180,
+      maxEndDistanceKm: 1,
+    });
+
+    const response = await POST(
+      postRequest({
+        prompt: "3 hours, up to 1km",
+        followUp: true,
+        categoryNeeds: ["nature", "food"],
+      }),
+    );
+    const data = await response.json();
+
+    expect(data.durationMinutes).toBe(180);
+    expect(data.maxEndDistanceKm).toBe(1);
+  });
+
+  // The walker answered half the question. The other half came from their
+  // original prompt and is not up for re-negotiation.
+  it("keeps a known value the follow-up text did not restate", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: [],
+      contextLocation: null,
+      durationMinutes: null,
+      maxEndDistanceKm: 1,
+    });
+
+    const response = await POST(
+      postRequest({
+        prompt: "up to 1km",
+        followUp: true,
+        knownDurationMinutes: 120,
+        knownMaxEndDistanceKm: null,
+      }),
+    );
+    const data = await response.json();
+
+    expect(data.durationMinutes).toBe(120);
+    expect(data.maxEndDistanceKm).toBe(1);
+  });
+
+  it("lets the follow-up text correct a value that was already known", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: [],
+      contextLocation: null,
+      durationMinutes: 180,
+      maxEndDistanceKm: null,
+    });
+
+    const response = await POST(
+      postRequest({
+        prompt: "make it 3 hours",
+        followUp: true,
+        knownDurationMinutes: 120,
+      }),
+    );
+    const data = await response.json();
+
+    expect(data.durationMinutes).toBe(180);
+  });
+
+  // "Three hours, up to 1km" says nothing about food, and must not be read as
+  // a request to drop the food stop the walker asked for one turn ago.
+  it("keeps the categories picked on the chip turn", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: [],
+      contextLocation: null,
+      durationMinutes: 180,
+      maxEndDistanceKm: null,
+      categoryNeeds: [],
+    });
+
+    const response = await POST(
+      postRequest({
+        prompt: "3 hours",
+        followUp: true,
+        categoryNeeds: ["nature", "food"],
+      }),
+    );
+    const data = await response.json();
+
+    expect(data.categoryNeeds).toEqual(["nature", "food"]);
+  });
+
+  // The stops are the first turn's business. Re-geocoding them here would cost
+  // a second round of one-per-second Nominatim calls to rebuild the same list.
+  it("does not geocode anything on a follow-up", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["Habima Square"],
+      contextLocation: "Tel Aviv",
+      durationMinutes: 180,
+      maxEndDistanceKm: null,
+    });
+
+    const response = await POST(
+      postRequest({ prompt: "3 hours", followUp: true }),
+    );
+    const data = await response.json();
+
+    expect(mockSearchPlaces).not.toHaveBeenCalled();
+    expect(mockFetchAttractions).not.toHaveBeenCalled();
+    expect(data.attractions).toBeUndefined();
+  });
+
+  it("ignores a known value that is not a usable number", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: [],
+      contextLocation: null,
+      durationMinutes: null,
+      maxEndDistanceKm: null,
+    });
+
+    const response = await POST(
+      postRequest({
+        prompt: "not sure",
+        followUp: true,
+        knownDurationMinutes: "two hours",
+        knownMaxEndDistanceKm: Number.NaN,
+      }),
+    );
+    const data = await response.json();
+
+    expect(data.durationMinutes).toBeNull();
+    expect(data.maxEndDistanceKm).toBeNull();
+  });
+
+  it("still refuses an empty follow-up", async () => {
+    const response = await POST(postRequest({ prompt: "   ", followUp: true }));
+
+    expect(response.status).toBe(400);
+    expect(mockExtractPlaceNames).not.toHaveBeenCalled();
+  });
+});
