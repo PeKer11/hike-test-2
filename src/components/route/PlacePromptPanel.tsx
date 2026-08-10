@@ -25,6 +25,8 @@ interface ExtractPlacesResponse {
   clarificationCategories?: AttractionCategory[];
   /** The prompt named a town and nothing more specific. */
   areaOnlyPrompt?: boolean;
+  /** Echoed back so a follow-up turn can see its own categories survived. */
+  categoryNeeds?: AttractionCategory[];
   error?: string;
 }
 
@@ -42,6 +44,39 @@ const CATEGORY_LABELS: Record<AttractionCategory, string> = {
   nature: "Nature",
   other: "Anything",
 };
+
+/**
+ * Everything the clarifying conversation has established, carried from one turn
+ * to the next. Two turns is the whole of it — a kind of walk, then how long and
+ * how far — so this is a merged snapshot rather than a message history.
+ */
+interface KnownSoFar {
+  categoryNeeds: AttractionCategory[];
+  durationMinutes: number | null;
+  maxEndDistanceKm: number | null;
+}
+
+const NOTHING_KNOWN: KnownSoFar = {
+  categoryNeeds: [],
+  durationMinutes: null,
+  maxEndDistanceKm: null,
+};
+
+type MissingField = "duration" | "endDistance";
+
+/**
+ * The second question, phrased for whichever halves of it are still open. A
+ * walker who already said "I have three hours" should not be asked how long
+ * they have — being asked something you just answered reads as not listening.
+ */
+function followUpQuestion(missing: MissingField[]): string {
+  if (missing.length === 2) {
+    return "How much time do you have, and how far do you want to end up?";
+  }
+  return missing[0] === "duration"
+    ? "How much time do you have?"
+    : "How far from where you start do you want to end up?";
+}
 
 interface PlacePromptPanelProps {
   /** Biases geocoding so "Habima" resolves in the right city. */
@@ -132,6 +167,20 @@ export function PlacePromptPanel({
   const [selectedCategories, setSelectedCategories] = useState<
     AttractionCategory[]
   >([]);
+  // What the conversation has established so far, across every turn of it.
+  //
+  // Deliberately not a transcript: nothing here is displayed, and the panel
+  // never shows a thread of previous messages. It exists so the second turn
+  // cannot lose the first — "3 hours, up to 1km" is a sentence about time, and
+  // sending it on its own would otherwise come back with no categories and no
+  // stops, silently undoing the answer the walker gave one tap earlier.
+  const [known, setKnown] = useState<KnownSoFar>(NOTHING_KNOWN);
+  // Which halves of "how long, and how far?" are still unanswered, or null when
+  // there is nothing left to ask.
+  const [followUpMissing, setFollowUpMissing] = useState<MissingField[] | null>(
+    null,
+  );
+  const [followUpText, setFollowUpText] = useState("");
   // Extraction is fuzzy — the user drops the ones we got wrong before accepting.
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [unresolvedNames, setUnresolvedNames] = useState<string[]>([]);
@@ -151,6 +200,7 @@ export function PlacePromptPanel({
     setHasResult(false);
     setClarificationCategories([]);
     setSelectedCategories([]);
+    setFollowUpMissing(null);
     // Drop the previous run's pins now — a failed extraction must not leave the
     // old candidates sitting on the map.
     onFoundPlacesChange([]);
@@ -179,6 +229,28 @@ export function PlacePromptPanel({
       setClarificationCategories(
         data.needsClarification ? (data.clarificationCategories ?? []) : [],
       );
+
+      const duration =
+        typeof data.durationMinutes === "number" ? data.durationMinutes : null;
+      const endDistance =
+        typeof data.maxEndDistanceKm === "number"
+          ? data.maxEndDistanceKm
+          : null;
+      setKnown({
+        categoryNeeds: categoryNeeds ?? [],
+        durationMinutes: duration,
+        maxEndDistanceKm: endDistance,
+      });
+
+      // Only after the chip turn. A first prompt that said nothing about time
+      // is not an invitation to interrogate the walker — the whole conversation
+      // exists because the app asked a question, and it asks two at most.
+      if (categoryNeeds) {
+        const missing: MissingField[] = [];
+        if (duration === null) missing.push("duration");
+        if (endDistance === null) missing.push("endDistance");
+        setFollowUpMissing(missing.length > 0 ? missing : null);
+      }
 
       // "A walk in Zichron Yaakov" is the other reading of a named stop —
       // start me here, surprise me with the rest — so the leftover time really
@@ -222,6 +294,83 @@ export function PlacePromptPanel({
   const selectedAttractions = attractions.filter(
     (attraction) => !removedIds.includes(attraction.id),
   );
+
+  /**
+   * Turn two: the walker's plain-text answer to how long and how far.
+   *
+   * It goes to the same endpoint with the same schema — the numbers in "3
+   * hours, up to 1km" are read by the parsers a first prompt already uses — but
+   * it is flagged as a follow-up so nothing gets re-geocoded, and it carries
+   * what the earlier turns established so a half-answer cannot erase the half
+   * already given. The found stops stay exactly as they are; this sentence
+   * names no places, and reading it as if it did would empty the list.
+   */
+  const submitFollowUp = async () => {
+    const trimmed = followUpText.trim();
+    if (!trimmed) {
+      setError("Tell us how long you have.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/extract-places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: trimmed,
+          nearLocation: nearLocation ?? undefined,
+          followUp: true,
+          categoryNeeds: known.categoryNeeds,
+          knownDurationMinutes: known.durationMinutes,
+          knownMaxEndDistanceKm: known.maxEndDistanceKm,
+        }),
+      });
+      const data = (await res.json()) as ExtractPlacesResponse;
+
+      if (!res.ok || data.error) {
+        throw new Error(data.error ?? "Failed to read that.");
+      }
+
+      const merged: KnownSoFar = {
+        categoryNeeds: data.categoryNeeds ?? known.categoryNeeds,
+        durationMinutes:
+          typeof data.durationMinutes === "number"
+            ? data.durationMinutes
+            : known.durationMinutes,
+        maxEndDistanceKm:
+          typeof data.maxEndDistanceKm === "number"
+            ? data.maxEndDistanceKm
+            : known.maxEndDistanceKm,
+      };
+      setKnown(merged);
+      setFollowUpMissing(null);
+      setFollowUpText("");
+
+      if (merged.durationMinutes !== null) {
+        onDurationDetected?.(merged.durationMinutes);
+      }
+      if (merged.maxEndDistanceKm !== null) {
+        onMaxEndDistanceDetected?.(merged.maxEndDistanceKm);
+      }
+
+      // The conversation was the app's idea, and this was the last question in
+      // it — hand the stops over rather than making the walker confirm a list
+      // they never typed.
+      if (selectedAttractions.length > 0) {
+        onAcceptAttractions(selectedAttractions);
+      }
+    } catch (followUpError) {
+      setError(
+        followUpError instanceof Error
+          ? followUpError.message
+          : "Failed to read that.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Card className="space-y-3">
@@ -308,6 +457,32 @@ export function PlacePromptPanel({
             onClick={() => void extract(selectedCategories)}
           >
             Continue
+          </Button>
+        </div>
+      )}
+
+      {/* Turn two, and the last one. Plain text rather than chips: a time
+          budget and a finish distance are numbers the walker states, not a
+          menu, and "3 hours, up to 1km" answers both in one line. */}
+      {followUpMissing && (
+        <div className="space-y-2 rounded-md bg-cream/70 p-2">
+          <p className="text-xs text-charcoal/80">
+            {followUpQuestion(followUpMissing)}
+          </p>
+          <input
+            type="text"
+            value={followUpText}
+            aria-label={followUpQuestion(followUpMissing)}
+            onChange={(event) => setFollowUpText(event.target.value)}
+            placeholder="3 hours, up to 1km"
+            className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
+          />
+          <Button
+            fullWidth
+            disabled={isLoading || followUpText.trim().length === 0}
+            onClick={() => void submitFollowUp()}
+          >
+            Build my walk
           </Button>
         </div>
       )}

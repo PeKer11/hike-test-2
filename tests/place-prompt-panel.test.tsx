@@ -651,3 +651,380 @@ describe("PlacePromptPanel — an area-only prompt is not a named list", () => {
     expect(onFill).not.toHaveBeenCalled();
   });
 });
+
+// Turn two. The walker has answered "what kind of walk?"; the app now asks the
+// one thing the clarification never used to ask about — how long they have and
+// where they want to end up — and must not lose turn one doing it.
+describe("PlacePromptPanel — the follow-up turn", () => {
+  function stubExtract(
+    responses: Record<string, unknown>[],
+  ): ReturnType<typeof vi.fn> {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => responses.shift() ?? {},
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  function renderPanel(
+    props: Partial<{
+      onDurationDetected: (minutes: number) => void;
+      onMaxEndDistanceDetected: (km: number) => void;
+      onAcceptAttractions: (attractions: Attraction[] | null) => void;
+    }> = {},
+  ) {
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={props.onAcceptAttractions ?? vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        onDurationDetected={props.onDurationDetected}
+        onMaxEndDistanceDetected={props.onMaxEndDistanceDetected}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "טיול בזכרון יעקב" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+  }
+
+  /** Turn one: the chips go up, the walker ticks nature and food, and sends. */
+  async function answerTheChips() {
+    await screen.findByText(/What kind of walk are you after\?/);
+    fireEvent.click(screen.getByRole("button", { name: "Nature" }));
+    fireEvent.click(screen.getByRole("button", { name: "Food" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  }
+
+  const CHIPS_UP = {
+    attractions: [],
+    unresolvedNames: [],
+    needsClarification: true,
+    clarificationCategories: ["nature", "food", "museum"],
+  };
+
+  it("asks about both when the walk has neither a time nor a finish distance", async () => {
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+    ]);
+    renderPanel();
+    await answerTheChips();
+
+    expect(
+      await screen.findByText(
+        "How much time do you have, and how far do you want to end up?",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("asks only about the finish distance when the time was already stated", async () => {
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: 180,
+        maxEndDistanceKm: null,
+      },
+    ]);
+    renderPanel();
+    await answerTheChips();
+
+    expect(
+      await screen.findByText(
+        "How far from where you start do you want to end up?",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("asks only about the time when the finish distance was already stated", async () => {
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: 1,
+      },
+    ]);
+    renderPanel();
+    await answerTheChips();
+
+    expect(
+      await screen.findByText("How much time do you have?"),
+    ).toBeTruthy();
+  });
+
+  it("asks nothing when the original prompt already said both", async () => {
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: 180,
+        maxEndDistanceKm: 1,
+      },
+    ]);
+    renderPanel();
+    await answerTheChips();
+
+    await screen.findByText("זכרון יעקב");
+    expect(screen.queryByText(/How much time do you have/)).toBeNull();
+    expect(screen.queryByText(/how far do you want to end up/)).toBeNull();
+  });
+
+  // The question is the app's, not the walker's — a prompt that simply didn't
+  // mention time is not a reason to start interrogating them.
+  it("does not ask when there was no clarifying question to begin with", async () => {
+    stubExtract([
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        needsClarification: false,
+        clarificationCategories: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+    ]);
+    renderPanel();
+
+    await screen.findByText("זכרון יעקב");
+    expect(screen.queryByText(/How much time do you have/)).toBeNull();
+  });
+
+  it("fills the time and distance fields from what the walker typed back", async () => {
+    const onDurationDetected = vi.fn();
+    const onMaxEndDistanceDetected = vi.fn();
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+      {
+        followUp: true,
+        durationMinutes: 180,
+        maxEndDistanceKm: 1,
+        categoryNeeds: ["nature", "food"],
+      },
+    ]);
+    renderPanel({ onDurationDetected, onMaxEndDistanceDetected });
+    await answerTheChips();
+
+    const input = await screen.findByLabelText(
+      "How much time do you have, and how far do you want to end up?",
+    );
+    fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+
+    await waitFor(() => expect(onDurationDetected).toHaveBeenCalledWith(180));
+    expect(onMaxEndDistanceDetected).toHaveBeenCalledWith(1);
+  });
+
+  // The whole reason the accumulator exists: turn two says nothing about
+  // nature or food, and sending it must not read as retracting them.
+  it("sends turn one's categories along with turn two's text", async () => {
+    const fetchMock = stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+      { followUp: true, durationMinutes: 180, maxEndDistanceKm: 1 },
+    ]);
+    renderPanel();
+    await answerTheChips();
+
+    const input = await screen.findByLabelText(
+      "How much time do you have, and how far do you want to end up?",
+    );
+    fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    const body = JSON.parse((fetchMock.mock.calls[2][1] as { body: string }).body);
+    expect(body.categoryNeeds).toEqual(["nature", "food"]);
+    expect(body.followUp).toBe(true);
+    expect(body.prompt).toBe("3 hours, up to 1km");
+  });
+
+  it("tells the endpoint what the earlier turns already established", async () => {
+    const fetchMock = stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: 180,
+        maxEndDistanceKm: null,
+      },
+      { followUp: true, durationMinutes: 180, maxEndDistanceKm: 1 },
+    ]);
+    renderPanel();
+    await answerTheChips();
+
+    const input = await screen.findByLabelText(
+      "How far from where you start do you want to end up?",
+    );
+    fireEvent.change(input, { target: { value: "up to 1km" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    const body = JSON.parse((fetchMock.mock.calls[2][1] as { body: string }).body);
+    expect(body.knownDurationMinutes).toBe(180);
+    expect(body.knownMaxEndDistanceKm).toBeNull();
+  });
+
+  // Turn two names no places. Reading its reply as a place list would empty
+  // the one the walker just built.
+  it("keeps the stops turn one found", async () => {
+    const onAcceptAttractions = vi.fn();
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+      { followUp: true, durationMinutes: 180, maxEndDistanceKm: 1 },
+    ]);
+    renderPanel({ onAcceptAttractions });
+    await answerTheChips();
+
+    const input = await screen.findByLabelText(
+      "How much time do you have, and how far do you want to end up?",
+    );
+    fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+
+    await waitFor(() =>
+      expect(onAcceptAttractions).toHaveBeenCalledWith(FOUND),
+    );
+    expect(screen.getByText("זכרון יעקב")).toBeTruthy();
+  });
+
+  // A walker who dropped a wrong place before answering meant it.
+  it("hands over only the stops still on the list", async () => {
+    const onAcceptAttractions = vi.fn();
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+      { followUp: true, durationMinutes: 180, maxEndDistanceKm: 1 },
+    ]);
+    renderPanel({ onAcceptAttractions });
+    await answerTheChips();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Remove זכרון יעקב" }),
+    );
+    const input = screen.getByLabelText(
+      "How much time do you have, and how far do you want to end up?",
+    );
+    fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+
+    await waitFor(() =>
+      expect(onAcceptAttractions).toHaveBeenCalledWith([FOUND[0], FOUND[1]]),
+    );
+  });
+
+  it("takes the question down once it has been answered", async () => {
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+      { followUp: true, durationMinutes: 180, maxEndDistanceKm: 1 },
+    ]);
+    renderPanel();
+    await answerTheChips();
+
+    const input = await screen.findByLabelText(
+      "How much time do you have, and how far do you want to end up?",
+    );
+    fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+
+    await waitFor(() =>
+      expect(screen.queryByText(/How much time do you have/)).toBeNull(),
+    );
+  });
+
+  it("cannot be sent empty", async () => {
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+    ]);
+    renderPanel();
+    await answerTheChips();
+
+    await screen.findByText(
+      "How much time do you have, and how far do you want to end up?",
+    );
+    expect(
+      (screen.getByRole("button", { name: "Build my walk" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+
+  // Starting over is starting over — the old conversation's answers must not
+  // leak into the new prompt's.
+  it("forgets the conversation when a fresh prompt is run", async () => {
+    const fetchMock = stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        needsClarification: false,
+        clarificationCategories: [],
+      },
+    ]);
+    renderPanel();
+    await answerTheChips();
+
+    await screen.findByText(
+      "How much time do you have, and how far do you want to end up?",
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "" }), {
+      target: { value: "הבימה בתל אביב" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+
+    await waitFor(() =>
+      expect(screen.queryByText(/How much time do you have/)).toBeNull(),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
