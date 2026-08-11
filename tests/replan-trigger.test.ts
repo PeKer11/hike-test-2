@@ -137,7 +137,13 @@ describe("ReplanTrigger — cooldown", () => {
       }
     };
 
-    const first = new PaceChecker(DEFAULT_WALK_SETTINGS, trigger, onReplan);
+    // Explicit `auto`: the shipped default is `off`, which would never report
+    // and so could not show a cooldown holding across the rebuild.
+    const checkerSettings: WalkSettings = {
+      ...DEFAULT_WALK_SETTINGS,
+      slowPaceMode: "auto",
+    };
+    const first = new PaceChecker(checkerSettings, trigger, onReplan);
     first.start();
     stand(first, T0, FULL_STOP_WINDOW_MS);
     vi.setSystemTime(T0 + FULL_STOP_WINDOW_MS);
@@ -147,7 +153,7 @@ describe("ReplanTrigger — cooldown", () => {
     // The re-plan: old checker discarded, new one built on the same trigger.
     first.stop();
     const firedAt = Date.now();
-    const second = new PaceChecker(DEFAULT_WALK_SETTINGS, trigger, onReplan);
+    const second = new PaceChecker(checkerSettings, trigger, onReplan);
     second.start();
     stand(second, firedAt + SAMPLE_INTERVAL_MS, FULL_STOP_WINDOW_MS);
     vi.advanceTimersByTime(FULL_STOP_WINDOW_MS + DEFAULT_WALK_SETTINGS.paceCheckIntervalMs);

@@ -50,6 +50,32 @@ beforeEach(() => {
   });
 });
 
+describe("pace mode defaults", () => {
+  it("leaves both directions alone for a walker who has never opened settings", () => {
+    expect(DEFAULT_WALK_SETTINGS.slowPaceMode).toBe("off");
+    expect(DEFAULT_WALK_SETTINGS.fastPaceMode).toBe("off");
+
+    const { result } = renderHook(() => useWalkSettings());
+    expect(result.current.settings.slowPaceMode).toBe("off");
+    expect(result.current.settings.fastPaceMode).toBe("off");
+  });
+
+  it("still migrates a pre-split blob to auto rather than to the new default", () => {
+    // The new-walker default and the migration fallback answer different
+    // questions: this walker had pace checking on, and turning it off under
+    // them would be a silent behaviour change.
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ paceCheckEnabled: true, paceCheckIntervalMs: 60_000 }),
+    );
+
+    const { result } = renderHook(() => useWalkSettings());
+
+    expect(result.current.settings.slowPaceMode).toBe("auto");
+    expect(result.current.settings.fastPaceMode).toBe("auto");
+  });
+});
+
 describe("autoResumeAfterRebuild default and migration", () => {
   it("defaults on, so a walker who never opens settings keeps the old auto-resume", () => {
     expect(DEFAULT_WALK_SETTINGS.autoResumeAfterRebuild).toBe(true);

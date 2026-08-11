@@ -43,10 +43,16 @@ export interface WalkSettings {
 export const MIN_PACE_CHECK_INTERVAL_MS = 30_000;
 
 export const DEFAULT_WALK_SETTINGS: WalkSettings = {
-  // Both default to the old behaviour, so a walker who never opens settings
-  // sees exactly what they saw before the split.
-  fastPaceMode: "auto",
-  slowPaceMode: "auto",
+  // Both off by default. Testing settled it: pace drift is usually just how
+  // someone feels like walking that day, so a brand-new walker should not have
+  // their route silently rebuilt — or even be asked about it — until they say
+  // they want that. Note this is deliberately *not* the same answer as
+  // `toPaceResponseMode`'s fallback: "what does a new walker get" and "what
+  // does an existing walker's stored blob become" are different questions, and
+  // changing the second would retroactively switch off something a returning
+  // walker already had.
+  fastPaceMode: "off",
+  slowPaceMode: "off",
   // Also the old behaviour: before this flag existed, a pace rebuild always
   // resumed tracking on its own.
   autoResumeAfterRebuild: true,

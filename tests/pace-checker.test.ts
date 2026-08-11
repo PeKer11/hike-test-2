@@ -199,7 +199,12 @@ describe("PaceChecker pace-mode gate", () => {
   });
 
   it("refuses a check interval faster than the 30s floor", () => {
-    const { trigger, calls, checker } = setup({ paceCheckIntervalMs: 1_000 });
+    const { trigger, calls, checker } = setup({
+      paceCheckIntervalMs: 1_000,
+      // The interval floor is the subject here, so the mode has to be one that
+      // actually reports — the default is `off`, which reports nothing.
+      slowPaceMode: "auto",
+    });
     checker.start();
 
     trigger.next = "sustained-slow-pace";
