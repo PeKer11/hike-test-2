@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PlacePromptPanel } from "@/components/route/PlacePromptPanel";
@@ -649,6 +656,271 @@ describe("PlacePromptPanel — an area-only prompt is not a named list", () => {
 
     await screen.findByText("זכרון יעקב");
     expect(onFill).not.toHaveBeenCalled();
+  });
+});
+
+// The session log above the prompt box. Separate from `KnownSoFar`: that is
+// one conversation's answers and resets per topic, this is every request made
+// in this browser session and only drops entries to the cap.
+describe("PlacePromptPanel — the session scrollback", () => {
+  function stubExtract(
+    responses: Record<string, unknown>[],
+  ): ReturnType<typeof vi.fn> {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => responses.shift() ?? {},
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  function renderPanel() {
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+      />,
+    );
+  }
+
+  function sendPrompt(text: string) {
+    fireEvent.change(screen.getByRole("textbox", { name: "" }), {
+      target: { value: text },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+  }
+
+  /** Entries are behind a toggle, so reading the log means opening it. */
+  async function openLog() {
+    fireEvent.click(await screen.findByRole("button", { name: /Recent requests/ }));
+  }
+
+  /**
+   * Scoped to the log itself. The prompt box and the error banner hold the same
+   * strings, and an unscoped query would pass on either of them.
+   */
+  function log() {
+    return within(screen.getByRole("list", { name: "Recent requests" }));
+  }
+
+  const CHIPS_UP = {
+    attractions: [],
+    unresolvedNames: [],
+    needsClarification: true,
+    clarificationCategories: ["nature", "food"],
+  };
+
+  it("shows nothing before anything has been asked", () => {
+    stubExtract([]);
+    renderPanel();
+
+    expect(screen.queryByRole("button", { name: /Recent requests/ })).toBeNull();
+  });
+
+  it("logs what was found for a prompt that resolved straight away", async () => {
+    stubExtract([{ attractions: FOUND, unresolvedNames: [] }]);
+    renderPanel();
+    sendPrompt("מדרחוב וגן טייל בזכרון יעקב");
+
+    await openLog();
+    expect(log().getByText("מדרחוב וגן טייל בזכרון יעקב")).toBeTruthy();
+    expect(log().getByText("Found 3 stops")).toBeTruthy();
+  });
+
+  it("logs the question when the prompt was too vague to answer", async () => {
+    stubExtract([CHIPS_UP]);
+    renderPanel();
+    sendPrompt("טיול בזכרון יעקב");
+
+    await openLog();
+    expect(
+      screen.getByText("Asked what kind of walk you're after"),
+    ).toBeTruthy();
+  });
+
+  it("logs the names it could not place", async () => {
+    stubExtract([
+      { attractions: [], unresolvedNames: ["בית הקפה של דני"] },
+    ]);
+    renderPanel();
+    sendPrompt("בית הקפה של דני");
+
+    await openLog();
+    expect(screen.getByText("Couldn't locate בית הקפה של דני")).toBeTruthy();
+  });
+
+  it("logs an empty result rather than dropping the attempt", async () => {
+    stubExtract([{ attractions: [], unresolvedNames: [] }]);
+    renderPanel();
+    sendPrompt("אהה");
+
+    await openLog();
+    expect(screen.getByText("Didn't find anything for that")).toBeTruthy();
+  });
+
+  // "I typed that and it didn't work" is the thing most worth looking back at.
+  it("logs a failed extraction with the reason it failed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        json: async () => ({ error: "Places service is down." }),
+      })),
+    );
+    renderPanel();
+    sendPrompt("מדרחוב");
+
+    await openLog();
+    expect(log().getByText("Places service is down.")).toBeTruthy();
+  });
+
+  it("logs each turn of a two-turn conversation as its own entry", async () => {
+    stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+      { followUp: true, durationMinutes: 180, maxEndDistanceKm: 1 },
+    ]);
+    renderPanel();
+    sendPrompt("טיול בזכרון יעקב");
+
+    await screen.findByText(/What kind of walk are you after\?/);
+    fireEvent.click(screen.getByRole("button", { name: "Food" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    const input = await screen.findByLabelText(
+      "How much time do you have, and how far do you want to end up?",
+    );
+    fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+
+    await screen.findByRole("button", { name: "Recent requests (3)" });
+    await openLog();
+    expect(
+      screen.getByText("Asked what kind of walk you're after"),
+    ).toBeTruthy();
+    expect(screen.getByText("טיול בזכרון יעקב — Food")).toBeTruthy();
+    expect(screen.getByText("Found 3 stops")).toBeTruthy();
+    expect(screen.getByText("3 hours, up to 1km")).toBeTruthy();
+    expect(screen.getByText("Built a walk through 3 stops")).toBeTruthy();
+  });
+
+  it("drops the oldest entry once six requests have been made", async () => {
+    stubExtract(
+      ["one", "two", "three", "four", "five", "six"].map(() => ({
+        attractions: FOUND,
+        unresolvedNames: [],
+      })),
+    );
+    renderPanel();
+
+    const sent = ["one", "two", "three", "four", "five", "six"];
+    for (let i = 0; i < sent.length; i++) {
+      sendPrompt(sent[i]);
+      // The log is collapsed, so the count in the toggle is what says the
+      // entry landed. It stops climbing at the cap.
+      const expected = Math.min(i + 1, 5);
+      await screen.findByRole("button", {
+        name: `Recent requests (${expected})`,
+      });
+    }
+
+    await openLog();
+    const entries = log().getAllByRole("listitem");
+    expect(entries.map((li) => li.textContent?.split("Found")[0])).toEqual([
+      "two",
+      "three",
+      "four",
+      "five",
+      "six",
+    ]);
+  });
+
+  // The accumulator resets per topic; the log does not.
+  it("keeps earlier entries when a brand new prompt is run", async () => {
+    stubExtract([
+      CHIPS_UP,
+      { attractions: FOUND, unresolvedNames: [] },
+    ]);
+    renderPanel();
+    sendPrompt("טיול בזכרון יעקב");
+
+    await screen.findByText(/What kind of walk are you after\?/);
+    sendPrompt("הבימה בתל אביב");
+
+    await screen.findByRole("button", { name: "Recent requests (2)" });
+    await openLog();
+    expect(
+      screen.getByText("Asked what kind of walk you're after"),
+    ).toBeTruthy();
+    expect(screen.getByText("טיול בזכרון יעקב")).toBeTruthy();
+  });
+
+  it("keeps the log when a new prompt clears what the conversation knew", async () => {
+    const fetchMock = stubExtract([
+      CHIPS_UP,
+      {
+        attractions: FOUND,
+        unresolvedNames: [],
+        durationMinutes: null,
+        maxEndDistanceKm: null,
+      },
+      { attractions: FOUND, unresolvedNames: [] },
+    ]);
+    renderPanel();
+    sendPrompt("טיול בזכרון יעקב");
+
+    await screen.findByText(/What kind of walk are you after\?/);
+    fireEvent.click(screen.getByRole("button", { name: "Nature" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByText(
+      "How much time do you have, and how far do you want to end up?",
+    );
+
+    // A fresh prompt: the follow-up question goes away, i.e. `known` reset.
+    sendPrompt("הבימה בתל אביב");
+    await waitFor(() =>
+      expect(screen.queryByText(/How much time do you have/)).toBeNull(),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await screen.findByRole("button", { name: "Recent requests (3)" });
+    await openLog();
+    expect(screen.getByText("טיול בזכרון יעקב — Nature")).toBeTruthy();
+  });
+
+  it("shortens a prompt too long to sit above the box", async () => {
+    const long = "א".repeat(80);
+    stubExtract([{ attractions: FOUND, unresolvedNames: [] }]);
+    renderPanel();
+    sendPrompt(long);
+
+    await openLog();
+    expect(log().getByText(`${"א".repeat(59)}…`)).toBeTruthy();
+    expect(log().queryByText(long)).toBeNull();
+  });
+
+  it("keeps the entries out of the way until they are asked for", async () => {
+    stubExtract([{ attractions: FOUND, unresolvedNames: [] }]);
+    renderPanel();
+    sendPrompt("מדרחוב");
+
+    const toggle = await screen.findByRole("button", {
+      name: "Recent requests (1)",
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("Found 3 stops")).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Found 3 stops")).toBeTruthy();
   });
 });
 

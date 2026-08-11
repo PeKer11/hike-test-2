@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button, Card, LoadingSpinner } from "@/components/ui";
 import { MAX_CATEGORY_NEEDS } from "@/lib/places/place-extractor";
@@ -63,6 +63,57 @@ const NOTHING_KNOWN: KnownSoFar = {
   durationMinutes: null,
   maxEndDistanceKm: null,
 };
+
+/**
+ * One thing the walker sent and what came back of it, for the session log above
+ * the prompt box. Deliberately not `KnownSoFar`: that is the state of one
+ * conversation and resets when a new topic starts, this is a flat record of
+ * everything asked in this browser session and never resets. Nothing here is
+ * read back into a request — it is display only, and it dies with the page.
+ */
+interface ScrollbackEntry {
+  id: number;
+  prompt: string;
+  responseSummary: string;
+  timestamp: number;
+}
+
+/** Enough to see what you just tried, not so much it becomes a transcript. */
+const MAX_SCROLLBACK = 5;
+
+const MAX_SCROLLBACK_PROMPT_CHARS = 60;
+
+function truncatePrompt(text: string): string {
+  return text.length <= MAX_SCROLLBACK_PROMPT_CHARS
+    ? text
+    : `${text.slice(0, MAX_SCROLLBACK_PROMPT_CHARS - 1).trimEnd()}…`;
+}
+
+/**
+ * The one line the log shows for an extraction, built from what the panel
+ * already reads off the response. A question asked is the outcome when one was
+ * asked — the walk was not built, and saying "found 0 stops" would read as a
+ * failure rather than as the app's own follow-up.
+ */
+function summarizeExtraction(data: ExtractPlacesResponse): string {
+  if (data.needsClarification) {
+    return "Asked what kind of walk you're after";
+  }
+
+  const found = data.attractions?.length ?? 0;
+  const unresolved = data.unresolvedNames ?? [];
+
+  if (found > 0) {
+    const stops = `Found ${found} stop${found === 1 ? "" : "s"}`;
+    return unresolved.length > 0
+      ? `${stops}, couldn't locate ${unresolved.join(", ")}`
+      : stops;
+  }
+  if (unresolved.length > 0) {
+    return `Couldn't locate ${unresolved.join(", ")}`;
+  }
+  return "Didn't find anything for that";
+}
 
 type MissingField = "duration" | "endDistance";
 
@@ -197,6 +248,21 @@ export function PlacePromptPanel({
   const [hasResult, setHasResult] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Everything sent this session, oldest first. Survives a new prompt on
+  // purpose — `known` is per-conversation, this is per-session.
+  const [scrollback, setScrollback] = useState<ScrollbackEntry[]>([]);
+  const [isScrollbackOpen, setIsScrollbackOpen] = useState(false);
+  const nextEntryId = useRef(0);
+
+  const logExchange = (promptText: string, responseSummary: string) => {
+    const entry: ScrollbackEntry = {
+      id: nextEntryId.current++,
+      prompt: promptText,
+      responseSummary,
+      timestamp: Date.now(),
+    };
+    setScrollback((current) => [...current, entry].slice(-MAX_SCROLLBACK));
+  };
 
   const extract = async (categoryNeeds?: AttractionCategory[]) => {
     const trimmed = prompt.trim();
@@ -204,6 +270,12 @@ export function PlacePromptPanel({
       setError("Describe the places you want to see.");
       return;
     }
+
+    // A chip turn re-sends the same words, so the text alone would log two
+    // identical-looking entries. The chips are what the walker actually did.
+    const loggedPrompt = categoryNeeds?.length
+      ? `${trimmed} — ${categoryNeeds.map((c) => CATEGORY_LABELS[c]).join(", ")}`
+      : trimmed;
 
     setIsLoading(true);
     setError(null);
@@ -230,6 +302,8 @@ export function PlacePromptPanel({
       if (!res.ok || data.error) {
         throw new Error(data.error ?? "Failed to extract places.");
       }
+
+      logExchange(loggedPrompt, summarizeExtraction(data));
 
       setAttractions(data.attractions ?? []);
       setRemovedIds([]);
@@ -295,11 +369,15 @@ export function PlacePromptPanel({
         onOriginDetected?.(data.contextCoordinates);
       }
     } catch (extractError) {
-      setError(
+      const message =
         extractError instanceof Error
           ? extractError.message
-          : "Failed to extract places.",
-      );
+          : "Failed to extract places.";
+      setError(message);
+      // A failed attempt is logged too. "I typed that and it didn't work" is
+      // the thing a walker most wants to look back at, and an entry that
+      // silently never appears reads as the app losing the request.
+      logExchange(loggedPrompt, message);
     } finally {
       setIsLoading(false);
     }
@@ -362,6 +440,15 @@ export function PlacePromptPanel({
       setFollowUpMissing(null);
       setFollowUpText("");
 
+      logExchange(
+        trimmed,
+        selectedAttractions.length > 0
+          ? `Built a walk through ${selectedAttractions.length} stop${
+              selectedAttractions.length === 1 ? "" : "s"
+            }`
+          : "Noted that, but there are no stops yet",
+      );
+
       if (merged.durationMinutes !== null) {
         onDurationDetected?.(merged.durationMinutes);
       }
@@ -376,11 +463,12 @@ export function PlacePromptPanel({
         onAcceptAttractions(selectedAttractions);
       }
     } catch (followUpError) {
-      setError(
+      const message =
         followUpError instanceof Error
           ? followUpError.message
-          : "Failed to read that.",
-      );
+          : "Failed to read that.";
+      setError(message);
+      logExchange(trimmed, message);
     } finally {
       setIsLoading(false);
     }
@@ -397,6 +485,41 @@ export function PlacePromptPanel({
           walk around them.
         </p>
       </div>
+
+      {/* What has been asked in this session, above the box it was asked in.
+          Collapsed by default: it is context for when you want it, not a
+          transcript the walker has to scroll past to reach the prompt. */}
+      {scrollback.length > 0 && (
+        <div className="rounded-md border border-charcoal/10 bg-cream/50">
+          <button
+            type="button"
+            aria-expanded={isScrollbackOpen}
+            onClick={() => setIsScrollbackOpen((open) => !open)}
+            className="flex w-full cursor-pointer items-center justify-between px-2 py-1.5 text-xs text-charcoal/70 hover:text-forest"
+          >
+            <span>Recent requests ({scrollback.length})</span>
+            <span aria-hidden="true">{isScrollbackOpen ? "▲" : "▼"}</span>
+          </button>
+          {isScrollbackOpen && (
+            <ul
+              aria-label="Recent requests"
+              className="max-h-32 space-y-1 overflow-y-auto px-2 pb-2"
+            >
+              {scrollback.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="rounded-md bg-white/70 px-2 py-1 text-xs"
+                >
+                  <p className="text-charcoal/80">
+                    {truncatePrompt(entry.prompt)}
+                  </p>
+                  <p className="text-charcoal/50">{entry.responseSummary}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <textarea
         value={prompt}
