@@ -67,6 +67,7 @@ describe("DeviationConfirmationNotification", () => {
         reason="sustained-slow-pace"
         onConfirm={vi.fn()}
         onDismiss={vi.fn()}
+        onExtendTime={vi.fn()}
       />,
     );
 

@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Attraction, Coordinates } from "@/lib/types";
+import type { Attraction, Coordinates, WalkPlanRequest } from "@/lib/types";
+import { planWalkOrder } from "@/lib/optimization/tsp-planner";
 import {
   DEFAULT_WALK_SETTINGS,
   type WalkSettings,
 } from "@/lib/types/walk-settings";
 import {
   buildDeviationRebuildRequest,
+  buildExtendedTimeRebuildRequest,
   buildPaceRebuildRequest,
   promptWalkBuildOptions,
   toggleSimulatedStray,
@@ -16,6 +18,17 @@ import {
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 import type { PaceUpdate } from "@/lib/walk/walk-tracker";
 import { detectDeviation } from "@/lib/walk/deviation-detector";
+
+// The only mock in this file, and it stands at a network boundary: the planner
+// orders stops on a real ORS walking matrix and falls back to straight lines
+// when ORS is unreachable. Failing it deliberately is what keeps the expected
+// distances below the plain haversine ones — same convention as
+// `tests/tsp-planner.test.ts`.
+vi.mock("@/lib/api/ors-client", () => ({
+  getMatrix: async () => {
+    throw new Error("ORS unavailable in tests");
+  },
+}));
 
 const ORIGIN: Coordinates = { lat: 32.08, lng: 34.78 };
 const CURRENT: Coordinates = { lat: 32.085, lng: 34.782 };
@@ -326,5 +339,154 @@ describe("buildDeviationRebuildRequest", () => {
 
     expect(input.walkingPaceMinPerKm).toBe(12);
     expect(input.radiusMeters).toBe(2000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "Give me more time"
+// ---------------------------------------------------------------------------
+
+// A kilometre apart each, straight up the same meridian, so the leg distances
+// are the same whichever order the planner settles on.
+const KM_APART = [32.089, 32.098, 32.107];
+const SPREAD_STOPS: Attraction[] = KM_APART.map((lat, i) => ({
+  ...attraction(`s${i + 1}`),
+  coordinates: { lat, lng: 34.78 },
+  avgVisitMinutes: 15,
+}));
+
+// The walker set off with 90 minutes at 12 min/km, is 30 minutes in (so the
+// plain rebuild would offer 60), is standing back at the origin, and is
+// actually managing 20 min/km. Three stops a kilometre apart, 15 minutes in
+// each.
+function slowWalkerState(
+  overrides: Partial<PaceRebuildState<TestWalkInput>> = {},
+): PaceRebuildState<TestWalkInput> {
+  return state({
+    currentPosition: ORIGIN,
+    currentAttractions: SPREAD_STOPS,
+    currentPaceMinPerKm: 20,
+    ...overrides,
+  });
+}
+
+describe("buildExtendedTimeRebuildRequest", () => {
+  // 3002.26 m of straight-line legs × 1.25 for street corners = 3752.8 m, at
+  // the 20 min/km the walker is really managing = 75.06 walking minutes, plus
+  // 3 × 15 minutes standing in front of things = 120.06.
+  it("buys exactly the minutes the remaining stops need at the measured pace", () => {
+    const { input } = buildExtendedTimeRebuildRequest(slowWalkerState());
+
+    expect(input.availableMinutes).toBeCloseTo(120.0566, 3);
+  });
+
+  it("leaves the plain rebuild timing the walk against the original budget", () => {
+    const { input } = buildPaceRebuildRequest(
+      "sustained-slow-pace",
+      slowWalkerState(),
+    );
+
+    expect(input.availableMinutes).toBe(60);
+  });
+
+  // A walker who has stopped dead, or one whose GPS has not produced a pace
+  // yet, still asked a real question. The slowest pace that could have raised
+  // it — 1.3 × planned, i.e. 15.6 min/km here — is the honest floor.
+  it("falls back to the pace that would have triggered the question at all", () => {
+    const { input } = buildExtendedTimeRebuildRequest(
+      slowWalkerState({ currentPaceMinPerKm: null }),
+    );
+
+    expect(input.availableMinutes).toBeCloseTo(103.5441, 3);
+  });
+
+  it("ignores a measured pace faster than the one that raised the question", () => {
+    const { input } = buildExtendedTimeRebuildRequest(
+      slowWalkerState({ currentPaceMinPerKm: 4 }),
+    );
+
+    expect(input.availableMinutes).toBeCloseTo(103.5441, 3);
+  });
+
+  // More time is an answer that can only add. A walker whose remaining stops
+  // are a five-minute stroll away still keeps the clock they had.
+  it("never hands back less time than the plain rebuild would have", () => {
+    const { input } = buildExtendedTimeRebuildRequest(
+      slowWalkerState({ currentAttractions: [attraction("a")] }),
+    );
+
+    expect(input.availableMinutes).toBe(60);
+  });
+
+  it("still never plans a walk shorter than 15 minutes", () => {
+    const { input } = buildExtendedTimeRebuildRequest(
+      slowWalkerState({
+        now: START + 88 * 60_000,
+        currentAttractions: [],
+      }),
+    );
+
+    expect(input.availableMinutes).toBe(15);
+  });
+
+  it("rebuilds from where the walker is, keeping their stops and pins", () => {
+    const { input, options } = buildExtendedTimeRebuildRequest(
+      slowWalkerState({ currentPosition: CURRENT }),
+    );
+
+    expect(input.origin).toEqual(CURRENT);
+    expect(input.endAnchor).toEqual(ORIGIN);
+    expect(options.keepAttractions).toEqual(SPREAD_STOPS);
+    expect(options.pinnedIds).toEqual(["a"]);
+  });
+
+  // Extending the clock is the whole answer — this path must never go looking
+  // for extra stops to spend the new time on.
+  it("adds time, never stops", () => {
+    const { options } = buildExtendedTimeRebuildRequest(slowWalkerState());
+
+    expect(options.fillRemainingTime).toBe(false);
+  });
+});
+
+// The claim this feature actually makes: not "a bigger number", but "the stops
+// survive". Run the real planner over both budgets and compare what comes back.
+describe("what the two answers do to the walker's stops", () => {
+  const planRequest = (availableMinutes: number): WalkPlanRequest => ({
+    origin: ORIGIN,
+    availableMinutes,
+    walkingPaceMinPerKm: WALK_INPUT.walkingPaceMinPerKm,
+    radiusMeters: WALK_INPUT.radiusMeters,
+  });
+
+  it("keeps a stop that 'adjust my route' would have dropped", async () => {
+    const shortened = buildPaceRebuildRequest(
+      "sustained-slow-pace",
+      slowWalkerState(),
+    ).input;
+    const extended = buildExtendedTimeRebuildRequest(slowWalkerState()).input;
+
+    const shortenedPlan = await planWalkOrder(
+      planRequest(shortened.availableMinutes),
+      SPREAD_STOPS,
+    );
+    const extendedPlan = await planWalkOrder(
+      planRequest(extended.availableMinutes),
+      SPREAD_STOPS,
+    );
+
+    expect(shortenedPlan.droppedAttractions.map((a) => a.id)).toEqual(["s3"]);
+    expect(shortenedPlan.orderedAttractions.map((a) => a.id)).toEqual([
+      "s1",
+      "s2",
+    ]);
+
+    expect(extendedPlan.droppedAttractions).toEqual([]);
+    expect(extendedPlan.orderedAttractions.map((a) => a.id)).toEqual([
+      "s1",
+      "s2",
+      "s3",
+    ]);
+    expect(extendedPlan.feasible).toBe(true);
   });
 });

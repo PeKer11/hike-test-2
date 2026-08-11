@@ -15,6 +15,12 @@ interface PaceConfirmationNotificationProps {
   reason: ReplanReason | null;
   onConfirm: () => void;
   onDismiss: () => void;
+  /**
+   * Keep every stop and spend longer instead. Slow directions only — there is
+   * no ahead-of-plan version of this question, because finishing early is not a
+   * problem more time solves.
+   */
+  onExtendTime: () => void;
 }
 
 /**
@@ -32,11 +38,18 @@ interface PaceConfirmationNotificationProps {
  * decided on yet. A walker who says they will speed up keeps the route they
  * chose, which is the whole point — the old behaviour assumed a slow ten
  * minutes meant a slow rest-of-walk and quietly dropped stops on that guess.
+ *
+ * The slow question has a third answer, because "adjust my route" and "I'll
+ * speed up" between them still force a walker who is simply enjoying
+ * themselves to give something up: either a stop or the pace. Spending longer
+ * is the answer most people would actually pick, and it was the one option the
+ * banner did not offer.
  */
 export function PaceConfirmationNotification({
   reason,
   onConfirm,
   onDismiss,
+  onExtendTime,
 }: PaceConfirmationNotificationProps) {
   if (reason === null) {
     return null;
@@ -73,6 +86,17 @@ export function PaceConfirmationNotification({
           {dismissLabel}
         </button>
       </div>
+      {/* Its own full-width row rather than a third of the row above: three
+          buttons across 22rem leaves no label readable, and this one is a
+          different kind of answer from the two-way route/pace trade-off. */}
+      {isSlow && (
+        <button
+          onClick={onExtendTime}
+          className="w-full rounded-md border border-cream/30 px-3 py-2 text-xs font-semibold text-cream/90 transition hover:bg-white/10"
+        >
+          Give me more time
+        </button>
+      )}
     </div>
   );
 }

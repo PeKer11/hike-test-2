@@ -7,8 +7,13 @@
 
 import type { Attraction, Coordinates } from "@/lib/types";
 import type { WalkSettings } from "@/lib/types/walk-settings";
-import { replanPaceDirection, type ReplanReason } from "@/lib/walk/replan-trigger";
+import {
+  replanPaceDirection,
+  SLOW_PACE_RATIO,
+  type ReplanReason,
+} from "@/lib/walk/replan-trigger";
 import type { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
+import { haversineDistance } from "@/lib/utils/geo";
 
 /**
  * The only fields a pace rebuild reads. Deliberately narrower than the caller's
@@ -18,6 +23,8 @@ import type { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 export interface RebuildInput {
   origin: Coordinates;
   availableMinutes: number;
+  /** Read only by the "more time" rebuild, as the floor for an unmeasured pace. */
+  walkingPaceMinPerKm: number;
   endAnchor?: Coordinates;
 }
 
@@ -48,6 +55,12 @@ export interface PaceRebuildState<TInput extends RebuildInput> {
   /** The stops the walker is currently heading to. */
   currentAttractions?: Attraction[];
   pinnedIds: string[];
+  /**
+   * The pace the walker is actually managing, min/km, from the latest
+   * `PaceUpdate` — null until enough samples have accumulated, and null for a
+   * walker who has stopped altogether.
+   */
+  currentPaceMinPerKm?: number | null;
 }
 
 /**
@@ -85,15 +98,90 @@ export function buildDeviationRebuildRequest<TInput extends RebuildInput>(
   return buildMidWalkRebuildRequest(state, { fillRemainingTime: false });
 }
 
+/**
+ * Straight line to street network. Every leg below is measured as the crow
+ * flies, but the walk is done on pavements that turn corners, so a budget built
+ * from raw haversine legs would be short of the distance actually walked. The
+ * planner itself measures with an ORS matrix and only falls back to haversine,
+ * so this is the correction that keeps the two comparable — without it the
+ * extension would be too small to hold the stops it was asked to hold.
+ */
+export const STRAIGHT_LINE_TO_STREET_FACTOR = 1.25;
+
+/**
+ * What a "give me more time" answer should rebuild.
+ *
+ * The plain slow-pace rebuild re-times the remaining stops against the budget
+ * the walker set before they started — original total minus elapsed. For a
+ * walker who has since slowed down that is *less* time than the same stops
+ * needed at the original pace, which is precisely how a stop gets dropped. This
+ * path answers the other question: not "what still fits in the time I said",
+ * but "how much time do I actually need to keep all of it".
+ *
+ * The number is the planner's own feasibility sum, recomputed at the pace the
+ * walker is really managing: for the chain current position → each remaining
+ * stop in plan order, the crow-flies leg corrected to street distance, priced
+ * at the measured pace, plus each stop's own visit minutes. No return leg — the
+ * end anchor is a distance constraint, not a stop, and the planner does not
+ * bill for it either.
+ *
+ * Never returns less than the plain rebuild would: "more time" is an answer
+ * that can only add. When the pace has not been measured yet (too few samples,
+ * or a full stop, where the measured pace is null or meaningless), the floor is
+ * the slowest pace that could have raised the question at all —
+ * `SLOW_PACE_RATIO` × the planned one. That is a real, conservative reading of
+ * the trigger rather than an invented constant, and a walker who is slower than
+ * that still gets a longer walk than the plain path would have given them.
+ */
+export function buildExtendedTimeRebuildRequest<TInput extends RebuildInput>(
+  state: PaceRebuildState<TInput>,
+): { input: TInput; options: BuildWalkOptions } {
+  return buildMidWalkRebuildRequest(state, {
+    fillRemainingTime: false,
+    extendToFitRemainingStops: true,
+  });
+}
+
+function minutesToFinishRemainingStops<TInput extends RebuildInput>(
+  state: PaceRebuildState<TInput>,
+): number {
+  const stops = state.currentAttractions ?? [];
+  if (stops.length === 0) return 0;
+
+  const { originalInput: orig } = state;
+  const measured = state.currentPaceMinPerKm;
+  const paceMinPerKm =
+    measured !== null && measured !== undefined && measured > 0
+      ? Math.max(measured, orig.walkingPaceMinPerKm * SLOW_PACE_RATIO)
+      : orig.walkingPaceMinPerKm * SLOW_PACE_RATIO;
+
+  let from = state.currentPosition ?? orig.origin;
+  let walkMinutes = 0;
+  let visitMinutes = 0;
+  for (const stop of stops) {
+    const legMeters =
+      haversineDistance(from, stop.coordinates) * STRAIGHT_LINE_TO_STREET_FACTOR;
+    walkMinutes += (legMeters / 1000) * paceMinPerKm;
+    visitMinutes += stop.avgVisitMinutes;
+    from = stop.coordinates;
+  }
+
+  return walkMinutes + visitMinutes;
+}
+
 function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
   state: PaceRebuildState<TInput>,
-  { fillRemainingTime }: { fillRemainingTime: boolean },
+  {
+    fillRemainingTime,
+    extendToFitRemainingStops = false,
+  }: { fillRemainingTime: boolean; extendToFitRemainingStops?: boolean },
 ): { input: TInput; options: BuildWalkOptions } {
   const { originalInput: orig } = state;
   const elapsedMinutes = (state.now - state.walkStartTime) / 60_000;
   const remainingMinutes = Math.max(
     MIN_REBUILD_MINUTES,
     orig.availableMinutes - elapsedMinutes,
+    extendToFitRemainingStops ? minutesToFinishRemainingStops(state) : 0,
   );
 
   return {

@@ -60,6 +60,7 @@ import {
 } from "@/lib/walk/replan-trigger";
 import {
   buildDeviationRebuildRequest,
+  buildExtendedTimeRebuildRequest,
   buildPaceRebuildRequest,
   promptWalkBuildOptions,
   setSimulatedPaceDrift,
@@ -616,14 +617,16 @@ export function WalkPlannerApp({
   // re-time what is left. Ahead of plan, the whole offer — in the banner and in
   // the setting's own wording — is another stop, and re-timing the same list
   // would have delivered nothing while telling the walker it had.
-  const runPaceTriggeredRebuild = (reason: ReplanReason) => {
+  // Where the walk actually is, in the shape every mid-walk rebuild builder
+  // reads it. Null when there is nothing to rebuild — no input, or no live
+  // tracker, since only rebuilding while the user is actually walking is
+  // CRITICAL-2 and the tracker still being alive is how these closures read
+  // that (they cannot see `walkPhase` from a render they did not participate in).
+  const midWalkRebuildState = () => {
     const orig = walkInputRef.current;
-    if (!orig) return;
-    // Only rebuild when the user is actually walking (CRITICAL-2) — the tracker
-    // still being alive is how this closure reads that, since it cannot see
-    // `walkPhase` from a render it did not participate in.
-    if (walkTrackerRef.current === null) return;
-    const { input, options } = buildPaceRebuildRequest(reason, {
+    if (!orig) return null;
+    if (walkTrackerRef.current === null) return null;
+    return {
       originalInput: orig,
       walkStartTime: walkStartTimeRef.current,
       now: Date.now(),
@@ -631,7 +634,23 @@ export function WalkPlannerApp({
       settings: walkSettingsRef.current,
       currentAttractions: walkPlanRef.current?.orderedAttractions,
       pinnedIds: pinnedAttractionIdsRef.current,
-    });
+      currentPaceMinPerKm: latestPaceUpdateRef.current?.paceMinPerKm ?? null,
+    };
+  };
+
+  const runPaceTriggeredRebuild = (reason: ReplanReason) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const { input, options } = buildPaceRebuildRequest(reason, state);
+    void handleBuildWalk(input, options);
+  };
+
+  // The other answer to the slow-pace question: keep every stop and buy the
+  // time to reach them at the pace the walker is actually managing.
+  const runExtendedTimeRebuild = () => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const { input, options } = buildExtendedTimeRebuildRequest(state);
     void handleBuildWalk(input, options);
   };
 
@@ -640,18 +659,9 @@ export function WalkPlannerApp({
   // the same request-building helper underneath — see
   // `buildDeviationRebuildRequest` for why the two share it.
   const runDeviationTriggeredRebuild = () => {
-    const orig = walkInputRef.current;
-    if (!orig) return;
-    if (walkTrackerRef.current === null) return;
-    const { input, options } = buildDeviationRebuildRequest({
-      originalInput: orig,
-      walkStartTime: walkStartTimeRef.current,
-      now: Date.now(),
-      currentPosition: latestPaceUpdateRef.current?.currentPosition ?? null,
-      settings: walkSettingsRef.current,
-      currentAttractions: walkPlanRef.current?.orderedAttractions,
-      pinnedIds: pinnedAttractionIdsRef.current,
-    });
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const { input, options } = buildDeviationRebuildRequest(state);
     void handleBuildWalk(input, options);
   };
 
@@ -1081,6 +1091,10 @@ export function WalkPlannerApp({
           if (reason) runPaceTriggeredRebuild(reason);
         }}
         onDismiss={clearPaceConfirmation}
+        onExtendTime={() => {
+          clearPaceConfirmation();
+          runExtendedTimeRebuild();
+        }}
       />
       <DeviationConfirmationNotification
         visible={deviationConfirmation}
