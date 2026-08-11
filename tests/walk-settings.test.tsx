@@ -20,6 +20,10 @@ function renderSettings(overrides: Partial<WalkSettings> = {}) {
   return { onChange };
 }
 
+function deviationSelect() {
+  return screen.getByLabelText(/strayed from the path/i) as HTMLSelectElement;
+}
+
 function autoResumeCheckbox() {
   return screen.getByLabelText(AUTO_RESUME_LABEL) as HTMLInputElement;
 }
@@ -73,6 +77,70 @@ describe("pace mode defaults", () => {
 
     expect(result.current.settings.slowPaceMode).toBe("auto");
     expect(result.current.settings.fastPaceMode).toBe("auto");
+  });
+});
+
+describe("deviationMode default, migration and control", () => {
+  it("defaults to ask — being off route may mean lost, or may mean a shop", () => {
+    expect(DEFAULT_WALK_SETTINGS.deviationMode).toBe("ask");
+
+    const { result } = renderHook(() => useWalkSettings());
+    expect(result.current.settings.deviationMode).toBe("ask");
+  });
+
+  it("fills the field in as ask for a blob written before it existed", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        slowPaceMode: "auto",
+        fastPaceMode: "off",
+        paceCheckIntervalMs: 90_000,
+      }),
+    );
+
+    const { result } = renderHook(() => useWalkSettings());
+
+    // Nothing happened off-route before this field, so there is no earlier
+    // preference to respect — only someone who has never been asked.
+    expect(result.current.settings.deviationMode).toBe("ask");
+    expect(result.current.settings.slowPaceMode).toBe("auto");
+  });
+
+  it("keeps a stored opt-out instead of defaulting it back to ask", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...DEFAULT_WALK_SETTINGS, deviationMode: "off" }),
+    );
+
+    const { result } = renderHook(() => useWalkSettings());
+    expect(result.current.settings.deviationMode).toBe("off");
+  });
+
+  it("persists a change so the next walk starts from it", () => {
+    const { result } = renderHook(() => useWalkSettings());
+
+    act(() => {
+      result.current.setSettings({ deviationMode: "auto" });
+    });
+
+    const stored = JSON.parse(
+      window.localStorage.getItem(STORAGE_KEY) ?? "{}",
+    ) as WalkSettings;
+    expect(stored.deviationMode).toBe("auto");
+  });
+
+  it("reports the walker's choice from the off-route row", () => {
+    const { onChange } = renderSettings({ deviationMode: "ask" });
+
+    fireEvent.change(deviationSelect(), { target: { value: "auto" } });
+
+    expect(onChange).toHaveBeenCalledWith({ deviationMode: "auto" });
+  });
+
+  it("shows the walker the mode they are actually on", () => {
+    renderSettings({ deviationMode: "off" });
+
+    expect(deviationSelect().value).toBe("off");
   });
 });
 

@@ -15,6 +15,13 @@ export const PACE_RESPONSE_MODES: readonly PaceResponseMode[] = [
   "off",
 ];
 
+/**
+ * An alias, not a second type: going off route offers the walker exactly the
+ * same three answers as pace drift, and a parallel union would only invite the
+ * two to drift apart. The name is here so the field below reads as what it is.
+ */
+export type DeviationResponseMode = PaceResponseMode;
+
 export interface WalkSettings {
   /**
    * Walking faster than planned and walking slower than planned are separate
@@ -25,6 +32,18 @@ export interface WalkSettings {
    */
   fastPaceMode: PaceResponseMode;
   slowPaceMode: PaceResponseMode;
+  /**
+   * What to do when the walker has left the planned route far enough, and for
+   * long enough, that they are not coming straight back to it.
+   *
+   * Defaults to `ask` where the pace modes default to `off`, and the two
+   * defaults disagree for a reason. Drifting off the planned pace is usually
+   * just how someone wants to walk that day — there is nothing wrong to fix.
+   * Being 50 m off the route for half a minute might mean they are lost, which
+   * is worth raising. It might equally mean they ducked into a shop, which is
+   * why it is not worth rebuilding over without an answer.
+   */
+  deviationMode: DeviationResponseMode;
   /**
    * After a pace-triggered rebuild, whether live GPS tracking picks straight up
    * on the new route or the walker is handed the plan to start themselves.
@@ -53,6 +72,7 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   // walker already had.
   fastPaceMode: "off",
   slowPaceMode: "off",
+  deviationMode: "ask",
   // Also the old behaviour: before this flag existed, a pace rebuild always
   // resumed tracking on its own.
   autoResumeAfterRebuild: true,
@@ -83,6 +103,23 @@ export function toPaceResponseMode(
   }
 
   return "auto";
+}
+
+/**
+ * A stored settings value as a deviation mode.
+ *
+ * Unlike `toPaceResponseMode` there is no legacy flag to honour: before this
+ * field existed nothing happened when a walker went off route at all, so no
+ * returning walker has an off-route preference that could be overridden. A
+ * missing field is simply someone who has never been asked, and they get the
+ * same `ask` a brand-new walker gets.
+ */
+export function toDeviationResponseMode(value: unknown): DeviationResponseMode {
+  if (PACE_RESPONSE_MODES.includes(value as DeviationResponseMode)) {
+    return value as DeviationResponseMode;
+  }
+
+  return DEFAULT_WALK_SETTINGS.deviationMode;
 }
 
 export function clampPaceCheckInterval(ms: number): number {

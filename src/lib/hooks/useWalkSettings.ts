@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   clampPaceCheckInterval,
   DEFAULT_WALK_SETTINGS,
+  toDeviationResponseMode,
   toPaceResponseMode,
   type WalkSettings,
 } from "@/lib/types/walk-settings";
@@ -30,6 +31,7 @@ function sanitizeSettings(
       candidate?.slowPaceMode,
       candidate?.paceCheckEnabled,
     ),
+    deviationMode: toDeviationResponseMode(candidate?.deviationMode),
     // A blob written before this flag existed has no opinion on it, and the
     // behaviour it was written under was "resume automatically" — so a missing
     // field has to fill in as true, not false.

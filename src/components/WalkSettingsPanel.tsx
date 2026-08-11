@@ -1,6 +1,10 @@
 import type { ChangeEvent } from "react";
 
-import type { PaceResponseMode, WalkSettings } from "@/lib/types/walk-settings";
+import type {
+  DeviationResponseMode,
+  PaceResponseMode,
+  WalkSettings,
+} from "@/lib/types/walk-settings";
 
 // The two directions read as one setting with two halves, so they render as a
 // pair rather than as two unrelated rows scattered through the panel.
@@ -11,6 +15,15 @@ const PACE_SETTINGS: { key: "slowPaceMode" | "fastPaceMode"; label: string }[] =
 
 const PACE_MODE_LABELS: { value: PaceResponseMode; text: string }[] = [
   { value: "auto", text: "Reshape the walk" },
+  { value: "ask", text: "Ask me first" },
+  { value: "off", text: "Leave it alone" },
+];
+
+// Same three answers as the pace rows, worded for the situation they answer:
+// off route, "reshape the walk" would read as an offer to change the plan when
+// what is actually on offer is redrawing the same plan to reach the walker.
+const DEVIATION_MODE_LABELS: { value: DeviationResponseMode; text: string }[] = [
+  { value: "auto", text: "Redraw from here" },
   { value: "ask", text: "Ask me first" },
   { value: "off", text: "Leave it alone" },
 ];
@@ -77,6 +90,30 @@ export function WalkSettingsPanel({
             ? "On — once we reshape your walk, tracking picks straight up on the new route."
             : "Off — we'll show you the reshaped walk and wait for you to press Start Walk."}
         </p>
+      </div>
+
+      <div className="space-y-2 border-t border-charcoal/10 pt-3">
+        <p className="text-sm font-medium text-charcoal/80">
+          If I go off route
+        </p>
+        <label className="flex items-center justify-between gap-3 text-sm text-charcoal/80">
+          <span>When I&apos;ve strayed from the path</span>
+          <select
+            value={settings.deviationMode}
+            onChange={(event) =>
+              onChange({
+                deviationMode: event.target.value as DeviationResponseMode,
+              })
+            }
+            className="rounded-md border border-charcoal/15 bg-white px-2 py-1 text-sm text-forest outline-none ring-terra transition focus:ring-2"
+          >
+            {DEVIATION_MODE_LABELS.map(({ value, text }) => (
+              <option key={value} value={value}>
+                {text}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <label className="space-y-1 text-sm text-charcoal/80">

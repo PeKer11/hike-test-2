@@ -6,6 +6,7 @@ import {
   type WalkSettings,
 } from "@/lib/types/walk-settings";
 import {
+  buildDeviationRebuildRequest,
   buildPaceRebuildRequest,
   promptWalkBuildOptions,
   toggleSimulatedStray,
@@ -250,5 +251,70 @@ describe("toggleSimulatedStray", () => {
     const reported = updates.at(-1)!.currentPosition;
 
     expect(detectDeviation(reported, ROUTE).deviationMeters).toBeLessThan(1);
+  });
+});
+
+describe("buildDeviationRebuildRequest", () => {
+  it("anchors the redrawn walk at the walker's actual off-route position", () => {
+    const strayed: Coordinates = { lat: 32.09, lng: 34.79 };
+
+    const { input } = buildDeviationRebuildRequest(
+      state({ currentPosition: strayed }),
+    );
+
+    expect(input.origin).toEqual(strayed);
+  });
+
+  it("keeps the end anchor where the walk started, not where the walker wandered", () => {
+    const { input } = buildDeviationRebuildRequest(
+      state({ currentPosition: { lat: 32.09, lng: 34.79 } }),
+    );
+
+    // The car is still at the origin — a walker straying is not a reason to
+    // move where the walk has to finish.
+    expect(input.endAnchor).toEqual(ORIGIN);
+  });
+
+  it("keeps the stops the walker has not reached yet", () => {
+    const remaining = [attraction("b"), attraction("c")];
+
+    const { options } = buildDeviationRebuildRequest(
+      state({ currentAttractions: remaining }),
+    );
+
+    expect(options.keepAttractions).toEqual(remaining);
+    expect(options.pinnedIds).toEqual(["a"]);
+  });
+
+  it("re-times against the clock the walker has left, like a pace rebuild", () => {
+    const { input } = buildDeviationRebuildRequest(state());
+
+    expect(input.availableMinutes).toBe(60);
+  });
+
+  it("never adds a stop — being lost is not spare time", () => {
+    const { options } = buildDeviationRebuildRequest(state());
+
+    expect(options.fillRemainingTime).toBe(false);
+  });
+
+  it("honours the walker's auto-resume setting", () => {
+    const optedOut: WalkSettings = {
+      ...DEFAULT_WALK_SETTINGS,
+      autoResumeAfterRebuild: false,
+    };
+
+    const { options } = buildDeviationRebuildRequest(
+      state({ settings: optedOut }),
+    );
+
+    expect(options.resumeTracking).toBe(false);
+  });
+
+  it("carries fields it does not know about straight through", () => {
+    const { input } = buildDeviationRebuildRequest(state());
+
+    expect(input.walkingPaceMinPerKm).toBe(12);
+    expect(input.radiusMeters).toBe(2000);
   });
 });

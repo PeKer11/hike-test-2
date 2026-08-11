@@ -38,7 +38,12 @@ import {
   PaceConfirmationNotification,
   PACE_CONFIRMATION_TIMEOUT_MS,
 } from "@/components/walk/PaceConfirmationNotification";
+import {
+  DeviationConfirmationNotification,
+  DEVIATION_CONFIRMATION_TIMEOUT_MS,
+} from "@/components/walk/DeviationConfirmationNotification";
 import { PaceChecker } from "@/lib/walk/pace-checker";
+import { DeviationMonitor } from "@/lib/walk/deviation-monitor";
 import { detectDeviation, remainingRoute } from "@/lib/walk/deviation-detector";
 import { WalkRecorder } from "@/lib/walk/walk-recorder";
 import { WalkTracker } from "@/lib/walk/walk-tracker";
@@ -54,6 +59,7 @@ import {
   type ReplanReason,
 } from "@/lib/walk/replan-trigger";
 import {
+  buildDeviationRebuildRequest,
   buildPaceRebuildRequest,
   promptWalkBuildOptions,
   setSimulatedPaceDrift,
@@ -221,6 +227,16 @@ export function WalkPlannerApp({
   const paceConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  // Decides when being off route is worth acting on. Rebuilt per walk like the
+  // PaceChecker; unlike the pace trigger it carries nothing across a re-plan,
+  // because a re-plan is exactly the event that ends the excursion it was
+  // watching.
+  const deviationMonitorRef = useRef<DeviationMonitor | null>(null);
+  // The standing "you're off route — redraw?" question, for `deviationMode: ask`.
+  const [deviationConfirmation, setDeviationConfirmation] = useState(false);
+  const deviationConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [poiAlert, setPoiAlert] = useState<PoiAlert | null>(null);
   const poiAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buildWalkRequestIdRef = useRef(0);
@@ -294,11 +310,20 @@ export function WalkPlannerApp({
     setPaceConfirmation(null);
   };
 
+  const clearDeviationConfirmation = () => {
+    if (deviationConfirmTimeoutRef.current !== null) {
+      clearTimeout(deviationConfirmTimeoutRef.current);
+      deviationConfirmTimeoutRef.current = null;
+    }
+    setDeviationConfirmation(false);
+  };
+
   const stopWalkTracking = () => {
     setIsSimulatedStray(false);
     setSimulatedPaceDriftState(null);
     paceCheckerRef.current?.stop();
     paceCheckerRef.current = null;
+    deviationMonitorRef.current = null;
     walkTrackerRef.current?.stop();
     walkTrackerRef.current = null;
     walkRecorderRef.current?.stop();
@@ -319,6 +344,7 @@ export function WalkPlannerApp({
     setAttractionDistances({});
     setPoiAlert(null);
     clearPaceConfirmation();
+    clearDeviationConfirmation();
   };
 
   // Ending the walk tears down everything scoped to *this walk*, not just the GPS
@@ -601,6 +627,44 @@ export function WalkPlannerApp({
     void handleBuildWalk(input, options);
   };
 
+  // The rebuild an off-route trigger asks for: the same walk, redrawn to start
+  // from wherever the walker actually is. Same guards as the pace rebuild, and
+  // the same request-building helper underneath — see
+  // `buildDeviationRebuildRequest` for why the two share it.
+  const runDeviationTriggeredRebuild = () => {
+    const orig = walkInputRef.current;
+    if (!orig) return;
+    if (walkTrackerRef.current === null) return;
+    const { input, options } = buildDeviationRebuildRequest({
+      originalInput: orig,
+      walkStartTime: walkStartTimeRef.current,
+      now: Date.now(),
+      currentPosition: latestPaceUpdateRef.current?.currentPosition ?? null,
+      settings: walkSettingsRef.current,
+      currentAttractions: walkPlanRef.current?.orderedAttractions,
+      pinnedIds: pinnedAttractionIdsRef.current,
+    });
+    void handleBuildWalk(input, options);
+  };
+
+  /**
+   * Raise the off-route question rather than redrawing, for `deviationMode:
+   * ask`. Unlike the slow-pace question, no answer means no rebuild: the
+   * walker may have deliberately stepped off the route, and the cost of
+   * ignoring that is nothing.
+   */
+  const askBeforeRedrawing = () => {
+    if (walkTrackerRef.current === null) return;
+
+    clearDeviationConfirmation();
+    setDeviationConfirmation(true);
+
+    deviationConfirmTimeoutRef.current = setTimeout(() => {
+      deviationConfirmTimeoutRef.current = null;
+      setDeviationConfirmation(false);
+    }, DEVIATION_CONFIRMATION_TIMEOUT_MS);
+  };
+
   /**
    * Raise the question instead of rebuilding, for a direction the walker set to
    * "ask". A banner, not a dialog — see `PaceConfirmationNotification`.
@@ -725,6 +789,10 @@ export function WalkPlannerApp({
       );
       lastSegmentIndexRef.current = deviation.closestSegmentIndex;
 
+      // The badge is pure information and appears the moment the walker is off
+      // route. The monitor below decides the separate question of whether to
+      // offer a rebuild, and takes its time over it — the sustain window gates
+      // the offer, never the badge.
       if (deviation.needsReroute) {
         setIsOffRoute(true);
         setOffRouteDeviation(Math.round(deviation.deviationMeters));
@@ -732,6 +800,11 @@ export function WalkPlannerApp({
         setIsOffRoute(false);
         setOffRouteDeviation(0);
       }
+
+      deviationMonitorRef.current?.record(
+        deviation.needsReroute,
+        update.timestamp,
+      );
 
       const remaining = remainingRoute(
         walkGeometryRef.current,
@@ -794,6 +867,15 @@ export function WalkPlannerApp({
     });
     paceCheckerRef.current = checker;
     checker.start();
+
+    deviationMonitorRef.current = new DeviationMonitor(walkSettings, (response) => {
+      if (response === "auto") {
+        runDeviationTriggeredRebuild();
+        return;
+      }
+
+      askBeforeRedrawing();
+    });
   };
 
   // Undo the last automatic re-plan: put the walker back on the route they had,
@@ -889,6 +971,7 @@ export function WalkPlannerApp({
   // Keep PaceChecker in sync when settings change while a walk is active
   useEffect(() => {
     paceCheckerRef.current?.updateSettings(walkSettings);
+    deviationMonitorRef.current?.updateSettings(walkSettings);
     // The rebuild runs out of a closure captured when the walk started, so it
     // has to read settings through a ref — otherwise turning auto-resume off
     // mid-walk wouldn't take effect until the next walk.
@@ -908,6 +991,9 @@ export function WalkPlannerApp({
       }
       if (paceConfirmTimeoutRef.current !== null) {
         clearTimeout(paceConfirmTimeoutRef.current);
+      }
+      if (deviationConfirmTimeoutRef.current !== null) {
+        clearTimeout(deviationConfirmTimeoutRef.current);
       }
     };
   }, []);
@@ -987,6 +1073,14 @@ export function WalkPlannerApp({
           if (reason) runPaceTriggeredRebuild(reason);
         }}
         onDismiss={clearPaceConfirmation}
+      />
+      <DeviationConfirmationNotification
+        visible={deviationConfirmation}
+        onConfirm={() => {
+          clearDeviationConfirmation();
+          runDeviationTriggeredRebuild();
+        }}
+        onDismiss={clearDeviationConfirmation}
       />
       {/* POI alert overlay (CRITICAL-1) — absolute, so it lands inside the
           planner frame rather than at the bottom of the window when embedded. */}

@@ -62,6 +62,33 @@ export function buildPaceRebuildRequest<TInput extends RebuildInput>(
   reason: ReplanReason,
   state: PaceRebuildState<TInput>,
 ): { input: TInput; options: BuildWalkOptions } {
+  return buildMidWalkRebuildRequest(state, {
+    fillRemainingTime: replanPaceDirection(reason) === "fast",
+  });
+}
+
+/**
+ * What an off-route trigger should rebuild.
+ *
+ * Shares `buildMidWalkRebuildRequest` with the pace path rather than
+ * reimplementing it, because the hard parts really are the same question:
+ * start from where the walker actually is, keep the stops they have not
+ * reached, re-time against the clock they have left, and leave the end anchor
+ * where the car is. The only genuine difference is discovery — a walker who is
+ * lost wants the route they already chose redrawn to reach them, not a longer
+ * one with an extra stop bolted on — and that is one boolean, which is exactly
+ * the seam the shared helper exposes.
+ */
+export function buildDeviationRebuildRequest<TInput extends RebuildInput>(
+  state: PaceRebuildState<TInput>,
+): { input: TInput; options: BuildWalkOptions } {
+  return buildMidWalkRebuildRequest(state, { fillRemainingTime: false });
+}
+
+function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
+  state: PaceRebuildState<TInput>,
+  { fillRemainingTime }: { fillRemainingTime: boolean },
+): { input: TInput; options: BuildWalkOptions } {
   const { originalInput: orig } = state;
   const elapsedMinutes = (state.now - state.walkStartTime) / 60_000;
   const remainingMinutes = Math.max(
@@ -85,7 +112,7 @@ export function buildPaceRebuildRequest<TInput extends RebuildInput>(
       // Keep the walk the user is already on rather than rediscovering it.
       keepAttractions: state.currentAttractions,
       pinnedIds: state.pinnedIds,
-      fillRemainingTime: replanPaceDirection(reason) === "fast",
+      fillRemainingTime,
     },
   };
 }
