@@ -139,18 +139,23 @@ export function promptWalkBuildOptions(
 /**
  * Flip the simulated walker on or off the planned line, and report where it
  * ended up so the button's label can follow.
+ *
+ * Asynchronous because sending them off it means asking ORS for a real path
+ * away and back; it resolves once the detour is walkable, or once the
+ * synthetic-offset fallback has taken over for a routing call that failed.
+ * Rejoining stays immediate, and cancels an in-flight request.
  */
-export function toggleSimulatedStray(
+export async function toggleSimulatedStray(
   tracker: SimulatedWalkTracker,
   strayMeters: number,
-): boolean {
+): Promise<boolean> {
   if (tracker.isStraying) {
     tracker.returnToRoute();
     return false;
   }
 
-  tracker.strayOffRoute(strayMeters);
-  return true;
+  await tracker.strayOffRoute(strayMeters);
+  return tracker.isStraying;
 }
 
 /** Which way the simulated walker's pace has been pushed, if at all. */
