@@ -203,6 +203,11 @@ export function WalkPlannerApp({
   // Whether the simulated walker is currently off the planned line. Mirrors the
   // tracker's own flag, which is a ref and so cannot re-label the button.
   const [isSimulatedStray, setIsSimulatedStray] = useState(false);
+  // The stray is a routed detour now, so there is a network call between the
+  // click and the walker moving off the line. Without this the button looks
+  // dead for as long as ORS takes.
+  const [isStrayLoading, setIsStrayLoading] = useState(false);
+  const [strayNotice, setStrayNotice] = useState<string | null>(null);
   // Which way the simulated walker's pace has been pushed, for the buttons' state.
   const [simulatedPaceDrift, setSimulatedPaceDriftState] =
     useState<SimulatedPaceDrift>(null);
@@ -1439,25 +1444,50 @@ export function WalkPlannerApp({
               {walkPhase === "walking" && isSimulating && (
                 <div className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-white px-3 py-2">
                   <p className="text-xs text-charcoal/60">
-                    {isSimulatedStray
-                      ? `Walking ${SIMULATED_STRAY_METERS} m off the planned line.`
-                      : "Send the simulated walker off the planned line to exercise the off-route warning."}
+                    {isStrayLoading
+                      ? "Finding a real side street to wander down…"
+                      : isSimulatedStray
+                        ? (strayNotice ??
+                          "Walking a detour off the planned line.")
+                        : "Send the simulated walker off the planned line to exercise the off-route warning."}
                   </p>
                   <Button
                     variant="secondary"
                     fullWidth
+                    disabled={isStrayLoading}
                     onClick={() => {
                       const tracker = walkTrackerRef.current;
                       if (!(tracker instanceof SimulatedWalkTracker)) return;
 
-                      setIsSimulatedStray(
-                        toggleSimulatedStray(tracker, SIMULATED_STRAY_METERS),
-                      );
+                      if (tracker.isStraying) {
+                        tracker.returnToRoute();
+                        setIsSimulatedStray(false);
+                        setIsStrayLoading(false);
+                        setStrayNotice(null);
+                        return;
+                      }
+
+                      setIsStrayLoading(true);
+                      setStrayNotice(null);
+                      void toggleSimulatedStray(
+                        tracker,
+                        SIMULATED_STRAY_METERS,
+                      ).then((straying) => {
+                        setIsStrayLoading(false);
+                        setIsSimulatedStray(straying);
+                        setStrayNotice(
+                          tracker.strayMode === "synthetic"
+                            ? `No routed detour available (${tracker.lastDetourError}). Nudged ${SIMULATED_STRAY_METERS} m off the line instead.`
+                            : null,
+                        );
+                      });
                     }}
                   >
-                    {isSimulatedStray
-                      ? "Rejoin the route"
-                      : `Stray ${SIMULATED_STRAY_METERS} m off route`}
+                    {isStrayLoading
+                      ? "Routing a detour…"
+                      : isSimulatedStray
+                        ? "Rejoin the route"
+                        : `Stray ${SIMULATED_STRAY_METERS} m off route`}
                   </Button>
                 </div>
               )}
