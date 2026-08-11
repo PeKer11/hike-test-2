@@ -57,6 +57,22 @@ export interface WalkSettings {
   // stops" text, and the post-walk feedback question. Client-side only — the
   // flag rides along in the request body and the server obeys it.
   preferenceLearningEnabled: boolean;
+  /**
+   * Whether the "Recent requests" log survives the browser session — the
+   * prompts the walker typed and the one line each of them came back with,
+   * stored against their account.
+   *
+   * Deliberately its own flag rather than a second job for
+   * `preferenceLearningEnabled`. "Remember what I like" and "show me what I
+   * typed five minutes ago" are different promises: the first quietly changes
+   * what the app builds, the second only shows the walker their own words back
+   * and can be cleared on the spot. Folding them into one flag would mean
+   * turning off preference learning silently deletes a visible UI feature.
+   *
+   * Client-side only, exactly like the flag above: it rides along in the
+   * request body and the server obeys it.
+   */
+  historyPersistenceEnabled: boolean;
 }
 
 export const MIN_PACE_CHECK_INTERVAL_MS = 30_000;
@@ -78,6 +94,10 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   autoResumeAfterRebuild: true,
   paceCheckIntervalMs: 60_000,
   preferenceLearningEnabled: true,
+  // On by default, and honestly so: this one is visible in the panel it
+  // persists and has a "Clear history" button next to it, which is what makes
+  // defaulting it on defensible where a silent memory would not be.
+  historyPersistenceEnabled: true,
 };
 
 /**

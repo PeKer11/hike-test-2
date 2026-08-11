@@ -145,6 +145,25 @@ export function WalkSettingsPanel({
             : "Off — Traike won't learn your preferences, so future walks may feel less personalized."}
         </p>
       </div>
+
+      <div className="space-y-1 border-t border-charcoal/10 pt-3">
+        <label className="flex items-center justify-between gap-3 text-sm text-charcoal/80">
+          <span>Keep my recent requests</span>
+          <input
+            type="checkbox"
+            checked={settings.historyPersistenceEnabled}
+            onChange={(event) =>
+              onChange({ historyPersistenceEnabled: event.target.checked })
+            }
+            className="h-4 w-4 rounded border-charcoal/15 text-terra focus:ring-terra"
+          />
+        </label>
+        <p className="text-xs text-charcoal/60">
+          {settings.historyPersistenceEnabled
+            ? "On — the last few things you typed stay in the Recent requests list next time you open Traike. Clear them any time from that list."
+            : "Off — your requests are forgotten when you close the tab."}
+        </p>
+      </div>
     </section>
   );
 }

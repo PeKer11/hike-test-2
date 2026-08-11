@@ -280,3 +280,92 @@ describe("auto-resume settings checkbox", () => {
     expect(onChange).toHaveBeenCalledWith({ autoResumeAfterRebuild: true });
   });
 });
+
+// Deliberately a second flag rather than a second job for preference learning:
+// "remember what I like" and "show me what I typed" are different promises.
+describe("history persistence setting", () => {
+  function historyCheckbox() {
+    return screen.getByLabelText("Keep my recent requests") as HTMLInputElement;
+  }
+
+  it("defaults on for a walker who has never opened settings", () => {
+    expect(DEFAULT_WALK_SETTINGS.historyPersistenceEnabled).toBe(true);
+
+    const { result } = renderHook(() => useWalkSettings());
+    expect(result.current.settings.historyPersistenceEnabled).toBe(true);
+  });
+
+  it("fills in as on for a stored blob written before it existed", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        slowPaceMode: "ask",
+        preferenceLearningEnabled: false,
+      }),
+    );
+
+    const { result } = renderHook(() => useWalkSettings());
+
+    // Nothing was persisted before the flag existed, so a missing field is not
+    // an opt-out from anything.
+    expect(result.current.settings.historyPersistenceEnabled).toBe(true);
+  });
+
+  it("keeps a stored opt-out instead of defaulting it back on", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...DEFAULT_WALK_SETTINGS,
+        historyPersistenceEnabled: false,
+      }),
+    );
+
+    const { result } = renderHook(() => useWalkSettings());
+
+    expect(result.current.settings.historyPersistenceEnabled).toBe(false);
+  });
+
+  it("does not move when preference learning is turned off", () => {
+    const { result } = renderHook(() => useWalkSettings());
+
+    act(() => {
+      result.current.setSettings({ preferenceLearningEnabled: false });
+    });
+
+    expect(result.current.settings.historyPersistenceEnabled).toBe(true);
+  });
+
+  it("persists an opt-out so the next session starts from it", () => {
+    const { result } = renderHook(() => useWalkSettings());
+
+    act(() => {
+      result.current.setSettings({ historyPersistenceEnabled: false });
+    });
+
+    expect(
+      JSON.parse(store[STORAGE_KEY]).historyPersistenceEnabled,
+    ).toBe(false);
+  });
+
+  it("is checked, and says the list survives, when persistence is on", () => {
+    renderSettings({ historyPersistenceEnabled: true });
+
+    expect(historyCheckbox().checked).toBe(true);
+    expect(screen.getByText(/stay in the Recent requests list/i)).toBeTruthy();
+  });
+
+  it("is unchecked, and says the requests are forgotten, when opted out", () => {
+    renderSettings({ historyPersistenceEnabled: false });
+
+    expect(historyCheckbox().checked).toBe(false);
+    expect(screen.getByText(/forgotten when you close the tab/i)).toBeTruthy();
+  });
+
+  it("reports the opt-out without touching preference learning", () => {
+    const { onChange } = renderSettings({ historyPersistenceEnabled: true });
+
+    fireEvent.click(historyCheckbox());
+
+    expect(onChange).toHaveBeenCalledWith({ historyPersistenceEnabled: false });
+  });
+});

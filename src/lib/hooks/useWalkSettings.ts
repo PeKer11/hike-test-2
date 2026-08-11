@@ -48,6 +48,13 @@ function sanitizeSettings(
       typeof candidate?.preferenceLearningEnabled === "boolean"
         ? candidate.preferenceLearningEnabled
         : DEFAULT_WALK_SETTINGS.preferenceLearningEnabled,
+    // A blob written before this flag existed predates persisted history
+    // altogether, so there is nothing stored that a missing field could be an
+    // opt-out from — it fills in as the default like a brand-new walker's.
+    historyPersistenceEnabled:
+      typeof candidate?.historyPersistenceEnabled === "boolean"
+        ? candidate.historyPersistenceEnabled
+        : DEFAULT_WALK_SETTINGS.historyPersistenceEnabled,
   };
 }
 
