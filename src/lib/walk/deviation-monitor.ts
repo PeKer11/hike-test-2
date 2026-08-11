@@ -31,6 +31,30 @@ export const DEVIATION_SUSTAIN_MS = 30_000;
 const MIN_SUSTAINED_SAMPLES = 3;
 
 /**
+ * How long after a deviation decision before another one may fire.
+ *
+ * The once-per-excursion latch below stops a *single* excursion looping the
+ * rebuild, but rejoining the route clears it — so a walker bouncing across the
+ * 50 m threshold (erratic movement, a GPS fix flapping in an urban canyon, or
+ * someone hammering the client on purpose) can start a fresh excursion every
+ * time and fire a real rebuild every ~30 seconds. Each of those is an Overpass
+ * + ORS + Gemini round trip, so the loop costs real money and latency. This is
+ * the deviation counterpart of `REPLAN_COOLDOWN_MS`.
+ *
+ * Not the pace cooldown's 12 minutes. That number is sized to let a 15-minute
+ * rolling window refill with samples from the new route, and there is no such
+ * window here — a deviation verdict arrives complete on every fix, so the only
+ * thing to wait for is the walker's own reaction to the route they just got.
+ * Three minutes is sized against that instead: it cuts the worst-case rebuild
+ * rate by six (one per three minutes instead of one per thirty seconds), which
+ * is enough to make the loop pointless as an abuse vector, while still being
+ * about the time it takes to walk a block, notice the new route is wrong for
+ * you, and genuinely need another. A walker who takes a real second wrong turn
+ * five minutes later is not affected at all.
+ */
+export const DEVIATION_REBUILD_COOLDOWN_MS = 3 * 60_000;
+
+/**
  * Decides when going off route is worth acting on, from the per-tick
  * `detectDeviation` verdict.
  *
@@ -55,6 +79,7 @@ export class DeviationMonitor {
    * like from here: new geometry, deviation back to nothing.
    */
   private firedForThisExcursion = false;
+  private cooldownUntil = 0;
 
   constructor(
     settings: WalkSettings,
@@ -100,18 +125,50 @@ export class DeviationMonitor {
     // there is nothing to have used up.
     if (this.settings.deviationMode === "off") return;
 
+    // Checked after the mode gate, unlike `PaceChecker`, which gates the mode
+    // after `ReplanTrigger.evaluate()` has already armed its cooldown. The two
+    // differ because the pace side has a window to clear and this side does
+    // not: there, evaluating is what keeps a stale 15 minutes from being
+    // carried into the moment the setting comes back on, so it has to happen
+    // regardless of the mode. Here `off` decides nothing and calls nothing, so
+    // charging it a cooldown would only punish a walker for having the feature
+    // switched off — the same reasoning that already leaves the latch alone.
+    //
+    // Deliberately *not* conditioned on what the walker does next. An `ask`
+    // that is dismissed made no API call, so on cost grounds alone it need not
+    // arm anything; the cooldown arms anyway, for two reasons. The banner is
+    // itself an interruption worth rate-limiting — a walker who has just said
+    // "I know where I'm going" is the last person who wants asking again two
+    // minutes later. And dismissal is invisible from here: the callback is
+    // fire-and-forget, so conditioning on the answer would mean a new callback
+    // into the monitor and a walker who simply ignores the banner would leave
+    // the cooldown un-armed forever — exactly the loop this is here to close.
+    // `ask`-then-confirm and `ask`-then-dismiss therefore behave identically,
+    // as does `auto`.
+    if (timestamp < this.cooldownUntil) return;
+
+    // Latched only when it actually fires. A window that completed during the
+    // cooldown is not spent: if the walker is still off route when the cooldown
+    // lapses, the next fix answers them rather than leaving them stranded on a
+    // stale route for the rest of the excursion.
     this.firedForThisExcursion = true;
+    this.cooldownUntil = timestamp + DEVIATION_REBUILD_COOLDOWN_MS;
     this.onDeviationSustained(this.settings.deviationMode);
   }
 
   updateSettings(settings: WalkSettings): void {
+    // The cooldown survives, exactly as it does across a `PaceChecker`
+    // settings change: changing a setting is not a reason to re-arm a trigger.
+    // Otherwise toggling `deviationMode` would be the cheapest way there is to
+    // clear the cooldown, which would leave it worth nothing.
     this.settings = settings;
   }
 
-  /** Clears the window — call when a new walk starts. */
+  /** Clears the window and the cooldown — call when a new walk starts. */
   reset(): void {
     this.offRouteSince = null;
     this.offRouteSamples = 0;
     this.firedForThisExcursion = false;
+    this.cooldownUntil = 0;
   }
 }
