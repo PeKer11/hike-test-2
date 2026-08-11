@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   clampPaceCheckInterval,
@@ -73,9 +73,24 @@ export function useWalkSettings(): {
   settings: WalkSettings;
   setSettings: (partial: Partial<WalkSettings>) => void;
 } {
-  const [settings, setSettingsState] = useState<WalkSettings>(() =>
-    readStoredSettings(),
+  // The server has no localStorage, so it can only ever render the defaults.
+  // Reading the stored blob during the first client render would therefore make
+  // hydration disagree with the server-rendered markup — and the settings panel
+  // renders the stored values as *text* ("On — …" / "Off — …"), which is the
+  // mismatch React throws on rather than silently patches. So the first render
+  // matches the server, and the stored settings land immediately after mount.
+  const [settings, setSettingsState] = useState<WalkSettings>(
+    DEFAULT_WALK_SETTINGS,
   );
+
+  useEffect(() => {
+    const stored = readStoredSettings();
+    setSettingsState((current) =>
+      // A walker who changed a setting before this effect ran owns the value;
+      // don't stomp it with what was on disk at mount.
+      current === DEFAULT_WALK_SETTINGS ? stored : current,
+    );
+  }, []);
 
   const setSettings = useCallback((partial: Partial<WalkSettings>) => {
     setSettingsState((current) => {
