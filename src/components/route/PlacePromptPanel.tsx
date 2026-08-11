@@ -20,6 +20,8 @@ interface ExtractPlacesResponse {
   notableOnly?: boolean | null;
   /** How far from the start the prompt said the walk may finish, in km. */
   maxEndDistanceKm?: number | null;
+  /** How far from the origin the prompt said to search for places, in km. */
+  searchRadiusKm?: number | null;
   /** The prompt named a place and nothing else — ask what kind of walk. */
   needsClarification?: boolean;
   clarificationCategories?: AttractionCategory[];
@@ -111,6 +113,13 @@ interface PlacePromptPanelProps {
    */
   onMaxEndDistanceDetected?: (km: number) => void;
   /**
+   * Fired when the text said how far from the origin to look for stops ("search
+   * up to 10km from here"), so the companion panel's search-radius field can
+   * start from it. Mirrors `onMaxEndDistanceDetected`: nothing is fired when no
+   * radius was stated, and the field keeps whatever it had.
+   */
+  onSearchRadiusDetected?: (km: number) => void;
+  /**
    * Fired when the text named an area we could locate ("in Zichron Yaakov"), so
    * the companion panel's coordinate fields can start from it. Nothing is fired
    * when no area was named or it could not be geocoded — the fields keep
@@ -148,6 +157,7 @@ export function PlacePromptPanel({
   onStopCountDetected,
   onNotableOnlyDetected,
   onMaxEndDistanceDetected,
+  onSearchRadiusDetected,
   onOriginDetected,
   learnPreferences = false,
   fillRemainingTime = false,
@@ -271,6 +281,10 @@ export function PlacePromptPanel({
 
       if (typeof data.maxEndDistanceKm === "number") {
         onMaxEndDistanceDetected?.(data.maxEndDistanceKm);
+      }
+
+      if (typeof data.searchRadiusKm === "number") {
+        onSearchRadiusDetected?.(data.searchRadiusKm);
       }
 
       // A suspect area (the geocoder's own name for what it found doesn't look

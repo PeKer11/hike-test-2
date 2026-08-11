@@ -16,6 +16,7 @@ import {
   parseNotableOnly,
   parsePlaceExtraction,
   parsePlaceNames,
+  parseSearchRadiusKm,
   parseStopCount,
   pickNeedAttractions,
   PLACE_EXTRACTION_SYSTEM_PROMPT,
@@ -214,6 +215,7 @@ describe("parsePlaceExtraction", () => {
       stopCount: null,
       notableOnly: null,
       maxEndDistanceKm: null,
+      searchRadiusKm: null,
     });
   });
 
@@ -228,6 +230,7 @@ describe("parsePlaceExtraction", () => {
       stopCount: null,
       notableOnly: null,
       maxEndDistanceKm: null,
+      searchRadiusKm: null,
     });
   });
 
@@ -245,6 +248,7 @@ describe("parsePlaceExtraction", () => {
       stopCount: null,
       notableOnly: null,
       maxEndDistanceKm: null,
+      searchRadiusKm: null,
     });
   });
 
@@ -257,6 +261,7 @@ describe("parsePlaceExtraction", () => {
       stopCount: null,
       notableOnly: null,
       maxEndDistanceKm: null,
+      searchRadiusKm: null,
     });
   });
 });
@@ -313,6 +318,7 @@ describe("stop count and notability extraction", () => {
       stopCount: 3,
       notableOnly: true,
       maxEndDistanceKm: null,
+      searchRadiusKm: null,
     });
   });
 
@@ -396,6 +402,7 @@ describe("finish-distance extraction", () => {
       stopCount: null,
       notableOnly: null,
       maxEndDistanceKm: 0.5,
+      searchRadiusKm: null,
     });
   });
 
@@ -408,6 +415,105 @@ describe("finish-distance extraction", () => {
         maxEndDistanceKm: 1,
       }).maxEndDistanceKm,
     ).toBe(1);
+  });
+});
+
+describe("search radius extraction", () => {
+  it("tells the model a search radius is not a finish distance, a duration, or a count", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "not where the walk has to END",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "It is a distance, not a time budget",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "It is a distance, not a count",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "Never guess a search distance that was not stated",
+    );
+  });
+
+  it("teaches both the Hebrew and English phrasings walkers actually use", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "'search up to 10km from here' -> 10",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "'look within 5km of my start' -> 5",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "'מאיפה שאני נמצא עכשיו עד 10 ק\"מ' -> 10",
+    );
+  });
+
+  it("reads a stated search radius in kilometres", () => {
+    expect(parseSearchRadiusKm('{"searchRadiusKm": 10}')).toBe(10);
+    expect(parseSearchRadiusKm({ searchRadiusKm: 5 })).toBe(5);
+    expect(parseSearchRadiusKm({ searchRadiusKm: 2.5 })).toBe(2.5);
+  });
+
+  it("returns null when no search radius was stated", () => {
+    expect(parseSearchRadiusKm({ searchRadiusKm: null })).toBeNull();
+    expect(parseSearchRadiusKm({ places: [] })).toBeNull();
+    expect(parseSearchRadiusKm({ searchRadiusKm: "10km" })).toBeNull();
+    expect(parseSearchRadiusKm({ searchRadiusKm: 0 })).toBeNull();
+    expect(parseSearchRadiusKm({ searchRadiusKm: -3 })).toBeNull();
+  });
+
+  it("clamps a radius the form field would reject instead of dropping it", () => {
+    // The "Search radius (km)" input is min 0.5 / max 10.
+    expect(parseSearchRadiusKm({ searchRadiusKm: 0.2 })).toBe(0.5);
+    expect(parseSearchRadiusKm({ searchRadiusKm: 30 })).toBe(10);
+  });
+
+  it("does not read a search radius out of a duration, a finish distance, or a count", () => {
+    expect(
+      parsePlaceExtraction('{"places": [], "durationMinutes": 120}')
+        .searchRadiusKm,
+    ).toBeNull();
+    expect(
+      parsePlaceExtraction('{"places": [], "maxEndDistanceKm": 1}')
+        .searchRadiusKm,
+    ).toBeNull();
+    expect(
+      parsePlaceExtraction('{"places": [], "stopCount": 3}').searchRadiusKm,
+    ).toBeNull();
+  });
+
+  it("does not let a search radius leak into the finish distance", () => {
+    expect(
+      parsePlaceExtraction('{"places": [], "searchRadiusKm": 10}')
+        .maxEndDistanceKm,
+    ).toBeNull();
+  });
+
+  it("keeps a search radius even when the walker named the stops themselves", () => {
+    expect(
+      parsePlaceExtraction({
+        places: ["Habima Square", "Carmel Market"],
+        searchRadiusKm: 4,
+      }).searchRadiusKm,
+    ).toBe(4);
+  });
+
+  it("reads both distances out of one prompt that states both", () => {
+    // Ariel's live test case: "a walk in Zichron Yaakov at גן טייל and to eat
+    // something, starting from where I am now up to 10km, finishing within 1km
+    // of where I am now" — two different distances in one sentence.
+    expect(
+      parsePlaceExtraction(
+        '{"places": ["גן טייל"], "contextLocation": "זכרון יעקב", "categoryNeeds": ["food"], "searchRadiusKm": 10, "maxEndDistanceKm": 1}',
+      ),
+    ).toEqual({
+      places: ["גן טייל"],
+      contextLocation: "זכרון יעקב",
+      durationMinutes: null,
+      categoryNeeds: ["food"],
+      stopCount: null,
+      notableOnly: null,
+      maxEndDistanceKm: 1,
+      searchRadiusKm: 10,
+    });
   });
 });
 

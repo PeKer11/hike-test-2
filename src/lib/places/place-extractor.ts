@@ -44,6 +44,15 @@ const MAX_STOP_COUNT = 8;
 const MIN_END_DISTANCE_KM = 0.1;
 const MAX_END_DISTANCE_KM = 50;
 
+/**
+ * Bounds on a stated search radius, in kilometres. Same reasoning as the finish
+ * distance's: they are the "Search radius (km)" field's own `min`/`max`, since
+ * this only ever pre-fills that input. Clamped rather than dropped — "look up
+ * to 30 km out" is a real request for as wide a search as the app allows.
+ */
+const MIN_SEARCH_RADIUS_KM = 0.5;
+const MAX_SEARCH_RADIUS_KM = 10;
+
 // Explicit-mode places carry no OSM tags, so there is nothing to infer a
 // category or a realistic dwell time from. 30 minutes matches the mid-range of
 // the Overpass category defaults.
@@ -129,6 +138,19 @@ export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   "Examples:",
   '"תן לי טיול של שעתיים שמסתיים עד 500 מטר ממה שאני נמצא" -> durationMinutes 120, maxEndDistanceKm 0.5.',
   '"find me attractions within 2km" -> maxEndDistanceKm null — that is how far to search, not where to finish.',
+  "",
+  "`searchRadiusKm`: how far from where the walker is or starts to LOOK for places to stop at, in kilometres.",
+  "Only fill it in when the text states such a distance unambiguously — 'search up to 10km from here' -> 10, 'look within 5km of my start' -> 5, 'מאיפה שאני נמצא עכשיו עד 10 ק\"מ' -> 10, 'תחפש לי מקומות עד 3 ק\"מ ממני' -> 3.",
+  "This is about where to look for stops, not where the walk has to END — 'finish within 1km of here' is a `maxEndDistanceKm`, and returns null here.",
+  "It is a distance, not a time budget: 'three hours' and 'שעתיים' are `durationMinutes`, and return null here.",
+  "It is a distance, not a count: 'bring me 3 places' is a `stopCount`, and returns null here.",
+  "Return null for vague phrasing ('somewhere around here', 'nothing too far away') and whenever no such distance was stated.",
+  "Never guess a search distance that was not stated. null is the normal answer.",
+  "Examples:",
+  '"אני רוצה טיול בזכרון יעקב, להתחיל מאיפה שאני נמצא עכשיו עד 10 ק\"מ, לסיים עד 1 ק\"מ מאיפה שאני נמצא עכשיו" -> searchRadiusKm 10, maxEndDistanceKm 1 — two different distances in one sentence.',
+  '"search up to 5km from here" -> searchRadiusKm 5, maxEndDistanceKm null.',
+  '"finish within 1km of where I am" -> searchRadiusKm null, maxEndDistanceKm 1.',
+  '"תן לי טיול של שעתיים" -> searchRadiusKm null, durationMinutes 120 — a time budget is not a search distance.',
 ].join("\n");
 
 /**
@@ -200,6 +222,13 @@ export interface PlaceExtraction {
    * from POIs 2 km out can still end 2 km the other side of the start.
    */
   maxEndDistanceKm: number | null;
+  /**
+   * How far from the origin to look for candidate stops, in kilometres, or null
+   * when the text stated no such distance. The other side of
+   * `maxEndDistanceKm`: one says where to search, the other where to finish,
+   * and a single sentence can state both and mean two different numbers.
+   */
+  searchRadiusKm: number | null;
 }
 
 function toStringArray(value: unknown): string[] | null {
@@ -400,6 +429,30 @@ export function parseMaxEndDistanceKm(input: unknown): number | null {
 }
 
 /**
+ * Read a stated search radius off the reply, in kilometres. Shaped exactly like
+ * `parseMaxEndDistanceKm`: out-of-range values are clamped to the form field's
+ * own range rather than dropped, a non-number is dropped, and so is zero or
+ * less — the model was told to answer null when no distance was stated, and a
+ * zero radius would mean searching nowhere.
+ */
+export function parseSearchRadiusKm(input: unknown): number | null {
+  const candidate = toCandidate(input);
+
+  if (candidate === null || typeof candidate !== "object") {
+    return null;
+  }
+
+  const raw = (candidate as Record<string, unknown>).searchRadiusKm;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return null;
+  }
+
+  if (raw <= 0) return null;
+
+  return Math.min(Math.max(raw, MIN_SEARCH_RADIUS_KM), MAX_SEARCH_RADIUS_KM);
+}
+
+/**
  * Read the "famous places only" signal off the reply. Only a literal `true`
  * counts: a string "true", a 1, or a missing field are all read as "not asked
  * for", which is the answer that changes nothing.
@@ -446,6 +499,9 @@ export function parsePlaceExtraction(input: unknown): PlaceExtraction {
     // walker's own constraint either way, and naming the stops says nothing
     // about how far from the start the last one may be.
     maxEndDistanceKm: parseMaxEndDistanceKm(candidate),
+    // Unconditional for the same reason: how far to search is the walker's own
+    // constraint whether or not they named the stops themselves.
+    searchRadiusKm: parseSearchRadiusKm(candidate),
   };
 }
 

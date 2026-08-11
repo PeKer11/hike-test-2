@@ -278,6 +278,9 @@ export function WalkPlannerApp({
   const [promptMaxEndDistanceKm, setPromptMaxEndDistanceKm] = useState<
     number | null
   >(null);
+  const [promptSearchRadiusKm, setPromptSearchRadiusKm] = useState<
+    number | null
+  >(null);
   const [promptNotableOnly, setPromptNotableOnly] = useState(false);
   // The area that same free text named, geocoded — handed to the companion panel
   // as a starting value for its origin. Null until a prompt resolves one.
@@ -1273,6 +1276,7 @@ export function WalkPlannerApp({
                   onFoundPlacesChange={setPreviewPlaces}
                   onDurationDetected={setPromptDurationMinutes}
                   onMaxEndDistanceDetected={setPromptMaxEndDistanceKm}
+                  onSearchRadiusDetected={setPromptSearchRadiusKm}
                   onStopCountDetected={setPromptStopCount}
                   onNotableOnlyDetected={setPromptNotableOnly}
                   onOriginDetected={setPromptOrigin}
@@ -1303,6 +1307,7 @@ export function WalkPlannerApp({
                 mapClickedCoords={mapClickedCoords}
                 suggestedMinutes={promptDurationMinutes}
                 suggestedMaxEndDistanceKm={promptMaxEndDistanceKm}
+                suggestedSearchRadiusKm={promptSearchRadiusKm}
                 suggestedOrigin={promptOrigin}
                 suggestedPace={suggestedPace}
                 suggestedCategories={suggestedCategories}

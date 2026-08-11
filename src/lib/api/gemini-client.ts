@@ -76,6 +76,17 @@ const PLACES_SCHEMA: Schema = {
       description:
         "How far from the start the walk may finish, in kilometres, when the text states one unambiguously, or null.",
     },
+    // The other half of the same sentence, and deliberately not the same field:
+    // this is how far out to LOOK for stops, where `maxEndDistanceKm` is where
+    // the walk has to end. A prompt can state both at once and mean two
+    // different numbers. A number, not an integer, because "half a kilometre"
+    // is 0.5.
+    searchRadiusKm: {
+      type: Type.NUMBER,
+      nullable: true,
+      description:
+        "How far from the origin to search for places, in kilometres, when the text states one unambiguously, or null.",
+    },
   },
   // Everything past `places` stays optional: most prompts have none of it, and a
   // missing field parses to null / an empty list just like an explicit one.

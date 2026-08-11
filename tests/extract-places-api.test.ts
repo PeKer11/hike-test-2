@@ -73,6 +73,47 @@ describe("POST /api/extract-places", () => {
     mockGetDownvotedCategories.mockResolvedValue(new Map());
   });
 
+  it("surfaces both stated distances so the panel can pre-fill either field", async () => {
+    // Ariel's live prompt states two different distances: how far out to search
+    // and where the walk has to finish. Both ride through untouched.
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["גן טייל"],
+      contextLocation: "זכרון יעקב",
+      categoryNeeds: ["food"],
+      searchRadiusKm: 10,
+      maxEndDistanceKm: 1,
+    });
+    mockSearchPlaces.mockResolvedValue([{ lat: "32.5720", lon: "34.9520" }]);
+
+    const response = await POST(
+      postRequest({
+        prompt:
+          'אני רוצה טיול בזכרון יעקב בגן טייל ולאכול משהו, להתחיל מאיפה שאני נמצא עכשיו עד 10 ק"מ, לסיים עד 1 ק"מ מאיפה שאני נמצא עכשיו',
+      }),
+    );
+    const body = await response.json();
+
+    expect(body.searchRadiusKm).toBe(10);
+    expect(body.maxEndDistanceKm).toBe(1);
+  });
+
+  it("reports a search radius the prompt never stated as null", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["Habima Square"],
+      contextLocation: null,
+    });
+    mockSearchPlaces.mockResolvedValueOnce([
+      { lat: "32.0736", lon: "34.7811" },
+    ]);
+
+    const response = await POST(
+      postRequest({ prompt: "I want to go to Habima Square" }),
+    );
+    const body = await response.json();
+
+    expect(body.searchRadiusKm).toBeNull();
+  });
+
   it("reports a name with no in-box match as unresolved", async () => {
     mockExtractPlaceNames.mockResolvedValueOnce({
       places: ["מדרחוב"],

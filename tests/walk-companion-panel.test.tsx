@@ -315,6 +315,9 @@ function PromptToFormHarness() {
   // Wired too, so a prompt that states only a walk length has somewhere to land
   // and the blank max-distance field is a real negative rather than a no-op.
   const [minutes, setMinutes] = useState<number | null>(null);
+  // The other half of the same sentence: how far out to look for stops, which
+  // lands in the search-radius field rather than the max-distance one.
+  const [searchRadiusKm, setSearchRadiusKm] = useState<number | null>(null);
 
   return (
     <>
@@ -326,6 +329,7 @@ function PromptToFormHarness() {
         onFoundPlacesChange={vi.fn()}
         onDurationDetected={setMinutes}
         onMaxEndDistanceDetected={setMaxEndDistanceKm}
+        onSearchRadiusDetected={setSearchRadiusKm}
       />
       <WalkCompanionPanel
         isLoading={false}
@@ -334,6 +338,7 @@ function PromptToFormHarness() {
         onWalkSettingsChange={vi.fn()}
         suggestedMinutes={minutes}
         suggestedMaxEndDistanceKm={maxEndDistanceKm}
+        suggestedSearchRadiusKm={searchRadiusKm}
       />
     </>
   );
@@ -343,6 +348,14 @@ function promptBox() {
   return screen.getByPlaceholderText(
     "I want to see Habima Square, the Jaffa port, and a good market",
   );
+}
+
+// The search-radius input carries no placeholder and its label is not bound to
+// it, so it is found by the bounds that make it that field.
+function searchRadiusField() {
+  return document.querySelector(
+    'input[min="0.5"][max="10"]',
+  ) as HTMLInputElement;
 }
 
 function endDistanceField() {
@@ -430,5 +443,80 @@ describe("a finish distance stated in the prompt", () => {
     fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
 
     await waitFor(() => expect(endDistanceField().value).toBe("0.5"));
+  });
+});
+
+
+describe("a search radius stated in the prompt", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("fills the search-radius field from a distance the prompt stated", async () => {
+    await submitPrompt("search up to 10km from here", { searchRadiusKm: 10 });
+
+    await waitFor(() => expect(searchRadiusField().value).toBe("10"));
+  });
+
+  it("fills it from the Hebrew phrasing for an origin-relative search distance", async () => {
+    await submitPrompt('מאיפה שאני נמצא עכשיו עד 5 ק"מ', {
+      searchRadiusKm: 5,
+    });
+
+    await waitFor(() => expect(searchRadiusField().value).toBe("5"));
+  });
+
+  it("leaves the radius at its default when the prompt stated only a finish distance", async () => {
+    await submitPrompt("finish within 1km of here", {
+      maxEndDistanceKm: 1,
+      searchRadiusKm: null,
+    });
+
+    await waitFor(() => expect(endDistanceField().value).toBe("1"));
+    expect(searchRadiusField().value).toBe("2");
+  });
+
+  it("fills both fields from one prompt that states both distances", async () => {
+    // Ariel's live test case, which set the finish distance and silently
+    // dropped the search distance before this field was wired up.
+    await submitPrompt(
+      'אני רוצה טיול בזכרון יעקב בגן טייל ולאכול משהו, להתחיל מאיפה שאני נמצא עכשיו עד 10 ק"מ, לסיים עד 1 ק"מ מאיפה שאני נמצא עכשיו',
+      { searchRadiusKm: 10, maxEndDistanceKm: 1 },
+    );
+
+    await waitFor(() => expect(searchRadiusField().value).toBe("10"));
+    expect(endDistanceField().value).toBe("1");
+  });
+
+  it("overwrites a radius the walker typed, as a starting value not a lock", async () => {
+    const responses = [{ searchRadiusKm: 10 }, { searchRadiusKm: 3 }];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          attractions: [],
+          unresolvedNames: [],
+          ...responses.shift(),
+        }),
+      })),
+    );
+
+    render(<PromptToFormHarness />);
+    fireEvent.change(promptBox(), {
+      target: { value: "search up to 10km from here" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+    await waitFor(() => expect(searchRadiusField().value).toBe("10"));
+
+    fireEvent.change(searchRadiusField(), { target: { value: "1" } });
+    expect(searchRadiusField().value).toBe("1");
+
+    fireEvent.change(promptBox(), {
+      target: { value: "actually look within 3km of my start" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+
+    await waitFor(() => expect(searchRadiusField().value).toBe("3"));
   });
 });

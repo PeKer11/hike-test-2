@@ -44,6 +44,13 @@ interface WalkCompanionPanelProps {
    */
   suggestedMaxEndDistanceKm?: number | null;
   /**
+   * A search radius read out of that same box ("search up to 10km from here"),
+   * in kilometres. Fills the search-radius field exactly as
+   * `suggestedMaxEndDistanceKm` fills the max-distance one: a starting value
+   * the walker can type over, re-applied each time a new one is detected.
+   */
+  suggestedSearchRadiusKm?: number | null;
+  /**
    * The area named in that same free-text box ("in Zichron Yaakov"), geocoded.
    * Fills the coordinate fields the same way `suggestedMinutes` fills the time
    * one: a starting value the walker can type over, only re-applied when the
@@ -119,6 +126,7 @@ export function WalkCompanionPanel({
   mapClickedCoords,
   suggestedMinutes,
   suggestedMaxEndDistanceKm,
+  suggestedSearchRadiusKm,
   suggestedOrigin,
   suggestedPace,
   suggestedCategories,
@@ -184,6 +192,15 @@ export function WalkCompanionPanel({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEndDistanceKm(String(suggestedMaxEndDistanceKm));
   }, [suggestedMaxEndDistanceKm]);
+
+  useEffect(() => {
+    if (typeof suggestedSearchRadiusKm !== "number") {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRadiusKm(String(suggestedSearchRadiusKm));
+  }, [suggestedSearchRadiusKm]);
 
   // Depends on the two numbers, not the object: a prompt that resolves to the
   // same place again must not overwrite coordinates the walker has since typed

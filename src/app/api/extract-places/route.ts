@@ -323,6 +323,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       stopCount,
       notableOnly,
       maxEndDistanceKm,
+      searchRadiusKm,
     } = await extractPlaceNames(prompt);
 
     // A chip the walker tapped answers the question the text left open, so it
@@ -453,6 +454,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       // "finish within 1 km of here" is a constraint on a walk it does not
       // build — the panel reads it to pre-fill the form field.
       maxEndDistanceKm: maxEndDistanceKm ?? null,
+      // And so does the other half of that sentence: "search up to 10 km from
+      // here" says how wide to look, which the panel reads to pre-fill the
+      // search-radius field.
+      searchRadiusKm: searchRadiusKm ?? null,
       // Reported so a need that found nothing is still visible when debugging —
       // no UI reads this yet.
       categoryNeeds: effectiveNeeds,
