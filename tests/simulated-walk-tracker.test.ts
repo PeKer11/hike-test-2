@@ -36,6 +36,42 @@ const TICK_MS = 500;
 // (1000 / (15 * 60)) * 10 * 0.5 — what one tick advances along the route.
 const METERS_PER_TICK = 5.555555555555555;
 
+// A real ORS detour would come back as an encoded polyline, so the fake
+// `/api/directions` hands back one too and the tracker runs its own decoder
+// over it. This path east, north and back west is ~190 m off the planned line
+// at its widest — far enough that a position on it cannot be confused with the
+// 80 m synthetic offset the fallback would produce.
+const DETOUR: Coordinates[] = [
+  { lat: 32.08, lng: 34.78 },
+  { lat: 32.08, lng: 34.782 },
+  { lat: 32.0827, lng: 34.782 },
+  { lat: 32.0827, lng: 34.78 },
+];
+
+function encodeSignedValue(value: number): string {
+  let remaining = value < 0 ? ~(value << 1) : value << 1;
+  let encoded = "";
+  while (remaining >= 0x20) {
+    encoded += String.fromCharCode((0x20 | (remaining & 0x1f)) + 63);
+    remaining >>= 5;
+  }
+  return encoded + String.fromCharCode(remaining + 63);
+}
+
+function encodePolyline(coords: Coordinates[]): string {
+  let lastLat = 0;
+  let lastLng = 0;
+  let encoded = "";
+  for (const coord of coords) {
+    const lat = Math.round(coord.lat * 1e5);
+    const lng = Math.round(coord.lng * 1e5);
+    encoded += encodeSignedValue(lat - lastLat) + encodeSignedValue(lng - lastLng);
+    lastLat = lat;
+    lastLng = lng;
+  }
+  return encoded;
+}
+
 function makeTracker(onUpdate: (update: PaceUpdate) => void) {
   return new SimulatedWalkTracker(
     ROUTE,
@@ -87,120 +123,385 @@ describe("SimulatedWalkTracker — staying on the route", () => {
 // The whole point: `deviation-detector.ts`'s >50 m trigger and the banner it
 // drives could not be exercised end to end before this, because every reported
 // position was interpolated along the route's own geometry.
+//
+// The stray used to be a perpendicular offset bolted onto the reported
+// position — a line parallel to the route that snapped back onto it. Ariel's
+// verdict watching it was that it "goes around and comes back" rather than
+// reading as a wrong turn, so it is now a path ORS actually routed through a
+// side point and back to a rejoin point ahead. `fetch` is the only thing faked
+// below: the tracker's own decoding, distance tables and tick walking are all
+// real.
 describe("SimulatedWalkTracker — straying off the route", () => {
-  it("reports a position far enough off-route to need a re-route", () => {
-    const { updates, onUpdate } = collect();
-    const tracker = makeTracker(onUpdate);
+  /** How far along ROUTE a position sits, for checking the rejoin. */
+  function distanceAlongRoute(position: Coordinates): number {
+    return haversineDistance(
+      ROUTE[0],
+      detectDeviation(position, ROUTE).closestPointOnRoute,
+    );
+  }
 
-    tracker.start();
-    vi.advanceTimersByTime(TICK_MS * 3);
-    tracker.strayOffRoute(80);
-    vi.advanceTimersByTime(TICK_MS * 3);
-    expect(tracker.isStraying).toBe(true);
-    tracker.stop();
+  function mockDirections(geometry: Coordinates[] = DETOUR) {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        routes: [{ geometry: encodePolyline(geometry) }],
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
 
-    const before = detectDeviation(updates[2].currentPosition, ROUTE);
-    const after = detectDeviation(updates.at(-1)!.currentPosition, ROUTE);
-
-    expect(before.needsReroute).toBe(false);
-    expect(after.deviationMeters).toBeCloseTo(80, 0);
-    expect(after.needsReroute).toBe(true);
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  // The threshold is 50 m, and a walker on the other pavement is not lost.
-  it("does not trip the re-route trigger for an offset under the threshold", () => {
-    const { updates, onUpdate } = collect();
-    const tracker = makeTracker(onUpdate);
+  it("asks for a walking route through the walker, a side point and a rejoin point", async () => {
+    const fetchMock = mockDirections();
+    const tracker = makeTracker(vi.fn());
 
     tracker.start();
-    tracker.strayOffRoute(30);
-    vi.advanceTimersByTime(TICK_MS * 5);
+    vi.advanceTimersByTime(TICK_MS * 3);
+    const startDistance = METERS_PER_TICK * 3;
+    await tracker.strayOffRoute(80, 300);
     tracker.stop();
 
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      { body: string },
+    ];
+    expect(url).toBe("/api/directions");
+
+    const body = JSON.parse(init.body) as {
+      profile: string;
+      coordinates: Array<[number, number]>;
+    };
+    expect(body.profile).toBe("foot-walking");
+    expect(body.coordinates).toHaveLength(3);
+
+    // ORS takes [lng, lat], which is the opposite order to everything else here.
+    const [a, b, c] = body.coordinates.map((coord) => ({
+      lng: coord[0],
+      lat: coord[1],
+    }));
+
+    // A is where the walker is: three ticks up a route that starts at ROUTE[0].
+    expect(distanceAlongRoute(a)).toBeCloseTo(startDistance, 0);
+    // B is genuinely off the line, by the offset it was given.
+    expect(detectDeviation(b, ROUTE).deviationMeters).toBeCloseTo(80, 0);
+    // C is `forMeters` further along the planned route, and still on it.
+    expect(detectDeviation(c, ROUTE).deviationMeters).toBeLessThan(1);
+    expect(distanceAlongRoute(c)).toBeCloseTo(startDistance + 300, 0);
+  });
+
+  it("defaults the rejoin point to 300 m ahead when not told otherwise", async () => {
+    const fetchMock = mockDirections();
+    const tracker = makeTracker(vi.fn());
+
+    await tracker.strayOffRoute(80);
+
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body,
+    ) as { coordinates: Array<[number, number]> };
+    const c = { lng: body.coordinates[2][0], lat: body.coordinates[2][1] };
+
+    expect(distanceAlongRoute(c)).toBeCloseTo(300, 0);
+  });
+
+  it("walks the fetched detour geometry instead of the planned line", async () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeTracker(onUpdate);
+    mockDirections();
+
+    tracker.start();
+    await tracker.strayOffRoute(80, 300);
+    expect(tracker.strayMode).toBe("detour");
+
+    // Far enough along the detour's first leg to be out near its east side.
+    vi.advanceTimersByTime(TICK_MS * 30);
+    tracker.stop();
+
+    const position = updates.at(-1)!.currentPosition;
+    // Straight out east along the detour, not the 80 m the offset would give.
+    expect(position.lng).toBeGreaterThan(34.781);
+    expect(detectDeviation(position, ROUTE).deviationMeters).toBeGreaterThan(150);
+    expect(detectDeviation(position, ROUTE).needsReroute).toBe(true);
+
+    // Every reported position sits on the detour polyline, not beside it.
     for (const update of updates) {
-      const deviation = detectDeviation(update.currentPosition, ROUTE);
-      expect(deviation.deviationMeters).toBeCloseTo(30, 0);
-      expect(deviation.needsReroute).toBe(false);
+      expect(
+        detectDeviation(update.currentPosition, DETOUR).deviationMeters,
+      ).toBeLessThan(1);
     }
   });
 
-  it("rejoins the route after the stated distance", () => {
+  it("picks the planned route back up at the rejoin point when the detour ends", async () => {
     const { updates, onUpdate } = collect();
     const tracker = makeTracker(onUpdate);
+    mockDirections();
 
     tracker.start();
-    // Two ticks off the line, then back on it.
-    tracker.strayOffRoute(80, METERS_PER_TICK * 2.5);
-    vi.advanceTimersByTime(TICK_MS * 5);
+    await tracker.strayOffRoute(80, 300);
+    // The detour is ~680 m of walking; 200 ticks is comfortably past its end.
+    vi.advanceTimersByTime(TICK_MS * 200);
     tracker.stop();
 
-    const deviations = updates.map(
-      (update) => detectDeviation(update.currentPosition, ROUTE).deviationMeters,
-    );
+    const last = updates.at(-1)!.currentPosition;
+    expect(tracker.isStraying).toBe(false);
+    expect(tracker.strayMode).toBeNull();
+    expect(detectDeviation(last, ROUTE).deviationMeters).toBeLessThan(1);
 
-    expect(deviations[0]).toBeCloseTo(80, 0);
-    expect(deviations[1]).toBeCloseTo(80, 0);
-    expect(deviations[3]).toBeLessThan(1);
-    expect(deviations[4]).toBeLessThan(1);
+    // Back on the planned route's own distance table at the rejoin point, and
+    // walking on from there rather than restarting from where they left.
+    expect(distanceAlongRoute(last)).toBeGreaterThan(300);
+    const firstAfterRejoin = updates.find(
+      (update, index) =>
+        index > 0 &&
+        detectDeviation(update.currentPosition, ROUTE).deviationMeters < 1,
+    )!;
+    expect(distanceAlongRoute(firstAfterRejoin.currentPosition)).toBeCloseTo(
+      300,
+      0,
+    );
   });
 
-  it("rejoins the route on demand", () => {
+  it("reports a loading status until the detour has been routed", async () => {
+    let resolveFetch: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveFetch = resolve;
+          }),
+      ),
+    );
+    const tracker = makeTracker(vi.fn());
+
+    expect(tracker.strayStatus).toBe("idle");
+
+    const pending = tracker.strayOffRoute(80, 300);
+    expect(tracker.strayStatus).toBe("loading");
+    // A stray that is still being routed already counts as one, so a second
+    // click on the button cancels rather than queuing another request.
+    expect(tracker.isStraying).toBe(true);
+    expect(tracker.strayMode).toBeNull();
+
+    resolveFetch({
+      ok: true,
+      json: async () => ({ routes: [{ geometry: encodePolyline(DETOUR) }] }),
+    });
+    await pending;
+
+    expect(tracker.strayStatus).toBe("active");
+    expect(tracker.strayMode).toBe("detour");
+  });
+
+  it("stays on the planned line while the detour is still loading", async () => {
     const { updates, onUpdate } = collect();
     const tracker = makeTracker(onUpdate);
+    let resolveFetch: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveFetch = resolve;
+          }),
+      ),
+    );
 
     tracker.start();
-    tracker.strayOffRoute(80);
-    vi.advanceTimersByTime(TICK_MS * 2);
+    const pending = tracker.strayOffRoute(80, 300);
+    vi.advanceTimersByTime(TICK_MS * 3);
+
+    for (const update of updates) {
+      expect(
+        detectDeviation(update.currentPosition, ROUTE).deviationMeters,
+      ).toBeLessThan(1);
+    }
+
+    resolveFetch({
+      ok: true,
+      json: async () => ({ routes: [{ geometry: encodePolyline(DETOUR) }] }),
+    });
+    await pending;
+    tracker.stop();
+  });
+
+  // Best-effort, like the rest of this codebase's network work: a dev machine
+  // with no ORS key must not take the walk simulation down with it.
+  describe("when the routing service will not produce a detour", () => {
+    it("falls back to the synthetic offset instead of throwing", async () => {
+      const { updates, onUpdate } = collect();
+      const tracker = makeTracker(onUpdate);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new Error("ORS_API_KEY is not configured.");
+        }),
+      );
+
+      tracker.start();
+      await expect(tracker.strayOffRoute(80, 300)).resolves.toBe(false);
+
+      expect(tracker.strayMode).toBe("synthetic");
+      expect(tracker.strayStatus).toBe("active");
+      expect(tracker.lastDetourError).toBe("ORS_API_KEY is not configured.");
+
+      vi.advanceTimersByTime(TICK_MS * 3);
+      tracker.stop();
+
+      const deviation = detectDeviation(updates.at(-1)!.currentPosition, ROUTE);
+      expect(deviation.deviationMeters).toBeCloseTo(80, 0);
+      expect(deviation.needsReroute).toBe(true);
+    });
+
+    it("surfaces the API's own message for a non-OK response", async () => {
+      const tracker = makeTracker(vi.fn());
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({
+          ok: false,
+          status: 429,
+          json: async () => ({ error: "Rate limit exceeded." }),
+        })),
+      );
+
+      await tracker.strayOffRoute(80, 300);
+
+      expect(tracker.lastDetourError).toBe("Rate limit exceeded.");
+      expect(tracker.strayMode).toBe("synthetic");
+    });
+
+    it("falls back when the service routes nothing at all", async () => {
+      const tracker = makeTracker(vi.fn());
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({ ok: true, json: async () => ({ routes: [] }) })),
+      );
+
+      await tracker.strayOffRoute(80, 300);
+
+      expect(tracker.strayMode).toBe("synthetic");
+      expect(tracker.lastDetourError).toBe(
+        "No walkable detour exists around this point.",
+      );
+    });
+
+    // The synthetic fallback still has to end where the detour would have.
+    it("rejoins the route at the point the detour would have come back to", async () => {
+      const { updates, onUpdate } = collect();
+      const tracker = makeTracker(onUpdate);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new Error("network down");
+        }),
+      );
+
+      tracker.start();
+      await tracker.strayOffRoute(80, METERS_PER_TICK * 2.5);
+      vi.advanceTimersByTime(TICK_MS * 5);
+      tracker.stop();
+
+      const deviations = updates.map(
+        (update) => detectDeviation(update.currentPosition, ROUTE).deviationMeters,
+      );
+
+      expect(deviations[0]).toBeCloseTo(80, 0);
+      expect(deviations[1]).toBeCloseTo(80, 0);
+      expect(deviations[3]).toBeLessThan(1);
+      expect(deviations[4]).toBeLessThan(1);
+    });
+  });
+
+  it("rejoins the route on demand, mid-detour", async () => {
+    const { updates, onUpdate } = collect();
+    const tracker = makeTracker(onUpdate);
+    mockDirections();
+
+    tracker.start();
+    await tracker.strayOffRoute(80, 300);
+    vi.advanceTimersByTime(TICK_MS * 20);
+    const wandered = detectDeviation(
+      updates.at(-1)!.currentPosition,
+      ROUTE,
+    ).deviationMeters;
+
     tracker.returnToRoute();
     vi.advanceTimersByTime(TICK_MS * 2);
     tracker.stop();
 
-    expect(
-      detectDeviation(updates[1].currentPosition, ROUTE).needsReroute,
-    ).toBe(true);
+    expect(wandered).toBeGreaterThan(50);
+    expect(tracker.isStraying).toBe(false);
     expect(
       detectDeviation(updates.at(-1)!.currentPosition, ROUTE).deviationMeters,
     ).toBeLessThan(1);
-    expect(tracker.isStraying).toBe(false);
   });
 
-  // A stray is a position, not a pause: the walker keeps covering ground while
-  // they are off the line, so the walk still ends.
-  it("keeps advancing along the route while straying", () => {
+  it("cancels a detour that is still loading when told to rejoin", async () => {
     const { updates, onUpdate } = collect();
     const tracker = makeTracker(onUpdate);
+    let resolveFetch: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveFetch = resolve;
+          }),
+      ),
+    );
 
     tracker.start();
-    tracker.strayOffRoute(80);
-    vi.advanceTimersByTime(TICK_MS * 4);
-    tracker.stop();
+    const pending = tracker.strayOffRoute(80, 300);
+    tracker.returnToRoute();
+    expect(tracker.strayStatus).toBe("idle");
 
-    const first = detectDeviation(updates[0].currentPosition, ROUTE);
-    const last = detectDeviation(updates.at(-1)!.currentPosition, ROUTE);
+    // The response lands after the walker has already been put back: it must
+    // not drag them off the line again.
+    resolveFetch({
+      ok: true,
+      json: async () => ({ routes: [{ geometry: encodePolyline(DETOUR) }] }),
+    });
+    await expect(pending).resolves.toBe(false);
 
-    expect(
-      haversineDistance(ROUTE[0], last.closestPointOnRoute),
-    ).toBeGreaterThan(haversineDistance(ROUTE[0], first.closestPointOnRoute));
-  });
-
-  it("ignores an offset that is not a usable distance", () => {
-    const tracker = makeTracker(vi.fn());
-
-    tracker.strayOffRoute(Number.NaN);
-    expect(tracker.isStraying).toBe(false);
-
-    tracker.strayOffRoute(0);
-    expect(tracker.isStraying).toBe(false);
-  });
-
-  it("drops a standing stray when the walk is stopped", () => {
-    const tracker = makeTracker(vi.fn());
-
-    tracker.start();
-    tracker.strayOffRoute(80);
+    vi.advanceTimersByTime(TICK_MS * 3);
     tracker.stop();
 
     expect(tracker.isStraying).toBe(false);
+    for (const update of updates) {
+      expect(
+        detectDeviation(update.currentPosition, ROUTE).deviationMeters,
+      ).toBeLessThan(1);
+    }
+  });
+
+  it("ignores an offset that is not a usable distance", async () => {
+    const fetchMock = mockDirections();
+    const tracker = makeTracker(vi.fn());
+
+    await tracker.strayOffRoute(Number.NaN);
+    expect(tracker.isStraying).toBe(false);
+
+    await tracker.strayOffRoute(0);
+    expect(tracker.isStraying).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("drops a standing detour when the walk is stopped", async () => {
+    mockDirections();
+    const tracker = makeTracker(vi.fn());
+
+    tracker.start();
+    await tracker.strayOffRoute(80, 300);
+    expect(tracker.strayMode).toBe("detour");
+
+    tracker.stop();
+
+    expect(tracker.isStraying).toBe(false);
+    expect(tracker.strayStatus).toBe("idle");
   });
 });
 

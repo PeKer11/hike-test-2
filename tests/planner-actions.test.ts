@@ -208,6 +208,15 @@ describe("toggleSimulatedStray", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    // The stray routes a real detour through `/api/directions` now. These tests
+    // are about the toggle, not the detour, so routing is failed deliberately
+    // and the tracker's synthetic 80 m offset is what the walker ends up on.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("no routing in this test");
+      }),
+    );
     updates = [];
     tracker = new SimulatedWalkTracker(
       ROUTE,
@@ -224,10 +233,11 @@ describe("toggleSimulatedStray", () => {
   afterEach(() => {
     tracker.stop();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
-  it("puts the walker the requested distance off the planned line", () => {
-    expect(toggleSimulatedStray(tracker, STRAY_METERS)).toBe(true);
+  it("puts the walker the requested distance off the planned line", async () => {
+    await expect(toggleSimulatedStray(tracker, STRAY_METERS)).resolves.toBe(true);
     expect(tracker.isStraying).toBe(true);
 
     updates = [];
@@ -240,10 +250,10 @@ describe("toggleSimulatedStray", () => {
     );
   });
 
-  it("puts the walker back on the line on the second press", () => {
-    toggleSimulatedStray(tracker, STRAY_METERS);
+  it("puts the walker back on the line on the second press", async () => {
+    await toggleSimulatedStray(tracker, STRAY_METERS);
 
-    expect(toggleSimulatedStray(tracker, STRAY_METERS)).toBe(false);
+    await expect(toggleSimulatedStray(tracker, STRAY_METERS)).resolves.toBe(false);
     expect(tracker.isStraying).toBe(false);
 
     updates = [];

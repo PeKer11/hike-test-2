@@ -143,10 +143,26 @@ describe("SimulatedWalkTracker straying on a route that doubles back", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
-  /** Positions reported over `ticks` ticks, straying 80 m west after the third. */
-  function strayedRun(ticks: number): PaceUpdate[] {
+  /**
+   * Positions reported over `ticks` ticks, straying 80 m west after the third.
+   *
+   * The stray asks ORS for a real detour now, and these tests are about what
+   * the *detector* makes of an off-route position on a route that doubles back
+   * — so routing is failed deliberately and the tracker's synthetic-offset
+   * fallback supplies a position exactly 80 m off the segment underneath it,
+   * which is what the assertions below are written against.
+   */
+  async function strayedRun(ticks: number): Promise<PaceUpdate[]> {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("no routing in this test");
+      }),
+    );
+
     const updates: PaceUpdate[] = [];
     const tracker = new SimulatedWalkTracker(
       LOOP_ROUTE,
@@ -159,15 +175,15 @@ describe("SimulatedWalkTracker straying on a route that doubles back", () => {
 
     tracker.start();
     vi.advanceTimersByTime(TICK_MS * 3);
-    tracker.strayOffRoute(80);
+    await tracker.strayOffRoute(80);
     vi.advanceTimersByTime(TICK_MS * ticks);
     tracker.stop();
 
     return updates;
   }
 
-  it("reports a segment index that only moves forward, a segment at a time", () => {
-    const updates = strayedRun(12);
+  it("reports a segment index that only moves forward, a segment at a time", async () => {
+    const updates = await strayedRun(12);
     let previous: number | null = null;
     const indices: number[] = [];
 
@@ -189,8 +205,8 @@ describe("SimulatedWalkTracker straying on a route that doubles back", () => {
     expect(indices.at(-1)).toBeLessThan(RETURN_LEG_FIRST_SEGMENT);
   });
 
-  it("draws a remaining route that shortens by one point per tick instead of jumping", () => {
-    const updates = strayedRun(12);
+  it("draws a remaining route that shortens by one point per tick instead of jumping", async () => {
+    const updates = await strayedRun(12);
     let previous: number | null = null;
     const lengths: number[] = [];
 
@@ -214,8 +230,8 @@ describe("SimulatedWalkTracker straying on a route that doubles back", () => {
     }
   });
 
-  it("is what an unanchored search gets wrong: the drawn route collapses to the far leg", () => {
-    const updates = strayedRun(12);
+  it("is what an unanchored search gets wrong: the drawn route collapses to the far leg", async () => {
+    const updates = await strayedRun(12);
 
     const lengths = updates.map((update) => {
       const deviation = detectDeviation(update.currentPosition, LOOP_ROUTE);
@@ -235,8 +251,8 @@ describe("SimulatedWalkTracker straying on a route that doubles back", () => {
     expect(biggestJump).toBeGreaterThan(50);
   });
 
-  it("still reports the stray as off-route once the search is anchored", () => {
-    const updates = strayedRun(12);
+  it("still reports the stray as off-route once the search is anchored", async () => {
+    const updates = await strayedRun(12);
     let previous: number | null = null;
     let last = detectDeviation(updates[0].currentPosition, LOOP_ROUTE, previous);
 
