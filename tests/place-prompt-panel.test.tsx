@@ -1300,3 +1300,242 @@ describe("PlacePromptPanel — the follow-up turn", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
+
+// The persisted half of the log. In-memory stays the render source; the account
+// is a hydration seed on mount plus a write mirror on every turn.
+describe("PlacePromptPanel — persisted history", () => {
+  interface Call {
+    url: string;
+    method: string;
+    body: unknown;
+  }
+
+  const STORED = [
+    {
+      id: "row-1",
+      turn: "prompt",
+      prompt: "A walk in Jaffa",
+      responseSummary: "Found 3 stops",
+      timestamp: 1_770_000_000_000,
+    },
+    {
+      id: "row-2",
+      turn: "chip",
+      prompt: "A walk in Jaffa — Food",
+      responseSummary: "Found 4 stops",
+      timestamp: 1_770_000_100_000,
+    },
+  ];
+
+  /**
+   * One fetch stub for both endpoints, routed the way the browser would route
+   * them, recording every call so the tests can assert on what the panel sent
+   * rather than on which of its internals ran.
+   */
+  function stubApi(history: unknown = []) {
+    const calls: Call[] = [];
+
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      calls.push({
+        url,
+        method,
+        body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
+      });
+
+      if (url === "/api/prompt-history") {
+        return { ok: true, json: async () => history };
+      }
+
+      return {
+        ok: true,
+        json: async () => ({ attractions: FOUND, unresolvedNames: [] }),
+      };
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    return calls;
+  }
+
+  function renderPanel(
+    props: { persistHistory?: boolean; isSignedIn?: boolean } = {},
+  ) {
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        {...props}
+      />,
+    );
+  }
+
+  function sendPrompt(text: string) {
+    fireEvent.change(screen.getByRole("textbox", { name: "" }), {
+      target: { value: text },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+  }
+
+  async function openLog() {
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Recent requests/ }),
+    );
+  }
+
+  function log() {
+    return within(screen.getByRole("list", { name: "Recent requests" }));
+  }
+
+  const historyCalls = (calls: Call[]) =>
+    calls.filter((call) => call.url === "/api/prompt-history");
+
+  it("renders the stored requests on mount, oldest first", async () => {
+    stubApi(STORED);
+    renderPanel({ persistHistory: true, isSignedIn: true });
+
+    await openLog();
+
+    const entries = log().getAllByRole("listitem");
+    expect(entries).toHaveLength(2);
+    expect(entries[0].textContent).toContain("A walk in Jaffa");
+    expect(entries[1].textContent).toContain("A walk in Jaffa — Food");
+  });
+
+  // The whole point of the signed-out path staying byte-identical to what it
+  // was before any of this existed.
+  it("fetches nothing for a walker who is not signed in", async () => {
+    const calls = stubApi(STORED);
+    renderPanel({ persistHistory: true, isSignedIn: false });
+
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "" })).toBeTruthy();
+    });
+    expect(historyCalls(calls)).toEqual([]);
+    expect(screen.queryByRole("button", { name: /Recent requests/ })).toBeNull();
+  });
+
+  it("fetches nothing when the walker has turned persistence off", async () => {
+    const calls = stubApi(STORED);
+    renderPanel({ persistHistory: false, isSignedIn: true });
+
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "" })).toBeTruthy();
+    });
+    expect(historyCalls(calls)).toEqual([]);
+  });
+
+  it("mirrors a new prompt to the account with the turn it came from", async () => {
+    const calls = stubApi([]);
+    renderPanel({ persistHistory: true, isSignedIn: true });
+    sendPrompt("מדרחוב בזכרון יעקב");
+
+    await openLog();
+
+    const post = historyCalls(calls).find((call) => call.method === "POST");
+    expect(post?.body).toEqual({
+      turn: "prompt",
+      prompt: "מדרחוב בזכרון יעקב",
+      responseSummary: "Found 3 stops",
+      persistHistory: true,
+    });
+  });
+
+  it("mirrors nothing when persistence is off, but still logs locally", async () => {
+    const calls = stubApi([]);
+    renderPanel({ persistHistory: false, isSignedIn: true });
+    sendPrompt("מדרחוב בזכרון יעקב");
+
+    await openLog();
+
+    expect(log().getByText("Found 3 stops")).toBeTruthy();
+    expect(historyCalls(calls)).toEqual([]);
+  });
+
+  // The local append is instant and unconditional; the mirror is a side effect
+  // that must never surface as an error the walker has to read.
+  it("keeps the local entry when the mirror write fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/prompt-history") {
+          throw new Error("offline");
+        }
+        return {
+          ok: true,
+          json: async () => ({ attractions: FOUND, unresolvedNames: [] }),
+        };
+      }),
+    );
+    renderPanel({ persistHistory: true, isSignedIn: true });
+    sendPrompt("מדרחוב בזכרון יעקב");
+
+    await openLog();
+
+    expect(log().getByText("Found 3 stops")).toBeTruthy();
+    expect(screen.queryByText(/offline/)).toBeNull();
+  });
+
+  // A slow history fetch must not land on top of what the walker did in the
+  // meantime: the words they just typed are the thing they are looking at.
+  it("never replaces a prompt sent while the history fetch was still in flight", async () => {
+    let releaseHistory = () => {};
+    const historyLanded = new Promise<void>((resolve) => {
+      releaseHistory = resolve;
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "/api/prompt-history") {
+          await historyLanded;
+          return { ok: true, json: async () => STORED };
+        }
+        return {
+          ok: true,
+          json: async () => ({ attractions: FOUND, unresolvedNames: [] }),
+        };
+      }),
+    );
+
+    renderPanel({ persistHistory: true, isSignedIn: true });
+    sendPrompt("מדרחוב בזכרון יעקב");
+    await openLog();
+
+    releaseHistory();
+    await waitFor(() => {
+      expect(log().getAllByRole("listitem")).toHaveLength(1);
+    });
+    expect(log().getByText("מדרחוב בזכרון יעקב")).toBeTruthy();
+  });
+
+  it("clears the list and asks the account to forget it", async () => {
+    const calls = stubApi(STORED);
+    renderPanel({ persistHistory: true, isSignedIn: true });
+
+    await openLog();
+    fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /Recent requests/ }),
+      ).toBeNull();
+    });
+    expect(
+      historyCalls(calls).some((call) => call.method === "DELETE"),
+    ).toBe(true);
+  });
+
+  // Nothing was ever stored, so there is nothing the button could delete.
+  it("offers no clear control for a session-only log", async () => {
+    stubApi([]);
+    renderPanel({ persistHistory: false, isSignedIn: false });
+    sendPrompt("מדרחוב בזכרון יעקב");
+
+    await openLog();
+
+    expect(screen.queryByRole("button", { name: "Clear history" })).toBeNull();
+  });
+});

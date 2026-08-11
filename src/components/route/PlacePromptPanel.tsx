@@ -1,8 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button, Card, LoadingSpinner } from "@/components/ui";
+import {
+  MAX_SCROLLBACK,
+  type ExchangeTurn,
+  type StoredExchange,
+} from "@/lib/history/exchange";
 import { MAX_CATEGORY_NEEDS } from "@/lib/places/place-extractor";
 import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
 
@@ -65,21 +70,17 @@ const NOTHING_KNOWN: KnownSoFar = {
 };
 
 /**
- * One thing the walker sent and what came back of it, for the session log above
- * the prompt box. Deliberately not `KnownSoFar`: that is the state of one
+ * One thing the walker sent and what came back of it, for the log above the
+ * prompt box. Deliberately not `KnownSoFar`: that is the state of one
  * conversation and resets when a new topic starts, this is a flat record of
- * everything asked in this browser session and never resets. Nothing here is
- * read back into a request — it is display only, and it dies with the page.
+ * everything asked and never resets. Nothing here is read back into a
+ * request — it is display only.
+ *
+ * The same shape as a `StoredExchange` minus `turn`, which is written but not
+ * rendered: this list is the render source whether the entries were typed a
+ * moment ago or hydrated from the walker's account on mount.
  */
-interface ScrollbackEntry {
-  id: number;
-  prompt: string;
-  responseSummary: string;
-  timestamp: number;
-}
-
-/** Enough to see what you just tried, not so much it becomes a transcript. */
-const MAX_SCROLLBACK = 5;
+type ScrollbackEntry = Omit<StoredExchange, "turn">;
 
 const MAX_SCROLLBACK_PROMPT_CHARS = 60;
 
@@ -184,6 +185,21 @@ interface PlacePromptPanelProps {
    */
   learnPreferences?: boolean;
   /**
+   * Mirrors the "Keep my recent requests" setting. When true — and the walker
+   * is signed in — the log above the box is hydrated from their account on
+   * mount and every turn is mirrored back to it.
+   *
+   * Its own prop rather than a second reading of `learnPreferences`: those are
+   * two different promises, and the walker sets them separately.
+   */
+  persistHistory?: boolean;
+  /**
+   * Whether there is an account to persist against. Off by default so a page
+   * that has not resolved a session yet behaves exactly as it did before this
+   * existed — no fetch, no writes.
+   */
+  isSignedIn?: boolean;
+  /**
    * Whether the walk may add discovered stops on top of the named ones.
    *
    * Off by default, and that is the whole point of it existing. Naming three
@@ -211,6 +227,8 @@ export function PlacePromptPanel({
   onSearchRadiusDetected,
   onOriginDetected,
   learnPreferences = false,
+  persistHistory = false,
+  isSignedIn = false,
   fillRemainingTime = false,
   onFillRemainingTimeChange,
 }: PlacePromptPanelProps) {
@@ -254,14 +272,122 @@ export function PlacePromptPanel({
   const [isScrollbackOpen, setIsScrollbackOpen] = useState(false);
   const nextEntryId = useRef(0);
 
-  const logExchange = (promptText: string, responseSummary: string) => {
+  // Whether this walker's stored log has anything in it, so the "Clear
+  // history" control is only offered when there is something to clear —
+  // a locally-logged entry that was never persisted is not.
+  const [hasPersistedHistory, setHasPersistedHistory] = useState(false);
+
+  const persistenceOn = persistHistory && isSignedIn;
+
+  /**
+   * Seed the log from the walker's account, once, on mount.
+   *
+   * Deliberately a one-shot hydration rather than a live source: the local
+   * array stays authoritative for the rest of the session, which is what keeps
+   * the panel instant and keeps the signed-out path byte-identical to what it
+   * was before any of this existed. A failed or empty fetch is not an error —
+   * it is simply a walker with nothing stored.
+   */
+  useEffect(() => {
+    if (!persistenceOn) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/prompt-history");
+        if (!res.ok) return;
+
+        const rows = (await res.json()) as StoredExchange[];
+        if (cancelled || !Array.isArray(rows) || rows.length === 0) return;
+
+        setHasPersistedHistory(true);
+        setScrollback((current) =>
+          // A walker who typed something before the fetch landed owns the log;
+          // hydrating over them would replace what they just did with history.
+          current.length > 0
+            ? current
+            : rows
+                .map(({ id, prompt, responseSummary, timestamp }) => ({
+                  id,
+                  prompt,
+                  responseSummary,
+                  timestamp,
+                }))
+                .slice(-MAX_SCROLLBACK),
+        );
+      } catch {
+        // Offline, or the route is not there — nothing to hydrate.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [persistenceOn]);
+
+  /**
+   * Append one exchange to the log, locally first and then to the walker's
+   * account.
+   *
+   * The POST is not awaited and its failure is swallowed, matching the contract
+   * `learnPreferences` already follows on the extraction route: a profile side
+   * effect must never slow down, or fail, the request the walker actually made.
+   */
+  const logExchange = (
+    turn: ExchangeTurn,
+    promptText: string,
+    responseSummary: string,
+  ) => {
     const entry: ScrollbackEntry = {
-      id: nextEntryId.current++,
+      id: `local-${nextEntryId.current++}`,
       prompt: promptText,
       responseSummary,
       timestamp: Date.now(),
     };
     setScrollback((current) => [...current, entry].slice(-MAX_SCROLLBACK));
+
+    if (!persistenceOn) {
+      return;
+    }
+
+    setHasPersistedHistory(true);
+    void fetch("/api/prompt-history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        turn,
+        prompt: promptText,
+        responseSummary,
+        persistHistory: true,
+      }),
+    }).catch(() => {
+      // The local entry is already on screen; a lost mirror is not worth
+      // telling the walker about.
+    });
+  };
+
+  /**
+   * Forget everything, here and on the account. A persisted memory the walker
+   * cannot delete is the failure mode this feature has to avoid, so the local
+   * list is cleared whether or not the request lands — the walker asked for
+   * these words gone, and leaving them on screen because a fetch failed reads
+   * as a refusal.
+   */
+  const clearHistory = () => {
+    setScrollback([]);
+    setIsScrollbackOpen(false);
+    setHasPersistedHistory(false);
+
+    if (!isSignedIn) {
+      return;
+    }
+
+    void fetch("/api/prompt-history", { method: "DELETE" }).catch(() => {
+      // Nothing to report: the list the walker was looking at is already gone.
+    });
   };
 
   const extract = async (categoryNeeds?: AttractionCategory[]) => {
@@ -276,6 +402,7 @@ export function PlacePromptPanel({
     const loggedPrompt = categoryNeeds?.length
       ? `${trimmed} — ${categoryNeeds.map((c) => CATEGORY_LABELS[c]).join(", ")}`
       : trimmed;
+    const turn: ExchangeTurn = categoryNeeds?.length ? "chip" : "prompt";
 
     setIsLoading(true);
     setError(null);
@@ -303,7 +430,7 @@ export function PlacePromptPanel({
         throw new Error(data.error ?? "Failed to extract places.");
       }
 
-      logExchange(loggedPrompt, summarizeExtraction(data));
+      logExchange(turn, loggedPrompt, summarizeExtraction(data));
 
       setAttractions(data.attractions ?? []);
       setRemovedIds([]);
@@ -377,7 +504,7 @@ export function PlacePromptPanel({
       // A failed attempt is logged too. "I typed that and it didn't work" is
       // the thing a walker most wants to look back at, and an entry that
       // silently never appears reads as the app losing the request.
-      logExchange(loggedPrompt, message);
+      logExchange(turn, loggedPrompt, message);
     } finally {
       setIsLoading(false);
     }
@@ -441,6 +568,7 @@ export function PlacePromptPanel({
       setFollowUpText("");
 
       logExchange(
+        "follow_up",
         trimmed,
         selectedAttractions.length > 0
           ? `Built a walk through ${selectedAttractions.length} stop${
@@ -468,7 +596,7 @@ export function PlacePromptPanel({
           ? followUpError.message
           : "Failed to read that.";
       setError(message);
-      logExchange(trimmed, message);
+      logExchange("follow_up", trimmed, message);
     } finally {
       setIsLoading(false);
     }
@@ -486,9 +614,9 @@ export function PlacePromptPanel({
         </p>
       </div>
 
-      {/* What has been asked in this session, above the box it was asked in.
-          Collapsed by default: it is context for when you want it, not a
-          transcript the walker has to scroll past to reach the prompt. */}
+      {/* What has been asked, above the box it was asked in. Collapsed by
+          default: it is context for when you want it, not a transcript the
+          walker has to scroll past to reach the prompt. */}
       {scrollback.length > 0 && (
         <div className="rounded-md border border-charcoal/10 bg-cream/50">
           <button
@@ -517,6 +645,20 @@ export function PlacePromptPanel({
                 </li>
               ))}
             </ul>
+          )}
+          {/* Offered only once something has actually been stored: with
+              persistence off, closing the tab is already the clear button, and
+              a control that promises to delete nothing is worse than none. */}
+          {isScrollbackOpen && hasPersistedHistory && (
+            <div className="px-2 pb-2">
+              <button
+                type="button"
+                onClick={clearHistory}
+                className="cursor-pointer text-xs text-charcoal/50 underline hover:text-terra"
+              >
+                Clear history
+              </button>
+            </div>
           )}
         </div>
       )}

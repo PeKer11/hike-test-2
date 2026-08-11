@@ -1295,6 +1295,8 @@ export function WalkPlannerApp({
                   onNotableOnlyDetected={setPromptNotableOnly}
                   onOriginDetected={setPromptOrigin}
                   learnPreferences={walkSettings.preferenceLearningEnabled}
+                  persistHistory={walkSettings.historyPersistenceEnabled}
+                  isSignedIn={isSignedIn}
                   fillRemainingTime={fillPromptWalk}
                   onFillRemainingTimeChange={setFillPromptWalk}
                 />
