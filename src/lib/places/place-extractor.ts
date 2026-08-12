@@ -151,6 +151,13 @@ export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   '"search up to 5km from here" -> searchRadiusKm 5, maxEndDistanceKm null.',
   '"finish within 1km of where I am" -> searchRadiusKm null, maxEndDistanceKm 1.',
   '"תן לי טיול של שעתיים" -> searchRadiusKm null, durationMinutes 120 — a time budget is not a search distance.',
+  "",
+  // Without this rule the model helpfully invents a dog park. Standing facts
+  // are there to disambiguate what the walker asked for, not to add to it.
+  "You may be given standing facts about the walker before their request.",
+  "Standing facts are context for interpreting the request. They never add places or category needs on their own.",
+  "The walker's current text always wins where the two conflict.",
+  'Example: with the fact "does not eat meat" and the request "a walk in Jaffa", return places ["Jaffa"] and categoryNeeds [] — the fact adds nothing to this walk.',
 ].join("\n");
 
 /**

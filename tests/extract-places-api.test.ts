@@ -9,6 +9,7 @@ const mockFetchAttractions = vi.fn();
 const mockGetPreferredCategories = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
 const mockLearnFactsFromText = vi.fn();
+const mockGetStandingFacts = vi.fn();
 
 vi.mock("@/lib/api/gemini-client", () => ({
   // The real `extractPlaceNames` always returns all four fields, so the mock
@@ -42,6 +43,7 @@ vi.mock("@/lib/preferences/preference-store", () => ({
 
 vi.mock("@/lib/preferences/fact-store", () => ({
   learnFactsFromText: (...args: unknown[]) => mockLearnFactsFromText(...args),
+  getStandingFacts: (...args: unknown[]) => mockGetStandingFacts(...args),
 }));
 
 vi.mock("@/lib/api/nominatim-client", () => ({
@@ -1087,5 +1089,126 @@ describe("POST /api/extract-places — standing facts", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).factContradictions).toEqual([]);
     expect(mockLearnPreferencesFromText).toHaveBeenCalled();
+  });
+});
+
+// Step 9: what the walker stands for reaches the model that reads their
+// request. Facts are context for interpreting the words, never an addition to
+// them — the system prompt carries that rule, this covers the plumbing.
+describe("POST /api/extract-places — standing facts in the prompt", () => {
+  const SIGNED_IN = { data: { user: { id: "user-1" } } };
+
+  function fact(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "fact-meat",
+      text: "does not eat meat",
+      key: "does not eat meat",
+      importance: 3,
+      occurrenceCount: 1,
+      lastSeenAt: Date.now(),
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    mockExtractPlaceNames.mockReset();
+    mockExtractPlaceNames.mockResolvedValue({ places: [], contextLocation: null });
+    mockSearchPlaces.mockReset();
+    mockSearchPlaces.mockResolvedValue([]);
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue(SIGNED_IN);
+    mockLearnPreferencesFromText.mockReset();
+    mockLearnPreferencesFromText.mockResolvedValue(null);
+    mockGetPreferredCategories.mockReset();
+    mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDownvotedCategories.mockReset();
+    mockGetDownvotedCategories.mockResolvedValue(new Map());
+    mockLearnFactsFromText.mockReset();
+    mockLearnFactsFromText.mockResolvedValue({ facts: [], contradictions: [] });
+    mockGetStandingFacts.mockReset();
+    mockGetStandingFacts.mockResolvedValue([]);
+  });
+
+  const factsPassed = () => mockExtractPlaceNames.mock.calls[0][1];
+
+  it("hands the extraction what the walker stands for", async () => {
+    mockGetStandingFacts.mockResolvedValue([fact()]);
+
+    await POST(postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }));
+
+    expect(factsPassed()).toEqual([
+      expect.objectContaining({ text: "does not eat meat" }),
+    ]);
+  });
+
+  // The one thing that makes the change safe to ship: a walker with nothing on
+  // record sends the request this endpoint sent before facts existed.
+  it("passes no facts for a walker with none on record", async () => {
+    await POST(postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }));
+
+    expect(factsPassed()).toEqual([]);
+  });
+
+  it("passes no facts when the walker has turned learning off", async () => {
+    mockGetStandingFacts.mockResolvedValue([fact()]);
+
+    await POST(postRequest({ prompt: "a walk in Jaffa", learnPreferences: false }));
+
+    expect(mockGetStandingFacts).not.toHaveBeenCalled();
+    expect(factsPassed()).toEqual([]);
+  });
+
+  it("passes no facts for a walker who is not signed in", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    mockGetStandingFacts.mockResolvedValue([fact()]);
+
+    await POST(postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }));
+
+    expect(mockGetStandingFacts).not.toHaveBeenCalled();
+    expect(factsPassed()).toEqual([]);
+  });
+
+  // A profile read is not worth a failed prompt.
+  it("falls through to a plain extraction when the fact read fails", async () => {
+    mockGetStandingFacts.mockRejectedValue(new Error("boom"));
+
+    const response = await POST(
+      postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(factsPassed()).toEqual([]);
+  });
+
+  // Reading them after the learning pass would let a fact this very sentence
+  // teaches us change how the same sentence is read.
+  it("uses the facts as they stood before this prompt was learned from", async () => {
+    mockGetStandingFacts.mockResolvedValue([fact()]);
+
+    await POST(
+      postRequest({ prompt: "I eat meat again", learnPreferences: true }),
+    );
+
+    expect(mockGetStandingFacts).toHaveBeenCalledBefore(mockLearnFactsFromText);
+  });
+
+  it("leaves out a fact too faded to be worth prompt tokens", async () => {
+    const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+    mockGetStandingFacts.mockResolvedValue([
+      fact({ id: "fresh", text: "does not eat meat", importance: 3 }),
+      fact({
+        id: "faded",
+        text: "prefers quiet streets",
+        key: "prefers quiet streets",
+        importance: 1,
+        lastSeenAt: Date.now() - YEAR_MS,
+      }),
+    ]);
+
+    await POST(postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }));
+
+    expect(factsPassed()).toEqual([
+      expect.objectContaining({ text: "does not eat meat" }),
+    ]);
   });
 });

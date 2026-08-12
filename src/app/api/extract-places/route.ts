@@ -17,6 +17,11 @@ import {
   type GeocodedPlaceName,
 } from "@/lib/places/place-extractor";
 import {
+  selectFactsForPrompt,
+  type StoredFact,
+} from "@/lib/preferences/fact-extractor";
+import {
+  getStandingFacts,
   learnFactsFromText,
   type FactContradiction,
 } from "@/lib/preferences/fact-store";
@@ -27,6 +32,9 @@ import {
   learnPreferencesFromText,
 } from "@/lib/preferences/preference-store";
 import { createClient } from "@/lib/supabase/server";
+
+/** The session-aware server client, as every store on this path takes it. */
+type ServerClient = Awaited<ReturnType<typeof createClient>>;
 import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
 
 interface ExtractPlacesRequest {
@@ -203,10 +211,38 @@ async function findNeedAttractions(
 }
 
 /**
+ * The signed-in walker this request may read from and write to, or null.
+ *
+ * Resolved once and handed to both the fact read and the learning passes: they
+ * are gated on exactly the same thing — a signed-in walker who has left
+ * learning on — and asking Supabase who is calling twice per prompt would buy
+ * nothing. Null covers every reason there is no such walker: the setting is
+ * off, there is no session, or Supabase is not configured at all.
+ */
+async function learningSession(
+  enabled: boolean | undefined,
+): Promise<{ supabase: ServerClient; userId: string } | null> {
+  if (enabled !== true) {
+    return null;
+  }
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    return user ? { supabase, userId: user.id } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Third, optional job of this endpoint: notice who the walker is, not just
  * where they want to go. Runs only for a signed-in walker who has left
  * preference learning on — a logged-out prompt is answered exactly as before,
- * with no session lookup turning into an error and no model call made.
+ * with no model call made.
  *
  * Two passes, run together: the category preferences the text states, and the
  * standing facts it states. They are separate calls because they answer
@@ -218,30 +254,49 @@ async function findNeedAttractions(
  * them must not depend on either write succeeding.
  */
 async function learnFromText(
+  session: { supabase: ServerClient; userId: string } | null,
   prompt: string,
-  enabled: boolean | undefined,
 ): Promise<FactContradiction[]> {
-  if (enabled !== true) {
+  if (!session) {
     return [];
   }
 
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return [];
-    }
-
     const [, learnedFacts] = await Promise.all([
-      learnPreferencesFromText(supabase, user.id, prompt).catch(() => null),
-      learnFactsFromText(supabase, user.id, prompt).catch(() => null),
+      learnPreferencesFromText(session.supabase, session.userId, prompt).catch(
+        () => null,
+      ),
+      learnFactsFromText(session.supabase, session.userId, prompt).catch(
+        () => null,
+      ),
     ]);
 
     return learnedFacts?.contradictions ?? [];
   } catch {
-    // Supabase not configured, no session, or a failed write — all silent.
+    return [];
+  }
+}
+
+/**
+ * The handful of standing facts worth putting in front of the model for this
+ * walker, or none.
+ *
+ * Best effort like every other profile read on this path: no session, or a
+ * failed read, both fall through to an empty list, and the extraction then
+ * sends the request it would have sent before facts existed rather than
+ * failing the prompt.
+ */
+async function standingFactsFor(
+  session: { supabase: ServerClient; userId: string } | null,
+): Promise<StoredFact[]> {
+  if (!session) {
+    return [];
+  }
+
+  try {
+    const facts = await getStandingFacts(session.supabase, session.userId);
+    return selectFactsForPrompt(facts, new Date());
+  } catch {
     return [];
   }
 }
@@ -313,7 +368,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     // not a second way of reading a duration — but nothing else runs, and what
     // the earlier turns established survives whatever this one failed to say.
     if (body.followUp === true) {
-      const followUp = await extractPlaceNames(prompt);
+      const followUp = await extractPlaceNames(
+        prompt,
+        await standingFactsFor(await learningSession(body.learnPreferences)),
+      );
       return NextResponse.json({
         followUp: true,
         // The new answer wins where there is one; where the walker answered
@@ -330,6 +388,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       });
     }
 
+    // Read before the extraction rather than alongside the learning pass
+    // below: these are the facts as they stood when the walker typed, and a
+    // fact this very sentence teaches us has no business changing how the same
+    // sentence is read.
+    const session = await learningSession(body.learnPreferences);
+    const facts = await standingFactsFor(session);
+
     let bias = toBias(body.nearLocation);
     const {
       places,
@@ -340,7 +405,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       notableOnly,
       maxEndDistanceKm,
       searchRadiusKm,
-    } = await extractPlaceNames(prompt);
+    } = await extractPlaceNames(prompt, facts);
 
     // A chip the walker tapped answers the question the text left open, so it
     // stands in for what the model read (nothing) rather than joining it.
@@ -439,7 +504,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       durationMinutes,
     );
 
-    const factContradictions = await learnFromText(prompt, body.learnPreferences);
+    const factContradictions = await learnFromText(session, prompt);
 
     const promptShape = {
       places,

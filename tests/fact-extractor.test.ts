@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildKnownFactsBlock,
+  buildPromptWithFacts,
   FACT_EXTRACTION_SYSTEM_PROMPT,
   findContradicted,
   HALF_LIFE_DAYS,
@@ -415,5 +416,31 @@ describe("FACT_EXTRACTION_SYSTEM_PROMPT", () => {
 
   it("explains what replaces is for", () => {
     expect(FACT_EXTRACTION_SYSTEM_PROMPT).toMatch(/`replaces`/);
+  });
+});
+
+describe("buildPromptWithFacts", () => {
+  it("puts the facts in front of the request, each on its own line", () => {
+    const contents = buildPromptWithFacts("a walk in Jaffa", [
+      fact({ text: "does not eat meat" }),
+      fact({ text: "always walks with a dog" }),
+    ]);
+
+    expect(contents).toBe(
+      [
+        "Standing facts about this walker:",
+        "- does not eat meat",
+        "- always walks with a dog",
+        "",
+        "Request:",
+        "a walk in Jaffa",
+      ].join("\n"),
+    );
+  });
+
+  // The one property that makes step 9 safe to ship: a walker with nothing on
+  // record sends byte-identical contents to what was sent before facts existed.
+  it("is the prompt itself, unchanged, when there are no facts", () => {
+    expect(buildPromptWithFacts("a walk in Jaffa", [])).toBe("a walk in Jaffa");
   });
 });

@@ -115,6 +115,33 @@ export function buildKnownFactsBlock(facts: StoredFact[]): string {
 }
 
 /**
+ * The walker's request with their standing facts in front of it, as the
+ * `contents` of a place-extraction call.
+ *
+ * Goes in the user contents rather than the system instruction on purpose: the
+ * system instruction is shared across every walker and is the cacheable half,
+ * while this is per-user text. With no facts the return value is the prompt
+ * itself, unchanged — which is what makes the injection safe to ship, since a
+ * walker with nothing on record sends byte-identical requests to before.
+ */
+export function buildPromptWithFacts(
+  prompt: string,
+  facts: StoredFact[],
+): string {
+  if (facts.length === 0) {
+    return prompt;
+  }
+
+  return [
+    "Standing facts about this walker:",
+    ...facts.map((fact) => `- ${fact.text}`),
+    "",
+    "Request:",
+    prompt,
+  ].join("\n");
+}
+
+/**
  * The dedupe identity of a fact: lowercased, combining marks stripped,
  * punctuation dropped, whitespace collapsed. "Does not eat meat!" and
  * "does not eat  meat" are one fact.

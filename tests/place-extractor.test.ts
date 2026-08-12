@@ -826,3 +826,19 @@ describe("isAreaOnlyPrompt", () => {
     ).toBe(false);
   });
 });
+
+// Step 9 of docs/persisted-history-design.md. Without this rule the model
+// helpfully invents a dog park off "always walks with a dog".
+describe("PLACE_EXTRACTION_SYSTEM_PROMPT — standing facts", () => {
+  it("says facts never add places or category needs on their own", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toMatch(
+      /never add places or category needs/i,
+    );
+  });
+
+  it("says the walker's current text wins over a stored fact", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toMatch(
+      /current text always wins/i,
+    );
+  });
+});

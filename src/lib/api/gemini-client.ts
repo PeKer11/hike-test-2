@@ -11,6 +11,7 @@ import {
 } from "@/lib/places/place-extractor";
 import {
   buildKnownFactsBlock,
+  buildPromptWithFacts,
   FACT_EXTRACTION_SYSTEM_PROMPT,
   parseStandingFacts,
   type ExtractedFact,
@@ -188,15 +189,24 @@ function apiKeyOrThrow(): string {
  * along with the area they sit in, how long the walk is, and any kind of stop
  * asked for without a name. Uses JSON mode with a response schema so the answer
  * arrives as structured JSON instead of prose we would have to regex.
+ *
+ * `facts` is what the walker is on record as standing for — dietary rules,
+ * mobility limits, who they walk with. They are context for reading the
+ * request, never an addition to it (see the rule at the end of
+ * `PLACE_EXTRACTION_SYSTEM_PROMPT`), and they ride in the user contents rather
+ * than the system instruction because the instruction is shared across walkers
+ * and is the half worth caching. With none, the request sent is byte-identical
+ * to the one this function sent before facts existed.
  */
 export async function extractPlaceNames(
   prompt: string,
+  facts: StoredFact[] = [],
 ): Promise<PlaceExtraction> {
   const client = new GoogleGenAI({ apiKey: apiKeyOrThrow() });
 
   const response = await client.models.generateContent({
     model: MODEL,
-    contents: prompt,
+    contents: buildPromptWithFacts(prompt, facts),
     config: {
       systemInstruction: PLACE_EXTRACTION_SYSTEM_PROMPT,
       responseMimeType: "application/json",
