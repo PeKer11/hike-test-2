@@ -1309,6 +1309,7 @@ export function WalkPlannerApp({
                 />
               )}
               <WalkCompanionPanel
+                isSignedIn={isSignedIn}
                 isLoading={isWalkPlanLoading}
                 onBuildWalk={(input) => {
                   void handleBuildWalk(

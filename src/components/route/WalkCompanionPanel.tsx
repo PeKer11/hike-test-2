@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Button, Card, LoadingSpinner } from "@/components/ui";
+import { StandingFactsPanel } from "@/components/StandingFactsPanel";
 import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
 import type { WalkSettings } from "@/lib/types/walk-settings";
@@ -28,6 +29,8 @@ interface WalkCompanionPanelProps {
   isLoading: boolean;
   onBuildWalk: (input: WalkCompanionInput) => void;
   walkSettings: WalkSettings;
+  /** Whether there is an account holding standing facts to show. */
+  isSignedIn?: boolean;
   onWalkSettingsChange: (s: Partial<WalkSettings>) => void;
   mapClickedCoords?: Coordinates | null;
   /**
@@ -122,6 +125,7 @@ export function WalkCompanionPanel({
   isLoading,
   onBuildWalk,
   walkSettings,
+  isSignedIn = false,
   onWalkSettingsChange,
   mapClickedCoords,
   suggestedMinutes,
@@ -481,6 +485,14 @@ export function WalkCompanionPanel({
 
       {/* Walk settings */}
       <WalkSettingsPanel settings={walkSettings} onChange={onWalkSettingsChange} />
+
+      {/* What the app has picked up about the walker, and how to take it back.
+          Sits with the settings because that is where someone goes to ask
+          "what does this thing know about me?". */}
+      <StandingFactsPanel
+        isSignedIn={isSignedIn}
+        learnPreferences={walkSettings.preferenceLearningEnabled}
+      />
 
       {formError && (
         <p className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">

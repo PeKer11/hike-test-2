@@ -9,6 +9,7 @@ import {
   type StoredExchange,
 } from "@/lib/history/exchange";
 import { MAX_CATEGORY_NEEDS } from "@/lib/places/place-extractor";
+import type { FactContradiction } from "@/lib/preferences/fact-extractor";
 import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
 
 interface ExtractPlacesResponse {
@@ -34,6 +35,8 @@ interface ExtractPlacesResponse {
   areaOnlyPrompt?: boolean;
   /** Echoed back so a follow-up turn can see its own categories survived. */
   categoryNeeds?: AttractionCategory[];
+  /** Standing facts this prompt reversed. Already applied — see below. */
+  factContradictions?: FactContradiction[];
   error?: string;
 }
 
@@ -277,6 +280,18 @@ export function PlacePromptPanel({
   // a locally-logged entry that was never persisted is not.
   const [hasPersistedHistory, setHasPersistedHistory] = useState(false);
 
+  /**
+   * A standing fact this prompt reversed, waiting on the walker's word.
+   *
+   * The reversal has already been applied — the newest statement wins, which is
+   * the fallback for a walker who says nothing, closes the tab, or simply walks
+   * on. This is the offer to undo it, not a question blocking the walk: the
+   * stops are already on screen behind it.
+   */
+  const [contradiction, setContradiction] = useState<FactContradiction | null>(
+    null,
+  );
+
   const persistenceOn = persistHistory && isSignedIn;
 
   /**
@@ -390,6 +405,32 @@ export function PlacePromptPanel({
     });
   };
 
+  /**
+   * The walker says we read them wrong: put the old fact back and drop the one
+   * that replaced it. The note is dismissed either way — a failed undo is not
+   * something to make them try again mid-walk-planning, and the fact list in
+   * settings is where it can be sorted out properly.
+   */
+  const undoContradiction = () => {
+    const pending = contradiction;
+    setContradiction(null);
+    if (!pending) {
+      return;
+    }
+
+    void fetch("/api/standing-facts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "restore",
+        supersededFactId: pending.supersededFactId,
+        newFactId: pending.newFactId,
+      }),
+    }).catch(() => {
+      // Nothing to report here; the walker can delete the fact from settings.
+    });
+  };
+
   const extract = async (categoryNeeds?: AttractionCategory[]) => {
     const trimmed = prompt.trim();
     if (!trimmed) {
@@ -431,6 +472,10 @@ export function PlacePromptPanel({
       }
 
       logExchange(turn, loggedPrompt, summarizeExtraction(data));
+
+      // One at a time. Two reversals in one sentence is rare enough that
+      // stacking confirmations for them would cost more than it saves.
+      setContradiction(data.factContradictions?.[0] ?? null);
 
       setAttractions(data.attractions ?? []);
       setRemovedIds([]);
@@ -613,6 +658,35 @@ export function PlacePromptPanel({
           walk around them.
         </p>
       </div>
+
+      {/* A standing fact this prompt reversed. Deliberately an inline note
+          rather than a modal: the app has already acted on what the walker just
+          said, and this only offers to take that back. Ignoring it is a valid
+          answer — the newest statement stands. */}
+      {contradiction && (
+        <div className="space-y-1 rounded-md border border-terra/30 bg-terra/5 px-2 py-1.5 text-xs">
+          <p className="text-charcoal/80">
+            Updated what I remember: &ldquo;{contradiction.supersededText}
+            &rdquo; → &ldquo;{contradiction.newText}&rdquo;
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={undoContradiction}
+              className="cursor-pointer underline text-charcoal/60 hover:text-terra"
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              onClick={() => setContradiction(null)}
+              className="cursor-pointer text-charcoal/40 hover:text-forest"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* What has been asked, above the box it was asked in. Collapsed by
           default: it is context for when you want it, not a transcript the

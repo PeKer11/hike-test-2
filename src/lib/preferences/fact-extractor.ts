@@ -55,6 +55,26 @@ export interface ExtractedFact {
   replaces: string | null;
 }
 
+ /**
+ * A fact that was retired because the walker said the opposite of it, and the
+ * fact that retired it.
+ *
+ * Ariel's call on the design doc's open question, layered: the newest statement
+ * wins immediately — nothing waits on an answer — and the walker is handed this
+ * so the UI can offer the reversal. Say nothing and the new fact simply stands,
+ * which is the "keep the latest" fallback; accept the offer and the old fact
+ * comes back.
+ *
+ * Lives in the pure module rather than in `fact-store.ts` so the panel that
+ * renders the offer can name the type without importing a `server-only` module.
+ */
+export interface FactContradiction {
+  supersededFactId: string;
+  supersededText: string;
+  newFactId: string;
+  newText: string;
+}
+
 /** One fact as it comes back out of the database. */
 export interface StoredFact {
   id: string;

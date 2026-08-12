@@ -1539,3 +1539,148 @@ describe("PlacePromptPanel — persisted history", () => {
     expect(screen.queryByRole("button", { name: "Clear history" })).toBeNull();
   });
 });
+
+// Ariel's layered answer to a contradicted fact: the newest statement has
+// already won, and this is the offer to take that back. Ignoring it is a valid
+// answer, which is why it is a note and not a modal.
+describe("PlacePromptPanel — a contradicted standing fact", () => {
+  const CONTRADICTION = {
+    supersededFactId: "fact-old",
+    supersededText: "does not eat meat",
+    newFactId: "fact-new",
+    newText: "eats meat",
+  };
+
+  interface Call {
+    url: string;
+    method: string;
+    body: unknown;
+  }
+
+  function stubApi(factContradictions: unknown[] = []) {
+    const calls: Call[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({
+          url,
+          method: init?.method ?? "GET",
+          body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
+        });
+
+        if (url === "/api/standing-facts") {
+          return { ok: true, json: async () => ({ restored: true }) };
+        }
+
+        return {
+          ok: true,
+          json: async () => ({
+            attractions: FOUND,
+            unresolvedNames: [],
+            factContradictions,
+          }),
+        };
+      }),
+    );
+
+    return calls;
+  }
+
+  function renderPanel() {
+    render(
+      <PlacePromptPanel
+        nearLocation={null}
+        acceptedAttractions={null}
+        onAcceptAttractions={vi.fn()}
+        onPreview={vi.fn()}
+        onFoundPlacesChange={vi.fn()}
+        learnPreferences
+      />,
+    );
+  }
+
+  function sendPrompt(text: string) {
+    fireEvent.change(screen.getByRole("textbox", { name: "" }), {
+      target: { value: text },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
+  }
+
+  it("tells the walker what it changed, in both directions", async () => {
+    stubApi([CONTRADICTION]);
+    renderPanel();
+    sendPrompt("I eat meat again");
+
+    const note = await screen.findByText(/Updated what I remember/);
+
+    expect(note.textContent).toContain("does not eat meat");
+    expect(note.textContent).toContain("eats meat");
+  });
+
+  it("says nothing for a prompt that contradicted nothing", async () => {
+    stubApi([]);
+    renderPanel();
+    sendPrompt("a walk in Jaffa");
+
+    await screen.findByText("מדרחוב");
+    expect(screen.queryByText(/Updated what I remember/)).toBeNull();
+  });
+
+  // The walk is not held up by the question — the stops arrive regardless.
+  it("does not block the stops it found", async () => {
+    stubApi([CONTRADICTION]);
+    renderPanel();
+    sendPrompt("I eat meat again, walk me round Jaffa");
+
+    expect(await screen.findByText("מדרחוב")).toBeTruthy();
+  });
+
+  it("asks for the old fact back when the walker undoes it", async () => {
+    const calls = stubApi([CONTRADICTION]);
+    renderPanel();
+    sendPrompt("I eat meat again");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Updated what I remember/)).toBeNull();
+    });
+    expect(
+      calls.find((call) => call.url === "/api/standing-facts")?.body,
+    ).toEqual({
+      action: "restore",
+      supersededFactId: "fact-old",
+      newFactId: "fact-new",
+    });
+  });
+
+  // The keep-latest fallback. Dismissing changes nothing, because the newest
+  // statement already won when the fact was written.
+  it("changes nothing when the walker just acknowledges it", async () => {
+    const calls = stubApi([CONTRADICTION]);
+    renderPanel();
+    sendPrompt("I eat meat again");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Got it" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Updated what I remember/)).toBeNull();
+    });
+    expect(calls.some((call) => call.url === "/api/standing-facts")).toBe(false);
+  });
+
+  it("replaces an unanswered note with the next prompt's, rather than stacking", async () => {
+    stubApi([CONTRADICTION]);
+    renderPanel();
+    sendPrompt("I eat meat again");
+    await screen.findByText(/Updated what I remember/);
+
+    stubApi([]);
+    sendPrompt("a walk in Jaffa");
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Updated what I remember/)).toBeNull();
+    });
+  });
+});

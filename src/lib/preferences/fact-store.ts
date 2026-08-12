@@ -9,9 +9,12 @@ import {
   normalizeFactKey,
   weakestFact,
   type ExtractedFact,
+  type FactContradiction,
   type FactImportance,
   type StoredFact,
 } from "./fact-extractor";
+
+export type { FactContradiction };
 
 // The session-aware server client, exactly as `preference-store.ts` takes it.
 // RLS is what enforces "own rows only"; there is no service-role client here.
@@ -24,23 +27,6 @@ const MAX_LEARNING_TEXT_LENGTH = 1000;
 
 const FACT_COLUMNS =
   "id, fact_text, fact_key, importance, occurrence_count, last_seen_at";
-
-/**
- * A fact that was retired because the walker said the opposite of it, and the
- * fact that retired it.
- *
- * Ariel's call on the design doc's open question, layered: the newest statement
- * wins immediately — nothing waits on an answer — and the walker is handed this
- * so the UI can offer the reversal. Say nothing and the new fact simply stands,
- * which is the "keep the latest" fallback; tap the offer and
- * `restoreSupersededFact` puts the old one back.
- */
-export interface FactContradiction {
-  supersededFactId: string;
-  supersededText: string;
-  newFactId: string;
-  newText: string;
-}
 
 export interface FactLearningResult {
   /** What the walker is on record as saying after this text was read. */
