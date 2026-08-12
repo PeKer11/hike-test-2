@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { learnFactsFromText } from "@/lib/preferences/fact-store";
 import { ATTRACTION_CATEGORIES } from "@/lib/preferences/preference-extractor";
 import type { AttractionCategory } from "@/lib/types";
 import {
@@ -148,15 +149,21 @@ export async function POST(request: Request): Promise<NextResponse> {
       ...(await saveWalkFeedback(supabase, user.id, "downvote", downvoted)),
     ];
 
-    const learned = comment
-      ? await learnPreferencesFromText(supabase, user.id, comment)
-      : null;
+    // Both passes over the same comment box, exactly as the prompt route runs
+    // them: what the walker likes, and what is true about them.
+    const [learned, learnedFacts] = comment
+      ? await Promise.all([
+          learnPreferencesFromText(supabase, user.id, comment).catch(() => null),
+          learnFactsFromText(supabase, user.id, comment).catch(() => null),
+        ])
+      : [null, null];
 
     return NextResponse.json({
       saved: true,
       poisRecorded,
       categoriesRecorded,
       preferredCategories: learned,
+      factContradictions: learnedFacts?.contradictions ?? [],
     });
   } catch (error) {
     const message =

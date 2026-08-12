@@ -16,6 +16,10 @@ import {
   suggestClarificationCategories,
   type GeocodedPlaceName,
 } from "@/lib/places/place-extractor";
+import {
+  learnFactsFromText,
+  type FactContradiction,
+} from "@/lib/preferences/fact-store";
 import { ATTRACTION_CATEGORIES } from "@/lib/preferences/preference-extractor";
 import {
   getDownvotedCategories,
@@ -199,20 +203,26 @@ async function findNeedAttractions(
 }
 
 /**
- * Third, optional job of this endpoint: notice what the walker likes, not just
+ * Third, optional job of this endpoint: notice who the walker is, not just
  * where they want to go. Runs only for a signed-in walker who has left
  * preference learning on — a logged-out prompt is answered exactly as before,
  * with no session lookup turning into an error and no model call made.
  *
+ * Two passes, run together: the category preferences the text states, and the
+ * standing facts it states. They are separate calls because they answer
+ * different questions — "I love museums" is a preference and belongs to the
+ * category mechanism, "I don't eat meat" is a fact and deliberately does not
+ * map onto a category at all.
+ *
  * Nothing here can fail the request: the walker asked for places, and getting
- * them must not depend on the profile write succeeding.
+ * them must not depend on either write succeeding.
  */
-async function learnPreferences(
+async function learnFromText(
   prompt: string,
   enabled: boolean | undefined,
-): Promise<void> {
+): Promise<FactContradiction[]> {
   if (enabled !== true) {
-    return;
+    return [];
   }
 
   try {
@@ -221,12 +231,18 @@ async function learnPreferences(
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      return;
+      return [];
     }
 
-    await learnPreferencesFromText(supabase, user.id, prompt);
+    const [, learnedFacts] = await Promise.all([
+      learnPreferencesFromText(supabase, user.id, prompt).catch(() => null),
+      learnFactsFromText(supabase, user.id, prompt).catch(() => null),
+    ]);
+
+    return learnedFacts?.contradictions ?? [];
   } catch {
     // Supabase not configured, no session, or a failed write — all silent.
+    return [];
   }
 }
 
@@ -423,7 +439,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       durationMinutes,
     );
 
-    await learnPreferences(prompt, body.learnPreferences);
+    const factContradictions = await learnFromText(prompt, body.learnPreferences);
 
     const promptShape = {
       places,
@@ -461,6 +477,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       // Reported so a need that found nothing is still visible when debugging —
       // no UI reads this yet.
       categoryNeeds: effectiveNeeds,
+      // Standing facts this prompt reversed. The reversal has already been
+      // applied — the newest statement wins by default — so this is here for
+      // the panel to offer the undo, not to ask permission.
+      factContradictions,
       // The walker named a place and nothing else. The walk is still built and
       // returned — this only offers to make it a walk about something.
       needsClarification: clarificationCategories !== null,

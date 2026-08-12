@@ -10,6 +10,13 @@ import {
   type PlaceExtraction,
 } from "@/lib/places/place-extractor";
 import {
+  buildKnownFactsBlock,
+  FACT_EXTRACTION_SYSTEM_PROMPT,
+  parseStandingFacts,
+  type ExtractedFact,
+  type StoredFact,
+} from "@/lib/preferences/fact-extractor";
+import {
   ATTRACTION_CATEGORIES,
   parseCategoryPreferences,
   PREFERENCE_EXTRACTION_SYSTEM_PROMPT,
@@ -128,6 +135,44 @@ const PREFERENCES_SCHEMA: Schema = {
   required: ["preferences"],
 };
 
+const FACTS_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    facts: {
+      type: Type.ARRAY,
+      description:
+        "Standing facts about the walker that outlive this one walk. Usually empty.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          text: {
+            type: Type.STRING,
+            description:
+              "The fact in short third person, at most 80 characters.",
+          },
+          importance: {
+            type: Type.INTEGER,
+            description:
+              "3 a hard constraint the walk must respect, 2 a persistent habit, 1 a soft leaning.",
+          },
+          // Nullable rather than omitted-when-absent for the same reason
+          // `contextLocation` is: an explicit null is the common answer, and
+          // asking the model to leave a field out is a weaker instruction than
+          // asking it to say "nothing".
+          replaces: {
+            type: Type.STRING,
+            nullable: true,
+            description:
+              "The exact text of a known fact this one contradicts, or null.",
+          },
+        },
+        required: ["text", "importance"],
+      },
+    },
+  },
+  required: ["facts"],
+};
+
 function apiKeyOrThrow(): string {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -225,4 +270,44 @@ export async function extractCategoryPreferences(
   });
 
   return parseCategoryPreferences(response.text ?? "");
+}
+
+/**
+ * Pull the standing facts out of free text — the things about a walker that
+ * outlive any one walk, as opposed to the category preferences above.
+ *
+ * A separate call from `extractCategoryPreferences` for the same reason that
+ * one is separate from `extractPlaceNames`, and a separate call from
+ * `extractPlaceNames` for a stronger one: place extraction runs for everyone
+ * including logged-out walkers, and this runs only for a signed-in walker with
+ * learning left on. Folding them together would make every anonymous prompt pay
+ * for a field nobody reads.
+ *
+ * `knownFacts` is what the walker is already on record as saying, and it is
+ * here so the model can mark a statement that reverses one of them. With an
+ * empty list the request sent is byte-identical to one made before
+ * contradiction detection existed.
+ */
+export async function extractStandingFacts(
+  text: string,
+  knownFacts: StoredFact[] = [],
+): Promise<ExtractedFact[]> {
+  const client = new GoogleGenAI({ apiKey: apiKeyOrThrow() });
+
+  const known = buildKnownFactsBlock(knownFacts);
+
+  const response = await client.models.generateContent({
+    model: MODEL,
+    // Per-user text belongs in `contents`; the system instruction stays a
+    // module constant, which is the half worth caching across walkers.
+    contents: known ? `${known}Text:\n${text}` : text,
+    config: {
+      systemInstruction: FACT_EXTRACTION_SYSTEM_PROMPT,
+      responseMimeType: "application/json",
+      responseSchema: FACTS_SCHEMA,
+      maxOutputTokens: 256,
+    },
+  });
+
+  return parseStandingFacts(response.text ?? "");
 }

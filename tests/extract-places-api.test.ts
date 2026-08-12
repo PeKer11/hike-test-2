@@ -8,6 +8,7 @@ const mockLearnPreferencesFromText = vi.fn();
 const mockFetchAttractions = vi.fn();
 const mockGetPreferredCategories = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
+const mockLearnFactsFromText = vi.fn();
 
 vi.mock("@/lib/api/gemini-client", () => ({
   // The real `extractPlaceNames` always returns all four fields, so the mock
@@ -37,6 +38,10 @@ vi.mock("@/lib/preferences/preference-store", () => ({
     mockGetPreferredCategories(...args),
   getDownvotedCategories: (...args: unknown[]) =>
     mockGetDownvotedCategories(...args),
+}));
+
+vi.mock("@/lib/preferences/fact-store", () => ({
+  learnFactsFromText: (...args: unknown[]) => mockLearnFactsFromText(...args),
 }));
 
 vi.mock("@/lib/api/nominatim-client", () => ({
@@ -987,5 +992,100 @@ describe("POST /api/extract-places — the follow-up turn", () => {
 
     expect(response.status).toBe(400);
     expect(mockExtractPlaceNames).not.toHaveBeenCalled();
+  });
+});
+
+// The standing-fact pass rides alongside the preference pass under the same
+// gate. Both are side effects of a request the walker made for places.
+describe("POST /api/extract-places — standing facts", () => {
+  const SIGNED_IN = { data: { user: { id: "user-1" } } };
+
+  beforeEach(() => {
+    mockExtractPlaceNames.mockReset();
+    mockExtractPlaceNames.mockResolvedValue({ places: [], contextLocation: null });
+    mockSearchPlaces.mockReset();
+    mockSearchPlaces.mockResolvedValue([]);
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue(SIGNED_IN);
+    mockLearnPreferencesFromText.mockReset();
+    mockLearnPreferencesFromText.mockResolvedValue(null);
+    mockGetPreferredCategories.mockReset();
+    mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDownvotedCategories.mockReset();
+    mockGetDownvotedCategories.mockResolvedValue(new Map());
+    mockLearnFactsFromText.mockReset();
+    mockLearnFactsFromText.mockResolvedValue({ facts: [], contradictions: [] });
+  });
+
+  it("reads the prompt for facts as well as preferences", async () => {
+    await POST(
+      postRequest({ prompt: "I don't eat meat", learnPreferences: true }),
+    );
+
+    expect(mockLearnFactsFromText).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+      "I don't eat meat",
+    );
+    expect(mockLearnPreferencesFromText).toHaveBeenCalled();
+  });
+
+  it("reads no facts when the walker has turned learning off", async () => {
+    await POST(
+      postRequest({ prompt: "I don't eat meat", learnPreferences: false }),
+    );
+
+    expect(mockLearnFactsFromText).not.toHaveBeenCalled();
+  });
+
+  it("reads no facts for a walker who is not signed in", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+
+    await POST(
+      postRequest({ prompt: "I don't eat meat", learnPreferences: true }),
+    );
+
+    expect(mockLearnFactsFromText).not.toHaveBeenCalled();
+  });
+
+  it("reports a contradiction so the panel can offer the undo", async () => {
+    const contradiction = {
+      supersededFactId: "fact-1",
+      supersededText: "does not eat meat",
+      newFactId: "fact-2",
+      newText: "eats meat",
+    };
+    mockLearnFactsFromText.mockResolvedValue({
+      facts: [],
+      contradictions: [contradiction],
+    });
+
+    const response = await POST(
+      postRequest({ prompt: "I eat meat again", learnPreferences: true }),
+    );
+
+    expect((await response.json()).factContradictions).toEqual([contradiction]);
+  });
+
+  it("reports no contradictions for an ordinary prompt", async () => {
+    const response = await POST(
+      postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }),
+    );
+
+    expect((await response.json()).factContradictions).toEqual([]);
+  });
+
+  // The walker asked for places. Getting them must not depend on a profile
+  // write, and a failed fact pass must not cost the preference pass either.
+  it("still answers the prompt when the fact pass fails", async () => {
+    mockLearnFactsFromText.mockRejectedValue(new Error("gemini 429"));
+
+    const response = await POST(
+      postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }),
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).factContradictions).toEqual([]);
+    expect(mockLearnPreferencesFromText).toHaveBeenCalled();
   });
 });
