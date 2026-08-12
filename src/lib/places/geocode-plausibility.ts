@@ -12,6 +12,8 @@
  * Yaakov" → "France") and nothing subtler.
  */
 
+import { stripCombiningMarks } from "@/lib/utils/text";
+
 /**
  * Words that carry no identity: present in half of all addresses, so an
  * overlap on one of them is not evidence of anything.
@@ -41,11 +43,7 @@ const MIN_TOKEN_LENGTH = 3;
 const MIN_CONTAINMENT_LENGTH = 4;
 
 function significantTokens(value: string): string[] {
-  return value
-    .normalize("NFD")
-    // Strips Latin accents and Hebrew niqqud in one pass: both are combining
-    // marks, so "Zürich" and "זִכְרוֹן" reduce to their bare letters.
-    .replace(/\p{M}+/gu, "")
+  return stripCombiningMarks(value)
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter(
