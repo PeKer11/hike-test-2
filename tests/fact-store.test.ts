@@ -57,9 +57,46 @@ function fakeFactsTable(
 
       if (mode === "delete") {
         if (reject.delete) return { data: null, error: new Error("delete") };
-        for (const row of matching()) {
-          rows.splice(rows.indexOf(row), 1);
+
+        const toDelete = matching();
+        const deletedIds = new Set(toDelete.map((row) => row.id));
+
+        // Mirrors the real migration's `on delete set null` on
+        // `superseded_by`, and its `standing_facts_supersede_shape` check —
+        // both fire as part of the same delete statement. Simulated on a copy
+        // first, the same as a real transaction: a row left with
+        // `superseded_at` set but `superseded_by` nulled by the cascade fails
+        // the same way Postgres fails it, so a store function that deletes
+        // the successor before clearing the retired row's own columns is
+        // caught here instead of only against the real database.
+        const survivors = rows
+          .filter((row) => !deletedIds.has(row.id))
+          .map((row) => ({ ...row }));
+        for (const row of survivors) {
+          if (deletedIds.has(row.superseded_by)) {
+            row.superseded_by = null;
+          }
         }
+        // Loose nullish checks on purpose: `storedRow()` fixtures leave
+        // `superseded_by` as `undefined` rather than explicitly `null`, the
+        // same as a row Postgres returns before either column is ever set.
+        const violated = survivors.some(
+          (row) => (row.superseded_at == null) !== (row.superseded_by == null),
+        );
+        if (violated) {
+          return {
+            data: null,
+            error: Object.assign(
+              new Error(
+                'new row for relation "standing_facts" violates check constraint "standing_facts_supersede_shape"',
+              ),
+              { code: "23514" },
+            ),
+          };
+        }
+
+        rows.length = 0;
+        rows.push(...survivors);
         return { data: null, error: null };
       }
 
@@ -587,9 +624,9 @@ describe("restoreSupersededFact", () => {
     });
   });
 
-  it("leaves the retired fact retired when the successor cannot be deleted", async () => {
+  it("does not touch either row when the retired fact cannot be un-superseded", async () => {
     const { client, rows } = fakeFactsTable([RETIRED, SUCCESSOR], {
-      delete: true,
+      update: true,
     });
 
     expect(
@@ -598,5 +635,25 @@ describe("restoreSupersededFact", () => {
     expect(rows.find((row) => row.id === "fact-meat")?.superseded_at).toBe(
       "2026-08-12T09:00:00.000Z",
     );
+    expect(rows.find((row) => row.id === "fact-new")).toBeDefined();
+  });
+
+  it("still un-supersedes the retired fact when the successor cannot then be deleted", async () => {
+    // The two writes are separate round-trips, not one transaction — a walker
+    // who hits this gets their fact back with the successor still on record
+    // rather than the restore appearing to do nothing, which is the failure
+    // this whole fix replaced. Rare in practice: the delete that follows a
+    // just-succeeded update almost never fails.
+    const { client, rows } = fakeFactsTable([RETIRED, SUCCESSOR], {
+      delete: true,
+    });
+
+    expect(
+      await restoreSupersededFact(client, "user-1", "fact-meat", "fact-new"),
+    ).toBe(false);
+    expect(
+      rows.find((row) => row.id === "fact-meat")?.superseded_at,
+    ).toBeNull();
+    expect(rows.find((row) => row.id === "fact-new")).toBeDefined();
   });
 });

@@ -344,9 +344,14 @@ export async function deleteFact(
  *
  * This is the half of Ariel's layered answer that needs an explicit "yes" —
  * the app has already acted on the newest statement, and this is the walker
- * saying it read them wrong. Order matters: the successor is deleted first so
- * the restore cannot briefly leave both facts active, and the foreign key's
- * `on delete set null` clears the pointer either way.
+ * saying it read them wrong. Order matters, and the other way around than it
+ * looks: the superseded row is un-superseded FIRST, deletion SECOND. Deleting
+ * the successor first was tried and always fails — the row's own
+ * `on delete set null` clears `superseded_by` as part of that same delete
+ * statement, but `superseded_at` is still set at that instant, which trips
+ * `standing_facts_supersede_shape` before this function's own update ever
+ * runs. Clearing both columns here first keeps the row valid on its own, so
+ * the delete that follows has nothing left to cascade into.
  */
 export async function restoreSupersededFact(
   supabase: ServerClient,
@@ -355,18 +360,17 @@ export async function restoreSupersededFact(
   newFactId: string,
 ): Promise<boolean> {
   try {
-    const deleted = await deleteFact(supabase, userId, newFactId);
-    if (!deleted) {
-      return false;
-    }
-
-    const { error } = await supabase
+    const { error: restoreError } = await supabase
       .from("standing_facts")
       .update({ superseded_at: null, superseded_by: null })
       .eq("id", supersededFactId)
       .eq("user_id", userId);
 
-    return !error;
+    if (restoreError) {
+      return false;
+    }
+
+    return await deleteFact(supabase, userId, newFactId);
   } catch {
     return false;
   }
