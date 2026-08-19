@@ -75,19 +75,52 @@ export function StandingFactsPanel({
     };
   }, [isSignedIn]);
 
+  // A delete the account refused. Named so the walker can see which one.
+  const [forgetError, setForgetError] = useState<string | null>(null);
+
   /**
    * Dropped locally first and then on the account. The walker asked for the
    * fact gone; leaving it on screen while a request is in flight reads as
    * hesitation about whether they meant it.
+   *
+   * But a delete that fails has to come back. This is not a best-effort mirror
+   * of something already true locally — the fact still exists, and it still
+   * goes in front of the model on every walk the walker builds from here. A
+   * row quietly surviving a ✕ the walker watched land is the same class of bug
+   * as Undo silently doing nothing, and it lasts longer.
    */
   const forget = (factId: string) => {
+    const removed = facts.find((fact) => fact.id === factId);
     setFacts((current) => current.filter((fact) => fact.id !== factId));
+    setForgetError(null);
 
-    void fetch(`/api/standing-facts?id=${encodeURIComponent(factId)}`, {
-      method: "DELETE",
-    }).catch(() => {
-      // Nothing to report: the row the walker was looking at is already gone.
-    });
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/standing-facts?id=${encodeURIComponent(factId)}`,
+          { method: "DELETE" },
+        );
+        if (res.ok) {
+          return;
+        }
+      } catch {
+        // Offline, or the route is not there. Same outcome as a refused
+        // delete: the fact is still on the account.
+      }
+
+      if (removed) {
+        // Back where it was — the list is newest-heard first, the same order
+        // the route hands it over in.
+        setFacts((current) =>
+          [...current, removed].sort((a, b) => b.lastSeenAt - a.lastSeenAt),
+        );
+      }
+      setForgetError(
+        removed
+          ? `Couldn't forget "${removed.text}" — it's still on your account. Try again.`
+          : "Couldn't forget that one. Try again.",
+      );
+    })();
   };
 
   if (!isSignedIn || facts.length === 0) {
@@ -131,6 +164,14 @@ export function StandingFactsPanel({
               </li>
             ))}
           </ul>
+          {forgetError && (
+            <p
+              role="alert"
+              className="rounded-md bg-rose-50 px-2 py-1.5 text-xs text-rose-700"
+            >
+              {forgetError}
+            </p>
+          )}
           <p className="text-xs text-charcoal/60">
             {learnPreferences
               ? "These shape how we read what you ask for. Delete anything that isn't true."

@@ -291,6 +291,8 @@ export function PlacePromptPanel({
   const [contradiction, setContradiction] = useState<FactContradiction | null>(
     null,
   );
+  // An Undo the account refused. Shown in place of the note it dismissed.
+  const [undoFailed, setUndoFailed] = useState(false);
 
   const persistenceOn = persistHistory && isSignedIn;
 
@@ -410,25 +412,42 @@ export function PlacePromptPanel({
    * that replaced it. The note is dismissed either way — a failed undo is not
    * something to make them try again mid-walk-planning, and the fact list in
    * settings is where it can be sorted out properly.
+   *
+   * What is not acceptable is a failed undo looking exactly like one that
+   * worked. That is how `restoreSupersededFact` failed on every real call
+   * without anyone noticing: this only ever caught a network-level throw, and
+   * the route answered 200 whether the write landed or not. A refusal now says
+   * so, and points at the one place the walker can actually finish the job.
    */
   const undoContradiction = () => {
     const pending = contradiction;
     setContradiction(null);
+    setUndoFailed(false);
     if (!pending) {
       return;
     }
 
-    void fetch("/api/standing-facts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "restore",
-        supersededFactId: pending.supersededFactId,
-        newFactId: pending.newFactId,
-      }),
-    }).catch(() => {
-      // Nothing to report here; the walker can delete the fact from settings.
-    });
+    void (async () => {
+      try {
+        const res = await fetch("/api/standing-facts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "restore",
+            supersededFactId: pending.supersededFactId,
+            newFactId: pending.newFactId,
+          }),
+        });
+        if (res.ok) {
+          return;
+        }
+      } catch {
+        // Offline, or the route is not there — the same outcome as a refused
+        // restore: what the app remembers is still the new version.
+      }
+
+      setUndoFailed(true);
+    })();
   };
 
   const extract = async (categoryNeeds?: AttractionCategory[]) => {
@@ -476,6 +495,7 @@ export function PlacePromptPanel({
       // One at a time. Two reversals in one sentence is rare enough that
       // stacking confirmations for them would cost more than it saves.
       setContradiction(data.factContradictions?.[0] ?? null);
+      setUndoFailed(false);
 
       setAttractions(data.attractions ?? []);
       setRemovedIds([]);
@@ -686,6 +706,19 @@ export function PlacePromptPanel({
             </button>
           </div>
         </div>
+      )}
+
+      {/* The undo the account would not take. Says what is still true rather
+          than offering a retry: the walk is mid-planning, and the fact list is
+          where this gets finished properly. */}
+      {undoFailed && (
+        <p
+          role="alert"
+          className="rounded-md bg-rose-50 px-2 py-1.5 text-xs text-rose-700"
+        >
+          Couldn&apos;t undo that — what I remember is unchanged. Fix it under
+          &ldquo;Things I remember about you&rdquo; in settings.
+        </p>
       )}
 
       {/* What has been asked, above the box it was asked in. Collapsed by

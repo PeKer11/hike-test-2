@@ -29,13 +29,23 @@ function fact(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function stubApi(facts: unknown) {
+function stubApi(facts: unknown, deleteResult: "ok" | "refused" | "throws" = "ok") {
   const calls: Call[] = [];
 
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
-      calls.push({ url, method: init?.method ?? "GET" });
+      const method = init?.method ?? "GET";
+      calls.push({ url, method });
+
+      if (method === "DELETE") {
+        if (deleteResult === "throws") throw new Error("offline");
+        // What the route now answers when the row survived the delete.
+        return deleteResult === "ok"
+          ? { ok: true, status: 204, json: async () => ({}) }
+          : { ok: false, status: 500, json: async () => ({}) };
+      }
+
       return { ok: true, json: async () => facts };
     }),
   );
@@ -142,6 +152,76 @@ describe("StandingFactsPanel", () => {
       expect(list().queryByText(/does not eat meat/)).toBeNull();
     });
     expect(list().getByText(/always walks with a dog/)).toBeTruthy();
+  });
+
+  // The optimistic removal has to be reversible. A fact that survived the
+  // delete still goes in front of the model on every walk the walker builds,
+  // and an empty row where it used to be tells them the opposite.
+  it("puts the fact back and says so when the account refuses the delete", async () => {
+    stubApi([fact()], "refused");
+    renderPanel();
+
+    await open();
+    fireEvent.click(
+      screen.getByRole("button", { name: 'Forget "does not eat meat"' }),
+    );
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain(
+      "does not eat meat",
+    );
+    expect(list().getByText(/does not eat meat/)).toBeTruthy();
+  });
+
+  it("puts the fact back when the delete never reaches the account", async () => {
+    stubApi([fact()], "throws");
+    renderPanel();
+
+    await open();
+    fireEvent.click(
+      screen.getByRole("button", { name: 'Forget "does not eat meat"' }),
+    );
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(list().getByText(/does not eat meat/)).toBeTruthy();
+  });
+
+  it("restores a refused delete to its place in the newest-heard order", async () => {
+    stubApi(
+      [
+        fact({ id: "fact-dog", text: "always walks with a dog" }),
+        fact({ lastSeenAt: Date.now() - 3 * DAY_MS }),
+      ],
+      "refused",
+    );
+    renderPanel();
+
+    await open();
+    fireEvent.click(
+      screen.getByRole("button", { name: 'Forget "always walks with a dog"' }),
+    );
+
+    await screen.findByRole("alert");
+    expect(
+      list()
+        .getAllByRole("listitem")
+        .map((item) => item.textContent?.slice(0, 12)),
+    ).toEqual(["always walks", "does not eat"]);
+  });
+
+  it("says nothing when the delete lands", async () => {
+    stubApi([fact(), fact({ id: "fact-dog", text: "always walks with a dog" })]);
+    renderPanel();
+
+    await open();
+    fireEvent.click(
+      screen.getByRole("button", { name: 'Forget "does not eat meat"' }),
+    );
+
+    await waitFor(() => {
+      expect(list().queryByText(/does not eat meat/)).toBeNull();
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   // Learning off stops new facts being recorded; it does not stop the stored

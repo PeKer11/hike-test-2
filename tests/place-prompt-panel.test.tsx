@@ -1557,7 +1557,10 @@ describe("PlacePromptPanel — a contradicted standing fact", () => {
     body: unknown;
   }
 
-  function stubApi(factContradictions: unknown[] = []) {
+  function stubApi(
+    factContradictions: unknown[] = [],
+    restore: "ok" | "refused" | "throws" = "ok",
+  ) {
     const calls: Call[] = [];
 
     vi.stubGlobal(
@@ -1570,7 +1573,17 @@ describe("PlacePromptPanel — a contradicted standing fact", () => {
         });
 
         if (url === "/api/standing-facts") {
-          return { ok: true, json: async () => ({ restored: true }) };
+          if (restore === "throws") throw new Error("offline");
+          // What the route now answers when the restore did not land — it used
+          // to be a 200 either way, which is how the write failing on every
+          // real call stayed invisible.
+          return restore === "ok"
+            ? { ok: true, status: 200, json: async () => ({ restored: true }) }
+            : {
+                ok: false,
+                status: 500,
+                json: async () => ({ restored: false }),
+              };
         }
 
         return {
@@ -1668,6 +1681,58 @@ describe("PlacePromptPanel — a contradicted standing fact", () => {
       expect(screen.queryByText(/Updated what I remember/)).toBeNull();
     });
     expect(calls.some((call) => call.url === "/api/standing-facts")).toBe(false);
+  });
+
+  // The failure this whole pass is about: a refused undo used to look exactly
+  // like one that worked, so the walker walked away believing the app had
+  // taken their correction when it had not.
+  it("tells the walker when the account refused the undo", async () => {
+    stubApi([CONTRADICTION], "refused");
+    renderPanel();
+    sendPrompt("I eat meat again");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+    const note = await screen.findByRole("alert");
+    expect(note.textContent).toContain("what I remember is unchanged");
+  });
+
+  it("tells the walker when the undo never reached the account", async () => {
+    stubApi([CONTRADICTION], "throws");
+    renderPanel();
+    sendPrompt("I eat meat again");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+  });
+
+  it("says nothing extra when the undo lands", async () => {
+    stubApi([CONTRADICTION]);
+    renderPanel();
+    sendPrompt("I eat meat again");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Updated what I remember/)).toBeNull();
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("clears a failed undo once the next prompt has been answered", async () => {
+    stubApi([CONTRADICTION], "refused");
+    renderPanel();
+    sendPrompt("I eat meat again");
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+    await screen.findByRole("alert");
+
+    stubApi([]);
+    sendPrompt("a walk in Jaffa");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
   });
 
   it("replaces an unanswered note with the next prompt's, rather than stacking", async () => {
