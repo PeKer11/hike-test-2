@@ -124,6 +124,29 @@ const REPLAN_FAILED_MESSAGE =
 const MANUAL_RESUME_MESSAGE =
   "We reshaped your walk for your pace. Take a look, then press Start Walk when you're ready.";
 
+// How long a build is allowed to take before we stop waiting for it.
+//
+// Building a walk runs Overpass discovery and a chain of ORS calls in sequence,
+// and on a wide radius with several stops it legitimately takes a minute or
+// more — 72s observed locally on 2026-08-18. Until now this request carried no
+// deadline of its own at all, so where it gave up was whatever the browser
+// decided, which is how a 42s build died on "Network error. Please try again."
+// in the same session that a 72s one came back fine. The deadline is ours now,
+// and it sits past the slowest real build rather than near the average one:
+// this is a foreground action the walker is watching, so failing early on a
+// request that was about to succeed costs far more than waiting.
+const WALK_PLAN_TIMEOUT_MS = 120_000;
+
+// When a build stops looking normal and starts looking stuck. Well past a
+// typical build, well short of the deadline — the walker is told it is still
+// running, not that anything is wrong. Deliberately no retry behind it: a
+// rebuild re-runs Overpass and ORS, so retrying a slow-but-succeeding request
+// would double the load that made it slow.
+const WALK_PLAN_SLOW_AFTER_MS = 20_000;
+
+const WALK_PLAN_TIMEOUT_MESSAGE =
+  "That took longer than we could wait. Try a smaller search radius or fewer stops.";
+
 interface WalkPlannerAppProps {
   /** True while the frame around this planner fills the viewport. Only drives
       density — every control works identically in both states. */
@@ -183,6 +206,8 @@ export function WalkPlannerApp({
   const [walkPlan, setWalkPlan] = useState<WalkPlan | null>(null);
   const [walkPlanError, setWalkPlanError] = useState<string | null>(null);
   const [isWalkPlanLoading, setIsWalkPlanLoading] = useState(false);
+  // A build that is past `WALK_PLAN_SLOW_AFTER_MS` and still running.
+  const [isWalkPlanSlow, setIsWalkPlanSlow] = useState(false);
   const { settings: walkSettings, setSettings: setWalkSettings } = useWalkSettings();
   const isSignedIn = useIsSignedIn();
   // Set when a walk ends: the stops that walk was made of, each of which the
@@ -522,9 +547,23 @@ export function WalkPlannerApp({
     setWalkPlanError(null);
     setWalkPlan(null);
     setIsWalkPlanLoading(true);
+    setIsWalkPlanSlow(false);
+
+    const controller = new AbortController();
+    const deadline = window.setTimeout(
+      () => controller.abort(),
+      WALK_PLAN_TIMEOUT_MS,
+    );
+    const slowNotice = window.setTimeout(() => {
+      if (requestId === buildWalkRequestIdRef.current) {
+        setIsWalkPlanSlow(true);
+      }
+    }, WALK_PLAN_SLOW_AFTER_MS);
+
     try {
       const res = await fetch("/api/walk-plan", {
         method: "POST",
+        signal: controller.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           lat: input.origin.lat,
@@ -599,11 +638,21 @@ export function WalkPlannerApp({
         revertToSnapshot(snapshot);
         setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
       } else {
-        setWalkPlanError("Network error. Please try again.");
+        // Our own deadline firing and the network dropping are different
+        // things, and telling them apart is the difference between "try again"
+        // and "ask for less" — the second is the only one that helps here.
+        setWalkPlanError(
+          controller.signal.aborted
+            ? WALK_PLAN_TIMEOUT_MESSAGE
+            : "Network error. Please try again.",
+        );
       }
     } finally {
+      window.clearTimeout(deadline);
+      window.clearTimeout(slowNotice);
       if (requestId === buildWalkRequestIdRef.current) {
         setIsWalkPlanLoading(false);
+        setIsWalkPlanSlow(false);
       }
     }
   };
@@ -1406,11 +1455,22 @@ export function WalkPlannerApp({
               )}
               {/* Loading skeleton while plan is being built (MEDIUM-5) */}
               {isWalkPlanLoading && (
-                <Card className="space-y-2 animate-pulse">
-                  <div className="h-4 w-1/2 rounded bg-charcoal/15" />
-                  <div className="h-3 w-full rounded bg-cream" />
-                  <div className="h-3 w-5/6 rounded bg-cream" />
-                  <div className="h-3 w-4/6 rounded bg-cream" />
+                <Card className="space-y-2">
+                  <div className="space-y-2 animate-pulse">
+                    <div className="h-4 w-1/2 rounded bg-charcoal/15" />
+                    <div className="h-3 w-full rounded bg-cream" />
+                    <div className="h-3 w-5/6 rounded bg-cream" />
+                    <div className="h-3 w-4/6 rounded bg-cream" />
+                  </div>
+                  {/* A wide radius with several stops runs a minute or more.
+                      Said out loud, because a skeleton that has been pulsing
+                      for half a minute reads as broken. */}
+                  {isWalkPlanSlow && (
+                    <p role="status" className="text-xs text-charcoal/60">
+                      Still building — this one&apos;s taking longer than usual.
+                      Lots of stops or a wide radius means more places to check.
+                    </p>
+                  )}
                 </Card>
               )}
               {/* Retry affordance when plan is infeasible or attractions were dropped (MEDIUM-5) */}
