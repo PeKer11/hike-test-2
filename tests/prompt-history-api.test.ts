@@ -178,9 +178,18 @@ describe("DELETE /api/prompt-history", () => {
     expect(mockClearExchanges).not.toHaveBeenCalled();
   });
 
-  it("answers 204 when the delete is rejected", async () => {
+  // The panel clears its own list regardless, so this status is not something
+  // the walker sees. It is the difference between the route reporting a delete
+  // it did not do and the route saying so — the rows are still there and the
+  // next page load hydrates them straight back.
+  it("answers 500 when the delete is rejected", async () => {
     mockClearExchanges.mockResolvedValue(false);
 
-    expect((await DELETE()).status).toBe(204);
+    const response = await DELETE();
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: "Could not clear the stored history.",
+    });
   });
 });

@@ -108,6 +108,21 @@ export async function DELETE(): Promise<NextResponse> {
     return new NextResponse(null, { status: 204 });
   }
 
-  await clearExchanges(session.supabase, session.userId);
+  // The panel clears its own list regardless — the walker asked for these words
+  // gone and leaving them on screen reads as a refusal — so this status changes
+  // nothing they see. It is here so the route stops claiming a delete it did not
+  // do: a failed clear leaves rows that the next page load hydrates straight
+  // back, and that has to be visible to a caller or a test that looks.
+  //
+  // Deliberately not extended to POST above, whose "a rejected write is a 204
+  // like a successful one" contract is the point of that handler.
+  const cleared = await clearExchanges(session.supabase, session.userId);
+  if (!cleared) {
+    return NextResponse.json(
+      { error: "Could not clear the stored history." },
+      { status: 500 },
+    );
+  }
+
   return new NextResponse(null, { status: 204 });
 }

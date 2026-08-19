@@ -74,7 +74,18 @@ export async function DELETE(request: Request): Promise<NextResponse> {
     return new NextResponse(null, { status: 204 });
   }
 
-  await deleteFact(session.supabase, session.userId, factId);
+  // A delete that did not happen must not answer like one that did. The walker
+  // clicked ✕ on a fact that shapes every walk they build from here; if the row
+  // survives and the panel says nothing, they go on believing they removed it
+  // while it keeps steering their results. Same failure the Undo button had.
+  const deleted = await deleteFact(session.supabase, session.userId, factId);
+  if (!deleted) {
+    return NextResponse.json(
+      { error: "Could not forget that fact." },
+      { status: 500 },
+    );
+  }
+
   return new NextResponse(null, { status: 204 });
 }
 
@@ -114,6 +125,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     supersededFactId,
     newFactId,
   );
+
+  // `{ restored: false }` inside a 200 is how `restoreSupersededFact` managed to
+  // fail on every single real call for a week without anyone noticing: the
+  // response was success-shaped, and the client only ever looked at whether the
+  // fetch itself resolved. A write that did not happen answers 500 now, so the
+  // next bug on this path shows up as a red request instead of a silent one.
+  if (!restored) {
+    return NextResponse.json(
+      { restored: false, error: "Could not undo that." },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({ restored });
 }

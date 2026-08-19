@@ -112,6 +112,19 @@ describe("DELETE /api/standing-facts", () => {
     expect((await DELETE(deleteRequest("?id=fact-meat"))).status).toBe(204);
     expect(mockDeleteFact).not.toHaveBeenCalled();
   });
+
+  // The row survives and keeps going in front of the model on every walk the
+  // walker builds. A 204 here would tell the panel it is gone.
+  it("answers 500 when the fact could not be deleted", async () => {
+    mockDeleteFact.mockResolvedValue(false);
+
+    const response = await DELETE(deleteRequest("?id=fact-meat"));
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: "Could not forget that fact.",
+    });
+  });
 });
 
 // The half of the layered answer that needs an explicit yes. Saying nothing is
@@ -127,6 +140,7 @@ describe("POST /api/standing-facts", () => {
   it("puts back the fact the walker says we got wrong", async () => {
     const response = await POST(postRequest(RESTORE));
 
+    expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ restored: true });
     expect(mockRestoreSupersededFact).toHaveBeenCalledWith(
       expect.anything(),
@@ -136,11 +150,18 @@ describe("POST /api/standing-facts", () => {
     );
   });
 
-  it("reports a restore that did not happen", async () => {
+  // `{ restored: false }` inside a 200 is how restoreSupersededFact failed on
+  // every real call without anyone noticing — the response was success-shaped
+  // and the client only looked at whether the fetch resolved.
+  it("answers 500 for a restore that did not happen", async () => {
     mockRestoreSupersededFact.mockResolvedValue(false);
 
-    expect(await (await POST(postRequest(RESTORE))).json()).toEqual({
+    const response = await POST(postRequest(RESTORE));
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
       restored: false,
+      error: "Could not undo that.",
     });
   });
 
@@ -156,12 +177,16 @@ describe("POST /api/standing-facts", () => {
     expect(mockRestoreSupersededFact).not.toHaveBeenCalled();
   });
 
+  // Not a failure: a signed-out walker has no stored facts to restore, so
+  // nothing was refused. Kept at 200 on purpose, unlike a write that was tried
+  // and rejected.
   it("restores nothing for a walker who is not signed in", async () => {
     mockGetUser.mockResolvedValue(SIGNED_OUT);
 
-    expect(await (await POST(postRequest(RESTORE))).json()).toEqual({
-      restored: false,
-    });
+    const response = await POST(postRequest(RESTORE));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ restored: false });
     expect(mockRestoreSupersededFact).not.toHaveBeenCalled();
   });
 });
