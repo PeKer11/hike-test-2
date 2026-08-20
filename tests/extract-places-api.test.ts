@@ -121,6 +121,52 @@ describe("POST /api/extract-places", () => {
     expect(body.searchRadiusKm).toBeNull();
   });
 
+  // The two fields added for "bring me 3 famous places in Tel Aviv". The
+  // extraction schema and its parsers are covered in `place-extractor.test.ts`;
+  // what is measured here is the half that was never asserted anywhere — that
+  // this endpoint carries both to the client rather than reading and dropping
+  // them, which is exactly how "3" and "famous" used to be lost.
+  it("carries a stated stop count and a famous-places ask through to the response", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["Tel Aviv"],
+      contextLocation: null,
+      stopCount: 3,
+      notableOnly: true,
+    });
+    mockSearchPlaces.mockResolvedValue([
+      { lat: "32.0853", lon: "34.7818", addresstype: "city" },
+    ]);
+
+    const response = await POST(
+      postRequest({ prompt: "bring me 3 famous places in Tel Aviv" }),
+    );
+    const body = await response.json();
+
+    expect(body.stopCount).toBe(3);
+    expect(body.notableOnly).toBe(true);
+    // Still the one destination it always was — the count is a fact about the
+    // walk to be built, not an instruction to invent three names here.
+    expect(body.extractedNames).toEqual(["Tel Aviv"]);
+  });
+
+  it("reports a stop count and a famous ask the prompt never made as null", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["Habima Square"],
+      contextLocation: null,
+    });
+    mockSearchPlaces.mockResolvedValueOnce([
+      { lat: "32.0736", lon: "34.7811" },
+    ]);
+
+    const response = await POST(
+      postRequest({ prompt: "I want to go to Habima Square" }),
+    );
+    const body = await response.json();
+
+    expect(body.stopCount).toBeNull();
+    expect(body.notableOnly).toBeNull();
+  });
+
   it("reports a name with no in-box match as unresolved", async () => {
     mockExtractPlaceNames.mockResolvedValueOnce({
       places: ["מדרחוב"],

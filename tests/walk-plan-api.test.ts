@@ -945,3 +945,154 @@ describe("POST /api/walk-plan — retry loop", () => {
     ]);
   });
 });
+
+// The other half of "bring me 3 famous places in Tel Aviv". The extraction
+// schema now carries a count and a notability ask (`place-extractor.test.ts`),
+// and the ranker knows what to do with the notability ask
+// (`attraction-ranker.test.ts`) — what was never asserted is that this route
+// turns either of them into a different walk.
+describe("POST /api/walk-plan — a stated stop count and a famous-places ask", () => {
+  beforeEach(resetMocks);
+
+  // Ten cheap stops in a line, each a minute's visit and ~11 m apart, so the
+  // time budget is nowhere near binding and the only thing that can hold the
+  // walk down to N stops is the count itself.
+  function tenCheapStops(): Attraction[] {
+    return Array.from({ length: 10 }, (_, i) =>
+      makeAttraction(`osm-${i}`, 32.0801 + i * 0.0001, 34.78, 1),
+    );
+  }
+
+  function discoveryBody(extra: Record<string, unknown> = {}) {
+    return {
+      lat: origin.lat,
+      lng: origin.lng,
+      availableMinutes: 240,
+      walkingPaceMinPerKm: 15,
+      ...extra,
+    };
+  }
+
+  async function planStopCount(extra: Record<string, unknown>): Promise<number> {
+    mockFetchAttractions.mockResolvedValueOnce(tenCheapStops());
+    const response = await POST(postRequest(discoveryBody(extra)));
+    const plan = await response.json();
+    return plan.orderedAttractions.length;
+  }
+
+  it("hands back eight stops when the prompt stated no count", async () => {
+    // The bug's own symptom, from the other end: a generous budget fills the
+    // walk to MAX_WALK_STOPS because nothing else ever capped it.
+    expect(await planStopCount({})).toBe(8);
+  });
+
+  it("hands back exactly the number of stops the walker asked for", async () => {
+    expect(await planStopCount({ stopCount: 3 })).toBe(3);
+  });
+
+  it("lets the time budget win when it is the tighter of the two", async () => {
+    // Room for two of these stops, not the five that were asked for: a count is
+    // a ceiling on top of the budget, never a licence to overrun it.
+    mockFetchAttractions.mockResolvedValueOnce(
+      Array.from({ length: 5 }, (_, i) =>
+        makeAttraction(`osm-${i}`, 32.081 + i * 0.002, 34.78, 20),
+      ),
+    );
+    const response = await POST(
+      postRequest({
+        lat: origin.lat,
+        lng: origin.lng,
+        availableMinutes: 50,
+        walkingPaceMinPerKm: 15,
+        stopCount: 5,
+      }),
+    );
+    const plan = await response.json();
+
+    expect(plan.orderedAttractions.length).toBeLessThan(5);
+  });
+
+  it("clamps a count larger than a walk can hold", async () => {
+    expect(await planStopCount({ stopCount: 50 })).toBe(8);
+  });
+
+  it("ignores a count that is not a usable number of stops", async () => {
+    expect(await planStopCount({ stopCount: 0 })).toBe(8);
+    expect(await planStopCount({ stopCount: -2 })).toBe(8);
+    expect(await planStopCount({ stopCount: "three" })).toBe(8);
+  });
+
+  it("counts the stops the walker named against the count they asked for", async () => {
+    // "3 places, and one of them is Habima Square" is a walk of three stops,
+    // not of one named stop plus three more.
+    const named = makeAttraction("named", 32.0805, 34.78, 1);
+    // Spread ~110 m apart and well clear of the named stop, so nothing is
+    // dropped as a duplicate of it and the count is the only thing binding.
+    mockFetchAttractions.mockResolvedValueOnce(
+      Array.from({ length: 6 }, (_, i) =>
+        makeAttraction(`osm-${i}`, 32.09 + i * 0.001, 34.78, 1),
+      ),
+    );
+
+    const response = await POST(
+      postRequest({
+        ...baseBody([named], 240),
+        fillRemainingTime: true,
+        stopCount: 3,
+      }),
+    );
+    const plan = await response.json();
+    const ids = plan.orderedAttractions.map((a: Attraction) => a.id);
+
+    expect(ids).toContain("named");
+    expect(ids).toHaveLength(3);
+  });
+
+  it("passes the famous-places ask into the ranking, and nothing when it was not asked", async () => {
+    mockFetchAttractions.mockResolvedValueOnce(tenCheapStops());
+    await POST(postRequest(discoveryBody({ notableOnly: true })));
+    expect(mockRankAttractions.mock.calls[0]?.[1]?.notableOnly).toBe(true);
+
+    resetMocks();
+    mockFetchAttractions.mockResolvedValueOnce(tenCheapStops());
+    await POST(postRequest(discoveryBody()));
+    expect(mockRankAttractions.mock.calls[0]?.[1]?.notableOnly).toBe(false);
+  });
+
+  it("puts the well-known stops on a famous-places walk", async () => {
+    // Two anonymous viewpoints (base 10) against two shops (base 4) carrying
+    // wikidata + wikipedia. Only the ×4 notability weighting can invert that,
+    // so this measures the ask reaching the ranker through the route, not the
+    // ranker's own arithmetic.
+    const candidates: Attraction[] = [
+      {
+        ...makeAttraction("plain-a", 32.0801, 34.78, 1),
+        category: "viewpoint",
+      },
+      {
+        ...makeAttraction("plain-b", 32.0802, 34.78, 1),
+        category: "viewpoint",
+      },
+      {
+        ...makeAttraction("famous-a", 32.0803, 34.78, 1),
+        category: "shopping",
+        tags: { wikidata: "Q1", wikipedia: "en:A" },
+      },
+      {
+        ...makeAttraction("famous-b", 32.0804, 34.78, 1),
+        category: "shopping",
+        tags: { wikidata: "Q2", wikipedia: "en:B" },
+      },
+    ];
+
+    mockFetchAttractions.mockResolvedValueOnce(candidates);
+
+    const response = await POST(
+      postRequest(discoveryBody({ stopCount: 2, notableOnly: true })),
+    );
+    const plan = await response.json();
+    const ids = plan.orderedAttractions.map((a: Attraction) => a.id).sort();
+
+    expect(ids).toEqual(["famous-a", "famous-b"]);
+  });
+});
