@@ -106,6 +106,30 @@ function fakeFactsTable(
 
       if (mode === "insert") {
         if (reject.insert) return { data: null, error: new Error("insert") };
+
+        // Mirrors `standing_facts_user_key`: unique on (user_id, fact_key)
+        // only among active rows, since 2026-08-20. A superseded row is
+        // history, not a reservation — it must not block a walker re-stating
+        // the same fact after reversing it. Checked before the row exists so
+        // a fact colliding only with itself never trips this.
+        const collides = rows.some(
+          (row) =>
+            row.user_id === payload.user_id &&
+            row.fact_key === payload.fact_key &&
+            (row.superseded_at ?? null) === null,
+        );
+        if (collides) {
+          return {
+            data: null,
+            error: Object.assign(
+              new Error(
+                'duplicate key value violates unique constraint "standing_facts_user_key"',
+              ),
+              { code: "23505" },
+            ),
+          };
+        }
+
         // The column defaults the same way the migration does, so an inserted
         // row reads back as active rather than as undefined.
         const row = {
@@ -595,6 +619,38 @@ describe("learnFactsFromText — contradictions", () => {
     const result = await learnFactsFromText(client, "user-1", "…", NOW);
 
     expect(result.contradictions).toEqual([]);
+  });
+
+  // Found live 2026-08-20: a third statement reversing a reversal wrote
+  // nothing at all, because the key was still held by the first, now-retired
+  // row. Fixed by making `standing_facts_user_key` unique only among active
+  // rows (migration `20260820090000_standing_facts_partial_key.sql`) — this
+  // is the fake's model of that index, exercised across three real turns
+  // rather than three rows handed in as a fixture.
+  it("lets a walker re-state a fact after reversing it", async () => {
+    const { client, rows } = fakeFactsTable([storedRow()]);
+
+    mockExtractStandingFacts.mockResolvedValueOnce([
+      extracted({ text: "eats meat", importance: 3, replaces: "does not eat meat" }),
+    ]);
+    await learnFactsFromText(client, "user-1", "I eat meat again", NOW);
+
+    const later = new Date(NOW.getTime() + 60_000);
+    mockExtractStandingFacts.mockResolvedValueOnce([
+      extracted({ text: "does not eat meat", importance: 3, replaces: "eats meat" }),
+    ]);
+    const result = await learnFactsFromText(
+      client,
+      "user-1",
+      "actually I don't eat meat",
+      later,
+    );
+
+    expect(result.facts.map((fact) => fact.text)).toEqual(["does not eat meat"]);
+    expect(active(rows)).toHaveLength(1);
+    // A fresh row, not the original come back to life: same key, different id.
+    expect(active(rows)[0].fact_text).toBe("does not eat meat");
+    expect(active(rows)[0].id).not.toBe("fact-meat");
   });
 });
 
