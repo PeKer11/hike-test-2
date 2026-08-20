@@ -78,6 +78,42 @@ describe("PLACE_EXTRACTION_SYSTEM_PROMPT", () => {
     );
   });
 
+  // Live testing on 2026-08-21 (real Gemini, real Nominatim) found the actual
+  // gap behind the "raw street address" TODO. The model already passes an
+  // address through untouched — it invents no landmark — but it keeps the
+  // street-type word the walker typed, and that word is what the geocoder
+  // cannot match: "רחוב דיזנגוף 50, תל אביב" returned zero Nominatim results
+  // where "דיזנגוף 50" resolves, and "12 Ben Yehuda St" zero where "12 Ben
+  // Yehuda" resolves.
+  it("asks for an address with the walker's added street-type word taken off", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "A street address is a destination",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "Drop only a street-type word the walker added that is not part of the street's own name",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"רחוב דיזנגוף 50, תל אביב" -> places ["דיזנגוף 50"], contextLocation "תל אביב"',
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"a walk starting from 12 Ben Yehuda St, Jerusalem" -> places ["12 Ben Yehuda"], contextLocation "Jerusalem"',
+    );
+  });
+
+  // The other half of the same rule, and the reason it is phrased about the
+  // word the walker *added* rather than about street words in general: both
+  // "שדרות רוטשילד 20, תל אביב" and "1600 Pennsylvania Avenue NW" geocode as
+  // written, because those words are part of the mapped street name. A blanket
+  // strip would have broken the two forms that already worked.
+  it("keeps a street-type word that is part of the street's mapped name", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "Keep a street-type word that IS part of the name: 'שדרות רוטשילד 20', 'Pennsylvania Avenue', 'Baker Street'",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      '"take me to 1600 Pennsylvania Avenue NW, Washington DC" -> places ["1600 Pennsylvania Avenue NW"], contextLocation "Washington DC"',
+    );
+  });
+
   it("asks for the context area by name instead of only dropping it", () => {
     expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain("`contextLocation`");
     expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(

@@ -99,6 +99,28 @@ export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   '"תן לי טיול בעכו" -> places ["עכו"], contextLocation null — no smaller place is named, so the city is the destination.',
   "If the text names no places at all, return an empty list and a null contextLocation.",
   "",
+  // Live testing (2026-08-21, real Gemini through /api/extract-places, real
+  // Nominatim) found the model already passes an address through untouched —
+  // it invents nothing — but that it keeps the walker's street-type word, and
+  // that word is what the geocoder cannot match: OpenStreetMap names the
+  // street "דיזנגוף", never "רחוב דיזנגוף", so "רחוב דיזנגוף 50, תל אביב"
+  // returned zero results while "דיזנגוף 50" resolved. Same for "12 Ben Yehuda
+  // St, Jerusalem" (zero) against "12 Ben Yehuda" (resolves) — an Israeli
+  // street is mapped in Hebrew, so an anglicised "St" matches nothing.
+  // The rule is about the word the walker *added*, not about street words in
+  // general, because a street whose mapped name really does carry one
+  // ("שדרות רוטשילד", "Pennsylvania Avenue") resolves as written and dropping
+  // it would break the case that already works.
+  "A street address is a destination: put it in `places` as written, keeping the house number with the street name.",
+  "Drop only a street-type word the walker added that is not part of the street's own name — 'רחוב', \"רח'\", 'St', 'Street' in front of a street mapped under a bare name.",
+  "Keep a street-type word that IS part of the name: 'שדרות רוטשילד 20', 'Pennsylvania Avenue', 'Baker Street'.",
+  "The city or town in an address is context exactly as it is for a named place — it belongs in `contextLocation`, not in `places`.",
+  "Examples:",
+  '"רחוב דיזנגוף 50, תל אביב" -> places ["דיזנגוף 50"], contextLocation "תל אביב" — the street is mapped as "דיזנגוף", so the added "רחוב" comes off.',
+  '"קח אותי לרחוב הרצל 15 בחיפה" -> places ["הרצל 15"], contextLocation "חיפה".',
+  '"a walk starting from 12 Ben Yehuda St, Jerusalem" -> places ["12 Ben Yehuda"], contextLocation "Jerusalem" — an Israeli street is mapped under its bare name, so "St" comes off.',
+  '"take me to 1600 Pennsylvania Avenue NW, Washington DC" -> places ["1600 Pennsylvania Avenue NW"], contextLocation "Washington DC" — the avenue is mapped with that word in its name, so nothing comes off.',
+  "",
   "`durationMinutes`: the total time the walker says they have, in whole minutes.",
   "Only fill it in when the text states a total time budget unambiguously — 'three hours' -> 180, '90 minutes' -> 90, 'an hour and a half' -> 90, 'יש לי שלוש שעות' -> 180.",
   "Return null for vague phrasing ('a short walk', 'not too long', 'a few hours'), for a time of day ('at 3pm'), and for a duration that belongs to one stop rather than the whole walk ('half an hour at the museum').",

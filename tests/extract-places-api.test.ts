@@ -167,6 +167,62 @@ describe("POST /api/extract-places", () => {
     expect(body.notableOnly).toBeNull();
   });
 
+  // A raw street address, verified end to end against real Gemini and real
+  // Nominatim on 2026-08-21. The extraction half of that fix is a prompt rule
+  // and is asserted in `place-extractor.test.ts`; what is measured here is the
+  // half this handler owns — that an address-shaped name is searched inside the
+  // named city's box, becomes a real stop, keeps the address as its own label
+  // rather than Nominatim's verbose `display_name`, and is never mistaken for
+  // the kind of bare area name that triggers the clarifying question.
+  it("turns a street address into a stop labelled with the address", async () => {
+    mockExtractPlaceNames.mockResolvedValueOnce({
+      places: ["דיזנגוף 50"],
+      contextLocation: "תל אביב",
+    });
+    // Both replies are trimmed copies of the real ones: the city first
+    // (unbiased, it is the anchor), then the address inside its box.
+    mockSearchPlaces
+      .mockResolvedValueOnce([
+        {
+          lat: "32.0852997",
+          lon: "34.7818064",
+          addresstype: "city",
+          display_name: "תל אביב-יפו, נפת תל אביב, מחוז תל אביב, ישראל",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          lat: "32.0755080",
+          lon: "34.7755361",
+          addresstype: "building",
+          display_name:
+            "מגדל דיזנגוף, 50, דיזנגוף, תל־אביב–יפו, נפת תל אביב, מחוז תל אביב, 6437701, ישראל",
+        },
+      ]);
+
+    const response = await POST(
+      postRequest({ prompt: "רחוב דיזנגוף 50, תל אביב" }),
+    );
+    const body = await response.json();
+
+    expect(body.unresolvedNames).toEqual([]);
+    expect(body.attractions).toHaveLength(1);
+    expect(body.attractions[0].name).toBe("דיזנגוף 50");
+    expect(body.attractions[0].coordinates).toEqual({
+      lat: 32.075508,
+      lng: 34.7755361,
+    });
+    // The address was looked for around the city the walker named, not around
+    // wherever the browser happens to be.
+    expect(mockSearchPlaces).toHaveBeenNthCalledWith(2, "דיזנגוף 50", 1, {
+      lat: 32.0852997,
+      lng: 34.7818064,
+    });
+    // An address is a destination, so there is nothing to ask the walker about.
+    expect(body.areaOnlyPrompt).toBe(false);
+    expect(body.needsClarification).toBe(false);
+  });
+
   it("reports a name with no in-box match as unresolved", async () => {
     mockExtractPlaceNames.mockResolvedValueOnce({
       places: ["מדרחוב"],
