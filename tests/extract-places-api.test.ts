@@ -8,8 +8,10 @@ const mockLearnPreferencesFromText = vi.fn();
 const mockFetchAttractions = vi.fn();
 const mockGetPreferredCategories = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
-const mockLearnFactsFromText = vi.fn();
+const mockStoreExtractedFacts = vi.fn();
 const mockGetStandingFacts = vi.fn();
+const mockExtractPlacesAndFacts = vi.fn();
+const mockDetectedFacts = vi.fn();
 
 vi.mock("@/lib/api/gemini-client", () => ({
   // The real `extractPlaceNames` always returns all four fields, so the mock
@@ -20,6 +22,23 @@ vi.mock("@/lib/api/gemini-client", () => ({
     categoryNeeds: [],
     ...((await mockExtractPlaceNames(...args)) as object),
   }),
+  // The merged pass deliberately shares `mockExtractPlaceNames` for the walk
+  // half: every existing case that says what the extraction returned, and every
+  // assertion about which facts were put in front of the model, means the same
+  // thing whichever of the two calls the route chose. `mockExtractPlacesAndFacts`
+  // records the args on its own so a test can still tell the two apart, which is
+  // the one thing that would otherwise become invisible.
+  extractPlacesAndFacts: async (...args: unknown[]) => {
+    mockExtractPlacesAndFacts(...args);
+    return {
+      extraction: {
+        durationMinutes: null,
+        categoryNeeds: [],
+        ...((await mockExtractPlaceNames(...args)) as object),
+      },
+      facts: mockDetectedFacts(),
+    };
+  },
   resolveCanonicalName: (...args: unknown[]) =>
     mockResolveCanonicalName(...args),
 }));
@@ -42,7 +61,7 @@ vi.mock("@/lib/preferences/preference-store", () => ({
 }));
 
 vi.mock("@/lib/preferences/fact-store", () => ({
-  learnFactsFromText: (...args: unknown[]) => mockLearnFactsFromText(...args),
+  storeExtractedFacts: (...args: unknown[]) => mockStoreExtractedFacts(...args),
   getStandingFacts: (...args: unknown[]) => mockGetStandingFacts(...args),
 }));
 
@@ -78,6 +97,13 @@ describe("POST /api/extract-places", () => {
     mockGetPreferredCategories.mockResolvedValue([]);
     mockGetDownvotedCategories.mockReset();
     mockGetDownvotedCategories.mockResolvedValue(new Map());
+    mockGetStandingFacts.mockReset();
+    mockGetStandingFacts.mockResolvedValue([]);
+    mockStoreExtractedFacts.mockReset();
+    mockStoreExtractedFacts.mockResolvedValue({ facts: [], contradictions: [] });
+    mockExtractPlacesAndFacts.mockReset();
+    mockDetectedFacts.mockReset();
+    mockDetectedFacts.mockReturnValue([]);
   });
 
   it("surfaces both stated distances so the panel can pre-fill either field", async () => {
@@ -1015,21 +1041,55 @@ describe("POST /api/extract-places — standing facts", () => {
     mockGetPreferredCategories.mockResolvedValue([]);
     mockGetDownvotedCategories.mockReset();
     mockGetDownvotedCategories.mockResolvedValue(new Map());
-    mockLearnFactsFromText.mockReset();
-    mockLearnFactsFromText.mockResolvedValue({ facts: [], contradictions: [] });
+    mockGetStandingFacts.mockReset();
+    mockGetStandingFacts.mockResolvedValue([]);
+    mockStoreExtractedFacts.mockReset();
+    mockStoreExtractedFacts.mockResolvedValue({ facts: [], contradictions: [] });
+    mockExtractPlacesAndFacts.mockReset();
+    mockDetectedFacts.mockReset();
+    mockDetectedFacts.mockReturnValue([]);
   });
 
-  it("reads the prompt for facts as well as preferences", async () => {
+  // Step 11: the facts now come back from the same call that read the walk, so
+  // what reaches the store is what that one call said — no second model pass.
+  it("stores the facts the walk pass read out of the same prompt", async () => {
+    const detected = [
+      { text: "does not eat meat", importance: 3, replaces: null },
+    ];
+    mockDetectedFacts.mockReturnValue(detected);
+
     await POST(
       postRequest({ prompt: "I don't eat meat", learnPreferences: true }),
     );
 
-    expect(mockLearnFactsFromText).toHaveBeenCalledWith(
+    expect(mockExtractPlacesAndFacts).toHaveBeenCalledWith(
+      "I don't eat meat",
+      [],
+      [],
+    );
+    expect(mockStoreExtractedFacts).toHaveBeenCalledWith(
       expect.anything(),
       "user-1",
-      "I don't eat meat",
+      detected,
+      [],
     );
     expect(mockLearnPreferencesFromText).toHaveBeenCalled();
+  });
+
+  // The merge saves the fact call, not the preference call — that one still
+  // stands alone, because `walk-feedback` runs it over a comment box with no
+  // places in it and because a category liking has nowhere to land in the merged
+  // schema.
+  it("keeps the category-preference pass a call of its own", async () => {
+    await POST(
+      postRequest({ prompt: "I love museums", learnPreferences: true }),
+    );
+
+    expect(mockLearnPreferencesFromText).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+      "I love museums",
+    );
   });
 
   it("reads no facts when the walker has turned learning off", async () => {
@@ -1037,7 +1097,7 @@ describe("POST /api/extract-places — standing facts", () => {
       postRequest({ prompt: "I don't eat meat", learnPreferences: false }),
     );
 
-    expect(mockLearnFactsFromText).not.toHaveBeenCalled();
+    expect(mockStoreExtractedFacts).not.toHaveBeenCalled();
   });
 
   it("reads no facts for a walker who is not signed in", async () => {
@@ -1047,7 +1107,21 @@ describe("POST /api/extract-places — standing facts", () => {
       postRequest({ prompt: "I don't eat meat", learnPreferences: true }),
     );
 
-    expect(mockLearnFactsFromText).not.toHaveBeenCalled();
+    expect(mockStoreExtractedFacts).not.toHaveBeenCalled();
+  });
+
+  // The other half of the merge: nobody who is not learning pays for a `facts`
+  // field they will never read. A logged-out prompt still sends the smaller
+  // request it always sent.
+  it("sends the plain extraction when there is nothing to learn from", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+
+    await POST(
+      postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }),
+    );
+
+    expect(mockExtractPlacesAndFacts).not.toHaveBeenCalled();
+    expect(mockExtractPlaceNames).toHaveBeenCalled();
   });
 
   it("reports a contradiction so the panel can offer the undo", async () => {
@@ -1057,7 +1131,7 @@ describe("POST /api/extract-places — standing facts", () => {
       newFactId: "fact-2",
       newText: "eats meat",
     };
-    mockLearnFactsFromText.mockResolvedValue({
+    mockStoreExtractedFacts.mockResolvedValue({
       facts: [],
       contradictions: [contradiction],
     });
@@ -1080,7 +1154,7 @@ describe("POST /api/extract-places — standing facts", () => {
   // The walker asked for places. Getting them must not depend on a profile
   // write, and a failed fact pass must not cost the preference pass either.
   it("still answers the prompt when the fact pass fails", async () => {
-    mockLearnFactsFromText.mockRejectedValue(new Error("gemini 429"));
+    mockStoreExtractedFacts.mockRejectedValue(new Error("db down"));
 
     const response = await POST(
       postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }),
@@ -1123,13 +1197,20 @@ describe("POST /api/extract-places — standing facts in the prompt", () => {
     mockGetPreferredCategories.mockResolvedValue([]);
     mockGetDownvotedCategories.mockReset();
     mockGetDownvotedCategories.mockResolvedValue(new Map());
-    mockLearnFactsFromText.mockReset();
-    mockLearnFactsFromText.mockResolvedValue({ facts: [], contradictions: [] });
+    mockStoreExtractedFacts.mockReset();
+    mockStoreExtractedFacts.mockResolvedValue({ facts: [], contradictions: [] });
     mockGetStandingFacts.mockReset();
     mockGetStandingFacts.mockResolvedValue([]);
+    mockExtractPlacesAndFacts.mockReset();
+    mockDetectedFacts.mockReset();
+    mockDetectedFacts.mockReturnValue([]);
   });
 
+  // Argument 1 is what may steer this walk. Argument 2 — only ever set on the
+  // merged call — is what is on record but scored too low to steer it, and may
+  // therefore only be contradicted.
   const factsPassed = () => mockExtractPlaceNames.mock.calls[0][1];
+  const olderFactsPassed = () => mockExtractPlaceNames.mock.calls[0][2];
 
   it("hands the extraction what the walker stands for", async () => {
     mockGetStandingFacts.mockResolvedValue([fact()]);
@@ -1183,13 +1264,17 @@ describe("POST /api/extract-places — standing facts in the prompt", () => {
   // Reading them after the learning pass would let a fact this very sentence
   // teaches us change how the same sentence is read.
   it("uses the facts as they stood before this prompt was learned from", async () => {
-    mockGetStandingFacts.mockResolvedValue([fact()]);
+    const stored = fact();
+    mockGetStandingFacts.mockResolvedValue([stored]);
 
     await POST(
       postRequest({ prompt: "I eat meat again", learnPreferences: true }),
     );
 
-    expect(mockGetStandingFacts).toHaveBeenCalledBefore(mockLearnFactsFromText);
+    expect(mockGetStandingFacts).toHaveBeenCalledBefore(mockStoreExtractedFacts);
+    // And the store matches a contradiction against that same pre-read list,
+    // not against a fresh one this very sentence has already written to.
+    expect(mockStoreExtractedFacts.mock.calls[0][3]).toEqual([stored]);
   });
 
   it("leaves out a fact too faded to be worth prompt tokens", async () => {
@@ -1210,5 +1295,38 @@ describe("POST /api/extract-places — standing facts in the prompt", () => {
     expect(factsPassed()).toEqual([
       expect.objectContaining({ text: "does not eat meat" }),
     ]);
+  });
+
+  // The merge could have quietly undone the selection: one call, one fact list,
+  // and everything on record steering the walk again. A faded fact still has to
+  // reach the model — "I've started eating meat again" against a demoted "does
+  // not eat meat" would otherwise never retire the row — but it reaches it in
+  // the list the prompt says is for spotting a reversal and nothing else.
+  it("sends a faded fact for contradiction only, not as walk context", async () => {
+    const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+    mockGetStandingFacts.mockResolvedValue([
+      fact({ id: "fresh", text: "does not eat meat", importance: 3 }),
+      fact({
+        id: "faded",
+        text: "prefers quiet streets",
+        key: "prefers quiet streets",
+        importance: 1,
+        lastSeenAt: Date.now() - YEAR_MS,
+      }),
+    ]);
+
+    await POST(postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }));
+
+    expect(olderFactsPassed()).toEqual([
+      expect.objectContaining({ text: "prefers quiet streets" }),
+    ]);
+  });
+
+  it("sends no older-facts list when every fact is worth steering with", async () => {
+    mockGetStandingFacts.mockResolvedValue([fact()]);
+
+    await POST(postRequest({ prompt: "a walk in Jaffa", learnPreferences: true }));
+
+    expect(olderFactsPassed()).toEqual([]);
   });
 });
