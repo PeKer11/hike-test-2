@@ -9,16 +9,12 @@ vi.mock("@/lib/api/gemini-client", () => ({
   extractStandingFacts: (...args: unknown[]) => mockExtractStandingFacts(...args),
 }));
 
-import {
-  MAX_STANDING_FACTS,
-  type ExtractedFact,
-} from "@/lib/preferences/fact-extractor";
+import { MAX_STANDING_FACTS } from "@/lib/preferences/fact-extractor";
 import {
   deleteFact,
   getStandingFacts,
   learnFactsFromText,
   restoreSupersededFact,
-  storeExtractedFacts,
 } from "@/lib/preferences/fact-store";
 
 type Row = Record<string, unknown>;
@@ -458,71 +454,6 @@ describe("learnFactsFromText", () => {
 
     expect(rows).toEqual([]);
     expect(result.facts).toEqual([]);
-  });
-});
-
-// Step 11 split `learnFactsFromText` in two so `/api/extract-places` can reach
-// the write half with facts the merged Gemini call already returned. Everything
-// above still goes through `learnFactsFromText`, which is the same code — these
-// cover the two things that are only true of the new entry point.
-describe("storeExtractedFacts", () => {
-  it("writes facts it was handed without asking the model for them", async () => {
-    const { client, rows } = fakeFactsTable([]);
-
-    const result = await storeExtractedFacts(
-      client,
-      "user-1",
-      [extracted() as unknown as ExtractedFact],
-      [],
-      NOW,
-    );
-
-    expect(mockExtractStandingFacts).not.toHaveBeenCalled();
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ fact_text: "always walks with a dog" });
-    expect(result.facts.map((f) => f.text)).toEqual(["always walks with a dog"]);
-  });
-
-  // The caller reads the walker's facts once, before the extraction, and hands
-  // that same list back here. A `replaces` is matched against it — get this
-  // wrong and a reversal silently stops retiring anything.
-  it("matches a contradiction against the list it was given", async () => {
-    const { client, rows } = fakeFactsTable([storedRow()]);
-    const existing = await getStandingFacts(client, "user-1");
-
-    const result = await storeExtractedFacts(
-      client,
-      "user-1",
-      [
-        extracted({
-          text: "eats meat",
-          importance: 3,
-          replaces: "does not eat meat",
-        }) as unknown as ExtractedFact,
-      ],
-      existing,
-      NOW,
-    );
-
-    expect(result.contradictions).toEqual([
-      {
-        supersededFactId: "fact-meat",
-        supersededText: "does not eat meat",
-        newFactId: expect.any(String),
-        newText: "eats meat",
-      },
-    ]);
-    expect(active(rows).map((row) => row.fact_text)).toEqual(["eats meat"]);
-  });
-
-  it("writes nothing when the pass found no facts", async () => {
-    const { client, rows } = fakeFactsTable([storedRow()]);
-    const existing = await getStandingFacts(client, "user-1");
-
-    const result = await storeExtractedFacts(client, "user-1", [], existing, NOW);
-
-    expect(rows).toHaveLength(1);
-    expect(result).toEqual({ facts: existing, contradictions: [] });
   });
 });
 

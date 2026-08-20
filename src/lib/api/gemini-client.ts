@@ -10,14 +10,10 @@ import {
   type PlaceExtraction,
 } from "@/lib/places/place-extractor";
 import {
-  buildCombinedExtractionPrompt,
   buildKnownFactsBlock,
   buildPromptWithFacts,
-  COMBINED_EXTRACTION_SYSTEM_PROMPT,
   FACT_EXTRACTION_SYSTEM_PROMPT,
-  parseCombinedExtraction,
   parseStandingFacts,
-  type CombinedExtraction,
   type ExtractedFact,
   type StoredFact,
 } from "@/lib/preferences/fact-extractor";
@@ -178,28 +174,6 @@ const FACTS_SCHEMA: Schema = {
   required: ["facts"],
 };
 
-/**
- * The merged pass's schema: every field the walk needs, plus the facts field.
- *
- * Composed from the two schemas it replaces for the same reason
- * `COMBINED_EXTRACTION_SYSTEM_PROMPT` is composed from the two prompts — a
- * hand-copied third definition of a place or a fact is a definition waiting to
- * drift out of sync with the two calls that still use the originals.
- *
- * `facts` is required here, unlike the optional walk fields: an empty list is
- * the normal answer and the model has to say so, because a *missing* `facts` and
- * "this text stated no facts" would otherwise be the same reply, and one of them
- * is a model that forgot half its job.
- */
-const PLACES_AND_FACTS_SCHEMA: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    ...PLACES_SCHEMA.properties,
-    ...FACTS_SCHEMA.properties,
-  },
-  required: ["places", "facts"],
-};
-
 function apiKeyOrThrow(): string {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -247,53 +221,6 @@ export async function extractPlaceNames(
   // JSON mode makes `text` a JSON document; `parsePlaceExtraction` handles the
   // string, and also copes with a blocked or empty response.
   return parsePlaceExtraction(response.text ?? "");
-}
-
-/**
- * `extractPlaceNames` and `extractStandingFacts` in one request — design doc
- * step 11, deferred there as "merge them if the second call proves costly".
- *
- * Used on exactly one path: a signed-in walker who has left learning on, where
- * both passes were going to run over the same sentence anyway. Everyone else
- * still goes through `extractPlaceNames`, which is why that function is
- * untouched rather than reimplemented on top of this one. That split is the
- * original reason the two calls were separate (see `extractStandingFacts`) and
- * it survives the merge: a logged-out prompt still sends the smaller system
- * prompt and still pays for no field it does not read.
- *
- * The category-preference pass is deliberately NOT folded in as a third field:
- * `walk-feedback` runs it over a comment box that has no places in it at all, so
- * it has to stand alone regardless — and keeping it out means the merged
- * response has no `preferences` field for a category liking to land in, which
- * makes the schema, not just the prompt, enforce the one boundary this merge
- * must not blur.
- *
- * `facts` is what may steer the walk, `olderFacts` is what may only be
- * contradicted — see `buildCombinedExtractionPrompt`. Both empty sends the same
- * `contents` a plain extraction would.
- */
-export async function extractPlacesAndFacts(
-  prompt: string,
-  facts: StoredFact[] = [],
-  olderFacts: StoredFact[] = [],
-): Promise<CombinedExtraction> {
-  const client = new GoogleGenAI({ apiKey: apiKeyOrThrow() });
-
-  const response = await client.models.generateContent({
-    model: MODEL,
-    contents: buildCombinedExtractionPrompt(prompt, facts, olderFacts),
-    config: {
-      systemInstruction: COMBINED_EXTRACTION_SYSTEM_PROMPT,
-      responseMimeType: "application/json",
-      responseSchema: PLACES_AND_FACTS_SCHEMA,
-      // The two budgets it replaces, added: 512 for the walk, 256 for the facts.
-      // Sharing one pool rather than splitting it is the point — a prompt with
-      // no facts in it spends nothing on them.
-      maxOutputTokens: 768,
-    },
-  });
-
-  return parseCombinedExtraction(response.text ?? "");
 }
 
 /**

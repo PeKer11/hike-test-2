@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 import {
   extractPlaceNames,
-  extractPlacesAndFacts,
   resolveCanonicalName,
 } from "@/lib/api/gemini-client";
 import { searchPlaces } from "@/lib/api/nominatim-client";
@@ -19,12 +18,11 @@ import {
 } from "@/lib/places/place-extractor";
 import {
   selectFactsForPrompt,
-  type ExtractedFact,
   type StoredFact,
 } from "@/lib/preferences/fact-extractor";
 import {
   getStandingFacts,
-  storeExtractedFacts,
+  learnFactsFromText,
   type FactContradiction,
 } from "@/lib/preferences/fact-store";
 import { ATTRACTION_CATEGORIES } from "@/lib/preferences/preference-extractor";
@@ -244,14 +242,13 @@ async function learningSession(
  * Third, optional job of this endpoint: notice who the walker is, not just
  * where they want to go. Runs only for a signed-in walker who has left
  * preference learning on — a logged-out prompt is answered exactly as before,
- * with no extra model call made.
+ * with no model call made.
  *
- * The facts arrive already extracted: the same Gemini call that read the walk
- * read them too (`extractPlacesAndFacts`), so all that is left here is the
- * write. The category-preference pass is still its own call, on purpose —
- * `walk-feedback` runs it over a comment box with no places in it, so it has to
- * stand alone anyway, and leaving `preferences` out of the merged schema is what
- * keeps a category liking structurally unable to land in `facts`.
+ * Two passes, run together: the category preferences the text states, and the
+ * standing facts it states. They are separate calls because they answer
+ * different questions — "I love museums" is a preference and belongs to the
+ * category mechanism, "I don't eat meat" is a fact and deliberately does not
+ * map onto a category at all.
  *
  * Nothing here can fail the request: the walker asked for places, and getting
  * them must not depend on either write succeeding.
@@ -259,8 +256,6 @@ async function learningSession(
 async function learnFromText(
   session: { supabase: ServerClient; userId: string } | null,
   prompt: string,
-  detectedFacts: ExtractedFact[],
-  knownFacts: StoredFact[],
 ): Promise<FactContradiction[]> {
   if (!session) {
     return [];
@@ -271,12 +266,9 @@ async function learnFromText(
       learnPreferencesFromText(session.supabase, session.userId, prompt).catch(
         () => null,
       ),
-      storeExtractedFacts(
-        session.supabase,
-        session.userId,
-        detectedFacts,
-        knownFacts,
-      ).catch(() => null),
+      learnFactsFromText(session.supabase, session.userId, prompt).catch(
+        () => null,
+      ),
     ]);
 
     return learnedFacts?.contradictions ?? [];
@@ -286,33 +278,26 @@ async function learnFromText(
 }
 
 /**
- * What the walker is on record as saying, split the two ways the merged
- * extraction pass needs it: `selected` is the handful worth steering this walk
- * with, `all` is everything still standing.
- *
- * Both come out of one read. `all` is not just `selected`'s superset for
- * tidiness — it is what a contradiction is matched against, on both sides of the
- * call: the model needs it to set `replaces`, and `storeExtractedFacts` needs it
- * to find the row that `replaces` names. A fact that scored too low to steer a
- * walk can still be the one the walker just reversed.
+ * The handful of standing facts worth putting in front of the model for this
+ * walker, or none.
  *
  * Best effort like every other profile read on this path: no session, or a
- * failed read, both fall through to empty lists, and the extraction then sends
- * the request it would have sent before facts existed rather than failing the
- * prompt.
+ * failed read, both fall through to an empty list, and the extraction then
+ * sends the request it would have sent before facts existed rather than
+ * failing the prompt.
  */
 async function standingFactsFor(
   session: { supabase: ServerClient; userId: string } | null,
-): Promise<{ all: StoredFact[]; selected: StoredFact[] }> {
+): Promise<StoredFact[]> {
   if (!session) {
-    return { all: [], selected: [] };
+    return [];
   }
 
   try {
-    const all = await getStandingFacts(session.supabase, session.userId);
-    return { all, selected: selectFactsForPrompt(all, new Date()) };
+    const facts = await getStandingFacts(session.supabase, session.userId);
+    return selectFactsForPrompt(facts, new Date());
   } catch {
-    return { all: [], selected: [] };
+    return [];
   }
 }
 
@@ -383,14 +368,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     // not a second way of reading a duration — but nothing else runs, and what
     // the earlier turns established survives whatever this one failed to say.
     if (body.followUp === true) {
-      // Still the plain extraction, and deliberately: turn two is "three hours,
-      // up to 1km" — a sentence about this one walk, which is the one thing the
-      // fact prompt is emphatic is never a fact. Merging the fact pass in here
-      // would spend the tokens to be told so.
-      const { selected } = await standingFactsFor(
-        await learningSession(body.learnPreferences),
+      const followUp = await extractPlaceNames(
+        prompt,
+        await standingFactsFor(await learningSession(body.learnPreferences)),
       );
-      const followUp = await extractPlaceNames(prompt, selected);
       return NextResponse.json({
         followUp: true,
         // The new answer wins where there is one; where the walker answered
@@ -412,25 +393,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     // fact this very sentence teaches us has no business changing how the same
     // sentence is read.
     const session = await learningSession(body.learnPreferences);
-    const { all: knownFacts, selected } = await standingFactsFor(session);
+    const facts = await standingFactsFor(session);
 
     let bias = toBias(body.nearLocation);
-    // One call or two, decided by whether there is anything to learn from. A
-    // signed-in walker with learning on was always going to pay for a walk pass
-    // and a fact pass over the same sentence, so they get the merged one; a
-    // logged-out prompt keeps the smaller request it has always sent, with no
-    // `facts` field in the schema for it to spend output tokens on. Design doc
-    // step 11.
-    const { extraction, facts: detectedFacts } = session
-      ? await extractPlacesAndFacts(
-          prompt,
-          selected,
-          knownFacts.filter(
-            (fact) => !selected.some((chosen) => chosen.id === fact.id),
-          ),
-        )
-      : { extraction: await extractPlaceNames(prompt, selected), facts: [] };
-
     const {
       places,
       contextLocation,
@@ -440,7 +405,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       notableOnly,
       maxEndDistanceKm,
       searchRadiusKm,
-    } = extraction;
+    } = await extractPlaceNames(prompt, facts);
 
     // A chip the walker tapped answers the question the text left open, so it
     // stands in for what the model read (nothing) rather than joining it.
@@ -539,12 +504,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       durationMinutes,
     );
 
-    const factContradictions = await learnFromText(
-      session,
-      prompt,
-      detectedFacts,
-      knownFacts,
-    );
+    const factContradictions = await learnFromText(session, prompt);
 
     const promptShape = {
       places,

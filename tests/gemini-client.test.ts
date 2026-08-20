@@ -22,15 +22,10 @@ vi.mock("@google/genai", () => ({
 
 import {
   extractPlaceNames,
-  extractPlacesAndFacts,
   extractStandingFacts,
 } from "@/lib/api/gemini-client";
 import { PLACE_EXTRACTION_SYSTEM_PROMPT } from "@/lib/places/place-extractor";
-import {
-  COMBINED_EXTRACTION_SYSTEM_PROMPT,
-  FACT_EXTRACTION_SYSTEM_PROMPT,
-  type StoredFact,
-} from "@/lib/preferences/fact-extractor";
+import type { StoredFact } from "@/lib/preferences/fact-extractor";
 
 function fact(text: string, overrides: Partial<StoredFact> = {}): StoredFact {
   return {
@@ -117,107 +112,6 @@ describe("extractPlaceNames", () => {
     expect(extraction.places).toEqual(["Habima Square"]);
     expect(extraction.contextLocation).toBe("Tel Aviv");
     expect(extraction.durationMinutes).toBe(90);
-  });
-});
-
-// Step 11: the walk pass and the fact pass in one request, for the one walker
-// who was going to pay for both anyway.
-describe("extractPlacesAndFacts", () => {
-  it("asks for both halves in one request", async () => {
-    mockGenerateContent.mockResolvedValue({
-      text: JSON.stringify({
-        places: ["Habima Square"],
-        facts: [{ text: "does not eat meat", importance: 3, replaces: null }],
-      }),
-    });
-
-    const result = await extractPlacesAndFacts(
-      "I don't eat meat, take me to Habima Square",
-    );
-
-    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-    expect(result.extraction.places).toEqual(["Habima Square"]);
-    expect(result.facts).toEqual([
-      { text: "does not eat meat", importance: 3, replaces: null },
-    ]);
-  });
-
-  // The merged instruction is the two originals, so neither pass can quietly
-  // lose a rule it had when it was a request of its own.
-  it("sends the merged instruction, with both originals inside it", async () => {
-    await extractPlacesAndFacts("a walk in Jaffa");
-
-    const instruction = sentRequest().config.systemInstruction;
-    expect(instruction).toBe(COMBINED_EXTRACTION_SYSTEM_PROMPT);
-    expect(instruction).toContain(PLACE_EXTRACTION_SYSTEM_PROMPT);
-    expect(instruction).toContain(FACT_EXTRACTION_SYSTEM_PROMPT);
-  });
-
-  // Both schemas, one object. `facts` is required so "no facts" and "the model
-  // forgot job 2" stop looking alike.
-  it("sends a schema that carries the walk fields and the facts", async () => {
-    await extractPlacesAndFacts("a walk in Jaffa");
-
-    const schema = sentRequest().config.responseSchema;
-    expect(Object.keys(schema.properties)).toEqual(
-      expect.arrayContaining([
-        "places",
-        "contextLocation",
-        "durationMinutes",
-        "categoryNeeds",
-        "stopCount",
-        "notableOnly",
-        "maxEndDistanceKm",
-        "searchRadiusKm",
-        "facts",
-      ]),
-    );
-    expect(schema.required).toEqual(["places", "facts"]);
-  });
-
-  it("keeps the walker's own facts out of the shared instruction", async () => {
-    await extractPlacesAndFacts("a walk in Jaffa", [fact("keeps chickens at home")]);
-
-    expect(sentRequest().config.systemInstruction).not.toContain(
-      "keeps chickens at home",
-    );
-    expect(sentRequest().contents).toContain("keeps chickens at home");
-  });
-
-  it("labels the steering facts and the reversal-only facts separately", async () => {
-    await extractPlacesAndFacts(
-      "I eat meat again",
-      [fact("always walks with a dog")],
-      [fact("does not eat meat")],
-    );
-
-    expect(sentRequest().contents).toBe(
-      [
-        "Standing facts about this walker:",
-        "- always walks with a dog",
-        "",
-        "Older facts, for spotting a reversal only:",
-        "- does not eat meat",
-        "",
-        "Request:",
-        "I eat meat again",
-      ].join("\n"),
-    );
-  });
-
-  it("sends the bare prompt for a walker with nothing on record", async () => {
-    await extractPlacesAndFacts("a walk in Jaffa");
-
-    expect(sentRequest().contents).toBe("a walk in Jaffa");
-  });
-
-  it("reads a blocked or empty reply as neither a walk nor facts", async () => {
-    mockGenerateContent.mockResolvedValue({ text: undefined });
-
-    const result = await extractPlacesAndFacts("a walk in Jaffa");
-
-    expect(result.extraction.places).toEqual([]);
-    expect(result.facts).toEqual([]);
   });
 });
 

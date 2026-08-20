@@ -1,9 +1,4 @@
-import {
-  parsePlaceExtraction,
-  PLACE_EXTRACTION_SYSTEM_PROMPT,
-  toCandidate,
-  type PlaceExtraction,
-} from "@/lib/places/place-extractor";
+import { toCandidate } from "@/lib/places/place-extractor";
 import { stripCombiningMarks } from "@/lib/utils/text";
 
 /**
@@ -123,58 +118,6 @@ export const FACT_EXTRACTION_SYSTEM_PROMPT = [
 ].join("\n");
 
 /**
- * System instruction for the merged pass: the walk and the standing facts read
- * off one text in one request, for a signed-in walker who has left learning on.
- * Design doc step 11, which scoped it as "merge the second call away if it
- * proves costly".
- *
- * Built by concatenating the two prompts it replaces rather than by rewriting
- * them into a third. Two reasons, and the second is the load-bearing one:
- *
- * - Drift. A hand-merged copy is a third definition of what a place is and what
- *   a fact is, and the day someone edits one of the originals it silently stops
- *   matching what production sends.
- * - The separation rule. The one thing this merge must not break is that a
- *   category liking ("I love museums") stays out of `facts` and a standing fact
- *   ("I don't eat meat") stays out of `places`/`categoryNeeds`. Both halves of
- *   that rule were hand-written into the two prompts specifically to prevent it
- *   — `FACT_EXTRACTION_SYSTEM_PROMPT`'s "Never a liking or disliking of a KIND
- *   of place" line and `PLACE_EXTRACTION_SYSTEM_PROMPT`'s "Standing facts ...
- *   never add places or category needs on their own". Composing rather than
- *   rewriting carries both across verbatim, and a test asserts it.
- *
- * The trailing block is the part that is genuinely new, and it is only there
- * because the two rules that used to be enforced by *being different requests*
- * now have to be stated: one model, one response, two fields that must not
- * bleed into each other.
- */
-export const COMBINED_EXTRACTION_SYSTEM_PROMPT = [
-  "You do two jobs in one pass over the walker's text, and you keep them apart.",
-  "",
-  "=== JOB 1: the walk the walker is asking for ===",
-  PLACE_EXTRACTION_SYSTEM_PROMPT,
-  "",
-  "=== JOB 2: standing facts about the walker ===",
-  FACT_EXTRACTION_SYSTEM_PROMPT,
-  "",
-  "=== Keeping the two jobs apart ===",
-  "Answer both jobs about the same text in one JSON object: the walk fields, and `facts`.",
-  "The jobs never feed each other, in either direction.",
-  "A liking or disliking of a KIND of place — 'I love museums', 'no shopping streets' — is never a standing fact. It belongs to a separate preference pass that you are not doing here, so leave it out of `facts` entirely.",
-  "A standing fact — 'does not eat meat', 'always walks with a dog' — never adds a name to `places` and never adds a value to `categoryNeeds`. Job 1 answers only what the walker asked for on this walk.",
-  "A single sentence can feed one job, both jobs, or neither.",
-  // The contents may carry two fact lists, and they are not interchangeable —
-  // see `buildCombinedExtractionPrompt`. Without this the model would read the
-  // reversal-only list as context and let a demoted fact steer the walk again.
-  "You may be given the walker's standing facts before their request, under 'Standing facts about this walker'. Job 1 reads those as context for the request; Job 2 may name one of them in `replaces`.",
-  "A second list may follow under 'Older facts, for spotting a reversal only'. Those are on record but are NOT context for this walk — use them for `replaces` and for nothing else.",
-  "Examples:",
-  '"I love museums, walk me around Jerusalem" -> places ["Jerusalem"], facts [] — a category liking is not a standing fact.',
-  '"I don\'t eat meat, take me to Habima Square" -> places ["Habima Square"], categoryNeeds [], facts [{ text: "does not eat meat", importance: 3, replaces: null }] — the fact is recorded, and it adds no stop.',
-  '"a walk in Jaffa, about two hours" -> places ["Jaffa"], durationMinutes 120, facts [] — nothing here outlives this walk.',
-].join("\n");
-
-/**
  * The known facts as the block that goes in front of the walker's text on a
  * fact-extraction call, or an empty string when there are none — in which case
  * the request sent is byte-identical to one made before contradictions existed.
@@ -216,78 +159,6 @@ export function buildPromptWithFacts(
     "Request:",
     prompt,
   ].join("\n");
-}
-
-/** What one merged pass produces: the walk, and the facts the text stated. */
-export interface CombinedExtraction {
-  extraction: PlaceExtraction;
-  facts: ExtractedFact[];
-}
-
-/**
- * The `contents` of a merged pass: the walker's request, with whichever fact
- * lists apply in front of it.
- *
- * Two lists, not one, because the two calls this replaces were given two
- * different sets and both were deliberate. `facts` is what
- * `selectFactsForPrompt` chose — the handful strong enough to be worth steering
- * a walk with, and the only ones Job 1 may read. `olderFacts` is the rest of
- * what is on record: they must still reach the model, or "I eat meat again"
- * against a demoted "does not eat meat" would go unnoticed and the row would
- * never be retired — but they are labelled so they cannot quietly come back as
- * walk context, which is exactly what folding them into one list would do.
- *
- * With neither list the return value is the prompt itself, unchanged, so the
- * merged call sends the same `contents` a plain place extraction would.
- */
-export function buildCombinedExtractionPrompt(
-  prompt: string,
-  facts: StoredFact[],
-  olderFacts: StoredFact[] = [],
-): string {
-  if (facts.length === 0 && olderFacts.length === 0) {
-    return prompt;
-  }
-
-  const lines: string[] = [];
-
-  if (facts.length > 0) {
-    lines.push(
-      "Standing facts about this walker:",
-      ...facts.map((fact) => `- ${fact.text}`),
-      "",
-    );
-  }
-
-  if (olderFacts.length > 0) {
-    lines.push(
-      "Older facts, for spotting a reversal only:",
-      ...olderFacts.map((fact) => `- ${fact.text}`),
-      "",
-    );
-  }
-
-  lines.push("Request:", prompt);
-
-  return lines.join("\n");
-}
-
-/**
- * Read a merged reply as both halves at once.
- *
- * Deliberately the two existing parsers over one object rather than a third
- * parser: each already drops what it cannot use and degrades to an empty answer
- * instead of throwing, so a reply that gets one half wrong still yields the
- * other. A model that answers with the walk and forgets `facts` costs a fact,
- * not the walk.
- */
-export function parseCombinedExtraction(input: unknown): CombinedExtraction {
-  const candidate = toCandidate(input);
-
-  return {
-    extraction: parsePlaceExtraction(candidate),
-    facts: parseStandingFacts(candidate),
-  };
 }
 
 /**

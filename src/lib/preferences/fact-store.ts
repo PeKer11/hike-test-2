@@ -243,38 +243,10 @@ export async function learnFactsFromText(
   try {
     const existing = await getStandingFacts(supabase, userId);
     const detected = await extractStandingFacts(trimmed, existing);
-    return await storeExtractedFacts(supabase, userId, detected, existing, now);
-  } catch {
-    // Model call failed, Supabase unavailable, or a rejected write — silent.
-    return LEARNED_NOTHING;
-  }
-}
+    if (detected.length === 0) {
+      return { facts: existing, contradictions: [] };
+    }
 
-/**
- * The write half of `learnFactsFromText`, on its own so the merged extraction
- * pass can reach it.
- *
- * `/api/extract-places` gets the facts back from the same Gemini call that read
- * the walk (`extractPlacesAndFacts`), and it has already read `existing` to
- * decide which facts to put in front of the model. Handing both in rather than
- * calling `learnFactsFromText` saves the model call this whole merge exists to
- * remove, and a second `getStandingFacts` round trip along with it.
- *
- * `existing` must be what was on record *before* this text was read — that is
- * what a contradiction is matched against.
- */
-export async function storeExtractedFacts(
-  supabase: ServerClient,
-  userId: string,
-  detected: ExtractedFact[],
-  existing: StoredFact[],
-  now: Date = new Date(),
-): Promise<FactLearningResult> {
-  if (detected.length === 0) {
-    return { facts: existing, contradictions: [] };
-  }
-
-  try {
     const byKey = new Map(existing.map((fact) => [fact.key, fact]));
     const contradictions: FactContradiction[] = [];
     let current = existing;
@@ -338,7 +310,7 @@ export async function storeExtractedFacts(
       contradictions,
     };
   } catch {
-    // Supabase unavailable, or a rejected write — silent.
+    // Model call failed, Supabase unavailable, or a rejected write — silent.
     return LEARNED_NOTHING;
   }
 }
