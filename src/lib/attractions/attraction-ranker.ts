@@ -46,23 +46,28 @@ export const EXPLORATION_RATE = 0.15;
 export const MAX_EXPLORATION_PICKS = 1;
 
 /**
- * Added for a category the walker's profile asks for.
+ * Added for a category THIS walk asked for — a chip ticked on the form, or a
+ * need read out of the prompt ("I also want to eat something").
  *
- * Flat, unlike both feedback-driven signals below, and the asymmetry is
- * deliberate — it is between kinds of evidence, not between liking and
- * disliking. `profiles.preferred_categories` is written by the free-text pass
- * off statements like "I love museums" — explicit, unambiguous language that is
- * already high confidence on its first occurrence, and there is nothing to
- * accumulate because the column is a plain array with no per-category history.
- * Post-walk feedback is the other kind of evidence: it arrives from taps at the
+ * Flat, and now that is the whole of what it means. Until 2026-08-23 this same
+ * constant also carried the walker's standing tastes, read as flat membership of
+ * `profiles.preferred_categories`; that half has moved to
+ * `preferredCategoryWeights` and a decayed curve, because a taste has a history
+ * and an age and this does not. A request for a category on the walk being
+ * planned right now is as fresh as evidence gets and has nothing to accumulate
+ * or to fade — it is answered by the walk it arrived on.
+ *
+ * Still 4, and still the same 4 as `CATEGORY_BOOST_PER_OCCURRENCE`'s base over
+ * in `preference-extractor.ts`, so a taste stated for the first time today is
+ * worth exactly what asking for it today is worth. The two are kept as separate
+ * constants rather than one shared one because they answer different questions
+ * and should stay free to diverge.
+ *
+ * Post-walk feedback is the third kind of evidence: it arrives from taps at the
  * end of a walk, where one 👎 can mean the walker was tired, out of time or
  * unlucky with that one stop, and one 👍 can be one good stop. Repetition is
  * what turns either into a preference, so both feedback sides scale — see
- * `downvotePenalty` and `occurrencePreferenceBoost` below, and note that this
- * flat boost is added on top of the latter rather than replaced by it, because
- * "they said they love museums" and "they keep liking museums" are two separate
- * pieces of evidence. (An explicit *dislike* in text still removes the category
- * from `preferred_categories` outright and stays as categorical as it was.)
+ * `downvotePenalty` and `occurrencePreferenceBoost` below.
  */
 export const PREFERRED_CATEGORY_BOOST = 4;
 
@@ -157,7 +162,30 @@ export const NOTABLE_ONLY_MULTIPLIER = 4;
 
 export interface RankerOptions {
   origin: Coordinates;
+  /**
+   * Categories THIS walk asked for — form chips, or a need read out of the
+   * prompt. Worth a flat `PREFERRED_CATEGORY_BOOST` each, and never explored
+   * away from: the walker has just said what they want.
+   */
   preferredCategories?: AttractionCategory[];
+  /**
+   * The walker's standing tastes, mapped to what each is worth right now —
+   * `activeCategoryWeights` in `preference-extractor.ts`, which is a function of
+   * how often the taste has been stated and how long ago it was last stated.
+   *
+   * A map rather than a list because that is the fix: as a list this was flat
+   * membership, so a category mentioned once a year ago boosted as hard as one
+   * confirmed on five walks last month, and — worse — could never be explored
+   * into again. Categories whose weight has decayed below
+   * `MIN_CATEGORY_WEIGHT` are absent from the map entirely, which is what makes
+   * them explorable again rather than permanently excluded.
+   *
+   * Combined with `preferredCategories` by taking the larger of the two rather
+   * than adding them: "they asked for museums today" and "they like museums" are
+   * the same claim arriving twice, unlike the feedback signals below, which are
+   * a different kind of evidence and do stack.
+   */
+  preferredCategoryWeights?: ReadonlyMap<AttractionCategory, number>;
   /**
    * Categories carrying a standing category-level downvote, mapped to how many
    * times that downvote has been repeated. Penalized in the score in proportion
@@ -170,8 +198,10 @@ export interface RankerOptions {
    * Categories carrying a standing category-level upvote from post-walk
    * feedback, mapped to how many times it has been repeated. Boosted in the
    * score in proportion to that count (`occurrencePreferenceBoost`), on top of
-   * — not instead of — the flat `PREFERRED_CATEGORY_BOOST` a category gets from
-   * `preferred_categories`. Also kept out of exploration, same reasoning as a
+   * — not instead of — whatever the category is already worth as a stated taste
+   * or as a request for this walk: a tap at the end of a walk is behavioural
+   * evidence and a sentence is stated evidence, and those do stack where the
+   * two stated forms do not. Also kept out of exploration, same reasoning as a
    * downvote: repeated behavioural evidence is an answer, not a question worth
    * spending the exploration slot on.
    */
@@ -238,10 +268,19 @@ type ScoredAttraction = Attraction & {
  * it is the answer. Handing the walker a guaranteed slot for a kind of place
  * they have already told us they dislike spends the one exploration stop we
  * allow on a question that is closed, and reads as the app not listening.
+ *
+ * `exploited` is every category that counts as answered right now: asked for on
+ * this walk, or a standing taste still above `MIN_CATEGORY_WEIGHT`. Until
+ * 2026-08-23 the standing half was raw membership of the monotonic
+ * `preferred_categories` array, and that is what starved exploration — a walker
+ * twenty prompts in had six categories permanently barred from the exploration
+ * slot for having been mentioned once, and there was no way back out of the
+ * array short of an explicit dislike. A taste that has decayed under the
+ * threshold is a question again, so it becomes eligible again.
  */
 function withExplorationPick(
   ranked: ScoredAttraction[],
-  preferredCategories: AttractionCategory[],
+  exploited: ReadonlySet<AttractionCategory>,
   downvotedCategories: ReadonlyMap<AttractionCategory, number>,
   upvotedCategories: ReadonlyMap<AttractionCategory, number>,
   random: () => number,
@@ -254,7 +293,7 @@ function withExplorationPick(
   for (const attraction of ranked) {
     if (
       picks.length < MAX_EXPLORATION_PICKS &&
-      !preferredCategories.includes(attraction.category) &&
+      !exploited.has(attraction.category) &&
       !downvotedCategories.has(attraction.category) &&
       !upvotedCategories.has(attraction.category)
     ) {
@@ -274,6 +313,7 @@ export function rankAttractions(
   const {
     origin,
     preferredCategories,
+    preferredCategoryWeights,
     downvotedCategories,
     upvotedCategories,
     downvotedPoiKeys,
@@ -312,9 +352,11 @@ export function rankAttractions(
     score +=
       notabilityBonus(a.tags) * (notableOnly ? NOTABLE_ONLY_MULTIPLIER : 1);
 
-    if (preferredCategories?.includes(a.category)) {
-      score += PREFERRED_CATEGORY_BOOST;
-    }
+    // The larger of the two, not the sum — see `preferredCategoryWeights`.
+    score += Math.max(
+      preferredCategories?.includes(a.category) ? PREFERRED_CATEGORY_BOOST : 0,
+      preferredCategoryWeights?.get(a.category) ?? 0,
+    );
     const downvoteOccurrences = downvotedCategories?.get(a.category);
     if (downvoteOccurrences !== undefined) {
       score -= downvotePenalty(downvoteOccurrences);
@@ -332,11 +374,18 @@ export function rankAttractions(
   scored.sort((a, b) => b.score - a.score);
 
   // Nothing to explore away from when no preference is known — the ranking is
-  // already showing the walker whatever is best nearby.
-  if (allowExploration && preferredCategories && preferredCategories.length > 0) {
+  // already showing the walker whatever is best nearby. A profile whose every
+  // taste has decayed under the threshold reaches this the same way a brand new
+  // one does, which is right: we no longer know what they like.
+  const exploited = new Set<AttractionCategory>([
+    ...(preferredCategories ?? []),
+    ...(preferredCategoryWeights?.keys() ?? []),
+  ]);
+
+  if (allowExploration && exploited.size > 0) {
     return withExplorationPick(
       scored,
-      preferredCategories,
+      exploited,
       downvotedCategories ?? new Map(),
       upvotedCategories ?? new Map(),
       random,

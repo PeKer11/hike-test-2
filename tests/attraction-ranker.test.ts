@@ -763,3 +763,123 @@ describe("rankAttractions — notableOnly", () => {
     ).toEqual(["a", "b"]);
   });
 });
+
+// The standing-taste half of the preference signal, decayed. `preferredCategories`
+// above is now only "what this walk asked for"; everything here is "what the
+// walker is on record as liking, and how much that is still worth".
+describe("rankAttractions — decayed standing tastes", () => {
+  function weights(
+    ...entries: [AttractionCategory, number][]
+  ): Map<AttractionCategory, number> {
+    return new Map(entries);
+  }
+
+  function scoreOf(
+    id: string,
+    options: {
+      preferred?: AttractionCategory[];
+      weighted?: Map<AttractionCategory, number>;
+    },
+  ): number {
+    const ranked = rankAttractions([museum, viewpoint], {
+      origin,
+      preferredCategories: options.preferred,
+      preferredCategoryWeights: options.weighted,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+    });
+
+    return ranked.find((a) => a.id === id)?.score ?? Number.NaN;
+  }
+
+  it("adds the weight the map carries, not a flat boost", () => {
+    const neutral = scoreOf("museum", {});
+
+    expect(scoreOf("museum", { weighted: weights(["museum", 8]) })).toBeCloseTo(
+      neutral + 8,
+    );
+    expect(
+      scoreOf("museum", { weighted: weights(["museum", 1.5]) }),
+    ).toBeCloseTo(neutral + 1.5);
+  });
+
+  // "They ticked museums today" and "they like museums" are the same claim
+  // arriving twice. Summing them would double-count a walker who ticks the chip
+  // for the taste they already have on file, which is the common case.
+  it("takes the larger of today's tick and the standing taste, never the sum", () => {
+    const neutral = scoreOf("museum", {});
+
+    expect(
+      scoreOf("museum", {
+        preferred: ["museum"],
+        weighted: weights(["museum", 7]),
+      }),
+    ).toBeCloseTo(neutral + 7);
+
+    expect(
+      scoreOf("museum", {
+        preferred: ["museum"],
+        weighted: weights(["museum", 1]),
+      }),
+    ).toBeCloseTo(neutral + PREFERRED_CATEGORY_BOOST);
+  });
+
+  // The exploration starvation this whole change is about. Under the old flat
+  // array a category was barred from exploration forever for having been
+  // mentioned once; a decayed-out taste is simply absent from the map.
+  it("explores into a taste that has decayed out of the map", () => {
+    const ranked = rankAttractions([museum, viewpoint], {
+      origin,
+      preferredCategoryWeights: weights(["museum", 4]),
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      allowExploration: true,
+      random: () => 0,
+    });
+
+    expect(ranked[0].id).toBe("viewpoint");
+    expect(ranked[0].isExplorationPick).toBe(true);
+
+    // Once viewpoints are a standing taste too, there is nothing left to
+    // explore into and the ranking is left alone.
+    const bothKnown = rankAttractions([museum, viewpoint], {
+      origin,
+      preferredCategoryWeights: weights(["museum", 4], ["viewpoint", 4]),
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      allowExploration: true,
+      random: () => 0,
+    });
+
+    expect(bothKnown.some((a) => a.isExplorationPick)).toBe(false);
+  });
+
+  it("leaves the ranking alone when every taste has decayed away", () => {
+    const ranked = rankAttractions([museum, viewpoint], {
+      origin,
+      preferredCategoryWeights: weights(),
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      allowExploration: true,
+      random: () => 0,
+    });
+
+    expect(ranked.map((a) => a.id)).toEqual(["viewpoint", "museum"]);
+    expect(ranked.some((a) => a.isExplorationPick)).toBe(false);
+  });
+
+  // Today's tick is not a decayed value and must still bar exploration on its
+  // own, even for a walker with no standing tastes at all.
+  it("still refuses to explore into a category this walk asked for", () => {
+    const ranked = rankAttractions([museum, viewpoint], {
+      origin,
+      preferredCategories: ["museum", "viewpoint"],
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      allowExploration: true,
+      random: () => 0,
+    });
+
+    expect(ranked.some((a) => a.isExplorationPick)).toBe(false);
+  });
+});
