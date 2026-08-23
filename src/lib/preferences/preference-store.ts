@@ -6,9 +6,11 @@ import type { AttractionCategory } from "@/lib/types";
 
 import { poiIdentityKeys } from "./poi-key";
 import {
+  activeCategories,
+  activeCategoryWeights,
   ATTRACTION_CATEGORIES,
-  mergePreferredCategories,
   type CategoryPreference,
+  type StoredCategoryPreference,
 } from "./preference-extractor";
 
 // The session-aware server client. Every write below runs as the signed-in
@@ -49,48 +51,107 @@ export async function learnPreferencesFromText(
   }
 }
 
+const CATEGORY_PREFERENCE_COLUMNS = "category, occurrence_count, last_seen_at";
+
 /**
- * The column is `attraction_category[]`, but a value written by an older schema
- * or by hand is not necessarily a category we still know. Dropping it here
- * matters beyond scoring: a list of unknown strings is non-empty, which would
- * switch the ranker's exploration branch on and label a stop nothing was
- * explored away from as an exploration pick.
+ * One `category_preferences` row as the scorer reads it, or null when it is not
+ * usable — an unknown category (written by an older schema or by hand), or a
+ * timestamp that will not parse.
+ *
+ * Dropping an unknown category matters beyond scoring: it would still be a key
+ * in the weight map, which is what tells the ranker a category is already
+ * answered and must not be explored into.
  */
-function toKnownCategories(value: unknown): AttractionCategory[] {
-  if (!Array.isArray(value)) {
-    return [];
+function toStoredPreference(
+  row: Record<string, unknown>,
+): StoredCategoryPreference | null {
+  const category = row.category;
+  if (!(ATTRACTION_CATEGORIES as string[]).includes(category as string)) {
+    return null;
   }
 
-  return (value as unknown[]).filter(
-    (category): category is AttractionCategory =>
-      (ATTRACTION_CATEGORIES as string[]).includes(category as string),
+  const lastSeenAt = Date.parse(String(row.last_seen_at));
+  if (!Number.isFinite(lastSeenAt)) {
+    return null;
+  }
+
+  return {
+    category: category as AttractionCategory,
+    occurrenceCount: toOccurrenceCount(row.occurrence_count),
+    lastSeenAt,
+  };
+}
+
+/**
+ * Every standing taste on record, unscored — the raw rows, for the two readers
+ * below that want different things out of them.
+ *
+ * Best effort like every read here: no rows, no session or a failed read all
+ * come back empty and the walk is planned from the request alone, exactly as it
+ * was before any of this existed.
+ */
+export async function getCategoryPreferences(
+  supabase: ServerClient,
+  userId: string,
+): Promise<StoredCategoryPreference[]> {
+  try {
+    const { data, error } = await supabase
+      .from("category_preferences")
+      .select(CATEGORY_PREFERENCE_COLUMNS)
+      .eq("user_id", userId);
+
+    if (error || !Array.isArray(data)) {
+      return [];
+    }
+
+    const preferences: StoredCategoryPreference[] = [];
+    for (const row of data as Record<string, unknown>[]) {
+      const preference = toStoredPreference(row);
+      if (preference) {
+        preferences.push(preference);
+      }
+    }
+
+    return preferences;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * What the walker's standing tastes are worth to the ranker right now — the
+ * decayed weight per category, with anything under `MIN_CATEGORY_WEIGHT` left
+ * out. This is the read that replaced the flat `preferred_categories` array on
+ * the walk-plan path.
+ */
+export async function getPreferredCategoryWeights(
+  supabase: ServerClient,
+  userId: string,
+  now: Date = new Date(),
+): Promise<Map<AttractionCategory, number>> {
+  return activeCategoryWeights(
+    await getCategoryPreferences(supabase, userId),
+    now,
   );
 }
 
 /**
- * The standing categories on the walker's profile — what every earlier prompt
- * and post-walk rating has taught us they like, as opposed to whatever they
- * ticked for one particular walk.
+ * The same standing tastes as a plain list, strongest first — for the callers
+ * that want "which categories currently count" rather than by how much: the
+ * clarification chips, which lead with them, and the walk form, which pre-ticks
+ * them.
  *
- * Best effort like the writes below: no profile row, no saved preferences or a
- * failed read all come back as an empty list, and the caller plans the walk from
- * the request alone exactly as it did before this existed.
+ * A category that has decayed under the threshold is simply not in this list.
+ * That is the point: pre-ticking a chip or leading a question with a taste the
+ * walker last mentioned four months ago and never repeated is the app claiming
+ * to know something it no longer does.
  */
 export async function getPreferredCategories(
   supabase: ServerClient,
   userId: string,
+  now: Date = new Date(),
 ): Promise<AttractionCategory[]> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("preferred_categories")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !data) {
-    return [];
-  }
-
-  return toKnownCategories(data.preferred_categories);
+  return activeCategories(await getCategoryPreferences(supabase, userId), now);
 }
 
 /** What the walk form can pre-fill from a returning walker's saved profile. */
@@ -110,9 +171,15 @@ const NO_PROFILE_DEFAULTS: ProfileDefaults = {
  * and the kinds of stop they like, so a returning walker isn't asked again for
  * what the app already learned.
  *
- * Separate from `getPreferredCategories` on purpose: that one feeds the ranker
- * on the walk-plan path and reads only what scoring needs, while this is the
- * form's read and pays for one round trip covering both columns.
+ * Two round trips since 2026-08-23 rather than one, because the categories
+ * moved out of `profiles` and into their own table — run in parallel, and a
+ * failure on either side costs only its own half.
+ *
+ * Pre-ticks the *currently counting* categories, not everything ever stated:
+ * `getPreferredCategories` has already dropped anything decayed under
+ * `MIN_CATEGORY_WEIGHT`. A ticked chip is the form claiming the walker likes
+ * that kind of place, and it should stop making that claim at the same moment
+ * the ranker stops acting on it.
  *
  * Best effort like every other read here, and then some: this one runs while
  * the hub page is rendering, so a thrown client error would cost the whole page
@@ -123,16 +190,21 @@ const NO_PROFILE_DEFAULTS: ProfileDefaults = {
 export async function getProfileDefaults(
   supabase: ServerClient,
   userId: string,
+  now: Date = new Date(),
 ): Promise<ProfileDefaults> {
   try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("walking_pace_min_per_km, preferred_categories")
-      .eq("id", userId)
-      .maybeSingle();
+    const [profile, preferredCategories] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("walking_pace_min_per_km")
+        .eq("id", userId)
+        .maybeSingle(),
+      getPreferredCategories(supabase, userId, now),
+    ]);
 
+    const { data, error } = profile;
     if (error || !data) {
-      return NO_PROFILE_DEFAULTS;
+      return { ...NO_PROFILE_DEFAULTS, preferredCategories };
     }
 
     // The column is `numeric`, which PostgREST can hand back as a string as
@@ -143,7 +215,7 @@ export async function getProfileDefaults(
     return {
       walkingPaceMinPerKm:
         Number.isFinite(pace) && pace > 0 && pace <= 60 ? pace : null,
-      preferredCategories: toKnownCategories(data.preferred_categories),
+      preferredCategories,
     };
   } catch {
     return NO_PROFILE_DEFAULTS;
@@ -320,9 +392,67 @@ export async function getDownvotedPoiKeys(
 }
 
 /**
- * Read-modify-write of `profiles.preferred_categories`. Reads the current list
- * first rather than overwriting it, so a preference learned from one prompt
- * cannot erase what earlier prompts learned.
+ * Fold one newly-detected `like` into what is already on record, mirroring
+ * `upsertFact` next door.
+ *
+ * Hit on `(user_id, category)`: the count goes up and `last_seen_at` moves, so
+ * the taste both gets taller and restarts its decay clock. `first_seen_at` is
+ * left alone — it is the only record of how long the taste has been held.
+ *
+ * Miss: insert at one occurrence, both timestamps defaulting to now in the
+ * database rather than being sent, so the clock is Postgres's and not this
+ * process's.
+ */
+async function upsertCategoryPreference(
+  supabase: ServerClient,
+  userId: string,
+  category: AttractionCategory,
+  existing: StoredCategoryPreference | undefined,
+  now: Date,
+): Promise<boolean> {
+  if (existing) {
+    const { error } = await supabase
+      .from("category_preferences")
+      .update({
+        occurrence_count: existing.occurrenceCount + 1,
+        last_seen_at: now.toISOString(),
+      })
+      .eq("user_id", userId)
+      .eq("category", category);
+
+    return !error;
+  }
+
+  const { error } = await supabase
+    .from("category_preferences")
+    .insert({ user_id: userId, category });
+
+  return !error;
+}
+
+/**
+ * Fold a batch of freshly-detected preferences into the walker's standing
+ * tastes, and return the categories that still count afterwards.
+ *
+ * A `like` upserts: first time in, it is one occurrence at full weight; said
+ * again, the count goes up and the clock resets. This is what replaced
+ * `mergePreferredCategories`, whose whole vocabulary was "in the array or not".
+ *
+ * A `dislike` DELETES the row. Three alternatives were considered — zeroing the
+ * weight, resetting the occurrence count, and a `dismissed_at` column — and
+ * delete is the faithful port of what a dislike already did to the array. A
+ * dislike is not "this taste has faded", which is what the decay is for; it is
+ * "this was never a taste", and there is nothing left to decay. Keeping a
+ * zeroed row would mean carrying state no reader can tell apart from absence.
+ * The negative direction is already modelled properly next door, by
+ * `attraction_feedback` downvote rows with their own occurrence count feeding
+ * `downvotePenalty` — a second negative store here would be two mechanisms for
+ * one claim. So "no shopping streets" returns shopping to neutral, which is
+ * what the sentence said; it does not push it below neutral.
+ *
+ * Written one category at a time rather than as one statement so a single bad
+ * row costs its own preference and not the batch, the same reason
+ * `saveAttractionFeedback` writes per rating.
  *
  * Best effort by design: preference learning is a side effect of a request the
  * user made for something else, so a failure here is swallowed and the caller's
@@ -332,36 +462,60 @@ export async function saveCategoryPreferences(
   supabase: ServerClient,
   userId: string,
   detected: CategoryPreference[],
+  now: Date = new Date(),
 ): Promise<AttractionCategory[] | null> {
   if (detected.length === 0) {
     return null;
   }
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("preferred_categories")
-    .eq("id", userId)
-    .maybeSingle();
+  const existing = await getCategoryPreferences(supabase, userId);
+  const byCategory = new Map(
+    existing.map((preference) => [preference.category, preference]),
+  );
 
-  if (error || !data) {
-    return null;
+  let wrote = false;
+
+  for (const { category, sentiment } of detected) {
+    // `other` carries no signal and the table's check constraint refuses it.
+    if (category === "other") {
+      continue;
+    }
+
+    if (sentiment === "like") {
+      const known = byCategory.get(category);
+      if (
+        await upsertCategoryPreference(supabase, userId, category, known, now)
+      ) {
+        wrote = true;
+        byCategory.set(category, {
+          category,
+          occurrenceCount: (known?.occurrenceCount ?? 0) + 1,
+          lastSeenAt: now.getTime(),
+        });
+      }
+      continue;
+    }
+
+    if (!byCategory.has(category)) {
+      continue;
+    }
+
+    const { error } = await supabase
+      .from("category_preferences")
+      .delete()
+      .eq("user_id", userId)
+      .eq("category", category);
+
+    if (!error) {
+      wrote = true;
+      byCategory.delete(category);
+    }
   }
 
-  const existing = Array.isArray(data.preferred_categories)
-    ? (data.preferred_categories as AttractionCategory[])
-    : [];
-
-  const merged = mergePreferredCategories(existing, detected);
-  if (!merged) {
-    return null;
-  }
-
-  const { error: updateError } = await supabase
-    .from("profiles")
-    .update({ preferred_categories: merged })
-    .eq("id", userId);
-
-  return updateError ? null : merged;
+  // Null when nothing landed, so the caller can tell "learned nothing" from
+  // "learned something that happens to leave the list looking the same" — the
+  // same contract `mergePreferredCategories` had.
+  return wrote ? activeCategories([...byCategory.values()], now) : null;
 }
 
 /** One walker rating of one specific stop on a finished walk. */

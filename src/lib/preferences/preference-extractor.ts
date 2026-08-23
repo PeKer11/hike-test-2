@@ -114,41 +114,169 @@ export function parseCategoryPreferences(input: unknown): CategoryPreference[] {
   return result;
 }
 
-/**
- * Fold newly-detected preferences into the categories already on the profile:
- * a `like` is appended if missing, a `dislike` removes the category if present.
- *
- * Returns `null` when the merge changes nothing, so the caller can skip the
- * write entirely instead of touching `updated_at` on every prompt.
- */
-export function mergePreferredCategories(
-  existing: AttractionCategory[],
-  detected: CategoryPreference[],
-): AttractionCategory[] | null {
-  const next: AttractionCategory[] = [];
-  for (const category of existing) {
-    if (isCategory(category) && !next.includes(category)) {
-      next.push(category);
-    }
-  }
+/** One `category_preferences` row as the scorer can read it. */
+export interface StoredCategoryPreference {
+  category: AttractionCategory;
+  occurrenceCount: number;
+  /** Epoch millis. */
+  lastSeenAt: number;
+}
 
-  for (const { category, sentiment } of detected) {
-    if (sentiment === "like") {
-      if (!next.includes(category)) {
-        next.push(category);
-      }
+/**
+ * What one freshly-stated liking is worth to the ranker, and the ceiling a
+ * repeated one climbs to.
+ *
+ * `CATEGORY_BOOST_BASE` is the old flat `PREFERRED_CATEGORY_BOOST` unchanged, on
+ * purpose: a walker who says "I love museums" today must get exactly what they
+ * got before this existed. `CATEGORY_OCCURRENCE_CAP` is the cap `scoreFact`
+ * already uses for the same "how much can repetition buy" question, and the
+ * resulting ceiling of 8 is the one this ranker already treats as the strongest
+ * a single category signal may get — see `MAX_OCCURRENCE_PREFERENCE_BOOST` and
+ * `MAX_DOWNVOTE_PENALTY`.
+ */
+export const CATEGORY_BOOST_BASE = 4;
+export const CATEGORY_BOOST_PER_OCCURRENCE = 1;
+export const CATEGORY_OCCURRENCE_CAP = 5;
+
+/**
+ * Half-life of a stated taste, in days. The same 60 `scoreFact` uses, and for
+ * one reason: that is already this codebase's number for "how long a statement
+ * a walker made about themselves stays fresh", and a second, unrelated decay
+ * clock in the same preference system would be two numbers to reason about
+ * where nothing has been measured that would justify telling them apart.
+ */
+export const CATEGORY_HALF_LIFE_DAYS = 60;
+
+/**
+ * Below this the category is not a preference any more: no boost, not pre-ticked
+ * on the form, not led with in the clarification chips, and — the half that was
+ * actually broken — explorable again.
+ *
+ * One is not a magic number. It is what a taste stated once and never repeated
+ * decays to after exactly two half-lives, so the rule reads "said once, not
+ * mentioned again for four months, stops counting". It is also the smallest
+ * boost that can still do anything on the ranker's own scale: the distance term
+ * is `-metres / 1000`, so a boost of 1 buys exactly one kilometre of walking,
+ * and 1 is the narrowest gap between adjacent `CATEGORY_BASE_SCORE` values
+ * (park 7 / religious 6 / food 5 / shopping 4). Under it, the boost can no
+ * longer move a category past its neighbour in the base table — it is noise on
+ * the sort rather than a preference being expressed.
+ *
+ * A category the walker has confirmed five times starts at 8 and so stays above
+ * the threshold for three half-lives — six months rather than four — which is
+ * the durability repetition is supposed to buy.
+ */
+export const MIN_CATEGORY_WEIGHT = 1;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * How much a stored category preference is worth right now.
+ *
+ *   weight = (CATEGORY_BOOST_BASE
+ *             + CATEGORY_BOOST_PER_OCCURRENCE * (min(occ, CAP) - 1))  // 4..8
+ *          * 0.5 ** (days / CATEGORY_HALF_LIFE_DAYS)                   // decay
+ *
+ * Same two terms `scoreFact` has — a height set by how often it was said, and a
+ * half-life since it was last said — with one deliberate difference from that
+ * precedent: the decay here is MULTIPLICATIVE, where `scoreFact` adds recency
+ * as a separate term on top of a floor it can never fall below. That floor is
+ * right for a fact and wrong for a taste, and the difference is the whole point
+ * of this change. "Does not eat meat" is a constraint about the person and is
+ * still true a year later, so a fact must demote without ever deleting itself.
+ * "I like museums" is a disposition, and the bug being fixed here is precisely
+ * that it never faded — a floor would keep every category the walker ever
+ * mentioned permanently above the threshold, which is the monotonic array all
+ * over again with extra columns.
+ *
+ * The decay clock is `lastSeenAt`, which every repeat resets. So repetition buys
+ * height AND, through the reset, freshness — and a category with five
+ * occurrences that has genuinely gone quiet for a year does fall to nothing,
+ * which is the honest reading of a walker who stopped mentioning it.
+ *
+ * A timestamp in the future (clock skew, not a real reading) is treated as now
+ * rather than given a bonus for it, the same way `scoreFact` treats one.
+ */
+export function categoryPreferenceWeight(
+  preference: StoredCategoryPreference,
+  now: Date,
+): number {
+  const days = Math.max(0, (now.getTime() - preference.lastSeenAt) / MS_PER_DAY);
+  const occurrences = Math.min(
+    Math.max(1, preference.occurrenceCount),
+    CATEGORY_OCCURRENCE_CAP,
+  );
+
+  const height =
+    CATEGORY_BOOST_BASE + CATEGORY_BOOST_PER_OCCURRENCE * (occurrences - 1);
+
+  return height * 0.5 ** (days / CATEGORY_HALF_LIFE_DAYS);
+}
+
+/**
+ * The walker's standing tastes as the ranker reads them: category to current
+ * weight, with everything that has decayed under `MIN_CATEGORY_WEIGHT` left
+ * out entirely rather than carried at a weight too small to matter.
+ *
+ * Leaving them out is what re-opens exploration. The ranker takes "is this
+ * category in the map" as "this question is already answered", so a taste that
+ * has faded has to disappear from the map, not merely shrink inside it.
+ */
+export function activeCategoryWeights(
+  preferences: StoredCategoryPreference[],
+  now: Date,
+): Map<AttractionCategory, number> {
+  const weights = new Map<AttractionCategory, number>();
+
+  for (const preference of preferences) {
+    if (!isCategory(preference.category) || preference.category === "other") {
       continue;
     }
 
-    const index = next.indexOf(category);
-    if (index !== -1) {
-      next.splice(index, 1);
+    const weight = categoryPreferenceWeight(preference, now);
+    if (weight < MIN_CATEGORY_WEIGHT) {
+      continue;
     }
+
+    // One row per (user, category) is a unique index, but a duplicate that gets
+    // past it is a stronger claim collapsing into a weaker one rather than into
+    // whichever row came back last.
+    weights.set(
+      preference.category,
+      Math.max(weights.get(preference.category) ?? 0, weight),
+    );
   }
 
-  const unchanged =
-    next.length === existing.length &&
-    next.every((category, index) => category === existing[index]);
+  return weights;
+}
 
-  return unchanged ? null : next;
+/**
+ * The categories still counting as preferences, strongest first — what the
+ * callers that want a plain list rather than a weight read.
+ *
+ * Ordered rather than in row order because both of those callers care about
+ * order: `suggestClarificationCategories` leads with them, and leading with the
+ * taste the walker has confirmed five times beats leading with whichever row
+ * PostgREST happened to return first. Ties break on the more recently stated
+ * one, the same tiebreak `selectFactsForPrompt` uses.
+ */
+export function activeCategories(
+  preferences: StoredCategoryPreference[],
+  now: Date,
+): AttractionCategory[] {
+  const weights = activeCategoryWeights(preferences, now);
+  const lastSeen = new Map<AttractionCategory, number>();
+  for (const preference of preferences) {
+    lastSeen.set(
+      preference.category,
+      Math.max(lastSeen.get(preference.category) ?? 0, preference.lastSeenAt),
+    );
+  }
+
+  return [...weights.entries()]
+    .sort(
+      (a, b) =>
+        b[1] - a[1] || (lastSeen.get(b[0]) ?? 0) - (lastSeen.get(a[0]) ?? 0),
+    )
+    .map(([category]) => category);
 }

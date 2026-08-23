@@ -13,6 +13,7 @@ import {
   getDownvotedCategories,
   getDownvotedPoiKeys,
   getPreferredCategories,
+  getPreferredCategoryWeights,
   getProfileDefaults,
   getUpvotedCategories,
   saveAttractionFeedback,
@@ -21,84 +22,311 @@ import {
   type AttractionRating,
 } from "@/lib/preferences/preference-store";
 
-// Just enough of the PostgREST builder for `.from().select().eq().maybeSingle()`.
+type Row = Record<string, unknown>;
+type Client = Parameters<typeof getPreferredCategories>[0];
+/** One PostgREST reply, for the single-shot fakes further down. */
 type Result = { data: unknown; error: unknown };
 
-function fakeSupabase(result: Result) {
-  const builder = {
-    select: () => builder,
-    eq: () => builder,
-    maybeSingle: async () => result,
+const NOW = new Date("2026-08-23T09:00:00.000Z");
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function daysAgo(days: number): string {
+  return new Date(NOW.getTime() - days * MS_PER_DAY).toISOString();
+}
+
+/**
+ * An in-memory stand-in for `category_preferences` and the one column of
+ * `profiles` that is still read alongside it.
+ *
+ * A fake rather than a mock, and modelling the constraints the migration
+ * actually adds, because this file's own history is the argument for it: both
+ * the standing-facts CHECK-constraint bug and the fact-restatement bug got past
+ * a full green suite because an in-memory fake was a bare array with no
+ * constraints. What matters here is which rows exist after a sentence is read,
+ * and whether the store took the update branch or the insert branch — a mock
+ * that only records calls passes just as happily with those two inverted.
+ *
+ * Modelled from the migration:
+ *   - unique (user_id, category)   -> a second insert is 23505, not a second row
+ *   - check (category <> 'other')  -> inserting `other` is 23514
+ *   - occurrence_count default 1, first_seen_at/last_seen_at default now()
+ */
+function fakeCategoryStore(
+  initial: Row[] = [],
+  options: {
+    pace?: unknown;
+    profileError?: unknown;
+    noProfileRow?: boolean;
+    reject?: { insert?: boolean; update?: boolean; delete?: boolean };
+  } = {},
+) {
+  const rows: Row[] = initial.map((row) => ({ ...row }));
+  const reject = options.reject ?? {};
+
+  function categoryBuilder() {
+    const filters: { column: string; value: unknown }[] = [];
+    let mode: "select" | "insert" | "update" | "delete" = "select";
+    let payload: Row = {};
+
+    const matching = () =>
+      rows.filter((row) =>
+        filters.every((filter) => row[filter.column] === filter.value),
+      );
+
+    const pgError = (message: string, code: string) => ({
+      data: null,
+      error: Object.assign(new Error(message), { code }),
+    });
+
+    const run = () => {
+      if (mode === "insert") {
+        if (reject.insert) return { data: null, error: new Error("insert") };
+
+        if (payload.category === "other") {
+          return pgError(
+            'new row for relation "category_preferences" violates check constraint "category_preferences_not_other"',
+            "23514",
+          );
+        }
+
+        const collides = rows.some(
+          (row) =>
+            row.user_id === payload.user_id &&
+            row.category === payload.category,
+        );
+        if (collides) {
+          return pgError(
+            'duplicate key value violates unique constraint "category_preferences_user_category"',
+            "23505",
+          );
+        }
+
+        // The column defaults the migration declares, so a freshly inserted row
+        // reads back the way Postgres would hand it back rather than as a row
+        // full of undefined.
+        rows.push({
+          occurrence_count: 1,
+          first_seen_at: NOW.toISOString(),
+          last_seen_at: NOW.toISOString(),
+          ...payload,
+        });
+        return { data: null, error: null };
+      }
+
+      if (mode === "update") {
+        if (reject.update) return { data: null, error: new Error("update") };
+        for (const row of matching()) Object.assign(row, payload);
+        return { data: null, error: null };
+      }
+
+      if (mode === "delete") {
+        if (reject.delete) return { data: null, error: new Error("delete") };
+        const doomed = new Set(matching());
+        const survivors = rows.filter((row) => !doomed.has(row));
+        rows.length = 0;
+        rows.push(...survivors);
+        return { data: null, error: null };
+      }
+
+      return { data: matching(), error: null };
+    };
+
+    const chain = {
+      select() {
+        return chain;
+      },
+      insert(values: Row) {
+        mode = "insert";
+        payload = values;
+        return chain;
+      },
+      update(values: Row) {
+        mode = "update";
+        payload = values;
+        return chain;
+      },
+      delete() {
+        mode = "delete";
+        return chain;
+      },
+      eq(column: string, value: unknown) {
+        filters.push({ column, value });
+        return chain;
+      },
+      async maybeSingle() {
+        return run();
+      },
+      then(resolve: (value: unknown) => unknown) {
+        return Promise.resolve(run()).then(resolve);
+      },
+    };
+
+    return chain;
+  }
+
+  function profileBuilder() {
+    const chain = {
+      select: () => chain,
+      eq: () => chain,
+      maybeSingle: async () => ({
+        data:
+          options.noProfileRow || options.profileError
+            ? null
+            : { walking_pace_min_per_km: options.pace ?? null },
+        error: options.profileError ?? null,
+      }),
+    };
+    return chain;
+  }
+
+  return {
+    client: {
+      from: (table: string) =>
+        table === "profiles" ? profileBuilder() : categoryBuilder(),
+    } as unknown as Client,
+    rows,
   };
-  return { from: () => builder } as unknown as Parameters<
-    typeof getPreferredCategories
-  >[0];
+}
+
+/** One stored taste, in the column shape PostgREST hands back. */
+function prefRow(overrides: Row = {}): Row {
+  return {
+    user_id: "user-1",
+    category: "museum",
+    occurrence_count: 1,
+    first_seen_at: daysAgo(0),
+    last_seen_at: daysAgo(0),
+    ...overrides,
+  };
 }
 
 describe("getPreferredCategories", () => {
-  it("returns the saved categories", async () => {
-    const categories = await getPreferredCategories(
-      fakeSupabase({
-        data: { preferred_categories: ["museum", "nature"] },
-        error: null,
-      }),
-      "user-1",
-    );
+  it("returns the tastes still counting, strongest first", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "museum", occurrence_count: 1 }),
+      prefRow({ category: "nature", occurrence_count: 4 }),
+    ]);
 
-    expect(categories).toEqual(["museum", "nature"]);
+    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([
+      "nature",
+      "museum",
+    ]);
   });
 
-  // `preferred_categories` is text[], so a value from an older schema survives
-  // in the column. Keeping it would switch the ranker's exploration branch on
-  // with nothing to explore away from.
+  // The decay is the whole change: a taste stated once and never repeated stops
+  // counting after two half-lives, and this is the read the form and the
+  // clarification chips both go through.
+  it("leaves out a taste that has decayed under the threshold", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "museum", last_seen_at: daysAgo(1) }),
+      prefRow({ category: "nature", last_seen_at: daysAgo(400) }),
+    ]);
+
+    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([
+      "museum",
+    ]);
+  });
+
+  it("reads only this walker's rows", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ user_id: "user-2", category: "shopping" }),
+      prefRow({ user_id: "user-1", category: "museum" }),
+    ]);
+
+    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([
+      "museum",
+    ]);
+  });
+
+  // A category from an older schema is not one the ranker knows, and keeping it
+  // would still bar it from exploration.
   it("drops values that are no longer known categories", async () => {
-    const categories = await getPreferredCategories(
-      fakeSupabase({
-        data: { preferred_categories: ["cafe", "museum", 7, null] },
-        error: null,
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "cafe" }),
+      prefRow({ category: "museum" }),
+    ]);
+
+    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([
+      "museum",
+    ]);
+  });
+
+  it("drops a row whose timestamp will not parse", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "museum", last_seen_at: "not a date" }),
+    ]);
+
+    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([]);
+  });
+
+  it("returns nothing when the walker has no rows", async () => {
+    const { client } = fakeCategoryStore();
+
+    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([]);
+  });
+
+  it("returns nothing when the client throws", async () => {
+    const throwing = {
+      from: () => {
+        throw new Error("network down");
+      },
+    } as unknown as Client;
+
+    expect(await getPreferredCategories(throwing, "user-1", NOW)).toEqual([]);
+  });
+});
+
+describe("getPreferredCategoryWeights", () => {
+  it("hands the ranker a weight per category rather than membership", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "museum", occurrence_count: 5 }),
+      prefRow({
+        category: "nature",
+        occurrence_count: 1,
+        last_seen_at: daysAgo(60),
       }),
-      "user-1",
-    );
+    ]);
 
-    expect(categories).toEqual(["museum"]);
+    const weights = await getPreferredCategoryWeights(client, "user-1", NOW);
+
+    expect(weights.get("museum")).toBe(8);
+    expect(weights.get("nature")).toBeCloseTo(2, 10);
   });
 
-  it("reads a profile of nothing but stale values as no preferences", async () => {
-    const categories = await getPreferredCategories(
-      fakeSupabase({ data: { preferred_categories: ["cafe"] }, error: null }),
-      "user-1",
-    );
+  // Absence, not a small number — the ranker reads presence in this map as
+  // "already answered, do not explore into it".
+  it("omits a decayed-out category entirely", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "nature", last_seen_at: daysAgo(400) }),
+    ]);
 
-    expect(categories).toEqual([]);
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1", NOW)).has("nature"),
+    ).toBe(false);
   });
 
-  it.each([
-    ["a failed read", { data: null, error: new Error("boom") }],
-    ["no profile row", { data: null, error: null }],
-    ["a null column", { data: { preferred_categories: null }, error: null }],
-  ])("returns no preferences for %s", async (_label, result) => {
-    expect(await getPreferredCategories(fakeSupabase(result), "user-1")).toEqual(
-      [],
-    );
+  // PostgREST can hand an integer column back as a string.
+  it("reads an occurrence count that arrived as a string", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "museum", occurrence_count: "3" }),
+    ]);
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1", NOW)).get("museum"),
+    ).toBe(6);
   });
 });
 
 // What the walk form opens on. Every failure mode has to read as "nothing
 // saved" rather than as an error: this read runs while the hub page renders.
 describe("getProfileDefaults", () => {
-  it("returns the saved pace and interests", async () => {
-    expect(
-      await getProfileDefaults(
-        fakeSupabase({
-          data: {
-            walking_pace_min_per_km: 13.5,
-            preferred_categories: ["museum", "park"],
-          },
-          error: null,
-        }),
-        "user-1",
-      ),
-    ).toEqual({
+  it("returns the saved pace and the interests that still count", async () => {
+    const { client } = fakeCategoryStore(
+      [prefRow({ category: "museum" }), prefRow({ category: "park" })],
+      { pace: 13.5 },
+    );
+
+    expect(await getProfileDefaults(client, "user-1", NOW)).toEqual({
       walkingPaceMinPerKm: 13.5,
       preferredCategories: ["museum", "park"],
     });
@@ -106,15 +334,11 @@ describe("getProfileDefaults", () => {
 
   // PostgREST can hand a numeric column back as a string.
   it("reads a pace that arrived as a string", async () => {
-    const defaults = await getProfileDefaults(
-      fakeSupabase({
-        data: { walking_pace_min_per_km: "18.0", preferred_categories: [] },
-        error: null,
-      }),
-      "user-1",
-    );
+    const { client } = fakeCategoryStore([], { pace: "18.0" });
 
-    expect(defaults.walkingPaceMinPerKm).toBe(18);
+    expect(
+      (await getProfileDefaults(client, "user-1", NOW)).walkingPaceMinPerKm,
+    ).toBe(18);
   });
 
   it.each([
@@ -122,41 +346,39 @@ describe("getProfileDefaults", () => {
     ["out of range", 120],
     ["not a number", "brisk"],
   ])("reads a pace that is %s as no saved pace", async (_label, pace) => {
-    const defaults = await getProfileDefaults(
-      fakeSupabase({
-        data: { walking_pace_min_per_km: pace, preferred_categories: [] },
-        error: null,
-      }),
-      "user-1",
-    );
+    const { client } = fakeCategoryStore([], { pace });
 
-    expect(defaults.walkingPaceMinPerKm).toBeNull();
+    expect(
+      (await getProfileDefaults(client, "user-1", NOW)).walkingPaceMinPerKm,
+    ).toBeNull();
   });
 
-  // Same guard as `getPreferredCategories` — a category from an older schema is
-  // not one the form has a chip for.
-  it("drops interests that are no longer known categories", async () => {
-    const defaults = await getProfileDefaults(
-      fakeSupabase({
-        data: {
-          walking_pace_min_per_km: null,
-          preferred_categories: ["cafe", "nature"],
-        },
-        error: null,
-      }),
-      "user-1",
+  // The chip is the form claiming the walker likes that kind of place. It has
+  // to stop making the claim at the same moment the ranker stops acting on it.
+  it("does not pre-tick an interest that has decayed under the threshold", async () => {
+    const { client } = fakeCategoryStore(
+      [
+        prefRow({ category: "nature", last_seen_at: daysAgo(1) }),
+        prefRow({ category: "museum", last_seen_at: daysAgo(400) }),
+      ],
+      { pace: 15 },
     );
 
-    expect(defaults.preferredCategories).toEqual(["nature"]);
+    expect(
+      (await getProfileDefaults(client, "user-1", NOW)).preferredCategories,
+    ).toEqual(["nature"]);
   });
 
+  // Two tables now, and a failure on one side must not cost the other.
   it.each([
-    ["a failed read", { data: null, error: new Error("boom") }],
-    ["no profile row", { data: null, error: null }],
-  ])("reads %s as nothing saved", async (_label, result) => {
-    expect(await getProfileDefaults(fakeSupabase(result), "user-1")).toEqual({
+    ["a failed profile read", { profileError: new Error("boom") }],
+    ["no profile row", { noProfileRow: true }],
+  ])("still returns the interests despite %s", async (_label, options) => {
+    const { client } = fakeCategoryStore([prefRow({ category: "park" })], options);
+
+    expect(await getProfileDefaults(client, "user-1", NOW)).toEqual({
       walkingPaceMinPerKm: null,
-      preferredCategories: [],
+      preferredCategories: ["park"],
     });
   });
 
@@ -167,9 +389,9 @@ describe("getProfileDefaults", () => {
       from: () => {
         throw new Error("network down");
       },
-    } as unknown as Parameters<typeof getProfileDefaults>[0];
+    } as unknown as Client;
 
-    expect(await getProfileDefaults(throwing, "user-1")).toEqual({
+    expect(await getProfileDefaults(throwing, "user-1", NOW)).toEqual({
       walkingPaceMinPerKm: null,
       preferredCategories: [],
     });
@@ -430,6 +652,164 @@ describe("saveCategoryPreferences", () => {
       saveCategoryPreferences(supabase, "user-1", []),
     ).resolves.toBeNull();
     expect(from).not.toHaveBeenCalled();
+  });
+
+  it("inserts a taste the walker has never stated, at one occurrence", async () => {
+    const { client, rows } = fakeCategoryStore();
+
+    expect(
+      await saveCategoryPreferences(
+        client,
+        "user-1",
+        [{ category: "nature", sentiment: "like" }],
+        NOW,
+      ),
+    ).toEqual(["nature"]);
+
+    expect(rows).toEqual([
+      {
+        user_id: "user-1",
+        category: "nature",
+        occurrence_count: 1,
+        first_seen_at: NOW.toISOString(),
+        last_seen_at: NOW.toISOString(),
+      },
+    ]);
+  });
+
+  // The upsert branch, and the reason the fake models the unique index: with
+  // the branch inverted this becomes a second row for the same category, or a
+  // 23505 that silently loses the reinforcement.
+  it("bumps the count and resets the clock when the taste is restated", async () => {
+    const { client, rows } = fakeCategoryStore([
+      prefRow({
+        category: "museum",
+        occurrence_count: 2,
+        first_seen_at: daysAgo(200),
+        last_seen_at: daysAgo(90),
+      }),
+    ]);
+
+    await saveCategoryPreferences(
+      client,
+      "user-1",
+      [{ category: "museum", sentiment: "like" }],
+      NOW,
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      occurrence_count: 3,
+      last_seen_at: NOW.toISOString(),
+      // Never moves: it is the only record of how long the taste has been held.
+      first_seen_at: daysAgo(200),
+    });
+  });
+
+  // A restatement is what pulls a taste back over the threshold — before the
+  // write it had decayed out of every read.
+  it("brings a decayed-out taste back above the threshold", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "museum", last_seen_at: daysAgo(400) }),
+    ]);
+
+    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([]);
+
+    expect(
+      await saveCategoryPreferences(
+        client,
+        "user-1",
+        [{ category: "museum", sentiment: "like" }],
+        NOW,
+      ),
+    ).toEqual(["museum"]);
+  });
+
+  it("deletes the row outright on an explicit dislike", async () => {
+    const { client, rows } = fakeCategoryStore([
+      prefRow({ category: "shopping", occurrence_count: 4 }),
+      prefRow({ category: "museum" }),
+    ]);
+
+    expect(
+      await saveCategoryPreferences(
+        client,
+        "user-1",
+        [{ category: "shopping", sentiment: "dislike" }],
+        NOW,
+      ),
+    ).toEqual(["museum"]);
+
+    expect(rows.map((row) => row.category)).toEqual(["museum"]);
+  });
+
+  it("writes nothing for a dislike of a taste that was never stored", async () => {
+    const { client, rows } = fakeCategoryStore([prefRow({ category: "museum" })]);
+
+    expect(
+      await saveCategoryPreferences(
+        client,
+        "user-1",
+        [{ category: "shopping", sentiment: "dislike" }],
+        NOW,
+      ),
+    ).toBeNull();
+
+    expect(rows).toHaveLength(1);
+  });
+
+  it("applies several preferences from one sentence", async () => {
+    const { client, rows } = fakeCategoryStore([
+      prefRow({ category: "shopping" }),
+    ]);
+
+    expect(
+      await saveCategoryPreferences(
+        client,
+        "user-1",
+        [
+          { category: "nature", sentiment: "like" },
+          { category: "shopping", sentiment: "dislike" },
+          { category: "food", sentiment: "like" },
+        ],
+        NOW,
+      ),
+    ).toEqual(["nature", "food"]);
+
+    expect(rows.map((row) => row.category).sort()).toEqual(["food", "nature"]);
+  });
+
+  // The table's check constraint refuses it, so the store has to as well —
+  // otherwise every prompt from a walker the model once said `other` about
+  // costs a rejected write.
+  it("never writes `other`", async () => {
+    const { client, rows } = fakeCategoryStore();
+
+    expect(
+      await saveCategoryPreferences(
+        client,
+        "user-1",
+        [{ category: "other", sentiment: "like" }],
+        NOW,
+      ),
+    ).toBeNull();
+
+    expect(rows).toEqual([]);
+  });
+
+  it("keeps a refused write from costing the rest of the batch", async () => {
+    const { client, rows } = fakeCategoryStore([], { reject: { insert: true } });
+
+    expect(
+      await saveCategoryPreferences(
+        client,
+        "user-1",
+        [{ category: "nature", sentiment: "like" }],
+        NOW,
+      ),
+    ).toBeNull();
+
+    expect(rows).toEqual([]);
   });
 });
 
