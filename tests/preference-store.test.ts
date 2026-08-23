@@ -16,6 +16,7 @@ import {
   getPreferredCategories,
   getPreferredCategoryWeights,
   getProfileDefaults,
+  getTrendingCategoryCounts,
   getUpvotedCategories,
   saveAttractionFeedback,
   recordWalkSession,
@@ -806,6 +807,261 @@ describe("getUpvotedCategories", () => {
     const { client } = fakeFeedbackSupabase(result);
 
     expect(await getUpvotedCategories(client, "user-1")).toEqual(new Map());
+  });
+});
+
+/**
+ * A stand-in for `trending_category_upvotes()` that actually runs the aggregate,
+ * over rows belonging to several walkers, rather than handing back a canned
+ * answer.
+ *
+ * A fake and not a stub for the same reason `fakeCategoryStore` is one: the
+ * interesting claims about this function are not "the read parses a number" but
+ * "the sum crosses users, excludes POI-level rows, excludes `other`, and cannot
+ * carry a user_id or a place name out with it". A stub returning
+ * `[{ category: "museum", total_occurrences: 3 }]` asserts none of those, and
+ * would pass just as happily against a function that selected `*` from every row
+ * in the table.
+ *
+ * Modelled from the migration, filter for filter:
+ *   - signal = 'upvote'          -> a downvote row contributes nothing
+ *   - poi_name is null           -> POI-level rows are not counted a second time
+ *   - category <> 'other'        -> never reported
+ *   - group by category, sum(occurrence_count)
+ *   - returns (category, total_occurrences) ONLY — the projection is the whole
+ *     security boundary, so the fake projects exactly those two columns and
+ *     nothing else, and `sum()` is bigint, which PostgREST is free to hand back
+ *     as a string.
+ */
+function fakeTrendingSupabase(
+  feedbackRows: Row[],
+  options: { bigintAsString?: boolean; error?: unknown; data?: unknown } = {},
+) {
+  let calls = 0;
+
+  const aggregate = () => {
+    const totals = new Map<string, number>();
+    for (const row of feedbackRows) {
+      if (row.signal !== "upvote") continue;
+      if (row.poi_name != null) continue;
+      if (row.category === "other") continue;
+      const category = String(row.category);
+      totals.set(
+        category,
+        (totals.get(category) ?? 0) + Number(row.occurrence_count ?? 1),
+      );
+    }
+
+    return [...totals].map(([category, total]) => ({
+      category,
+      total_occurrences: options.bigintAsString ? String(total) : total,
+    }));
+  };
+
+  return {
+    client: {
+      rpc: async (name: string) => {
+        calls += 1;
+        if (name !== "trending_category_upvotes") {
+          return { data: null, error: new Error(`unknown function ${name}`) };
+        }
+        if (options.error !== undefined || options.data !== undefined) {
+          return { data: options.data ?? null, error: options.error ?? null };
+        }
+        return { data: aggregate(), error: null };
+      },
+    } as unknown as Client,
+    calledWith: () => calls,
+  };
+}
+
+/** One `attraction_feedback` row, in the column shape the table stores. */
+function feedbackRow(overrides: Row = {}): Row {
+  return {
+    user_id: "user-1",
+    signal: "upvote",
+    category: "museum",
+    osm_id: null,
+    poi_name: null,
+    lat: null,
+    lng: null,
+    occurrence_count: 1,
+    ...overrides,
+  };
+}
+
+describe("getTrendingCategoryCounts", () => {
+  // The whole point of the function: one walker's taps are not a trend, and the
+  // read has to see the sum rather than the caller's own rows.
+  it("sums category upvotes across every walker", async () => {
+    const { client } = fakeTrendingSupabase([
+      feedbackRow({ user_id: "user-1", category: "museum", occurrence_count: 2 }),
+      feedbackRow({ user_id: "user-2", category: "museum", occurrence_count: 3 }),
+      feedbackRow({ user_id: "user-2", category: "park", occurrence_count: 1 }),
+    ]);
+
+    expect(await getTrendingCategoryCounts(client)).toEqual(
+      new Map([
+        ["museum", 5],
+        ["park", 1],
+      ]),
+    );
+  });
+
+  // A thumbs-down is not a quiet thumbs-up. Nothing in this read is netted —
+  // see the migration on why consensus needs a population to be a fact about.
+  it("counts upvotes only", async () => {
+    const { client } = fakeTrendingSupabase([
+      feedbackRow({ category: "museum", occurrence_count: 2 }),
+      feedbackRow({
+        user_id: "user-2",
+        signal: "downvote",
+        category: "museum",
+        occurrence_count: 9,
+      }),
+      feedbackRow({ user_id: "user-2", signal: "downvote", category: "food" }),
+    ]);
+
+    expect(await getTrendingCategoryCounts(client)).toEqual(
+      new Map([["museum", 2]]),
+    );
+  });
+
+  // The tap that upvotes one museum also increments that walker's standing
+  // museum row. Counting both would let one thumbs-up count twice.
+  it("ignores POI-level rows, which the category row already counted", async () => {
+    const { client } = fakeTrendingSupabase([
+      feedbackRow({ category: "museum", occurrence_count: 1 }),
+      feedbackRow({
+        category: "museum",
+        osm_id: "node/1",
+        poi_name: "Eretz Israel Museum",
+        lat: 32.1,
+        lng: 34.79,
+        occurrence_count: 1,
+      }),
+    ]);
+
+    expect(await getTrendingCategoryCounts(client)).toEqual(
+      new Map([["museum", 1]]),
+    );
+  });
+
+  // Every unclassified POI lands in `other`, so a trend for it is a trend for
+  // anything at all — dropped in the SQL, and asserted here so a later widening
+  // of that filter has something to break.
+  it("never reports `other`", async () => {
+    const { client } = fakeTrendingSupabase([
+      feedbackRow({ category: "other", occurrence_count: 20 }),
+      feedbackRow({ category: "park", occurrence_count: 1 }),
+    ]);
+
+    expect(await getTrendingCategoryCounts(client)).toEqual(
+      new Map([["park", 1]]),
+    );
+  });
+
+  // `sum()` is bigint and PostgREST hands those back as strings routinely.
+  it("reads a bigint total that arrived as a string", async () => {
+    const { client } = fakeTrendingSupabase(
+      [feedbackRow({ category: "nature", occurrence_count: 7 })],
+      { bigintAsString: true },
+    );
+
+    expect(await getTrendingCategoryCounts(client)).toEqual(
+      new Map([["nature", 7]]),
+    );
+  });
+
+  // Deliberately unlike `toOccurrenceCount`, which floors an unreadable count at
+  // one occurrence. A standing row means "at least once" even when its count is
+  // unreadable; a population total that will not parse means nothing is known
+  // about that category's standing, and inventing one upvote for it would put a
+  // category on the trending list on the strength of a parse failure.
+  it.each([
+    ["a total that is not a number", "lots"],
+    ["a total of zero", 0],
+    ["a fractional total", 2.5],
+    ["a missing total", null],
+  ])("drops a category with %s rather than assuming one", async (_label, total) => {
+    const { client } = fakeTrendingSupabase([], {
+      data: [
+        { category: "museum", total_occurrences: total },
+        { category: "park", total_occurrences: 4 },
+      ],
+    });
+
+    expect(await getTrendingCategoryCounts(client)).toEqual(
+      new Map([["park", 4]]),
+    );
+  });
+
+  it("drops a category the ranker does not know", async () => {
+    const { client } = fakeTrendingSupabase([], {
+      data: [
+        { category: "cafe", total_occurrences: 12 },
+        { category: null, total_occurrences: 3 },
+        { category: "park", total_occurrences: 1 },
+      ],
+    });
+
+    expect(await getTrendingCategoryCounts(client)).toEqual(
+      new Map([["park", 1]]),
+    );
+  });
+
+  // This is the fallback of the fallback: whatever goes wrong, the walk is
+  // ranked exactly as it was before any of this existed.
+  it.each([
+    ["a refused call", { error: new Error("permission denied") }],
+    ["a function that is not deployed", { error: new Error("PGRST202") }],
+    ["a null payload", { data: null }],
+    ["a payload that is not a list", { data: { category: "museum" } }],
+  ])("returns nothing for %s", async (_label, result) => {
+    const { client } = fakeTrendingSupabase([], result);
+
+    expect(await getTrendingCategoryCounts(client)).toEqual(new Map());
+  });
+
+  it("returns nothing when the client throws", async () => {
+    const throwing = {
+      rpc: () => {
+        throw new Error("network down");
+      },
+    } as unknown as Client;
+
+    await expect(getTrendingCategoryCounts(throwing)).resolves.toEqual(new Map());
+  });
+
+  // No user id is passed and none can be: the function takes no arguments, so
+  // there is nothing to ask it about a particular walker with.
+  it("asks the aggregate function for nothing but the aggregate", async () => {
+    const { client } = fakeTrendingSupabase([feedbackRow()]);
+    const rpc = vi.spyOn(client as unknown as { rpc: () => unknown }, "rpc");
+
+    await getTrendingCategoryCounts(client);
+
+    expect(rpc).toHaveBeenCalledWith("trending_category_upvotes");
+  });
+
+  // The security argument is the projection, so it is worth an assertion: even
+  // handed rows carrying identity, the read keeps nothing but category and total.
+  it("carries no identity out of the aggregate", async () => {
+    const { client } = fakeTrendingSupabase([], {
+      data: [
+        {
+          category: "museum",
+          total_occurrences: 3,
+          user_id: "user-2",
+          poi_name: "Eretz Israel Museum",
+        },
+      ],
+    });
+
+    const counts = await getTrendingCategoryCounts(client);
+
+    expect(counts).toEqual(new Map([["museum", 3]]));
+    expect([...counts.keys()]).toEqual(["museum"]);
   });
 });
 

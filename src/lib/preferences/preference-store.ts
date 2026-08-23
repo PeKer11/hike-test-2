@@ -447,6 +447,71 @@ export async function getUpvotedCategories(
   return getCategorySignalCounts(supabase, userId, "upvote");
 }
 
+/**
+ * What every OTHER walker has voted up, by category — the cold-start signal, and
+ * the only read in this file that is not about the walker in front of us.
+ *
+ * Read through `trending_category_upvotes()`, a SECURITY DEFINER function,
+ * because `attraction_feedback` is own-rows-only under RLS and no policy can
+ * express "you may see the sum but not the rows". The function takes no
+ * arguments and returns `(category, total_occurrences)`, so there is nothing to
+ * ask it about a particular walker and nothing it can hand back about one — see
+ * the migration for why the return shape is the security boundary rather than a
+ * promise this file is trusted to keep.
+ *
+ * Callers must have established that the walker has NO personal signal — no
+ * stored category preference, no tapped up- or downvote, nothing asked for on
+ * this walk. This is not a tiebreaker under personalization; it is what stands in
+ * for personalization when there is none. `withProfilePreferences` in the
+ * walk-plan route is the one caller, and it only gets this far after finding all
+ * three of those empty, so a walker with real signal never pays for this query.
+ *
+ * Best effort like every other read here, and then some — this is the fallback,
+ * so its own fallback is what the app already does today. Signed out, an
+ * unconfigured client, a function that is not deployed yet (the migration may
+ * not have run), a failed read: all come back empty and the ranking is
+ * preference-blind, exactly as it was before this existed.
+ *
+ * Counts, not weights, deliberately: what a population total is worth on the
+ * ranker's own scale is a ranking decision, and it lives next to the other
+ * category-level curves in `attraction-ranker.ts` rather than here.
+ */
+export async function getTrendingCategoryCounts(
+  supabase: ServerClient,
+): Promise<Map<AttractionCategory, number>> {
+  try {
+    const { data, error } = await supabase.rpc("trending_category_upvotes");
+
+    if (error || !Array.isArray(data)) {
+      return new Map();
+    }
+
+    const counts = new Map<AttractionCategory, number>();
+    for (const row of data as { category: unknown; total_occurrences: unknown }[]) {
+      const category = row.category;
+      if (!(ATTRACTION_CATEGORIES as string[]).includes(category as string)) {
+        continue;
+      }
+
+      // `sum()` is bigint, which PostgREST hands back as a string far more often
+      // than the integer columns elsewhere in this file do — and `toOccurrenceCount`
+      // floors anything unparseable at 1, which is wrong here. A category whose
+      // total will not parse has no known standing in the population, and the
+      // honest answer is to leave it out rather than invent one upvote for it.
+      const total = Number(row.total_occurrences);
+      if (!Number.isInteger(total) || total <= 0) {
+        continue;
+      }
+
+      counts.set(category as AttractionCategory, total);
+    }
+
+    return counts;
+  } catch {
+    return new Map();
+  }
+}
+
 /** A `numeric` coordinate column as a number, or null if it is not one. */
 function toCoordinate(value: unknown): number | null {
   if (typeof value !== "number" && typeof value !== "string") {
