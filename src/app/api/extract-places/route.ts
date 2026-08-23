@@ -28,6 +28,7 @@ import {
 import { ATTRACTION_CATEGORIES } from "@/lib/preferences/preference-extractor";
 import {
   getDownvotedCategories,
+  getDislikedCategories,
   getPreferredCategories,
   learnPreferencesFromText,
 } from "@/lib/preferences/preference-store";
@@ -324,6 +325,7 @@ async function clarificationFor(
   }
 
   let preferred: AttractionCategory[] = [];
+  let disliked: AttractionCategory[] = [];
   let downvoted: Map<AttractionCategory, number> = new Map();
 
   try {
@@ -332,8 +334,9 @@ async function clarificationFor(
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      [preferred, downvoted] = await Promise.all([
+      [preferred, disliked, downvoted] = await Promise.all([
         getPreferredCategories(supabase, user.id).catch(() => []),
+        getDislikedCategories(supabase, user.id).catch(() => []),
         getDownvotedCategories(supabase, user.id).catch(
           () => new Map<AttractionCategory, number>(),
         ),
@@ -343,7 +346,15 @@ async function clarificationFor(
     // No session, no Supabase, or a failed read — the plain list.
   }
 
-  return suggestClarificationCategories(preferred, downvoted.keys());
+  // Stated dislikes go in through the same door as tapped downvotes. The
+  // function's own rule is that a category the walker has ruled out is not
+  // asked about at all, and "no shopping streets" rules shopping out every bit
+  // as much as a thumbs-down does — it just never had a row to be read from
+  // until a dislike stopped deleting one (2026-08-23).
+  return suggestClarificationCategories(preferred, [
+    ...disliked,
+    ...downvoted.keys(),
+  ]);
 }
 
 export async function POST(request: Request): Promise<NextResponse> {

@@ -7,6 +7,7 @@ const mockGetUser = vi.fn();
 const mockLearnPreferencesFromText = vi.fn();
 const mockFetchAttractions = vi.fn();
 const mockGetPreferredCategories = vi.fn();
+const mockGetDislikedCategories = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
 const mockLearnFactsFromText = vi.fn();
 const mockGetStandingFacts = vi.fn();
@@ -37,6 +38,8 @@ vi.mock("@/lib/preferences/preference-store", () => ({
     mockLearnPreferencesFromText(...args),
   getPreferredCategories: (...args: unknown[]) =>
     mockGetPreferredCategories(...args),
+  getDislikedCategories: (...args: unknown[]) =>
+    mockGetDislikedCategories(...args),
   getDownvotedCategories: (...args: unknown[]) =>
     mockGetDownvotedCategories(...args),
 }));
@@ -76,6 +79,8 @@ describe("POST /api/extract-places", () => {
     mockFetchAttractions.mockResolvedValue([]);
     mockGetPreferredCategories.mockReset();
     mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDislikedCategories.mockReset();
+    mockGetDislikedCategories.mockResolvedValue([]);
     mockGetDownvotedCategories.mockReset();
     mockGetDownvotedCategories.mockResolvedValue(new Map());
   });
@@ -739,6 +744,8 @@ describe("POST /api/extract-places — under-specified prompts", () => {
     mockFetchAttractions.mockResolvedValue([]);
     mockGetPreferredCategories.mockReset();
     mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDislikedCategories.mockReset();
+    mockGetDislikedCategories.mockResolvedValue([]);
     mockGetDownvotedCategories.mockReset();
     mockGetDownvotedCategories.mockResolvedValue(new Map());
   });
@@ -826,6 +833,28 @@ describe("POST /api/extract-places — under-specified prompts", () => {
     expect(data.clarificationCategories).not.toContain("museum");
   });
 
+  // A stated dislike reaches this the same way a tapped downvote does. It could
+  // not before 2026-08-23: a text dislike deleted the row, so there was nothing
+  // left on record for the chips to avoid, and the walker who typed "no shopping
+  // streets" was offered a shopping chip on the very next prompt.
+  it("never offers a category the walker said they do not want", async () => {
+    mockExtractPlaceNames.mockResolvedValue({
+      places: ["זכרון יעקב"],
+      contextLocation: null,
+    });
+    geocodesTo("town");
+    mockGetPreferredCategories.mockResolvedValue([]);
+    // One of CLARIFICATION_CATEGORIES, so the assertion is about the dislike
+    // being honoured rather than about a category that was never on offer.
+    mockGetDislikedCategories.mockResolvedValue(["museum"]);
+
+    const response = await POST(postRequest({ prompt: "טיול בזכרון יעקב" }));
+    const data = await response.json();
+
+    expect(data.clarificationCategories).not.toContain("museum");
+    expect(data.clarificationCategories).toContain("landmark");
+  });
+
   it("still asks a generic question when the profile read fails", async () => {
     mockExtractPlaceNames.mockResolvedValue({
       places: ["זכרון יעקב"],
@@ -905,6 +934,8 @@ describe("POST /api/extract-places — area-only prompts", () => {
     mockFetchAttractions.mockResolvedValue([]);
     mockGetPreferredCategories.mockReset();
     mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDislikedCategories.mockReset();
+    mockGetDislikedCategories.mockResolvedValue([]);
     mockGetDownvotedCategories.mockReset();
     mockGetDownvotedCategories.mockResolvedValue(new Map());
   });
@@ -1115,6 +1146,8 @@ describe("POST /api/extract-places — standing facts", () => {
     mockLearnPreferencesFromText.mockResolvedValue(null);
     mockGetPreferredCategories.mockReset();
     mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDislikedCategories.mockReset();
+    mockGetDislikedCategories.mockResolvedValue([]);
     mockGetDownvotedCategories.mockReset();
     mockGetDownvotedCategories.mockResolvedValue(new Map());
     mockLearnFactsFromText.mockReset();
@@ -1223,6 +1256,8 @@ describe("POST /api/extract-places — standing facts in the prompt", () => {
     mockLearnPreferencesFromText.mockResolvedValue(null);
     mockGetPreferredCategories.mockReset();
     mockGetPreferredCategories.mockResolvedValue([]);
+    mockGetDislikedCategories.mockReset();
+    mockGetDislikedCategories.mockResolvedValue([]);
     mockGetDownvotedCategories.mockReset();
     mockGetDownvotedCategories.mockResolvedValue(new Map());
     mockLearnFactsFromText.mockReset();
