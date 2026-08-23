@@ -13,6 +13,7 @@ import {
   getDownvotedPoiKeys,
   getPreferredCategoryWeights,
   getUpvotedCategories,
+  recordWalkSession,
 } from "@/lib/preferences/preference-store";
 import { createClient } from "@/lib/supabase/server";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
@@ -77,6 +78,13 @@ interface ProfileCategories {
   upvotedCategories: Map<AttractionCategory, number> | undefined;
   /** `poi_key` identities of specific places voted down, excluded outright. */
   downvotedPoiKeys: Set<string> | undefined;
+  /**
+   * The signed-in walker, or null. Carried out of here rather than looked up a
+   * second time because this is the only place on the request that pays for a
+   * session lookup, and the session counter needs to know whether there is
+   * anybody to count the walk for.
+   */
+  userId: string | null;
 }
 
 /**
@@ -106,6 +114,7 @@ async function withProfilePreferences(
   fromBody: AttractionCategory[] | undefined,
 ): Promise<ProfileCategories> {
   const body = Array.isArray(fromBody) ? fromBody : [];
+  let userId: string | null = null;
   let weights: Map<AttractionCategory, number> = new Map();
   let downvoted: Map<AttractionCategory, number> = new Map();
   let upvoted: Map<AttractionCategory, number> = new Map();
@@ -117,6 +126,7 @@ async function withProfilePreferences(
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
+      userId = user.id;
       // Caught per read, not just by the outer try: one of the four blowing up
       // must not throw away what the others already found.
       [weights, downvoted, upvoted, downvotedPois] = await Promise.all([
@@ -137,6 +147,7 @@ async function withProfilePreferences(
   }
 
   return {
+    userId,
     preferredCategories: body.length > 0 ? body : undefined,
     preferredCategoryWeights: weights.size > 0 ? weights : undefined,
     downvotedCategories: downvoted.size > 0 ? downvoted : undefined,
@@ -580,6 +591,31 @@ export async function POST(request: Request): Promise<NextResponse> {
           warnings.push(
             "Could not fetch route geometry from ORS. Start Walk is disabled.",
           );
+        }
+      }
+    }
+
+    // 5. Count this as one of the walker's sessions — the clock every stored
+    // category preference decays on (`categoryPreferenceWeight`).
+    //
+    // Here, and not on every POST, because `profilePromise` is only created on
+    // the branches that actually discover and rank POIs. The pace-triggered
+    // rebuild re-times a walk the walker is already on, arriving with
+    // `explicitAttractions` and no ranking, and it can fire several times during
+    // one walk — counting those would burn a walker's whole decay budget on a
+    // single afternoon, which is the opposite of what a usage clock is for.
+    //
+    // After the plan is built, so a request that failed to produce one does not
+    // age anything, and awaited rather than left dangling because a serverless
+    // invocation ends at the response. Best effort: an uncounted session costs
+    // one step of decay, and nothing about that is worth a failed walk.
+    if (profilePromise) {
+      const { userId } = await profilePromise;
+      if (userId) {
+        try {
+          await recordWalkSession(await createClient());
+        } catch {
+          // Never let counting a walk cost the walk.
         }
       }
     }

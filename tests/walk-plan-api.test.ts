@@ -10,6 +10,7 @@ const mockGetPreferredCategoryWeights = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
 const mockGetUpvotedCategories = vi.fn();
 const mockGetDownvotedPoiKeys = vi.fn();
+const mockRecordWalkSession = vi.fn();
 const mockRankAttractions = vi.fn();
 
 vi.mock("@/lib/attractions/overpass-client", () => ({
@@ -35,6 +36,7 @@ vi.mock("@/lib/preferences/preference-store", () => ({
   getUpvotedCategories: (...args: unknown[]) =>
     mockGetUpvotedCategories(...args),
   getDownvotedPoiKeys: (...args: unknown[]) => mockGetDownvotedPoiKeys(...args),
+  recordWalkSession: (...args: unknown[]) => mockRecordWalkSession(...args),
 }));
 
 // Real ranking, observed: the route's own output never echoes the categories it
@@ -118,6 +120,8 @@ function resetMocks(): void {
   mockGetUpvotedCategories.mockResolvedValue(new Map());
   mockGetDownvotedPoiKeys.mockReset();
   mockGetDownvotedPoiKeys.mockResolvedValue(new Set());
+  mockRecordWalkSession.mockReset();
+  mockRecordWalkSession.mockResolvedValue(1);
   mockRankAttractions.mockReset();
 }
 
@@ -1116,5 +1120,87 @@ describe("POST /api/walk-plan — a stated stop count and a famous-places ask", 
     const ids = plan.orderedAttractions.map((a: Attraction) => a.id).sort();
 
     expect(ids).toEqual(["famous-a", "famous-b"]);
+  });
+});
+
+// The clock every stored category preference decays on. Counted here rather
+// than per API call, because "the walker used the app to plan a walk" is the
+// unit the decay is meant to measure — see `CATEGORY_HALF_LIFE_SESSIONS`.
+describe("POST /api/walk-plan — counting the walker's sessions", () => {
+  beforeEach(resetMocks);
+
+  function discoveryBody(extra: Record<string, unknown> = {}) {
+    return {
+      lat: origin.lat,
+      lng: origin.lng,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      ...extra,
+    };
+  }
+
+  it("counts one session for a signed-in walker whose walk was built", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    const response = await POST(postRequest(discoveryBody()));
+
+    expect(response.status).toBe(200);
+    expect(mockRecordWalkSession).toHaveBeenCalledTimes(1);
+  });
+
+  // The retry ladder can build a plan up to three times for one request. That is
+  // one walk the walker asked for, not three uses of the app.
+  it("counts one session however many times the plan was retried", async () => {
+    // Every attempt comes back empty, which is what makes the route exhaust the
+    // ladder rather than stopping at a good first plan.
+    mockFetchAttractions.mockResolvedValue([]);
+
+    await POST(postRequest(discoveryBody()));
+
+    expect(mockFetchAttractions.mock.calls.length).toBeGreaterThan(1);
+    expect(mockRecordWalkSession).toHaveBeenCalledTimes(1);
+  });
+
+  // The pace-triggered rebuild re-times a walk already under way, several times
+  // over a single afternoon. Counting those would burn a walker's whole decay
+  // budget on one walk — the opposite of what a usage clock is for.
+  it("does not count a pace-triggered rebuild of a walk already in progress", async () => {
+    const named = makeAttraction("named", 32.081, 34.78, 20);
+
+    const response = await POST(
+      postRequest(discoveryBody({ explicitAttractions: [named] })),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockRecordWalkSession).not.toHaveBeenCalled();
+  });
+
+  it("counts nothing for a walker who is not signed in", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    const response = await POST(postRequest(discoveryBody()));
+
+    expect(response.status).toBe(200);
+    expect(mockRecordWalkSession).not.toHaveBeenCalled();
+  });
+
+  // Best effort, like every other write on this path: a session that could not
+  // be counted costs one step of decay, never the walk the walker asked for.
+  it("still answers the walk when the session could not be counted", async () => {
+    mockRecordWalkSession.mockRejectedValue(new Error("refused"));
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    const response = await POST(postRequest(discoveryBody()));
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(plan.orderedAttractions).toHaveLength(1);
   });
 });
