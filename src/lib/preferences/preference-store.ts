@@ -9,7 +9,9 @@ import {
   activeCategories,
   activeCategoryWeights,
   ATTRACTION_CATEGORIES,
+  dislikedCategories,
   type CategoryPreference,
+  type PreferenceSentiment,
   type StoredCategoryPreference,
 } from "./preference-extractor";
 
@@ -51,7 +53,8 @@ export async function learnPreferencesFromText(
   }
 }
 
-const CATEGORY_PREFERENCE_COLUMNS = "category, occurrence_count, last_seen_at";
+const CATEGORY_PREFERENCE_COLUMNS =
+  "category, sentiment, occurrence_count, last_seen_at, last_seen_session";
 
 /**
  * One `category_preferences` row as the scorer reads it, or null when it is not
@@ -61,6 +64,12 @@ const CATEGORY_PREFERENCE_COLUMNS = "category, occurrence_count, last_seen_at";
  * Dropping an unknown category matters beyond scoring: it would still be a key
  * in the weight map, which is what tells the ranker a category is already
  * answered and must not be explored into.
+ *
+ * A `sentiment` that is not one of the two enum values reads as `like`, which is
+ * both what the column defaults to and what every row written before the column
+ * existed meant. Guessing `dislike` from an unreadable value would invent a
+ * penalty the walker never asked for; guessing `like` at worst restores the
+ * behaviour this row already had.
  */
 function toStoredPreference(
   row: Record<string, unknown>,
@@ -77,9 +86,91 @@ function toStoredPreference(
 
   return {
     category: category as AttractionCategory,
+    sentiment: row.sentiment === "dislike" ? "dislike" : "like",
     occurrenceCount: toOccurrenceCount(row.occurrence_count),
     lastSeenAt,
+    lastSeenSession: toSessionCount(row.last_seen_session),
   };
+}
+
+/**
+ * A session counter column as a number, or null when it is not one. `integer
+ * not null default 0` in both places it appears, but PostgREST hands a numeric
+ * back as a string as readily as a number, and a row written before the column
+ * existed reads as null.
+ *
+ * Null rather than a 0 fallback, deliberately: 0 means "stamped at the walker's
+ * very first session", which for a walker twelve walks in is a fully decayed
+ * preference. `categoryPreferenceWeight` reads null as "this session" instead,
+ * so an unreadable stamp costs the walker nothing.
+ */
+function toSessionCount(value: unknown): number | null {
+  // The explicit type check is the whole point: `Number(null)` is a perfectly
+  // finite 0, so a column that came back null would otherwise read as "stamped
+  // at the walker's very first session" and arrive fully decayed — the same trap
+  // `getDownvotedPoiKeys` already guards against for coordinates.
+  if (typeof value !== "number" && typeof value !== "string") {
+    return null;
+  }
+
+  const count = Number(value);
+  return Number.isInteger(count) && count >= 0 ? count : null;
+}
+
+/**
+ * How many walk plans this walker has built — the clock every decay in this
+ * file runs on. Zero for a walker with no profile row, a failed read, or a
+ * column that will not parse, which is also what a brand-new walker's first
+ * session reads as: a preference written during session zero and read during
+ * session zero is undecayed, which is the right answer for both.
+ */
+async function readSessionCount(
+  supabase: ServerClient,
+  userId: string,
+): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("session_count")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return 0;
+    }
+
+    return toSessionCount((data as Record<string, unknown>).session_count) ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Count one real usage occasion for the signed-in walker and hand back the new
+ * total, or null if it could not be recorded.
+ *
+ * Through the `record_walk_session()` function rather than a read-then-write,
+ * so the increment is one atomic statement and the "this walker has no profile
+ * row yet" case is `on conflict do update` rather than a branch here. The
+ * function reads `auth.uid()` itself, which is why no user id is passed: the
+ * only row this can move is the caller's own.
+ *
+ * Best effort like every other write in this file. A walk that was built and a
+ * session that was not counted costs the walker one session of decay, which is
+ * a far cheaper failure than a walk that 500s because a counter would not move.
+ */
+export async function recordWalkSession(
+  supabase: ServerClient,
+): Promise<number | null> {
+  try {
+    const { data, error } = await supabase.rpc("record_walk_session");
+    if (error) {
+      return null;
+    }
+    return toSessionCount(data);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -127,12 +218,13 @@ export async function getCategoryPreferences(
 export async function getPreferredCategoryWeights(
   supabase: ServerClient,
   userId: string,
-  now: Date = new Date(),
 ): Promise<Map<AttractionCategory, number>> {
-  return activeCategoryWeights(
-    await getCategoryPreferences(supabase, userId),
-    now,
-  );
+  const [preferences, sessionCount] = await Promise.all([
+    getCategoryPreferences(supabase, userId),
+    readSessionCount(supabase, userId),
+  ]);
+
+  return activeCategoryWeights(preferences, sessionCount);
 }
 
 /**
@@ -149,9 +241,34 @@ export async function getPreferredCategoryWeights(
 export async function getPreferredCategories(
   supabase: ServerClient,
   userId: string,
-  now: Date = new Date(),
 ): Promise<AttractionCategory[]> {
-  return activeCategories(await getCategoryPreferences(supabase, userId), now);
+  const [preferences, sessionCount] = await Promise.all([
+    getCategoryPreferences(supabase, userId),
+    readSessionCount(supabase, userId),
+  ]);
+
+  return activeCategories(preferences, sessionCount);
+}
+
+/**
+ * The categories the walker has explicitly told us they do not want, strongest
+ * first — the mirror of `getPreferredCategories`, and the read that stops the
+ * clarification chips offering shopping to someone who typed "no shopping
+ * streets".
+ *
+ * Only exists since a dislike stopped deleting the row (2026-08-23): before
+ * that there was nothing to read, which is precisely why the chips kept asking.
+ */
+export async function getDislikedCategories(
+  supabase: ServerClient,
+  userId: string,
+): Promise<AttractionCategory[]> {
+  const [preferences, sessionCount] = await Promise.all([
+    getCategoryPreferences(supabase, userId),
+    readSessionCount(supabase, userId),
+  ]);
+
+  return dislikedCategories(preferences, sessionCount);
 }
 
 /** What the walk form can pre-fill from a returning walker's saved profile. */
@@ -190,22 +307,32 @@ const NO_PROFILE_DEFAULTS: ProfileDefaults = {
 export async function getProfileDefaults(
   supabase: ServerClient,
   userId: string,
-  now: Date = new Date(),
 ): Promise<ProfileDefaults> {
   try {
-    const [profile, preferredCategories] = await Promise.all([
+    // The pace and the session count come off the same row, so this reads them
+    // together rather than calling `getPreferredCategories`, which would go and
+    // fetch `session_count` a second time for the same render.
+    const [profile, preferences] = await Promise.all([
       supabase
         .from("profiles")
-        .select("walking_pace_min_per_km")
+        .select("walking_pace_min_per_km, session_count")
         .eq("id", userId)
         .maybeSingle(),
-      getPreferredCategories(supabase, userId, now),
+      getCategoryPreferences(supabase, userId),
     ]);
 
     const { data, error } = profile;
     if (error || !data) {
-      return { ...NO_PROFILE_DEFAULTS, preferredCategories };
+      return {
+        ...NO_PROFILE_DEFAULTS,
+        preferredCategories: activeCategories(preferences, 0),
+      };
     }
+
+    const preferredCategories = activeCategories(
+      preferences,
+      toSessionCount((data as Record<string, unknown>).session_count) ?? 0,
+    );
 
     // The column is `numeric`, which PostgREST can hand back as a string as
     // readily as a number, and the check constraint only holds for rows written
@@ -392,30 +519,53 @@ export async function getDownvotedPoiKeys(
 }
 
 /**
- * Fold one newly-detected `like` into what is already on record, mirroring
- * `upsertFact` next door.
+ * Fold one newly-detected statement — a like OR a dislike — into what is already
+ * on record, mirroring `upsertFact` next door. Three cases, and they are the
+ * same three `saveWalkFeedback` further down already resolves for the tapped
+ * version of this signal:
  *
- * Hit on `(user_id, category)`: the count goes up and `last_seen_at` moves, so
- * the taste both gets taller and restarts its decay clock. `first_seen_at` is
- * left alone — it is the only record of how long the taste has been held.
+ *   nothing on record   — insert at one occurrence, in whichever direction the
+ *                         walker just spoke. Both timestamps default in the
+ *                         database rather than being sent, so the wall clock is
+ *                         Postgres's; `last_seen_session` IS sent, because only
+ *                         this side knows which session the walker is in.
+ *   same direction again— the count goes up and both clocks move, so the opinion
+ *                         gets taller (up to the cap) and restarts its decay.
+ *   opposite direction — reset: the new polarity at one occurrence.
  *
- * Miss: insert at one occurrence, both timestamps defaulting to now in the
- * database rather than being sent, so the clock is Postgres's and not this
- * process's.
+ * The reset is the interesting call, and it is `saveWalkFeedback`'s, verbatim:
+ * decrementing through the accumulated pile would leave the row's stated
+ * polarity disagreeing with what the walker last said for as long as the count
+ * took to unwind. A walker who says "actually I do like shopping now" after
+ * three "no shopping streets" has contradicted themselves deliberately, not
+ * noisily, and the row should say what they currently think. So no, a like does
+ * not have to climb back through zero — it lands at a fresh +4, exactly what the
+ * same sentence would be worth from a walker who had never mentioned shopping.
+ * And symmetrically a dislike lands at -8 immediately however many likes it
+ * overturns, which is Ariel's "take a lot off the score" without qualification.
+ *
+ * `first_seen_at` is never touched in any branch: it is the only record of how
+ * long this category has been on the walker's mind at all, in either direction.
  */
-async function upsertCategoryPreference(
+async function writeCategoryPreference(
   supabase: ServerClient,
   userId: string,
   category: AttractionCategory,
+  sentiment: PreferenceSentiment,
   existing: StoredCategoryPreference | undefined,
   now: Date,
+  sessionCount: number,
 ): Promise<boolean> {
   if (existing) {
+    const repeated = existing.sentiment === sentiment;
+
     const { error } = await supabase
       .from("category_preferences")
       .update({
-        occurrence_count: existing.occurrenceCount + 1,
+        sentiment,
+        occurrence_count: repeated ? existing.occurrenceCount + 1 : 1,
         last_seen_at: now.toISOString(),
+        last_seen_session: sessionCount,
       })
       .eq("user_id", userId)
       .eq("category", category);
@@ -423,9 +573,12 @@ async function upsertCategoryPreference(
     return !error;
   }
 
-  const { error } = await supabase
-    .from("category_preferences")
-    .insert({ user_id: userId, category });
+  const { error } = await supabase.from("category_preferences").insert({
+    user_id: userId,
+    category,
+    sentiment,
+    last_seen_session: sessionCount,
+  });
 
   return !error;
 }
@@ -438,17 +591,19 @@ async function upsertCategoryPreference(
  * again, the count goes up and the clock resets. This is what replaced
  * `mergePreferredCategories`, whose whole vocabulary was "in the array or not".
  *
- * A `dislike` DELETES the row. Three alternatives were considered — zeroing the
- * weight, resetting the occurrence count, and a `dismissed_at` column — and
- * delete is the faithful port of what a dislike already did to the array. A
- * dislike is not "this taste has faded", which is what the decay is for; it is
- * "this was never a taste", and there is nothing left to decay. Keeping a
- * zeroed row would mean carrying state no reader can tell apart from absence.
- * The negative direction is already modelled properly next door, by
- * `attraction_feedback` downvote rows with their own occurrence count feeding
- * `downvotePenalty` — a second negative store here would be two mechanisms for
- * one claim. So "no shopping streets" returns shopping to neutral, which is
- * what the sentence said; it does not push it below neutral.
+ * A `dislike` writes a row too, since 2026-08-23. It used to DELETE, on the
+ * reasoning that "no shopping streets" returns shopping to neutral rather than
+ * pushing it below it — and that was wrong twice over. It left a text dislike
+ * weaker than a tapped one on the same category, and worse, a deleted row is
+ * absent from the weight map, which the ranker reads as "we have never asked
+ * about this" — so "I hate shopping" made shopping a candidate for the
+ * exploration slot. What the walker said was not "I have no opinion". They have
+ * the strongest opinion the ranker can express, and it now lands as one:
+ * `-CATEGORY_DISLIKE_WEIGHT`, on the same decay curve as everything else, so it
+ * fades if they stop saying it instead of standing as a permanent flag.
+ *
+ * Both directions therefore go through the same `writeCategoryPreference`, which
+ * is where the flip rule lives.
  *
  * Written one category at a time rather than as one statement so a single bad
  * row costs its own preference and not the batch, the same reason
@@ -468,7 +623,10 @@ export async function saveCategoryPreferences(
     return null;
   }
 
-  const existing = await getCategoryPreferences(supabase, userId);
+  const [existing, sessionCount] = await Promise.all([
+    getCategoryPreferences(supabase, userId),
+    readSessionCount(supabase, userId),
+  ]);
   const byCategory = new Map(
     existing.map((preference) => [preference.category, preference]),
   );
@@ -481,41 +639,41 @@ export async function saveCategoryPreferences(
       continue;
     }
 
-    if (sentiment === "like") {
-      const known = byCategory.get(category);
-      if (
-        await upsertCategoryPreference(supabase, userId, category, known, now)
-      ) {
-        wrote = true;
-        byCategory.set(category, {
-          category,
-          occurrenceCount: (known?.occurrenceCount ?? 0) + 1,
-          lastSeenAt: now.getTime(),
-        });
-      }
+    const known = byCategory.get(category);
+    const written = await writeCategoryPreference(
+      supabase,
+      userId,
+      category,
+      sentiment,
+      known,
+      now,
+      sessionCount,
+    );
+
+    if (!written) {
       continue;
     }
 
-    if (!byCategory.has(category)) {
-      continue;
-    }
-
-    const { error } = await supabase
-      .from("category_preferences")
-      .delete()
-      .eq("user_id", userId)
-      .eq("category", category);
-
-    if (!error) {
-      wrote = true;
-      byCategory.delete(category);
-    }
+    wrote = true;
+    byCategory.set(category, {
+      category,
+      sentiment,
+      // Mirrors the flip rule in `writeCategoryPreference` — a reversal starts
+      // its count over, so the list this returns is what the next read would
+      // actually find rather than an optimistic guess.
+      occurrenceCount:
+        known && known.sentiment === sentiment ? known.occurrenceCount + 1 : 1,
+      lastSeenAt: now.getTime(),
+      lastSeenSession: sessionCount,
+    });
   }
 
   // Null when nothing landed, so the caller can tell "learned nothing" from
   // "learned something that happens to leave the list looking the same" — the
   // same contract `mergePreferredCategories` had.
-  return wrote ? activeCategories([...byCategory.values()], now) : null;
+  return wrote
+    ? activeCategories([...byCategory.values()], sessionCount)
+    : null;
 }
 
 /** One walker rating of one specific stop on a finished walk. */

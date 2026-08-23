@@ -117,9 +117,23 @@ export function parseCategoryPreferences(input: unknown): CategoryPreference[] {
 /** One `category_preferences` row as the scorer can read it. */
 export interface StoredCategoryPreference {
   category: AttractionCategory;
+  /**
+   * Which way the walker's last statement about this category pointed. A row is
+   * one opinion, not one liking — see `categoryPreferenceWeight`, which signs
+   * the weight off this.
+   */
+  sentiment: PreferenceSentiment;
   occurrenceCount: number;
-  /** Epoch millis. */
+  /** Epoch millis. Not the decay clock any more — see `lastSeenSession`. */
   lastSeenAt: number;
+  /**
+   * `profiles.session_count` at the moment this was last stated, or null when
+   * the row carries nothing readable. Null is read as "this session" rather than
+   * as session zero: a row we cannot age is treated as fresh, because the
+   * failure we can afford is a preference lasting too long, not one silently
+   * deleted.
+   */
+  lastSeenSession: number | null;
 }
 
 /**
@@ -139,92 +153,204 @@ export const CATEGORY_BOOST_PER_OCCURRENCE = 1;
 export const CATEGORY_OCCURRENCE_CAP = 5;
 
 /**
- * Half-life of a stated taste, in days. The same 60 `scoreFact` uses, and for
- * one reason: that is already this codebase's number for "how long a statement
- * a walker made about themselves stays fresh", and a second, unrelated decay
- * clock in the same preference system would be two numbers to reason about
- * where nothing has been measured that would justify telling them apart.
+ * What one stated DISLIKE is worth, as a magnitude — the weight is negative.
+ *
+ * Flat, and at the ceiling from the first statement, where a liking climbs to
+ * that same ceiling only over five. That asymmetry is the whole of Ariel's
+ * "לא למחוק אלא להוריד הרבה מהניקוד" — don't delete it, take a lot off the
+ * score — and it is the same reasoning `withExplorationPick` already runs on
+ * for the other kind of dislike: a dislike is an answer, not a question. A
+ * liking accumulates because "museums" said once is one guess among the eight
+ * other categories the walker has not mentioned; "no shopping streets" is not a
+ * guess about shopping, it is the whole answer about shopping, and asking the
+ * walker to say it five times before it counts fully is the app not listening.
+ *
+ * Eight rather than a new number: it is what this ranker already treats as the
+ * strongest a single category signal may be worth in either direction —
+ * `MAX_DOWNVOTE_PENALTY`, `MAX_OCCURRENCE_PREFERENCE_BOOST`, and the ceiling a
+ * five-times-confirmed liking reaches here. Nothing about a stated dislike
+ * justifies inventing a stronger tier than the ranker's own maximum.
+ *
+ * What it buys, on the ranker's real scale: shopping has a `CATEGORY_BASE_SCORE`
+ * of 4, so a disliked shopping street enters the ranking at -4, below every
+ * other category's base before a metre of walking is counted. It is a penalty,
+ * not a deletion — a shopping street carrying both wikidata and wikipedia (+5)
+ * still lands at 1 and can be surfaced if there is genuinely nothing else
+ * nearby. Hard exclusion is `downvotedPoiKeys`' job and names one place; a
+ * category-level signal stays a matter of degree, exactly as
+ * `MAX_DOWNVOTE_PENALTY`'s own comment argues.
+ *
+ * A second dislike adds no height — it is already at the ceiling — but it does
+ * reset the decay clock, which is what keeps it alive for another three
+ * sessions. `occurrence_count` still counts it, because the row should record
+ * what the walker actually said whether or not today's curve reads it.
  */
-export const CATEGORY_HALF_LIFE_DAYS = 60;
+export const CATEGORY_DISLIKE_WEIGHT = 8;
 
 /**
- * Below this the category is not a preference any more: no boost, not pre-ticked
- * on the form, not led with in the clarification chips, and — the half that was
- * actually broken — explorable again.
+ * Half-life of a stated preference, in SESSIONS — walk plans the walker has
+ * successfully built since the taste was last confirmed (`profiles.session_count`
+ * against the row's `last_seen_session`). Not days, and this is the second half
+ * of Ariel's review: "אם הסשן הקודם היה לפני 100 יום, זה לא אומר כלום על זה
+ * שההעדפות שלו השתנו" — a walker who has not opened the app in 100 days has not
+ * been changing their mind for 100 days, they have been elsewhere. Nothing about
+ * a dormant account is evidence about taste. What IS evidence is the walker
+ * using the app repeatedly and not mentioning a category again.
  *
- * One is not a magic number. It is what a taste stated once and never repeated
- * decays to after exactly two half-lives, so the rule reads "said once, not
- * mentioned again for four months, stops counting". It is also the smallest
- * boost that can still do anything on the ranker's own scale: the distance term
- * is `-metres / 1000`, so a boost of 1 buys exactly one kilometre of walking,
- * and 1 is the narrowest gap between adjacent `CATEGORY_BASE_SCORE` values
- * (park 7 / religious 6 / food 5 / shopping 4). Under it, the boost can no
- * longer move a category past its neighbour in the base table — it is noise on
- * the sort rather than a preference being expressed.
+ * Three, and it needs its own reasoning because nothing else in this codebase
+ * runs on a session clock — `HALF_LIFE_DAYS = 60` in `scoreFact` is a calendar
+ * number and does not translate. From first principles:
+ *
+ * A session here is a whole walk planned: the walker opened the app, typed what
+ * they wanted, and got a route. That is a deliberate, effortful act, not a page
+ * view, and each one is an opportunity for the walker to say "I love museums"
+ * that they took or did not take. Three of those is already a real span of
+ * someone's life with this app.
+ *
+ * The consequences, which are what the number should actually be picked on:
+ *   - a taste stated once and never repeated falls under `MIN_CATEGORY_WEIGHT`
+ *     after two half-lives — SIX walks planned without the walker mentioning it
+ *     again. Six is enough that "they never bring it up" is a fact about them
+ *     rather than a run of walks that happened to be about something else.
+ *   - a five-times-confirmed taste starts at 8 and survives three half-lives —
+ *     NINE walks — so repetition still buys half again as much durability. Same
+ *     property the day-based version had, at a tenth of the scale.
+ *   - a dislike, also at 8, likewise stands for nine walks before it fades back
+ *     to neutral, which answers "does 'I hate shopping' last forever?" with no.
+ *
+ * Why not 1: a single unrelated walk would halve a taste the walker stated last
+ * week, and one walk is exactly the noise `occurrence_count` exists to smooth.
+ * Why not 10: thirty-odd walks before a single statement expires is months of
+ * ordinary use, which is the monotonic array again wearing a decay curve.
+ */
+export const CATEGORY_HALF_LIFE_SESSIONS = 3;
+
+
+/**
+ * Below this MAGNITUDE the category is not an opinion any more: no boost, no
+ * penalty, not pre-ticked on the form, not led with in the clarification chips,
+ * and — the half that was actually broken — explorable again.
+ *
+ * Magnitude, not value, since 2026-08-23: a weight of -6 is a strong opinion
+ * that happens to point downwards, and testing it against 1 with a bare `<`
+ * would throw away every dislike the moment it was stored.
+ *
+ * One is not a magic number. It is what a preference stated once and never
+ * repeated decays to after exactly two half-lives, so the rule reads "said once,
+ * not mentioned again across six more walks, stops counting". It is also the
+ * smallest weight that can still do anything on the ranker's own scale: the
+ * distance term is `-metres / 1000`, so a weight of 1 moves a candidate by
+ * exactly one kilometre of walking, and 1 is the narrowest gap between adjacent
+ * `CATEGORY_BASE_SCORE` values (park 7 / religious 6 / food 5 / shopping 4).
+ * Under it, the weight can no longer move a category past its neighbour in the
+ * base table — it is noise on the sort rather than an opinion being expressed.
  *
  * A category the walker has confirmed five times starts at 8 and so stays above
- * the threshold for three half-lives — six months rather than four — which is
- * the durability repetition is supposed to buy.
+ * the threshold for three half-lives — nine walks rather than six — which is the
+ * durability repetition is supposed to buy. A dislike starts at 8 too, so it
+ * stands for the same nine.
  */
 export const MIN_CATEGORY_WEIGHT = 1;
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
 /**
- * How much a stored category preference is worth right now.
+ * How many of the walker's own sessions have passed since this preference was
+ * last stated — the decay input, and the whole of what replaced elapsed days.
  *
- *   weight = (CATEGORY_BOOST_BASE
- *             + CATEGORY_BOOST_PER_OCCURRENCE * (min(occ, CAP) - 1))  // 4..8
- *          * 0.5 ** (days / CATEGORY_HALF_LIFE_DAYS)                   // decay
- *
- * Same two terms `scoreFact` has — a height set by how often it was said, and a
- * half-life since it was last said — with one deliberate difference from that
- * precedent: the decay here is MULTIPLICATIVE, where `scoreFact` adds recency
- * as a separate term on top of a floor it can never fall below. That floor is
- * right for a fact and wrong for a taste, and the difference is the whole point
- * of this change. "Does not eat meat" is a constraint about the person and is
- * still true a year later, so a fact must demote without ever deleting itself.
- * "I like museums" is a disposition, and the bug being fixed here is precisely
- * that it never faded — a floor would keep every category the walker ever
- * mentioned permanently above the threshold, which is the monotonic array all
- * over again with extra columns.
- *
- * The decay clock is `lastSeenAt`, which every repeat resets. So repetition buys
- * height AND, through the reset, freshness — and a category with five
- * occurrences that has genuinely gone quiet for a year does fall to nothing,
- * which is the honest reading of a walker who stopped mentioning it.
- *
- * A timestamp in the future (clock skew, not a real reading) is treated as now
- * rather than given a bonus for it, the same way `scoreFact` treats one.
+ * Clamped at zero from both ends. A row stamped at a session number higher than
+ * the current count is not a real reading (the profile row failed to come back
+ * and defaulted to zero, or a write raced a read), and the same is true of a
+ * null stamp, so both are read as "this session" and left undecayed. That is the
+ * deliberate direction: the failure this feature can afford is a preference that
+ * outlives its welcome, not one silently deleted, which is the bug the previous
+ * design shipped with.
  */
-export function categoryPreferenceWeight(
+function sessionsSince(
   preference: StoredCategoryPreference,
-  now: Date,
+  currentSessionCount: number,
 ): number {
-  const days = Math.max(0, (now.getTime() - preference.lastSeenAt) / MS_PER_DAY);
-  const occurrences = Math.min(
-    Math.max(1, preference.occurrenceCount),
-    CATEGORY_OCCURRENCE_CAP,
-  );
+  if (
+    preference.lastSeenSession === null ||
+    !Number.isFinite(preference.lastSeenSession) ||
+    !Number.isFinite(currentSessionCount)
+  ) {
+    return 0;
+  }
 
-  const height =
-    CATEGORY_BOOST_BASE + CATEGORY_BOOST_PER_OCCURRENCE * (occurrences - 1);
-
-  return height * 0.5 ** (days / CATEGORY_HALF_LIFE_DAYS);
+  return Math.max(0, currentSessionCount - preference.lastSeenSession);
 }
 
 /**
- * The walker's standing tastes as the ranker reads them: category to current
- * weight, with everything that has decayed under `MIN_CATEGORY_WEIGHT` left
- * out entirely rather than carried at a weight too small to matter.
+ * What a stored category preference is worth right now — POSITIVE for a liking,
+ * NEGATIVE for a dislike, and decaying towards zero from whichever side it
+ * started on.
+ *
+ *   height = sentiment === "like"
+ *     ? CATEGORY_BOOST_BASE
+ *       + CATEGORY_BOOST_PER_OCCURRENCE * (min(occ, CAP) - 1)   //  +4 .. +8
+ *     : -CATEGORY_DISLIKE_WEIGHT                                 //  -8, flat
+ *
+ *   weight = height * 0.5 ** (sessions / CATEGORY_HALF_LIFE_SESSIONS)
+ *
+ * Two terms, the same shape `scoreFact` has — a height set by how firmly the
+ * thing was said, and a half-life since it was last said — with two deliberate
+ * departures from that precedent, one old and one new.
+ *
+ * The old one: the decay is MULTIPLICATIVE, where `scoreFact` adds recency as a
+ * separate term on top of a floor it can never fall below. That floor is right
+ * for a fact and wrong for a taste. "Does not eat meat" is a constraint about
+ * the person and is still true a year later, so a fact must demote without ever
+ * deleting itself. "I like museums" is a disposition, and the bug that produced
+ * this whole file is precisely that it never faded — a floor would keep every
+ * category the walker ever mentioned permanently above the threshold, which is
+ * the monotonic array all over again with extra columns.
+ *
+ * The new one (2026-08-23, Ariel's review): the clock is the walker's own
+ * sessions, not the calendar. A hundred dormant days are not evidence about
+ * anything; six walks planned without the category coming up are.
+ *
+ * Both directions ride the same curve on purpose, rather than a dislike being a
+ * permanent flag. A dislike is a statement with an age like any other, and one
+ * that has not been repeated across nine walks has as much claim on the ranking
+ * as a liking in the same position: none. Every repeat, of either polarity,
+ * resets the clock — so repetition buys height AND, through the reset,
+ * freshness.
+ */
+export function categoryPreferenceWeight(
+  preference: StoredCategoryPreference,
+  currentSessionCount: number,
+): number {
+  const sessions = sessionsSince(preference, currentSessionCount);
+
+  const height =
+    preference.sentiment === "dislike"
+      ? -CATEGORY_DISLIKE_WEIGHT
+      : CATEGORY_BOOST_BASE +
+        CATEGORY_BOOST_PER_OCCURRENCE *
+          (Math.min(
+            Math.max(1, preference.occurrenceCount),
+            CATEGORY_OCCURRENCE_CAP,
+          ) -
+            1);
+
+  return height * 0.5 ** (sessions / CATEGORY_HALF_LIFE_SESSIONS);
+}
+
+/**
+ * The walker's standing opinions as the ranker reads them: category to current
+ * signed weight, with everything whose magnitude has decayed under
+ * `MIN_CATEGORY_WEIGHT` left out entirely rather than carried at a number too
+ * small to matter.
  *
  * Leaving them out is what re-opens exploration. The ranker takes "is this
- * category in the map" as "this question is already answered", so a taste that
- * has faded has to disappear from the map, not merely shrink inside it.
+ * category in the map" as "this question is already answered", so an opinion
+ * that has faded has to disappear from the map, not merely shrink inside it —
+ * and, symmetrically, a live dislike has to STAY in the map, which is what stops
+ * the exploration slot being spent on the one category the walker has explicitly
+ * ruled out. That was the asymmetry the delete-on-dislike design shipped with.
  */
 export function activeCategoryWeights(
   preferences: StoredCategoryPreference[],
-  now: Date,
+  currentSessionCount: number,
 ): Map<AttractionCategory, number> {
   const weights = new Map<AttractionCategory, number>();
 
@@ -233,38 +359,75 @@ export function activeCategoryWeights(
       continue;
     }
 
-    const weight = categoryPreferenceWeight(preference, now);
-    if (weight < MIN_CATEGORY_WEIGHT) {
+    const weight = categoryPreferenceWeight(preference, currentSessionCount);
+    if (Math.abs(weight) < MIN_CATEGORY_WEIGHT) {
       continue;
     }
 
     // One row per (user, category) is a unique index, but a duplicate that gets
-    // past it is a stronger claim collapsing into a weaker one rather than into
-    // whichever row came back last.
-    weights.set(
-      preference.category,
-      Math.max(weights.get(preference.category) ?? 0, weight),
-    );
+    // past it collapses to the stronger claim rather than to whichever row came
+    // back last — by magnitude, so a live dislike is not quietly outranked by a
+    // faded liking for having the larger signed value.
+    const standing = weights.get(preference.category);
+    if (standing === undefined || Math.abs(weight) > Math.abs(standing)) {
+      weights.set(preference.category, weight);
+    }
   }
 
   return weights;
 }
 
 /**
- * The categories still counting as preferences, strongest first — what the
- * callers that want a plain list rather than a weight read.
+ * The categories the walker still LIKES, strongest first — what the callers that
+ * want a plain list rather than a weight read.
+ *
+ * Positives only. Both callers act on the list as an endorsement — the walk form
+ * pre-ticks it, `suggestClarificationCategories` leads the question with it — and
+ * a disliked category belongs in neither. What a dislike belongs in is
+ * `dislikedCategories` below, which is what the clarification pass drops.
  *
  * Ordered rather than in row order because both of those callers care about
- * order: `suggestClarificationCategories` leads with them, and leading with the
- * taste the walker has confirmed five times beats leading with whichever row
- * PostgREST happened to return first. Ties break on the more recently stated
- * one, the same tiebreak `selectFactsForPrompt` uses.
+ * order: leading with the taste the walker has confirmed five times beats
+ * leading with whichever row PostgREST happened to return first. Ties break on
+ * the more recently stated one, the same tiebreak `selectFactsForPrompt` uses —
+ * which is what `lastSeenAt` is still stored for now that it no longer runs the
+ * decay clock.
  */
 export function activeCategories(
   preferences: StoredCategoryPreference[],
-  now: Date,
+  currentSessionCount: number,
 ): AttractionCategory[] {
-  const weights = activeCategoryWeights(preferences, now);
+  return orderedByStrength(preferences, currentSessionCount, (weight) =>
+    weight >= MIN_CATEGORY_WEIGHT,
+  );
+}
+
+/**
+ * The categories the walker has explicitly said they do NOT want, strongest
+ * first — the mirror of `activeCategories`, and read by the clarification pass
+ * so a walker who typed "no shopping streets" is never handed a shopping chip.
+ *
+ * A stated dislike and a tapped downvote reach `suggestClarificationCategories`
+ * through the same door for the same reason: asking someone whether they want
+ * the thing they already told us they do not is the app not listening, and it
+ * costs one of only four slots.
+ */
+export function dislikedCategories(
+  preferences: StoredCategoryPreference[],
+  currentSessionCount: number,
+): AttractionCategory[] {
+  return orderedByStrength(preferences, currentSessionCount, (weight) =>
+    weight <= -MIN_CATEGORY_WEIGHT,
+  );
+}
+
+/** Shared body of the two list reads: filter by sign, order by strength. */
+function orderedByStrength(
+  preferences: StoredCategoryPreference[],
+  currentSessionCount: number,
+  keep: (weight: number) => boolean,
+): AttractionCategory[] {
+  const weights = activeCategoryWeights(preferences, currentSessionCount);
   const lastSeen = new Map<AttractionCategory, number>();
   for (const preference of preferences) {
     lastSeen.set(
@@ -274,9 +437,11 @@ export function activeCategories(
   }
 
   return [...weights.entries()]
+    .filter(([, weight]) => keep(weight))
     .sort(
       (a, b) =>
-        b[1] - a[1] || (lastSeen.get(b[0]) ?? 0) - (lastSeen.get(a[0]) ?? 0),
+        Math.abs(b[1]) - Math.abs(a[1]) ||
+        (lastSeen.get(b[0]) ?? 0) - (lastSeen.get(a[0]) ?? 0),
     )
     .map(([category]) => category);
 }

@@ -12,11 +12,13 @@ import {
   deriveCategorySignals,
   getDownvotedCategories,
   getDownvotedPoiKeys,
+  getDislikedCategories,
   getPreferredCategories,
   getPreferredCategoryWeights,
   getProfileDefaults,
   getUpvotedCategories,
   saveAttractionFeedback,
+  recordWalkSession,
   saveCategoryPreferences,
   saveWalkFeedback,
   type AttractionRating,
@@ -35,6 +37,19 @@ function daysAgo(days: number): string {
 }
 
 /**
+ * How many walks this walker has built, in the fake profile row. Not zero, so
+ * that a read which ignored `session_count` entirely — or a write that forgot to
+ * stamp `last_seen_session` and left it at the column default of 0 — comes out
+ * as a fully decayed preference rather than passing by accident.
+ */
+const SESSION = 20;
+
+/** A row stamped `sessionsAgo` of the walker's own sessions before now. */
+function sessionsAgo(sessions: number): number {
+  return SESSION - sessions;
+}
+
+/**
  * An in-memory stand-in for `category_preferences` and the one column of
  * `profiles` that is still read alongside it.
  *
@@ -49,12 +64,21 @@ function daysAgo(days: number): string {
  * Modelled from the migration:
  *   - unique (user_id, category)   -> a second insert is 23505, not a second row
  *   - check (category <> 'other')  -> inserting `other` is 23514
- *   - occurrence_count default 1, first_seen_at/last_seen_at default now()
+ *   - sentiment is an ENUM         -> anything else is 22P02, not a stored string
+ *   - check (last_seen_session >=0)-> a negative stamp is 23514
+ *   - occurrence_count default 1, sentiment default 'like',
+ *     last_seen_session default 0, first_seen_at/last_seen_at default now()
+ *
+ * The defaults matter as much as the constraints here: `last_seen_session`
+ * defaulting to 0 is exactly what makes a forgotten stamp look like a preference
+ * from the walker's very first session, which is the mistake a fake that merely
+ * widened its row shape would hide.
  */
 function fakeCategoryStore(
   initial: Row[] = [],
   options: {
     pace?: unknown;
+    sessionCount?: unknown;
     profileError?: unknown;
     noProfileRow?: boolean;
     reject?: { insert?: boolean; update?: boolean; delete?: boolean };
@@ -62,6 +86,10 @@ function fakeCategoryStore(
 ) {
   const rows: Row[] = initial.map((row) => ({ ...row }));
   const reject = options.reject ?? {};
+  const profile: Row = {
+    walking_pace_min_per_km: options.pace ?? null,
+    session_count: options.sessionCount ?? SESSION,
+  };
 
   function categoryBuilder() {
     const filters: { column: string; value: unknown }[] = [];
@@ -78,6 +106,40 @@ function fakeCategoryStore(
       error: Object.assign(new Error(message), { code }),
     });
 
+    /**
+     * The two column-level rules a write can break on either branch: the
+     * `preference_sentiment` enum, and the non-negative check on the session
+     * stamp. Postgres refuses both, so the fake has to as well — a fake that
+     * stored `sentiment: "meh"` would let a typo through the whole suite.
+     */
+    const invalidColumns = (values: Row) => {
+      if (
+        values.sentiment !== undefined &&
+        values.sentiment !== "like" &&
+        values.sentiment !== "dislike"
+      ) {
+        return pgError(
+          `invalid input value for enum preference_sentiment: "${String(values.sentiment)}"`,
+          "22P02",
+        );
+      }
+
+      if (
+        values.last_seen_session !== undefined &&
+        !(
+          Number.isInteger(values.last_seen_session) &&
+          (values.last_seen_session as number) >= 0
+        )
+      ) {
+        return pgError(
+          'new row for relation "category_preferences" violates check constraint "category_preferences_last_seen_session_check"',
+          "23514",
+        );
+      }
+
+      return null;
+    };
+
     const run = () => {
       if (mode === "insert") {
         if (reject.insert) return { data: null, error: new Error("insert") };
@@ -88,6 +150,9 @@ function fakeCategoryStore(
             "23514",
           );
         }
+
+        const invalid = invalidColumns(payload);
+        if (invalid) return invalid;
 
         const collides = rows.some(
           (row) =>
@@ -105,9 +170,11 @@ function fakeCategoryStore(
         // reads back the way Postgres would hand it back rather than as a row
         // full of undefined.
         rows.push({
+          sentiment: "like",
           occurrence_count: 1,
           first_seen_at: NOW.toISOString(),
           last_seen_at: NOW.toISOString(),
+          last_seen_session: 0,
           ...payload,
         });
         return { data: null, error: null };
@@ -115,6 +182,8 @@ function fakeCategoryStore(
 
       if (mode === "update") {
         if (reject.update) return { data: null, error: new Error("update") };
+        const invalid = invalidColumns(payload);
+        if (invalid) return invalid;
         for (const row of matching()) Object.assign(row, payload);
         return { data: null, error: null };
       }
@@ -170,9 +239,7 @@ function fakeCategoryStore(
       eq: () => chain,
       maybeSingle: async () => ({
         data:
-          options.noProfileRow || options.profileError
-            ? null
-            : { walking_pace_min_per_km: options.pace ?? null },
+          options.noProfileRow || options.profileError ? null : { ...profile },
         error: options.profileError ?? null,
       }),
     };
@@ -183,19 +250,33 @@ function fakeCategoryStore(
     client: {
       from: (table: string) =>
         table === "profiles" ? profileBuilder() : categoryBuilder(),
+      // `record_walk_session()` is one atomic upsert in the database, so the
+      // fake models it as one too: the counter moves whether or not a profile
+      // row existed, and hands back the new total the way the function's
+      // `returning` clause does.
+      rpc: async (name: string) => {
+        if (name !== "record_walk_session") {
+          return { data: null, error: new Error(`unknown function ${name}`) };
+        }
+        profile.session_count = Number(profile.session_count ?? 0) + 1;
+        return { data: profile.session_count, error: null };
+      },
     } as unknown as Client,
     rows,
+    profile,
   };
 }
 
-/** One stored taste, in the column shape PostgREST hands back. */
+/** One stored opinion, in the column shape PostgREST hands back. */
 function prefRow(overrides: Row = {}): Row {
   return {
     user_id: "user-1",
     category: "museum",
+    sentiment: "like",
     occurrence_count: 1,
     first_seen_at: daysAgo(0),
     last_seen_at: daysAgo(0),
+    last_seen_session: SESSION,
     ...overrides,
   };
 }
@@ -207,22 +288,22 @@ describe("getPreferredCategories", () => {
       prefRow({ category: "nature", occurrence_count: 4 }),
     ]);
 
-    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([
+    expect(await getPreferredCategories(client, "user-1")).toEqual([
       "nature",
       "museum",
     ]);
   });
 
   // The decay is the whole change: a taste stated once and never repeated stops
-  // counting after two half-lives, and this is the read the form and the
-  // clarification chips both go through.
+  // counting after two half-lives of the walker's own sessions, and this is the
+  // read the form and the clarification chips both go through.
   it("leaves out a taste that has decayed under the threshold", async () => {
     const { client } = fakeCategoryStore([
-      prefRow({ category: "museum", last_seen_at: daysAgo(1) }),
-      prefRow({ category: "nature", last_seen_at: daysAgo(400) }),
+      prefRow({ category: "museum", last_seen_session: sessionsAgo(1) }),
+      prefRow({ category: "nature", last_seen_session: sessionsAgo(12) }),
     ]);
 
-    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([
+    expect(await getPreferredCategories(client, "user-1")).toEqual([
       "museum",
     ]);
   });
@@ -233,7 +314,7 @@ describe("getPreferredCategories", () => {
       prefRow({ user_id: "user-1", category: "museum" }),
     ]);
 
-    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([
+    expect(await getPreferredCategories(client, "user-1")).toEqual([
       "museum",
     ]);
   });
@@ -246,7 +327,7 @@ describe("getPreferredCategories", () => {
       prefRow({ category: "museum" }),
     ]);
 
-    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([
+    expect(await getPreferredCategories(client, "user-1")).toEqual([
       "museum",
     ]);
   });
@@ -256,13 +337,13 @@ describe("getPreferredCategories", () => {
       prefRow({ category: "museum", last_seen_at: "not a date" }),
     ]);
 
-    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([]);
+    expect(await getPreferredCategories(client, "user-1")).toEqual([]);
   });
 
   it("returns nothing when the walker has no rows", async () => {
     const { client } = fakeCategoryStore();
 
-    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([]);
+    expect(await getPreferredCategories(client, "user-1")).toEqual([]);
   });
 
   it("returns nothing when the client throws", async () => {
@@ -272,7 +353,89 @@ describe("getPreferredCategories", () => {
       },
     } as unknown as Client;
 
-    expect(await getPreferredCategories(throwing, "user-1", NOW)).toEqual([]);
+    expect(await getPreferredCategories(throwing, "user-1")).toEqual([]);
+  });
+});
+
+describe("getDislikedCategories", () => {
+  it("returns what the walker ruled out and nothing they asked for", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "museum" }),
+      prefRow({ category: "shopping", sentiment: "dislike" }),
+    ]);
+
+    expect(await getDislikedCategories(client, "user-1")).toEqual(["shopping"]);
+  });
+
+  it("leaves out a dislike the walker has not repeated in twelve sessions", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({
+        category: "shopping",
+        sentiment: "dislike",
+        last_seen_session: sessionsAgo(12),
+      }),
+    ]);
+
+    expect(await getDislikedCategories(client, "user-1")).toEqual([]);
+  });
+
+  it("reads only this walker's rows", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ user_id: "user-2", category: "food", sentiment: "dislike" }),
+      prefRow({ user_id: "user-1", category: "shopping", sentiment: "dislike" }),
+    ]);
+
+    expect(await getDislikedCategories(client, "user-1")).toEqual(["shopping"]);
+  });
+});
+
+// The clock every decay in this file runs on. One statement in the database, so
+// the fake models it as one too.
+describe("recordWalkSession", () => {
+  it("counts one more walk and hands back the new total", async () => {
+    const { client, profile } = fakeCategoryStore([], { sessionCount: 7 });
+
+    expect(await recordWalkSession(client)).toBe(8);
+    expect(profile.session_count).toBe(8);
+  });
+
+  // The counter moving is what ages every stored preference by one step, so it
+  // has to be visible from the ranker's own read, not just in the column.
+  it("moves what the ranker reads one step down the decay curve", async () => {
+    const { client } = fakeCategoryStore(
+      [prefRow({ category: "museum", last_seen_session: 7 })],
+      { sessionCount: 7 },
+    );
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("museum"),
+    ).toBe(4);
+
+    await recordWalkSession(client);
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("museum"),
+    ).toBeCloseTo(4 * 0.5 ** (1 / 3), 10);
+  });
+
+  // Best effort like every other write here: a walk that was built and a session
+  // that was not counted costs one step of decay, never the walk.
+  it("answers null rather than throwing when the call is refused", async () => {
+    const refusing = {
+      rpc: async () => ({ data: null, error: new Error("refused") }),
+    } as unknown as Client;
+
+    await expect(recordWalkSession(refusing)).resolves.toBeNull();
+  });
+
+  it("answers null when the client throws", async () => {
+    const throwing = {
+      rpc: () => {
+        throw new Error("network down");
+      },
+    } as unknown as Client;
+
+    await expect(recordWalkSession(throwing)).resolves.toBeNull();
   });
 });
 
@@ -283,26 +446,96 @@ describe("getPreferredCategoryWeights", () => {
       prefRow({
         category: "nature",
         occurrence_count: 1,
-        last_seen_at: daysAgo(60),
+        last_seen_session: sessionsAgo(3),
       }),
     ]);
 
-    const weights = await getPreferredCategoryWeights(client, "user-1", NOW);
+    const weights = await getPreferredCategoryWeights(client, "user-1");
 
     expect(weights.get("museum")).toBe(8);
     expect(weights.get("nature")).toBeCloseTo(2, 10);
+  });
+
+  // The clock the walker winds themselves. Same two rows, same wall-clock age,
+  // and only the walker's own use of the app moves the weight — which is the
+  // whole of the second correction.
+  it("ages a taste by the walker's sessions, not by the calendar", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({
+        category: "museum",
+        first_seen_at: daysAgo(400),
+        last_seen_at: daysAgo(400),
+        last_seen_session: SESSION,
+      }),
+    ]);
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("museum"),
+    ).toBe(4);
+  });
+
+  // Nothing has been counted for this walker yet, so nothing may read as stale:
+  // a row written during session zero and read during session zero is fresh.
+  it("reads a walker with no session counter as undecayed", async () => {
+    const { client } = fakeCategoryStore(
+      [prefRow({ category: "museum", last_seen_session: 0 })],
+      { sessionCount: 0 },
+    );
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("museum"),
+    ).toBe(4);
+  });
+
+  // A dislike has to survive the read and arrive at the ranker as a negative
+  // number. Before the sentiment column there was no row at all to read.
+  it("hands the ranker a negative weight for a stated dislike", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "shopping", sentiment: "dislike" }),
+    ]);
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("shopping"),
+    ).toBe(-8);
   });
 
   // Absence, not a small number — the ranker reads presence in this map as
   // "already answered, do not explore into it".
   it("omits a decayed-out category entirely", async () => {
     const { client } = fakeCategoryStore([
-      prefRow({ category: "nature", last_seen_at: daysAgo(400) }),
+      prefRow({ category: "nature", last_seen_session: sessionsAgo(12) }),
     ]);
 
     expect(
-      (await getPreferredCategoryWeights(client, "user-1", NOW)).has("nature"),
+      (await getPreferredCategoryWeights(client, "user-1")).has("nature"),
     ).toBe(false);
+  });
+
+  // PostgREST hands an integer back as a string as readily as a number, and the
+  // session stamp is an integer column like any other.
+  it("reads a session stamp that arrived as a string", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "museum", last_seen_session: String(sessionsAgo(3)) }),
+    ]);
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("museum"),
+    ).toBeCloseTo(2, 10);
+  });
+
+  // A row written before the column existed reads as null, and the fallback has
+  // to be "this session", not 0. Zero would mean "stamped at the walker's very
+  // first session", which for a walker twenty walks in silently deletes a
+  // preference they may have stated yesterday — the exact failure this whole
+  // rewrite exists to stop.
+  it("treats a row with no readable session stamp as stated this session", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "museum", last_seen_session: null }),
+    ]);
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("museum"),
+    ).toBe(4);
   });
 
   // PostgREST can hand an integer column back as a string.
@@ -312,7 +545,7 @@ describe("getPreferredCategoryWeights", () => {
     ]);
 
     expect(
-      (await getPreferredCategoryWeights(client, "user-1", NOW)).get("museum"),
+      (await getPreferredCategoryWeights(client, "user-1")).get("museum"),
     ).toBe(6);
   });
 });
@@ -326,7 +559,7 @@ describe("getProfileDefaults", () => {
       { pace: 13.5 },
     );
 
-    expect(await getProfileDefaults(client, "user-1", NOW)).toEqual({
+    expect(await getProfileDefaults(client, "user-1")).toEqual({
       walkingPaceMinPerKm: 13.5,
       preferredCategories: ["museum", "park"],
     });
@@ -337,7 +570,7 @@ describe("getProfileDefaults", () => {
     const { client } = fakeCategoryStore([], { pace: "18.0" });
 
     expect(
-      (await getProfileDefaults(client, "user-1", NOW)).walkingPaceMinPerKm,
+      (await getProfileDefaults(client, "user-1")).walkingPaceMinPerKm,
     ).toBe(18);
   });
 
@@ -349,7 +582,7 @@ describe("getProfileDefaults", () => {
     const { client } = fakeCategoryStore([], { pace });
 
     expect(
-      (await getProfileDefaults(client, "user-1", NOW)).walkingPaceMinPerKm,
+      (await getProfileDefaults(client, "user-1")).walkingPaceMinPerKm,
     ).toBeNull();
   });
 
@@ -358,14 +591,14 @@ describe("getProfileDefaults", () => {
   it("does not pre-tick an interest that has decayed under the threshold", async () => {
     const { client } = fakeCategoryStore(
       [
-        prefRow({ category: "nature", last_seen_at: daysAgo(1) }),
-        prefRow({ category: "museum", last_seen_at: daysAgo(400) }),
+        prefRow({ category: "nature", last_seen_session: sessionsAgo(1) }),
+        prefRow({ category: "museum", last_seen_session: sessionsAgo(12) }),
       ],
       { pace: 15 },
     );
 
     expect(
-      (await getProfileDefaults(client, "user-1", NOW)).preferredCategories,
+      (await getProfileDefaults(client, "user-1")).preferredCategories,
     ).toEqual(["nature"]);
   });
 
@@ -376,7 +609,7 @@ describe("getProfileDefaults", () => {
   ])("still returns the interests despite %s", async (_label, options) => {
     const { client } = fakeCategoryStore([prefRow({ category: "park" })], options);
 
-    expect(await getProfileDefaults(client, "user-1", NOW)).toEqual({
+    expect(await getProfileDefaults(client, "user-1")).toEqual({
       walkingPaceMinPerKm: null,
       preferredCategories: ["park"],
     });
@@ -391,7 +624,7 @@ describe("getProfileDefaults", () => {
       },
     } as unknown as Client;
 
-    expect(await getProfileDefaults(throwing, "user-1", NOW)).toEqual({
+    expect(await getProfileDefaults(throwing, "user-1")).toEqual({
       walkingPaceMinPerKm: null,
       preferredCategories: [],
     });
@@ -670,11 +903,34 @@ describe("saveCategoryPreferences", () => {
       {
         user_id: "user-1",
         category: "nature",
+        sentiment: "like",
         occurrence_count: 1,
         first_seen_at: NOW.toISOString(),
         last_seen_at: NOW.toISOString(),
+        // Stamped with the walker's CURRENT session, not left at the column
+        // default of 0 — which for a walker twenty walks in would read back as
+        // a preference from their very first session and be dead on arrival.
+        last_seen_session: SESSION,
       },
     ]);
+  });
+
+  // The stamp is what the whole session clock rests on, so it gets its own
+  // assertion on the read side as well as the write side: a row inserted this
+  // session must come back at full weight from the ranker's own read.
+  it("leaves a freshly written taste undecayed when it is read back", async () => {
+    const { client } = fakeCategoryStore();
+
+    await saveCategoryPreferences(
+      client,
+      "user-1",
+      [{ category: "nature", sentiment: "like" }],
+      NOW,
+    );
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("nature"),
+    ).toBe(4);
   });
 
   // The upsert branch, and the reason the fake models the unique index: with
@@ -710,10 +966,10 @@ describe("saveCategoryPreferences", () => {
   // write it had decayed out of every read.
   it("brings a decayed-out taste back above the threshold", async () => {
     const { client } = fakeCategoryStore([
-      prefRow({ category: "museum", last_seen_at: daysAgo(400) }),
+      prefRow({ category: "museum", last_seen_session: sessionsAgo(12) }),
     ]);
 
-    expect(await getPreferredCategories(client, "user-1", NOW)).toEqual([]);
+    expect(await getPreferredCategories(client, "user-1")).toEqual([]);
 
     expect(
       await saveCategoryPreferences(
@@ -725,9 +981,18 @@ describe("saveCategoryPreferences", () => {
     ).toEqual(["museum"]);
   });
 
-  it("deletes the row outright on an explicit dislike", async () => {
+  // Ariel's correction to the version that shipped this morning: don't delete,
+  // take a lot off the score. The row survives, flipped, and the four
+  // accumulated likes do NOT have to be burned through first — the reset is the
+  // same rule `saveWalkFeedback` applies to a flipped tap.
+  it("flips the row to a dislike instead of deleting it", async () => {
     const { client, rows } = fakeCategoryStore([
-      prefRow({ category: "shopping", occurrence_count: 4 }),
+      prefRow({
+        category: "shopping",
+        occurrence_count: 4,
+        first_seen_at: daysAgo(200),
+        last_seen_session: sessionsAgo(2),
+      }),
       prefRow({ category: "museum" }),
     ]);
 
@@ -740,10 +1005,44 @@ describe("saveCategoryPreferences", () => {
       ),
     ).toEqual(["museum"]);
 
-    expect(rows.map((row) => row.category)).toEqual(["museum"]);
+    expect(rows.map((row) => row.category).sort()).toEqual([
+      "museum",
+      "shopping",
+    ]);
+    expect(rows.find((row) => row.category === "shopping")).toMatchObject({
+      sentiment: "dislike",
+      occurrence_count: 1,
+      last_seen_at: NOW.toISOString(),
+      last_seen_session: SESSION,
+      // Still the only record of how long this category has been on the
+      // walker's mind, in either direction.
+      first_seen_at: daysAgo(200),
+    });
   });
 
-  it("writes nothing for a dislike of a taste that was never stored", async () => {
+  // The behaviour the flip exists for: what the ranker reads afterwards is a
+  // penalty, not the absence a delete produced.
+  it("leaves the disliked category penalized in what the ranker reads", async () => {
+    const { client } = fakeCategoryStore([
+      prefRow({ category: "shopping", occurrence_count: 4 }),
+    ]);
+
+    await saveCategoryPreferences(
+      client,
+      "user-1",
+      [{ category: "shopping", sentiment: "dislike" }],
+      NOW,
+    );
+
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("shopping"),
+    ).toBe(-8);
+  });
+
+  // "I hate shopping" has to count against shopping whether or not the walker
+  // ever said they liked it. The old code wrote nothing at all here, because
+  // there was no row to delete.
+  it("records a dislike of a category the walker never mentioned before", async () => {
     const { client, rows } = fakeCategoryStore([prefRow({ category: "museum" })]);
 
     expect(
@@ -753,9 +1052,68 @@ describe("saveCategoryPreferences", () => {
         [{ category: "shopping", sentiment: "dislike" }],
         NOW,
       ),
-    ).toBeNull();
+    ).toEqual(["museum"]);
 
-    expect(rows).toHaveLength(1);
+    expect(rows.find((row) => row.category === "shopping")).toMatchObject({
+      sentiment: "dislike",
+      occurrence_count: 1,
+      last_seen_session: SESSION,
+    });
+  });
+
+  // Nothing louder to say — it is already at the ceiling — but it does buy
+  // another three sessions of life through the clock reset.
+  it("counts a repeated dislike and restarts its clock", async () => {
+    const { client, rows } = fakeCategoryStore([
+      prefRow({
+        category: "shopping",
+        sentiment: "dislike",
+        occurrence_count: 1,
+        last_seen_session: sessionsAgo(5),
+      }),
+    ]);
+
+    await saveCategoryPreferences(
+      client,
+      "user-1",
+      [{ category: "shopping", sentiment: "dislike" }],
+      NOW,
+    );
+
+    expect(rows[0]).toMatchObject({
+      sentiment: "dislike",
+      occurrence_count: 2,
+      last_seen_session: SESSION,
+    });
+  });
+
+  // The other direction of the flip, and Ariel's own question about it: a fresh
+  // "actually I do like shopping now" does not have to climb back through zero.
+  // It lands at a plain +4, exactly what the same sentence is worth from a
+  // walker who never said anything about shopping.
+  it("lets a like reverse a dislike outright rather than climbing back", async () => {
+    const { client, rows } = fakeCategoryStore([
+      prefRow({
+        category: "shopping",
+        sentiment: "dislike",
+        occurrence_count: 3,
+      }),
+    ]);
+
+    await saveCategoryPreferences(
+      client,
+      "user-1",
+      [{ category: "shopping", sentiment: "like" }],
+      NOW,
+    );
+
+    expect(rows[0]).toMatchObject({
+      sentiment: "like",
+      occurrence_count: 1,
+    });
+    expect(
+      (await getPreferredCategoryWeights(client, "user-1")).get("shopping"),
+    ).toBe(4);
   });
 
   it("applies several preferences from one sentence", async () => {
@@ -776,7 +1134,16 @@ describe("saveCategoryPreferences", () => {
       ),
     ).toEqual(["nature", "food"]);
 
-    expect(rows.map((row) => row.category).sort()).toEqual(["food", "nature"]);
+    // The shopping row is still there — flipped, not gone — which is what keeps
+    // it out of the exploration slot as well as out of the boost.
+    expect(rows.map((row) => row.category).sort()).toEqual([
+      "food",
+      "nature",
+      "shopping",
+    ]);
+    expect(rows.find((row) => row.category === "shopping")).toMatchObject({
+      sentiment: "dislike",
+    });
   });
 
   // The table's check constraint refuses it, so the store has to as well —
