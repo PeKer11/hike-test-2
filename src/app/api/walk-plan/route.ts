@@ -11,7 +11,7 @@ import { buildWalkPlan } from "@/lib/optimization/tsp-planner";
 import {
   getDownvotedCategories,
   getDownvotedPoiKeys,
-  getPreferredCategories,
+  getPreferredCategoryWeights,
   getUpvotedCategories,
 } from "@/lib/preferences/preference-store";
 import { createClient } from "@/lib/supabase/server";
@@ -67,7 +67,10 @@ const DUPLICATE_RADIUS_METERS = 50;
 const FILL_THRESHOLD = 0.9;
 
 interface ProfileCategories {
+  /** What the walker ticked for THIS walk. Flat boost, never explored away from. */
   preferredCategories: AttractionCategory[] | undefined;
+  /** Standing tastes with their decayed weight — see `activeCategoryWeights`. */
+  preferredCategoryWeights: Map<AttractionCategory, number> | undefined;
   /** Each downvoted category with how many times it has been voted down. */
   downvotedCategories: Map<AttractionCategory, number> | undefined;
   /** Each upvoted category with how many times it has been voted up. */
@@ -77,12 +80,17 @@ interface ProfileCategories {
 }
 
 /**
- * What the walker has told us over time, folded into what they ticked for this
- * particular walk. The likes are a union, not a fallback: the "Interests" boxes
- * say what they are in the mood for today, the profile says who they are, and
- * neither is allowed to silently erase the other. The standing up- and
- * downvotes only ever come from the profile — the form has no "not this" box,
- * and no way to say a category has worked out well before.
+ * What the walker has told us over time, alongside what they ticked for this
+ * particular walk. The "Interests" boxes say what they are in the mood for
+ * today, the profile says who they are, and neither is allowed to silently
+ * erase the other. They used to be unioned into one flat array; they are kept
+ * apart since 2026-08-23 because they are no longer the same kind of value —
+ * today's tick is worth a flat `PREFERRED_CATEGORY_BOOST`, while a standing
+ * taste is worth whatever it has decayed to. The ranker takes the larger of the
+ * two, which is exactly what the union produced back when both were flat.
+ *
+ * The standing up- and downvotes only ever come from the profile — the form has
+ * no "not this" box, and no way to say a category has worked out well before.
  *
  * The fourth read is not about categories at all: `getDownvotedPoiKeys` names
  * specific places the walker rejected, which the ranker drops outright instead
@@ -98,7 +106,7 @@ async function withProfilePreferences(
   fromBody: AttractionCategory[] | undefined,
 ): Promise<ProfileCategories> {
   const body = Array.isArray(fromBody) ? fromBody : [];
-  let preferred: AttractionCategory[] = [];
+  let weights: Map<AttractionCategory, number> = new Map();
   let downvoted: Map<AttractionCategory, number> = new Map();
   let upvoted: Map<AttractionCategory, number> = new Map();
   let downvotedPois: Set<string> = new Set();
@@ -111,8 +119,10 @@ async function withProfilePreferences(
     if (user) {
       // Caught per read, not just by the outer try: one of the four blowing up
       // must not throw away what the others already found.
-      [preferred, downvoted, upvoted, downvotedPois] = await Promise.all([
-        getPreferredCategories(supabase, user.id).catch(() => []),
+      [weights, downvoted, upvoted, downvotedPois] = await Promise.all([
+        getPreferredCategoryWeights(supabase, user.id).catch(
+          () => new Map<AttractionCategory, number>(),
+        ),
         getDownvotedCategories(supabase, user.id).catch(
           () => new Map<AttractionCategory, number>(),
         ),
@@ -126,9 +136,9 @@ async function withProfilePreferences(
     // Supabase not configured, no session, or a failed read — body only.
   }
 
-  const merged = Array.from(new Set([...body, ...preferred]));
   return {
-    preferredCategories: merged.length > 0 ? merged : undefined,
+    preferredCategories: body.length > 0 ? body : undefined,
+    preferredCategoryWeights: weights.size > 0 ? weights : undefined,
     downvotedCategories: downvoted.size > 0 ? downvoted : undefined,
     upvotedCategories: upvoted.size > 0 ? upvoted : undefined,
     downvotedPoiKeys: downvotedPois.size > 0 ? downvotedPois : undefined,
@@ -379,6 +389,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           const ranked = rankAttractions(raw, {
             origin,
             preferredCategories,
+            preferredCategoryWeights: profile.preferredCategoryWeights,
             downvotedCategories: profile.downvotedCategories,
             upvotedCategories: profile.upvotedCategories,
             downvotedPoiKeys: profile.downvotedPoiKeys,
@@ -433,6 +444,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         const ranked = rankAttractions(raw, {
           origin,
           preferredCategories,
+          preferredCategoryWeights: profile.preferredCategoryWeights,
           downvotedCategories: profile.downvotedCategories,
           upvotedCategories: profile.upvotedCategories,
           downvotedPoiKeys: profile.downvotedPoiKeys,

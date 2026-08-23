@@ -307,10 +307,14 @@ async function standingFactsFor(
  *
  * Read from the walker's saved profile so the question is theirs rather than a
  * generic one: what they have said they like leads, what they have voted down
- * is not asked about at all. Best effort like every other profile read on this
- * path — signed out, unconfigured or a failed read all fall back to the plain
- * list, because a preference-blind question still beats silently guessing a
- * walk, which is what this replaces.
+ * is not asked about at all. Since 2026-08-23 `getPreferredCategories` hands
+ * back only the tastes still above `MIN_CATEGORY_WEIGHT`, strongest first, so
+ * the chips lead with the taste the walker has confirmed most recently and
+ * most often, and stop leading with one they mentioned once four months ago.
+ * Best effort like every other profile read on this path — signed out,
+ * unconfigured or a failed read all fall back to the plain list, because a
+ * preference-blind question still beats silently guessing a walk, which is what
+ * this replaces.
  */
 async function clarificationFor(
   underSpecified: boolean,

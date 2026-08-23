@@ -6,7 +6,7 @@ const mockFetchAttractions = vi.fn();
 const mockGetDirections = vi.fn();
 const mockGetMatrix = vi.fn();
 const mockGetUser = vi.fn();
-const mockGetPreferredCategories = vi.fn();
+const mockGetPreferredCategoryWeights = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
 const mockGetUpvotedCategories = vi.fn();
 const mockGetDownvotedPoiKeys = vi.fn();
@@ -28,8 +28,8 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("@/lib/preferences/preference-store", () => ({
-  getPreferredCategories: (...args: unknown[]) =>
-    mockGetPreferredCategories(...args),
+  getPreferredCategoryWeights: (...args: unknown[]) =>
+    mockGetPreferredCategoryWeights(...args),
   getDownvotedCategories: (...args: unknown[]) =>
     mockGetDownvotedCategories(...args),
   getUpvotedCategories: (...args: unknown[]) =>
@@ -110,8 +110,8 @@ function resetMocks(): void {
   mockGetMatrix.mockRejectedValue(new Error("no ORS in tests"));
   mockGetUser.mockReset();
   mockGetUser.mockResolvedValue(SIGNED_IN);
-  mockGetPreferredCategories.mockReset();
-  mockGetPreferredCategories.mockResolvedValue([]);
+  mockGetPreferredCategoryWeights.mockReset();
+  mockGetPreferredCategoryWeights.mockResolvedValue(new Map());
   mockGetDownvotedCategories.mockReset();
   mockGetDownvotedCategories.mockResolvedValue(new Map());
   mockGetUpvotedCategories.mockReset();
@@ -310,34 +310,53 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
     return mockRankAttractions.mock.calls[0]?.[1]?.preferredCategories;
   }
 
-  it("ranks with the union of the request's interests and the saved profile", async () => {
+  function weightedWith(): Map<string, number> | undefined {
+    return mockRankAttractions.mock.calls[0]?.[1]?.preferredCategoryWeights;
+  }
+
+  // No longer a union: today's ticks are a flat boost and the saved tastes are
+  // a decayed weight, so merging them into one array would have thrown the
+  // weights away. The ranker takes the larger of the two per category.
+  it("keeps the request's interests and the saved profile apart", async () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
-    mockGetPreferredCategories.mockResolvedValueOnce(["nature", "museum"]);
+    mockGetPreferredCategoryWeights.mockResolvedValueOnce(
+      new Map([
+        ["nature", 4],
+        ["museum", 8],
+      ]),
+    );
 
     const response = await POST(
       postRequest(discoveryBody(["food", "museum"])),
     );
 
     expect(response.status).toBe(200);
-    expect(mockGetPreferredCategories).toHaveBeenCalledWith(
+    expect(mockGetPreferredCategoryWeights).toHaveBeenCalledWith(
       expect.anything(),
       "user-1",
     );
-    // Union, de-duplicated — neither side replaces the other.
-    expect(rankedWith()).toEqual(["food", "museum", "nature"]);
+    // Neither side replaces the other.
+    expect(rankedWith()).toEqual(["food", "museum"]);
+    expect(weightedWith()).toEqual(
+      new Map([
+        ["nature", 4],
+        ["museum", 8],
+      ]),
+    );
   });
 
   it("uses the saved profile alone when the request ticked no interests", async () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
-    mockGetPreferredCategories.mockResolvedValueOnce(["park"]);
+    mockGetPreferredCategoryWeights.mockResolvedValueOnce(new Map([["park", 4]]));
 
     await POST(postRequest(discoveryBody()));
 
-    expect(rankedWith()).toEqual(["park"]);
+    expect(rankedWith()).toBeUndefined();
+    expect(weightedWith()).toEqual(new Map([["park", 4]]));
   });
 
   it("reads no profile and changes nothing for a walker who is not signed in", async () => {
@@ -349,15 +368,16 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
     const response = await POST(postRequest(discoveryBody(["food"])));
 
     expect(response.status).toBe(200);
-    expect(mockGetPreferredCategories).not.toHaveBeenCalled();
+    expect(mockGetPreferredCategoryWeights).not.toHaveBeenCalled();
     expect(rankedWith()).toEqual(["food"]);
+    expect(weightedWith()).toBeUndefined();
   });
 
   it("falls back to the request's interests when the profile read fails", async () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
-    mockGetPreferredCategories.mockRejectedValueOnce(new Error("supabase down"));
+    mockGetPreferredCategoryWeights.mockRejectedValueOnce(new Error("supabase down"));
 
     const response = await POST(postRequest(discoveryBody(["food"])));
     const plan = await response.json();
@@ -373,7 +393,9 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
     const random = vi.spyOn(Math, "random").mockReturnValue(0);
     try {
       const named = makeAttraction("named", 32.081, 34.78, 30);
-      mockGetPreferredCategories.mockResolvedValueOnce(["landmark"]);
+      mockGetPreferredCategoryWeights.mockResolvedValueOnce(
+        new Map([["landmark", 4]]),
+      );
       mockFetchAttractions.mockResolvedValueOnce([
         { ...makeAttraction("osm-food", 32.082, 34.78, 20), category: "food" },
       ]);
@@ -420,7 +442,7 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
     const plan = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockGetPreferredCategories).not.toHaveBeenCalled();
+    expect(mockGetPreferredCategoryWeights).not.toHaveBeenCalled();
     expect(rankedWith()).toEqual(["food"]);
     expect(plan.orderedAttractions).toHaveLength(1);
   });
@@ -431,7 +453,7 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
     await POST(postRequest(baseBody([kept])));
 
     expect(mockGetUser).not.toHaveBeenCalled();
-    expect(mockGetPreferredCategories).not.toHaveBeenCalled();
+    expect(mockGetPreferredCategoryWeights).not.toHaveBeenCalled();
     expect(mockGetDownvotedCategories).not.toHaveBeenCalled();
     expect(mockGetUpvotedCategories).not.toHaveBeenCalled();
   });
@@ -500,16 +522,16 @@ describe("POST /api/walk-plan — saved downvotes", () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
-    mockGetPreferredCategories.mockResolvedValueOnce(["park"]);
+    mockGetPreferredCategoryWeights.mockResolvedValueOnce(new Map([["park", 4]]));
     mockGetDownvotedCategories.mockRejectedValueOnce(new Error("supabase down"));
 
     const response = await POST(postRequest(discoveryBody()));
     const plan = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockRankAttractions.mock.calls[0]?.[1]?.preferredCategories).toEqual([
-      "park",
-    ]);
+    expect(
+      mockRankAttractions.mock.calls[0]?.[1]?.preferredCategoryWeights,
+    ).toEqual(new Map([["park", 4]]));
     expect(downvotedWith()).toBeUndefined();
     expect(plan.orderedAttractions).toHaveLength(1);
   });
@@ -518,7 +540,7 @@ describe("POST /api/walk-plan — saved downvotes", () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
-    mockGetPreferredCategories.mockRejectedValueOnce(new Error("supabase down"));
+    mockGetPreferredCategoryWeights.mockRejectedValueOnce(new Error("supabase down"));
     mockGetDownvotedCategories.mockResolvedValueOnce(new Map([["food", 1]]));
 
     const response = await POST(postRequest(discoveryBody()));
@@ -616,7 +638,7 @@ describe("POST /api/walk-plan — saved upvotes", () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
-    mockGetPreferredCategories.mockResolvedValueOnce(["park"]);
+    mockGetPreferredCategoryWeights.mockResolvedValueOnce(new Map([["park", 4]]));
     mockGetDownvotedCategories.mockResolvedValueOnce(new Map([["food", 2]]));
     mockGetUpvotedCategories.mockRejectedValueOnce(new Error("supabase down"));
 
@@ -624,9 +646,9 @@ describe("POST /api/walk-plan — saved upvotes", () => {
     const plan = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockRankAttractions.mock.calls[0]?.[1]?.preferredCategories).toEqual([
-      "park",
-    ]);
+    expect(
+      mockRankAttractions.mock.calls[0]?.[1]?.preferredCategoryWeights,
+    ).toEqual(new Map([["park", 4]]));
     expect(downvotedWith()).toEqual(new Map([["food", 2]]));
     expect(upvotedWith()).toBeUndefined();
     expect(plan.orderedAttractions).toHaveLength(1);
@@ -636,7 +658,7 @@ describe("POST /api/walk-plan — saved upvotes", () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
-    mockGetPreferredCategories.mockRejectedValueOnce(new Error("supabase down"));
+    mockGetPreferredCategoryWeights.mockRejectedValueOnce(new Error("supabase down"));
     mockGetDownvotedCategories.mockRejectedValueOnce(new Error("supabase down"));
     mockGetUpvotedCategories.mockResolvedValueOnce(new Map([["museum", 1]]));
 
@@ -723,7 +745,7 @@ describe("POST /api/walk-plan — saved POI-level downvotes", () => {
     mockFetchAttractions.mockResolvedValueOnce([
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
-    mockGetPreferredCategories.mockResolvedValueOnce(["park"]);
+    mockGetPreferredCategoryWeights.mockResolvedValueOnce(new Map([["park", 4]]));
     mockGetDownvotedCategories.mockResolvedValueOnce(new Map([["food", 2]]));
     mockGetUpvotedCategories.mockResolvedValueOnce(new Map([["museum", 1]]));
     mockGetDownvotedPoiKeys.mockRejectedValueOnce(new Error("supabase down"));
@@ -733,7 +755,7 @@ describe("POST /api/walk-plan — saved POI-level downvotes", () => {
     const options = mockRankAttractions.mock.calls[0]?.[1];
 
     expect(response.status).toBe(200);
-    expect(options?.preferredCategories).toEqual(["park"]);
+    expect(options?.preferredCategoryWeights).toEqual(new Map([["park", 4]]));
     expect(options?.downvotedCategories).toEqual(new Map([["food", 2]]));
     expect(options?.upvotedCategories).toEqual(new Map([["museum", 1]]));
     expect(options?.downvotedPoiKeys).toBeUndefined();

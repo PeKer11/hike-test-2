@@ -97,8 +97,10 @@ function toRatings(value: unknown): AttractionRating[] {
  * Post-walk feedback. Each rated stop writes a POI-level `attraction_feedback`
  * row (the audit trail of what the walker thought of that exact place) and
  * moves its category's standing signal, which is the half the ranker reads.
- * Free-text elaboration still folds into `profiles.preferred_categories`
- * through the same pass the prompt box uses.
+ * Free-text elaboration still folds into the walker's standing tastes
+ * (`category_preferences`) through the same pass the prompt box uses — a
+ * category named again here bumps its occurrence count and resets its decay
+ * clock, the same as one named in a prompt.
  *
  * Answers 200 with `saved: false` when there is nothing to write — no session,
  * or preference learning turned off. The UI treats that as "thanks anyway", so
