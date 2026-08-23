@@ -882,4 +882,70 @@ describe("rankAttractions — decayed standing tastes", () => {
 
     expect(ranked.some((a) => a.isExplorationPick)).toBe(false);
   });
+
+  // A stated dislike arrives here as a NEGATIVE weight since 2026-08-23. Before
+  // that the row was deleted and the category simply went missing, so all three
+  // of these behaviours were unreachable.
+  describe("a category the walker said they do not want", () => {
+    it("subtracts from the score instead of merely failing to boost it", () => {
+      const neutral = scoreOf("museum", {});
+
+      expect(
+        scoreOf("museum", { weighted: weights(["museum", -8]) }),
+      ).toBeCloseTo(neutral - 8);
+    });
+
+    // The bug a bare `Math.max(askedFor, standing)` would reintroduce: max(0, -8)
+    // is 0, so the dislike would silently become "no opinion".
+    it("is not floored away when the walk asked for nothing", () => {
+      expect(
+        scoreOf("museum", { weighted: weights(["museum", -8]) }),
+      ).toBeLessThan(scoreOf("museum", {}));
+    });
+
+    // Asking for a category today is the freshest evidence there is, and it
+    // answers the standing opinion outright rather than being averaged with it.
+    it("is overridden by the same category asked for on this walk", () => {
+      const neutral = scoreOf("museum", {});
+
+      expect(
+        scoreOf("museum", {
+          preferred: ["museum"],
+          weighted: weights(["museum", -8]),
+        }),
+      ).toBeCloseTo(neutral + PREFERRED_CATEGORY_BOOST);
+    });
+
+    // The asymmetry this change closes: a tapped downvote was already barred
+    // from the exploration slot, while a text dislike deleted the row and handed
+    // the category straight back to it as a "discovery".
+    it("is never spent the exploration slot on", () => {
+      const ranked = rankAttractions([museum, viewpoint], {
+        origin,
+        preferredCategoryWeights: weights(["viewpoint", 4], ["museum", -8]),
+        availableMinutes: 90,
+        walkingPaceMinPerKm: 15,
+        allowExploration: true,
+        random: () => 0,
+      });
+
+      expect(ranked.some((a) => a.isExplorationPick)).toBe(false);
+    });
+
+    // And the flip side, so the test above cannot pass just because nothing was
+    // explorable: with the dislike gone, the museum is a question again.
+    it("becomes explorable again once the dislike has faded out of the map", () => {
+      const ranked = rankAttractions([museum, viewpoint], {
+        origin,
+        preferredCategoryWeights: weights(["viewpoint", 4]),
+        availableMinutes: 90,
+        walkingPaceMinPerKm: 15,
+        allowExploration: true,
+        random: () => 0,
+      });
+
+      expect(ranked[0].id).toBe("museum");
+      expect(ranked[0].isExplorationPick).toBe(true);
+    });
+  });
 });

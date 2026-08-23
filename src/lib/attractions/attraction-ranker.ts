@@ -270,7 +270,14 @@ type ScoredAttraction = Attraction & {
  * allow on a question that is closed, and reads as the app not listening.
  *
  * `exploited` is every category that counts as answered right now: asked for on
- * this walk, or a standing taste still above `MIN_CATEGORY_WEIGHT`. Until
+ * this walk, or a standing opinion whose weight still clears
+ * `MIN_CATEGORY_WEIGHT` in magnitude — which since 2026-08-23 includes a stated
+ * DISLIKE, whose weight is negative but whose presence in the map is the point.
+ * "I hate shopping" is an answer about shopping in exactly the sense a tapped
+ * downvote is, and until that date it was not treated as one: the dislike
+ * deleted the row, the category vanished from the map, and the exploration slot
+ * happily offered the walker a shopping street as a discovery. Membership of the
+ * map, not the sign of the weight, is what closes the question. Until
  * 2026-08-23 the standing half was raw membership of the monotonic
  * `preferred_categories` array, and that is what starved exploration — a walker
  * twenty prompts in had six categories permanently barred from the exploration
@@ -352,11 +359,21 @@ export function rankAttractions(
     score +=
       notabilityBonus(a.tags) * (notableOnly ? NOTABLE_ONLY_MULTIPLIER : 1);
 
-    // The larger of the two, not the sum — see `preferredCategoryWeights`.
-    score += Math.max(
-      preferredCategories?.includes(a.category) ? PREFERRED_CATEGORY_BOOST : 0,
-      preferredCategoryWeights?.get(a.category) ?? 0,
-    );
+    // The larger of the two, not the sum — see `preferredCategoryWeights` —
+    // except that "larger" only decides between two claims pointing the same
+    // way. A standing weight can be NEGATIVE since 2026-08-23 (the walker said
+    // they do not want this kind of place), and a bare `Math.max` against a
+    // floor of 0 would quietly discard exactly that: max(0, -8) is 0, so a
+    // stated dislike would stop boosting instead of penalizing, which is the
+    // behaviour it was supposed to replace. So a category asked for on THIS walk
+    // overrides the standing opinion outright — "no shopping" last month,
+    // "take me shopping" today, and today wins — and with nothing asked for, the
+    // standing weight applies with its own sign.
+    const askedFor = preferredCategories?.includes(a.category)
+      ? PREFERRED_CATEGORY_BOOST
+      : 0;
+    const standing = preferredCategoryWeights?.get(a.category) ?? 0;
+    score += askedFor > 0 ? Math.max(askedFor, standing) : standing;
     const downvoteOccurrences = downvotedCategories?.get(a.category);
     if (downvoteOccurrences !== undefined) {
       score -= downvotePenalty(downvoteOccurrences);
