@@ -105,6 +105,15 @@ export const FACT_EXTRACTION_SYSTEM_PROMPT = [
   "Never something about this one walk: 'today I only have an hour', 'let's start at the station', 'I'm tired' are not facts.",
   "Never a place name, a duration, a distance, or a mood.",
   "Never a liking or disliking of a KIND of place — 'I love museums', 'no shopping streets' belong to the preference pass and must not be repeated here.",
+  // The sibling preference prompt has carried "Never guess. If you are unsure
+  // ... leave it out" since it was written, and this prompt's own doc comment
+  // above claims to inherit that discipline verbatim. The 2026-08-21
+  // hallucination audit found it had inherited the empty-list rule and not this
+  // one. It matters more here than next door: a fabricated fact is written to
+  // the database, scored, and injected in front of every later place
+  // extraction, and unlike a fabricated place name there is no geocode step to
+  // fail loudly on it.
+  "Never guess. If you are unsure whether something is a standing fact, leave it out — a fact you invent is stored and quietly shapes every walk after it.",
   "Rewrite each fact in short third person, at most 80 characters, so the same fact phrased two ways comes out identical.",
   "importance: 3 = a hard constraint the walk must respect (dietary rule, allergy, mobility limit); 2 = a persistent habit that changes what fits (walks with a dog, always with small children); 1 = a soft leaning. Default to 1 when unsure.",
   "You may be given a list of facts already known about this walker.",

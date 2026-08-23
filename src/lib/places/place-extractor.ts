@@ -97,6 +97,16 @@ export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   '"אני רוצה ללכת למדרחוב ולגן טייל בזכרון יעקב" -> places ["מדרחוב", "גן טייל"], contextLocation "זכרון יעקב" — זכרון יעקב only says where those stops are.',
   '"I want to visit Jerusalem" -> places ["Jerusalem"], contextLocation null — no smaller place is named, so the city is the destination.',
   '"תן לי טיול בעכו" -> places ["עכו"], contextLocation null — no smaller place is named, so the city is the destination.',
+  // Every other field on this call says "never guess" in so many words —
+  // duration, stop count, finish distance, search radius. `places` said only
+  // what to do when there are none, which is a different instruction, and the
+  // 2026-08-21 hallucination audit found it the one free-text field on the call
+  // with no rule against inventing a value. The geocode catches most
+  // fabrications by failing to find them and reporting them as unresolved, but
+  // a plausible invented name geocodes cleanly and becomes a real stop on a
+  // real walk with nothing anywhere to notice.
+  "Never invent a place the text does not name, and never substitute one you think the walker meant.",
+  "If you are not sure something is a place the walker asked for, leave it out — a short list is a better answer than a plausible-sounding one.",
   "If the text names no places at all, return an empty list and a null contextLocation.",
   "",
   // Live testing (2026-08-21, real Gemini through /api/extract-places, real

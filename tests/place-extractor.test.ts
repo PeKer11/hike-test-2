@@ -78,6 +78,27 @@ describe("PLACE_EXTRACTION_SYSTEM_PROMPT", () => {
     );
   });
 
+  // From the 2026-08-21 sweep across every Gemini call. `durationMinutes`,
+  // `stopCount`, `maxEndDistanceKm` and `searchRadiusKm` each carry their own
+  // "never guess" line; `places` carried only the empty-case rule, which says
+  // what to do when there are none rather than forbidding an invented one.
+  it("forbids inventing a place, not just returning none when there are none", () => {
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "Never invent a place the text does not name",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "never substitute one you think the walker meant",
+    );
+    // The other half, and the one that covers the harder case: not "there are
+    // none" but "I am not sure whether this is one".
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "If you are not sure something is a place the walker asked for, leave it out",
+    );
+    expect(PLACE_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "If the text names no places at all, return an empty list",
+    );
+  });
+
   // Live testing on 2026-08-21 (real Gemini, real Nominatim) found the actual
   // gap behind the "raw street address" TODO. The model already passes an
   // address through untouched — it invents no landmark — but it keeps the

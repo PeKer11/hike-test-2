@@ -16,6 +16,7 @@ import {
   getProfileDefaults,
   getUpvotedCategories,
   saveAttractionFeedback,
+  saveCategoryPreferences,
   saveWalkFeedback,
   type AttractionRating,
 } from "@/lib/preferences/preference-store";
@@ -405,6 +406,32 @@ function fakeWriteSupabase(
     client: client as unknown as Parameters<typeof saveAttractionFeedback>[0],
   };
 }
+
+// The downstream half of the hallucination guard for the preference pass,
+// found untested by the 2026-08-21 sweep. "Return an empty list when the text
+// expresses no such preference" is the prompt's own stated normal answer, so
+// the common case is that this function is handed nothing — and it must leave
+// the profile alone rather than reading it and writing an empty list back.
+// `learnFactsFromText` has had the equivalent test since it was built; this
+// side had none, and the code was correct only by inspection.
+describe("saveCategoryPreferences", () => {
+  it("touches the database at all only when a preference was detected", async () => {
+    // A fake that fails loudly instead of recording: if the empty guard is
+    // removed, the read below throws and the promise rejects, so this cannot
+    // pass on a mock that merely happens not to be asserted on.
+    const from = vi.fn(() => {
+      throw new Error("no preference was detected, so nothing may be read or written");
+    });
+    const supabase = { from } as unknown as Parameters<
+      typeof saveCategoryPreferences
+    >[0];
+
+    await expect(
+      saveCategoryPreferences(supabase, "user-1", []),
+    ).resolves.toBeNull();
+    expect(from).not.toHaveBeenCalled();
+  });
+});
 
 describe("saveAttractionFeedback", () => {
   it("writes a POI-level row with the real place, id and coordinates", async () => {

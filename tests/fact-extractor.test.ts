@@ -417,6 +417,19 @@ describe("FACT_EXTRACTION_SYSTEM_PROMPT", () => {
   it("explains what replaces is for", () => {
     expect(FACT_EXTRACTION_SYSTEM_PROMPT).toMatch(/`replaces`/);
   });
+
+  // From the 2026-08-21 sweep across every Gemini call. "An empty list is the
+  // normal answer" tells the model what to do when it has found nothing; it
+  // does not tell it what to do when it is unsure, which is where a fact gets
+  // invented. The preference prompt next door has carried both since it was
+  // written and this one had only the first — the worse half to be missing,
+  // since a stored fact steers every later walk and no geocode fails on it.
+  it("tells the model to leave out anything it is unsure about", () => {
+    expect(FACT_EXTRACTION_SYSTEM_PROMPT).toContain("Never guess.");
+    expect(FACT_EXTRACTION_SYSTEM_PROMPT).toContain(
+      "If you are unsure whether something is a standing fact, leave it out",
+    );
+  });
 });
 
 describe("buildPromptWithFacts", () => {
