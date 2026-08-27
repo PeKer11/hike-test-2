@@ -1509,6 +1509,22 @@ export function WalkPlannerApp({
                   onDismiss={() => setFeedbackAttractions(null)}
                 />
               )}
+              {/* What the mid-walk rebuilds took, and one tap to get it back.
+                  Walking only, like the stops list — recall is a rebuild, and
+                  `midWalkRebuildState` only answers while a tracker is alive.
+                  Moved above `WalkCompanionPanel` 2026-08-24: the build form
+                  below (location, time, radius, pace, interests, settings) is
+                  the same one already used to build this walk, and while
+                  walking it is the least useful thing on the screen — placing
+                  a cut stop underneath the whole form meant scrolling past
+                  it on a narrow screen to notice anything was lost. */}
+              {walkPhase === "walking" && (
+                <DroppedStopsPanel
+                  stops={lostStops}
+                  onRecall={recallDroppedStop}
+                  onDismiss={() => setLostStops([])}
+                />
+              )}
               <WalkCompanionPanel
                 isSignedIn={isSignedIn}
                 isLoading={isWalkPlanLoading}
@@ -1573,16 +1589,6 @@ export function WalkPlannerApp({
                     </Button>
                   </div>
                 </Card>
-              )}
-              {/* What the mid-walk rebuilds took, and one tap to get it back.
-                  Walking only, like the stops list — recall is a rebuild, and
-                  `midWalkRebuildState` only answers while a tracker is alive. */}
-              {walkPhase === "walking" && (
-                <DroppedStopsPanel
-                  stops={lostStops}
-                  onRecall={recallDroppedStop}
-                  onDismiss={() => setLostStops([])}
-                />
               )}
               {/* Geometry warning banner (LOW-4) */}
               {walkPlan?.warnings?.some((w) => w.includes("geometry")) && (
@@ -1921,15 +1927,18 @@ export function WalkPlannerApp({
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}
           pinnedIds={pinnedAttractionIds}
-          // Offered on exactly the same terms as the list view's pin toggle —
-          // while a walk is being walked, where a pin has a rebuild to survive.
-          // Off otherwise, because outside that the markers on screen may be
-          // hand-drawn waypoints whose ids no pin means anything against.
-          onTogglePin={
-            walkPhase === "walking" && walkPlan
-              ? toggleAttractionPin
-              : undefined
-          }
+          // Gated on `walkPlan` existing, not on `walkPhase === "walking"` —
+          // fixed 2026-08-24, found as a discoverability gap in the map-pin
+          // work above. `handleBuildWalk` sends `pinnedAttractionIds` on
+          // every build, including the very first one, so a pin set while
+          // looking at the "planned" screen (before pressing Start Walk)
+          // already does something real: it survives the walker's own retry
+          // the same way it survives a mid-walk rebuild. Restricting the tap
+          // to `walking` only hid a control that already worked. Still off
+          // before a plan exists at all, because until then the markers on
+          // screen may be hand-drawn waypoints whose ids no pin means
+          // anything against.
+          onTogglePin={walkPlan ? toggleAttractionPin : undefined}
         />
       </section>
       </div>
