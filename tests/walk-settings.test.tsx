@@ -47,8 +47,13 @@ function deviationSelect() {
   return screen.getByLabelText(/strayed from the path/i) as HTMLSelectElement;
 }
 
-function autoResumeCheckbox() {
-  return screen.getByLabelText(AUTO_RESUME_LABEL) as HTMLInputElement;
+function autoResumeToggle() {
+  return screen.getByLabelText(AUTO_RESUME_LABEL);
+}
+
+/** `Toggle` renders a button, not an `<input>` — checked state lives in `aria-pressed`. */
+function isOn(toggle: HTMLElement) {
+  return toggle.getAttribute("aria-pressed") === "true";
 }
 
 afterEach(cleanup);
@@ -322,25 +327,25 @@ describe("first render matches what the server can render", () => {
   });
 });
 
-describe("auto-resume settings checkbox", () => {
-  it("is checked, and explains that tracking picks straight up, when auto-resume is on", () => {
+describe("auto-resume settings toggle", () => {
+  it("is on, and explains that tracking picks straight up, when auto-resume is on", () => {
     renderSettings({ autoResumeAfterRebuild: true });
 
-    expect(autoResumeCheckbox().checked).toBe(true);
+    expect(isOn(autoResumeToggle())).toBe(true);
     expect(screen.getByText(/tracking picks straight up/i)).toBeTruthy();
   });
 
-  it("is unchecked, and explains that the walker presses Start Walk, when opted out", () => {
+  it("is off, and explains that the walker presses Start Walk, when opted out", () => {
     renderSettings({ autoResumeAfterRebuild: false });
 
-    expect(autoResumeCheckbox().checked).toBe(false);
+    expect(isOn(autoResumeToggle())).toBe(false);
     expect(screen.getByText(/wait for you to press Start Walk/i)).toBeTruthy();
   });
 
   it("reports the opt-out without touching the pace modes", () => {
     const { onChange } = renderSettings({ autoResumeAfterRebuild: true });
 
-    fireEvent.click(autoResumeCheckbox());
+    fireEvent.click(autoResumeToggle());
 
     expect(onChange).toHaveBeenCalledWith({ autoResumeAfterRebuild: false });
   });
@@ -348,7 +353,7 @@ describe("auto-resume settings checkbox", () => {
   it("reports opting back in", () => {
     const { onChange } = renderSettings({ autoResumeAfterRebuild: false });
 
-    fireEvent.click(autoResumeCheckbox());
+    fireEvent.click(autoResumeToggle());
 
     expect(onChange).toHaveBeenCalledWith({ autoResumeAfterRebuild: true });
   });
@@ -357,8 +362,8 @@ describe("auto-resume settings checkbox", () => {
 // Deliberately a second flag rather than a second job for preference learning:
 // "remember what I like" and "show me what I typed" are different promises.
 describe("history persistence setting", () => {
-  function historyCheckbox() {
-    return screen.getByLabelText("Keep my recent requests") as HTMLInputElement;
+  function historyToggle() {
+    return screen.getByLabelText("Keep my recent requests");
   }
 
   it("defaults on for a walker who has never opened settings", () => {
@@ -420,24 +425,24 @@ describe("history persistence setting", () => {
     ).toBe(false);
   });
 
-  it("is checked, and says the list survives, when persistence is on", () => {
+  it("is on, and says the list survives, when persistence is on", () => {
     renderSettings({ historyPersistenceEnabled: true });
 
-    expect(historyCheckbox().checked).toBe(true);
+    expect(isOn(historyToggle())).toBe(true);
     expect(screen.getByText(/stay in the Recent requests list/i)).toBeTruthy();
   });
 
-  it("is unchecked, and says the requests are forgotten, when opted out", () => {
+  it("is off, and says the requests are forgotten, when opted out", () => {
     renderSettings({ historyPersistenceEnabled: false });
 
-    expect(historyCheckbox().checked).toBe(false);
+    expect(isOn(historyToggle())).toBe(false);
     expect(screen.getByText(/forgotten when you close the tab/i)).toBeTruthy();
   });
 
   it("reports the opt-out without touching preference learning", () => {
     const { onChange } = renderSettings({ historyPersistenceEnabled: true });
 
-    fireEvent.click(historyCheckbox());
+    fireEvent.click(historyToggle());
 
     expect(onChange).toHaveBeenCalledWith({ historyPersistenceEnabled: false });
   });
@@ -472,7 +477,13 @@ describe("the settings disclosure", () => {
     // page, not merely invisible while still wired to onChange.
     const { onChange } = renderClosed();
 
-    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    // Toggle renders a <button aria-pressed>, not an <input type="checkbox">
+    // — the disclosure button itself uses aria-expanded, not aria-pressed, so
+    // this still distinguishes "no settings toggle rendered" from "the panel
+    // has a button on it at all".
+    expect(
+      document.querySelectorAll("[aria-pressed]"),
+    ).toHaveLength(0);
     expect(screen.queryAllByRole("combobox")).toHaveLength(0);
     expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
     expect(onChange).not.toHaveBeenCalled();
@@ -560,13 +571,15 @@ describe("which group each control lands in", () => {
     // one goes first.
     renderSettings();
 
-    const checkboxes = within(
+    // The only buttons in this group are the two Toggles — the disclosure
+    // button lives outside this section entirely.
+    const toggles = within(
       section("What we remember between walks"),
-    ).getAllByRole("checkbox");
+    ).getAllByRole("button");
 
-    expect(checkboxes).toHaveLength(2);
-    expect(checkboxes[0]).toBe(screen.getByLabelText("Remember my preferences"));
-    expect(checkboxes[1]).toBe(screen.getByLabelText("Keep my recent requests"));
+    expect(toggles).toHaveLength(2);
+    expect(toggles[0]).toBe(screen.getByLabelText("Remember my preferences"));
+    expect(toggles[1]).toBe(screen.getByLabelText("Keep my recent requests"));
   });
 
   it("only offers the silence-heading toggle when there's a question to leave unanswered", () => {

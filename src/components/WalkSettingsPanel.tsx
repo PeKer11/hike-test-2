@@ -2,6 +2,7 @@
 
 import { useId, useState, type ChangeEvent, type ReactNode } from "react";
 
+import { Toggle } from "@/components/ui/Toggle";
 import type {
   DeviationResponseMode,
   PaceResponseMode,
@@ -32,8 +33,6 @@ const DEVIATION_MODE_LABELS: { value: DeviationResponseMode; text: string }[] = 
 
 const SELECT_CLASS =
   "rounded-md border border-charcoal/15 bg-white px-2 py-1 text-sm text-forest outline-none ring-terra transition focus:ring-2";
-const CHECKBOX_CLASS =
-  "h-4 w-4 rounded border-charcoal/15 text-terra focus:ring-terra";
 const ROW_CLASS =
   "flex items-center justify-between gap-3 text-sm text-charcoal/80";
 
@@ -172,19 +171,13 @@ export function WalkSettingsPanel({
             {/* Only means anything once there's a question to leave unanswered. */}
             {settings.deviationMode === "ask" && (
               <div className="space-y-1">
-                <label className={ROW_CLASS}>
-                  <span>If I don&apos;t answer but keep walking one way</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.continueHeadingOnSilence}
-                    onChange={(event) =>
-                      onChange({
-                        continueHeadingOnSilence: event.target.checked,
-                      })
-                    }
-                    className={CHECKBOX_CLASS}
-                  />
-                </label>
+                <Toggle
+                  checked={settings.continueHeadingOnSilence}
+                  onChange={(next) =>
+                    onChange({ continueHeadingOnSilence: next })
+                  }
+                  label="If I don't answer but keep walking one way"
+                />
                 <p className="text-xs text-charcoal/60">
                   {settings.continueHeadingOnSilence
                     ? "On — if I hold one direction the whole time you don't answer, redraw the walk around where I'm actually going."
@@ -201,17 +194,11 @@ export function WalkSettingsPanel({
               after *any* mid-walk rebuild — filing it under pace told the
               walker it only applied to one of the two ways of getting one. */}
           <SettingsSection title="When we reshape your walk">
-            <label className={ROW_CLASS}>
-              <span>Start the new walk for me</span>
-              <input
-                type="checkbox"
-                checked={settings.autoResumeAfterRebuild}
-                onChange={(event) =>
-                  onChange({ autoResumeAfterRebuild: event.target.checked })
-                }
-                className={CHECKBOX_CLASS}
-              />
-            </label>
+            <Toggle
+              checked={settings.autoResumeAfterRebuild}
+              onChange={(next) => onChange({ autoResumeAfterRebuild: next })}
+              label="Start the new walk for me"
+            />
             <p className="text-xs text-charcoal/60">
               {settings.autoResumeAfterRebuild
                 ? "On — once we reshape your walk, tracking picks straight up on the new route."
@@ -224,17 +211,13 @@ export function WalkSettingsPanel({
               keeping the requests only shows the walker their own words back. */}
           <SettingsSection title="What we remember between walks">
             <div className="space-y-1">
-              <label className={ROW_CLASS}>
-                <span>Remember my preferences</span>
-                <input
-                  type="checkbox"
-                  checked={settings.preferenceLearningEnabled}
-                  onChange={(event) =>
-                    onChange({ preferenceLearningEnabled: event.target.checked })
-                  }
-                  className={CHECKBOX_CLASS}
-                />
-              </label>
+              <Toggle
+                checked={settings.preferenceLearningEnabled}
+                onChange={(next) =>
+                  onChange({ preferenceLearningEnabled: next })
+                }
+                label="Remember my preferences"
+              />
               <p className="text-xs text-charcoal/60">
                 {settings.preferenceLearningEnabled
                   ? "On — what you say you like and how you rate your walks shapes the walks we build for you next."
@@ -243,17 +226,13 @@ export function WalkSettingsPanel({
             </div>
 
             <div className="space-y-1">
-              <label className={ROW_CLASS}>
-                <span>Keep my recent requests</span>
-                <input
-                  type="checkbox"
-                  checked={settings.historyPersistenceEnabled}
-                  onChange={(event) =>
-                    onChange({ historyPersistenceEnabled: event.target.checked })
-                  }
-                  className={CHECKBOX_CLASS}
-                />
-              </label>
+              <Toggle
+                checked={settings.historyPersistenceEnabled}
+                onChange={(next) =>
+                  onChange({ historyPersistenceEnabled: next })
+                }
+                label="Keep my recent requests"
+              />
               <p className="text-xs text-charcoal/60">
                 {settings.historyPersistenceEnabled
                   ? "On — the last few things you typed stay in the Recent requests list next time you open Traike. Clear them any time from that list."
