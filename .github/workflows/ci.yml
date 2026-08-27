@@ -1,0 +1,41 @@
+name: CI
+
+# The gate this repo has never had. Every push and PR runs the same three
+# checks a contributor is expected to run by hand before committing --
+# typecheck, lint, unit tests -- so "I forgot" stops being how a broken
+# build reaches main. Nothing here needs a secret: the whole suite runs
+# against fakes and mocked fetches (Supabase, Gemini, ORS, Overpass,
+# Nominatim), never a real network call, so there is no key to configure.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches package.json's engines field (">=20.19.0"); an LTS line
+          # already current when this workflow was written, not pinned to a
+          # specific patch so security updates land without a workflow edit.
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        # The plain script, not a path-scoped invocation -- this is the exact
+        # command a contributor runs locally, and CI existing to catch what
+        # local runs miss is the point. eslint.config.mjs's own ignores keep
+        # this from walking node_modules/.next/coverage.
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
