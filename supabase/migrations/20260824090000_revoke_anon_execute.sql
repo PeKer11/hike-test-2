@@ -1,0 +1,24 @@
+-- Close a real gap found live 2026-08-24 while verifying the trending
+-- migration: `anon` could call both `record_walk_session()` and
+-- `trending_category_upvotes()`, despite both functions' own comments saying
+-- "only a signed-in caller" / "anon deliberately left out".
+--
+-- The cause: `revoke execute on function ... from public` does nothing to
+-- `anon`'s access, because this project's `public` schema has a default ACL
+-- (set by role `postgres`, applied to every newly created function) that
+-- grants EXECUTE directly to `anon`, `authenticated` and `service_role` at
+-- creation time -- confirmed via `pg_default_acl`. That grant is a real,
+-- separate privilege on the `anon` role, not something inherited through the
+-- PUBLIC pseudo-role, so revoking from PUBLIC never touched it. The
+-- `grant ... to authenticated` in both migrations was therefore always
+-- redundant (already granted by the same default), and `revoke ... from
+-- public` was a no-op for excluding anon specifically.
+--
+-- Practical impact was low in both cases -- `record_walk_session()` reads
+-- `auth.uid()`, which is null for an anonymous caller, so the insert fails on
+-- `profiles.id`'s not-null/FK constraint rather than doing anything; and
+-- `trending_category_upvotes()` returns only a non-identifying aggregate.
+-- Fixing it anyway: it is cheap, and "only a signed-in caller can call this"
+-- should be true because it is enforced, not true only until someone checks.
+revoke execute on function public.record_walk_session() from anon;
+revoke execute on function public.trending_category_upvotes() from anon;
