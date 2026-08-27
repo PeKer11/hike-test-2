@@ -10,6 +10,7 @@ const mockGetPreferredCategoryWeights = vi.fn();
 const mockGetDownvotedCategories = vi.fn();
 const mockGetUpvotedCategories = vi.fn();
 const mockGetDownvotedPoiKeys = vi.fn();
+const mockGetTrendingCategoryCounts = vi.fn();
 const mockRecordWalkSession = vi.fn();
 const mockRankAttractions = vi.fn();
 
@@ -36,6 +37,8 @@ vi.mock("@/lib/preferences/preference-store", () => ({
   getUpvotedCategories: (...args: unknown[]) =>
     mockGetUpvotedCategories(...args),
   getDownvotedPoiKeys: (...args: unknown[]) => mockGetDownvotedPoiKeys(...args),
+  getTrendingCategoryCounts: (...args: unknown[]) =>
+    mockGetTrendingCategoryCounts(...args),
   recordWalkSession: (...args: unknown[]) => mockRecordWalkSession(...args),
 }));
 
@@ -120,6 +123,8 @@ function resetMocks(): void {
   mockGetUpvotedCategories.mockResolvedValue(new Map());
   mockGetDownvotedPoiKeys.mockReset();
   mockGetDownvotedPoiKeys.mockResolvedValue(new Set());
+  mockGetTrendingCategoryCounts.mockReset();
+  mockGetTrendingCategoryCounts.mockResolvedValue(new Map());
   mockRecordWalkSession.mockReset();
   mockRecordWalkSession.mockResolvedValue(1);
   mockRankAttractions.mockReset();
@@ -685,6 +690,145 @@ describe("POST /api/walk-plan — saved upvotes", () => {
     );
 
     expect(upvotedWith()).toEqual(new Map([["nature", 2]]));
+  });
+});
+
+// The cold-start read: what everyone else voted up, fetched only when this
+// walker has told us nothing at all. The condition is the feature — a fifth
+// Supabase round trip on every walk would be the wrong trade, and a stranger's
+// opinion applied over a walker's own would be the wrong ranking.
+describe("POST /api/walk-plan — trending categories as a cold start", () => {
+  beforeEach(resetMocks);
+
+  function discoveryBody(preferredCategories?: string[]) {
+    return {
+      lat: origin.lat,
+      lng: origin.lng,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      ...(preferredCategories ? { preferredCategories } : {}),
+    };
+  }
+
+  function trendingWith(): Map<string, number> | undefined {
+    return mockRankAttractions.mock.calls[0]?.[1]?.trendingCategories;
+  }
+
+  async function plan(body: unknown = discoveryBody()) {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+    return POST(postRequest(body));
+  }
+
+  it("reads the aggregate for a walker with nothing on file", async () => {
+    mockGetTrendingCategoryCounts.mockResolvedValueOnce(
+      new Map([["museum", 6]]),
+    );
+
+    const response = await plan();
+
+    expect(response.status).toBe(200);
+    expect(mockGetTrendingCategoryCounts).toHaveBeenCalledTimes(1);
+    expect(trendingWith()).toEqual(new Map([["museum", 6]]));
+  });
+
+  // Each of these on its own means the walk can be ranked on something real, and
+  // the aggregate is not read at all — not read and then discarded. A walker with
+  // signal must not pay for a query whose answer would be ignored.
+  it.each<[string, () => void, unknown]>([
+    ["a category ticked for this walk", () => {}, discoveryBody(["museum"])],
+    [
+      "a standing taste still counting",
+      () =>
+        mockGetPreferredCategoryWeights.mockResolvedValueOnce(
+          new Map([["park", 4]]),
+        ),
+      undefined,
+    ],
+    [
+      "a stated dislike",
+      () =>
+        mockGetPreferredCategoryWeights.mockResolvedValueOnce(
+          new Map([["shopping", -8]]),
+        ),
+      undefined,
+    ],
+    [
+      "a tapped upvote",
+      () => mockGetUpvotedCategories.mockResolvedValueOnce(new Map([["park", 1]])),
+      undefined,
+    ],
+    [
+      "a tapped downvote",
+      () =>
+        mockGetDownvotedCategories.mockResolvedValueOnce(new Map([["food", 1]])),
+      undefined,
+    ],
+  ])("does not read the aggregate for a walker with %s", async (_label, arrange, body) => {
+    arrange();
+    mockGetTrendingCategoryCounts.mockResolvedValueOnce(
+      new Map([["museum", 6]]),
+    );
+
+    const response = await plan(body ?? discoveryBody());
+
+    expect(response.status).toBe(200);
+    expect(mockGetTrendingCategoryCounts).not.toHaveBeenCalled();
+    expect(trendingWith()).toBeUndefined();
+  });
+
+  // A POI downvote names one place, not a kind of place — it leaves the category
+  // question exactly as open as it was, so the cold start still applies.
+  it("still reads the aggregate for a walker who only rejected one place", async () => {
+    mockGetDownvotedPoiKeys.mockResolvedValueOnce(new Set(["osm-node-99"]));
+    mockGetTrendingCategoryCounts.mockResolvedValueOnce(
+      new Map([["museum", 6]]),
+    );
+
+    await plan();
+
+    expect(mockGetTrendingCategoryCounts).toHaveBeenCalledTimes(1);
+    expect(trendingWith()).toEqual(new Map([["museum", 6]]));
+  });
+
+  it("reads nothing for a walker who is not signed in", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+
+    const response = await plan();
+
+    expect(response.status).toBe(200);
+    expect(mockGetTrendingCategoryCounts).not.toHaveBeenCalled();
+    expect(trendingWith()).toBeUndefined();
+  });
+
+  // The fallback of the fallback: a failed aggregate read costs the cold-start
+  // nudge and nothing else. Preference-blind is what the app does today.
+  it("plans the walk anyway when the aggregate read fails", async () => {
+    mockGetTrendingCategoryCounts.mockRejectedValueOnce(
+      new Error("function not deployed"),
+    );
+
+    const response = await plan();
+    const built = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(trendingWith()).toBeUndefined();
+    expect(built.orderedAttractions).toHaveLength(1);
+  });
+
+  it("applies the aggregate when topping up a named-stops walk too", async () => {
+    const named = makeAttraction("named", 32.081, 34.78, 30);
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.082, 34.78, 20),
+    ]);
+    mockGetTrendingCategoryCounts.mockResolvedValueOnce(
+      new Map([["nature", 2]]),
+    );
+
+    await POST(postRequest({ ...baseBody([named]), fillRemainingTime: true }));
+
+    expect(trendingWith()).toEqual(new Map([["nature", 2]]));
   });
 });
 

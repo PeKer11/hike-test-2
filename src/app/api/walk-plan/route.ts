@@ -12,6 +12,7 @@ import {
   getDownvotedCategories,
   getDownvotedPoiKeys,
   getPreferredCategoryWeights,
+  getTrendingCategoryCounts,
   getUpvotedCategories,
   recordWalkSession,
 } from "@/lib/preferences/preference-store";
@@ -76,6 +77,11 @@ interface ProfileCategories {
   downvotedCategories: Map<AttractionCategory, number> | undefined;
   /** Each upvoted category with how many times it has been voted up. */
   upvotedCategories: Map<AttractionCategory, number> | undefined;
+  /**
+   * What every other walker has voted up — read only for a walker with no
+   * personal signal of any kind, and undefined for everyone else.
+   */
+  trendingCategories: Map<AttractionCategory, number> | undefined;
   /** `poi_key` identities of specific places voted down, excluded outright. */
   downvotedPoiKeys: Set<string> | undefined;
   /**
@@ -118,6 +124,7 @@ async function withProfilePreferences(
   let weights: Map<AttractionCategory, number> = new Map();
   let downvoted: Map<AttractionCategory, number> = new Map();
   let upvoted: Map<AttractionCategory, number> = new Map();
+  let trending: Map<AttractionCategory, number> = new Map();
   let downvotedPois: Set<string> = new Set();
 
   try {
@@ -141,6 +148,33 @@ async function withProfilePreferences(
         ),
         getDownvotedPoiKeys(supabase, user.id).catch(() => new Set<string>()),
       ]);
+
+      // A fifth read, and only for a walker we know nothing about: no category
+      // ticked for this walk, no standing taste still counting, and no category
+      // ever tapped up or down. Sequential rather than in the Promise.all above
+      // because the condition is the whole point — a walker with any signal at
+      // all must never pay a round trip for a guess that would then be ignored.
+      //
+      // A stated DISLIKE counts as signal: it is a key in the weight map with a
+      // negative value, and "no shopping streets" is something the walker told
+      // us. A DECAYED taste does not, because it is absent from the map
+      // entirely — which is the second of the two cases the TODO named. A walker
+      // whose every preference has faded is unknown again, and gets the
+      // cold-start signal again, on the same threshold the ranker and the
+      // exploration slot already use.
+      //
+      // `downvotedPois` is deliberately not in the condition. It names places,
+      // not kinds of place, and leaves the category question as open as it was.
+      if (
+        body.length === 0 &&
+        weights.size === 0 &&
+        downvoted.size === 0 &&
+        upvoted.size === 0
+      ) {
+        trending = await getTrendingCategoryCounts(supabase).catch(
+          () => new Map<AttractionCategory, number>(),
+        );
+      }
     }
   } catch {
     // Supabase not configured, no session, or a failed read — body only.
@@ -152,6 +186,7 @@ async function withProfilePreferences(
     preferredCategoryWeights: weights.size > 0 ? weights : undefined,
     downvotedCategories: downvoted.size > 0 ? downvoted : undefined,
     upvotedCategories: upvoted.size > 0 ? upvoted : undefined,
+    trendingCategories: trending.size > 0 ? trending : undefined,
     downvotedPoiKeys: downvotedPois.size > 0 ? downvotedPois : undefined,
   };
 }
@@ -403,6 +438,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             preferredCategoryWeights: profile.preferredCategoryWeights,
             downvotedCategories: profile.downvotedCategories,
             upvotedCategories: profile.upvotedCategories,
+            trendingCategories: profile.trendingCategories,
             downvotedPoiKeys: profile.downvotedPoiKeys,
             availableMinutes,
             walkingPaceMinPerKm,
@@ -458,6 +494,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           preferredCategoryWeights: profile.preferredCategoryWeights,
           downvotedCategories: profile.downvotedCategories,
           upvotedCategories: profile.upvotedCategories,
+          trendingCategories: profile.trendingCategories,
           downvotedPoiKeys: profile.downvotedPoiKeys,
           availableMinutes,
           walkingPaceMinPerKm,
