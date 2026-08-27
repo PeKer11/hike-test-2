@@ -9,9 +9,12 @@ import {
 import {
   buildDeviationRebuildRequest,
   buildExtendedTimeRebuildRequest,
+  buildHeadingContinuedRebuildRequest,
   buildPaceRebuildRequest,
   promptWalkBuildOptions,
+  stopsAheadOfHeading,
   toggleSimulatedStray,
+  type BuildWalkOptions,
   type PaceRebuildState,
   type RebuildInput,
 } from "@/lib/walk/planner-actions";
@@ -339,6 +342,202 @@ describe("buildDeviationRebuildRequest", () => {
 
     expect(input.walkingPaceMinPerKm).toBe(12);
     expect(input.radiusMeters).toBe(2000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Silence, from a walker who kept walking
+// ---------------------------------------------------------------------------
+
+// A ring of stops around one spot, so a heading picks between them purely on
+// direction. `HERE` is where the walker is standing when the banner lapses.
+const HERE: Coordinates = { lat: 32.09, lng: 34.79 };
+const METERS_PER_DEG_LAT = 111_320;
+
+function stopAt(id: string, bearingDeg: number, meters = 600): Attraction {
+  const rad = (bearingDeg * Math.PI) / 180;
+  return {
+    ...attraction(id),
+    coordinates: {
+      lat: HERE.lat + (meters * Math.cos(rad)) / METERS_PER_DEG_LAT,
+      lng:
+        HERE.lng +
+        (meters * Math.sin(rad)) /
+          (METERS_PER_DEG_LAT * Math.cos((HERE.lat * Math.PI) / 180)),
+    },
+  };
+}
+
+function keptIds(options: BuildWalkOptions): string[] {
+  return (options.keepAttractions ?? []).map((a) => a.id);
+}
+
+describe("stopsAheadOfHeading", () => {
+  it("keeps a stop straight ahead", () => {
+    const ahead = stopAt("ahead", 90);
+
+    expect(stopsAheadOfHeading(HERE, 90, [ahead], [])).toEqual([ahead]);
+  });
+
+  it("drops a stop the walker has turned their back on", () => {
+    expect(stopsAheadOfHeading(HERE, 90, [stopAt("behind", 270)], [])).toEqual(
+      [],
+    );
+  });
+
+  it("keeps a stop off to the side — a turn is not a walk back", () => {
+    // 85° off the heading: reaching it means turning, not retracing. Dropping
+    // it would throw away a stop the walker can still have.
+    const beside = stopAt("beside", 175);
+
+    expect(stopsAheadOfHeading(HERE, 90, [beside], [])).toEqual([beside]);
+  });
+
+  it("drops a stop just past the perpendicular", () => {
+    expect(stopsAheadOfHeading(HERE, 90, [stopAt("past", 185)], [])).toEqual([]);
+  });
+
+  it("keeps a pinned stop the walker has walked away from", () => {
+    // A pin is something the walker said; a heading is something we inferred
+    // from their GPS trace. When the two disagree, the one they typed wins.
+    const pinned = stopAt("pinned", 270);
+
+    expect(stopsAheadOfHeading(HERE, 90, [pinned], ["pinned"])).toEqual([
+      pinned,
+    ]);
+  });
+
+  it("reads the cone across the 0°/360° seam", () => {
+    // Heading due north, stop at 350°: ten degrees apart, not 350.
+    const ahead = stopAt("ahead", 350);
+
+    expect(stopsAheadOfHeading(HERE, 0, [ahead], [])).toEqual([ahead]);
+  });
+});
+
+describe("buildHeadingContinuedRebuildRequest", () => {
+  // The worked example: 30 minutes into a 90-minute walk, standing at HERE,
+  // holding due east, four stops left — one ahead, one off to the side, one
+  // behind, and one behind but pinned.
+  const AHEAD = stopAt("ahead", 70);
+  const BESIDE = stopAt("beside", 160);
+  const BEHIND = stopAt("behind", 250);
+  const PINNED_BEHIND = stopAt("pinned-behind", 290);
+
+  function drifting() {
+    return state({
+      currentPosition: HERE,
+      currentAttractions: [AHEAD, BESIDE, BEHIND, PINNED_BEHIND],
+      pinnedIds: ["pinned-behind"],
+    });
+  }
+
+  it("carries forward only the stops the walker has not turned away from", () => {
+    const { options } = buildHeadingContinuedRebuildRequest(drifting(), 90);
+
+    expect(keptIds(options)).toEqual(["ahead", "beside", "pinned-behind"]);
+  });
+
+  it("starts the new walk from where the walker is, not where they were", () => {
+    const { input } = buildHeadingContinuedRebuildRequest(drifting(), 90);
+
+    expect(input.origin).toEqual(HERE);
+  });
+
+  it("leaves the end anchor at the car, exactly like the plain redraw", () => {
+    const { input } = buildHeadingContinuedRebuildRequest(drifting(), 90);
+
+    expect(input.endAnchor).toEqual(ORIGIN);
+  });
+
+  it("re-times against the clock the walker has left", () => {
+    const { input } = buildHeadingContinuedRebuildRequest(drifting(), 90);
+
+    expect(input.availableMinutes).toBe(60);
+  });
+
+  it("lets discovery refill the hole that dropping stops just left", () => {
+    // The one place this diverges from `buildDeviationRebuildRequest`, which
+    // forbids discovery because a *lost* walker wants what they chose redrawn.
+    // This walker is going somewhere on purpose and has just had stops removed.
+    const { options } = buildHeadingContinuedRebuildRequest(drifting(), 90);
+
+    expect(options.fillRemainingTime).toBe(true);
+  });
+
+  it("honours the walker's auto-resume setting like every other rebuild", () => {
+    const optedOut: WalkSettings = {
+      ...DEFAULT_WALK_SETTINGS,
+      autoResumeAfterRebuild: false,
+    };
+
+    const { options } = buildHeadingContinuedRebuildRequest(
+      state({ ...drifting(), settings: optedOut }),
+      90,
+    );
+
+    expect(options.resumeTracking).toBe(false);
+  });
+
+  it("keeps every stop when the walker is heading the way the plan already went", () => {
+    const { options } = buildHeadingContinuedRebuildRequest(
+      state({
+        currentPosition: HERE,
+        currentAttractions: [AHEAD, BESIDE],
+        pinnedIds: [],
+      }),
+      90,
+    );
+
+    expect(keptIds(options)).toEqual(["ahead", "beside"]);
+  });
+
+  it("asks for fresh discovery when every stop is behind the walker", () => {
+    // Not an empty stop list dressed up as a kept one: the caller reads "no
+    // kept stops" as "discover from scratch", which is the right answer when
+    // there is nothing left ahead.
+    const { options } = buildHeadingContinuedRebuildRequest(
+      state({
+        currentPosition: HERE,
+        currentAttractions: [BEHIND, stopAt("also-behind", 230)],
+        pinnedIds: [],
+      }),
+      90,
+    );
+
+    expect(options.keepAttractions).toEqual([]);
+  });
+
+  it("measures the cone from where the walker is now, not from where they set off", () => {
+    // ORIGIN is well south-west of HERE. A stop due north of HERE is ahead of
+    // a walker heading north from HERE, and would read quite differently from
+    // the start of the walk — this is the bug of anchoring the cone at the
+    // stale origin.
+    const northOfHere = stopAt("north", 0);
+
+    const { options } = buildHeadingContinuedRebuildRequest(
+      state({
+        currentPosition: HERE,
+        currentAttractions: [northOfHere],
+        pinnedIds: [],
+      }),
+      0,
+    );
+
+    expect(keptIds(options)).toEqual(["north"]);
+  });
+
+  it("leaves the plain redraw's stop list alone", () => {
+    // The heading path is additive: no heading, no filtering, whatever the
+    // walker is holding stays whole.
+    const { options } = buildDeviationRebuildRequest(drifting());
+
+    expect(keptIds(options)).toEqual([
+      "ahead",
+      "beside",
+      "behind",
+      "pinned-behind",
+    ]);
   });
 });
 

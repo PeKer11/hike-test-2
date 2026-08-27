@@ -13,7 +13,11 @@ import {
   type ReplanReason,
 } from "@/lib/walk/replan-trigger";
 import type { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
-import { haversineDistance } from "@/lib/utils/geo";
+import {
+  angleDifference,
+  bearingBetween,
+  haversineDistance,
+} from "@/lib/utils/geo";
 
 /**
  * The only fields a pace rebuild reads. Deliberately narrower than the caller's
@@ -99,6 +103,97 @@ export function buildDeviationRebuildRequest<TInput extends RebuildInput>(
 }
 
 /**
+ * Half-angle of the cone that counts as "still ahead of me".
+ *
+ * 90° is not a tuned number, it is the definition: the question a heading asks
+ * of a stop is only ever "is this behind me?", and behind is the half-plane, so
+ * the boundary is the perpendicular. A stop at 85° off the heading is directly
+ * to the walker's side — reaching it is a turn, not a walk back the way they
+ * came — and dropping it would throw away a stop they can still have.
+ *
+ * Deliberately wider than `PoiAlerter`'s `DIRECTION_TOLERANCE_DEG` of 70, which
+ * answers a different question. That one decides whether to interrupt someone
+ * about a POI they would have to look for, so it wants things comfortably in
+ * front. This one decides whether to delete a stop the walker already chose,
+ * where the cost of being wrong runs the other way.
+ */
+export const HEADING_FORWARD_CONE_DEG = 90;
+
+/**
+ * The stops a walker heading this way can still reach without turning round.
+ *
+ * Pins survive the cone whatever their bearing, and that ordering is the point:
+ * a pin is something the walker said, a heading is something we inferred from
+ * their GPS trace. When the two disagree — they pinned the cathedral and then
+ * walked away from it — the one they typed wins. It is the same rule the
+ * planner already follows in refusing to drop a pinned stop even when it makes
+ * the plan infeasible.
+ */
+export function stopsAheadOfHeading(
+  from: Coordinates,
+  heading: number,
+  stops: Attraction[],
+  pinnedIds: string[],
+): Attraction[] {
+  const pinned = new Set(pinnedIds);
+
+  return stops.filter((stop) => {
+    if (pinned.has(stop.id)) return true;
+
+    return (
+      angleDifference(bearingBetween(from, stop.coordinates), heading) <=
+      HEADING_FORWARD_CONE_DEG
+    );
+  });
+}
+
+/**
+ * What an *unanswered* off-route question should rebuild, for a walker who has
+ * kept walking the same way while it stood.
+ *
+ * The third answer to a question that used to have two. Silence has always
+ * meant "keep the old route", because rebuilding someone's walk when they did
+ * not look at their phone is the wrong default — but a walker who spent the
+ * whole 90 seconds holding one direction away from the route is not a walker
+ * who missed the banner, and the route they are being kept on is one they have
+ * visibly stopped walking. The other old answer is no better: redrawing from
+ * wherever they were standing anchors the new plan at a point and ignores that
+ * they are still moving.
+ *
+ * Composes with `buildDeviationRebuildRequest` rather than replacing it —
+ * origin is still the current position, the end anchor is still wherever the
+ * car is, the clock is still re-timed against what is left. Two things differ,
+ * and both follow from the heading being evidence about *stops*, not about
+ * geometry:
+ *
+ *   - the kept stops are cut down to the ones still ahead (see
+ *     `stopsAheadOfHeading`), because a stop behind the walker is the stale
+ *     plan in miniature, and
+ *   - discovery is allowed to run, which the plain deviation rebuild forbids.
+ *     That rule was written for a walker who is *lost* and wants what they
+ *     already chose redrawn to reach them. This walker is the opposite: they
+ *     are going somewhere on purpose, and cutting stops out has just left a
+ *     hole in their walk that only discovery can fill.
+ *
+ * What it deliberately does not do is aim that discovery. Ranking candidates by
+ * direction as well as by distance is a real change to the ranker's scoring and
+ * belongs with that file, not here; what this can honestly promise is that
+ * nothing behind the walker is carried forward, and that the search is centred
+ * on where they now are rather than where they were.
+ */
+export function buildHeadingContinuedRebuildRequest<
+  TInput extends RebuildInput,
+>(
+  state: PaceRebuildState<TInput>,
+  heading: number,
+): { input: TInput; options: BuildWalkOptions } {
+  return buildMidWalkRebuildRequest(state, {
+    fillRemainingTime: true,
+    continueHeading: heading,
+  });
+}
+
+/**
  * Straight line to street network. Every leg below is measured as the crow
  * flies, but the walk is done on pavements that turn corners, so a budget built
  * from raw haversine legs would be short of the distance actually walked. The
@@ -169,12 +264,32 @@ function minutesToFinishRemainingStops<TInput extends RebuildInput>(
   return walkMinutes + visitMinutes;
 }
 
+/**
+ * The three things a mid-walk rebuild is allowed to vary. Everything else — the
+ * origin, the end anchor, the re-timing, the pins — is the same question
+ * whoever is asking, which is why every path above comes through here.
+ *
+ *   fillRemainingTime          may discovery run, or is this a redraw of the
+ *                              stops the walker already has?
+ *   extendToFitRemainingStops  may the clock grow past what the walker asked
+ *                              for, to keep every stop?
+ *   continueHeading            a compass bearing the walker has been holding.
+ *                              Present only on the heading-continued path, and
+ *                              the only option that can *remove* stops.
+ */
+interface MidWalkRebuildOptions {
+  fillRemainingTime: boolean;
+  extendToFitRemainingStops?: boolean;
+  continueHeading?: number;
+}
+
 function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
   state: PaceRebuildState<TInput>,
   {
     fillRemainingTime,
     extendToFitRemainingStops = false,
-  }: { fillRemainingTime: boolean; extendToFitRemainingStops?: boolean },
+    continueHeading,
+  }: MidWalkRebuildOptions,
 ): { input: TInput; options: BuildWalkOptions } {
   const { originalInput: orig } = state;
   const elapsedMinutes = (state.now - state.walkStartTime) / 60_000;
@@ -184,10 +299,25 @@ function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
     extendToFitRemainingStops ? minutesToFinishRemainingStops(state) : 0,
   );
 
+  const origin = state.currentPosition ?? orig.origin;
+
+  // Undefined stays undefined rather than collapsing to an empty array: the
+  // caller reads "no kept stops" as "run ordinary discovery", and a rebuild
+  // that never had a stop list must not start claiming it has an empty one.
+  const keepAttractions =
+    continueHeading === undefined || state.currentAttractions === undefined
+      ? state.currentAttractions
+      : stopsAheadOfHeading(
+          origin,
+          continueHeading,
+          state.currentAttractions,
+          state.pinnedIds,
+        );
+
   return {
     input: {
       ...orig,
-      origin: state.currentPosition ?? orig.origin,
+      origin,
       availableMinutes: remainingMinutes,
       // The walk moved; the car did not. Pin the end-distance constraint to
       // wherever it was already anchored, or to the start of this walk if this
@@ -197,8 +327,10 @@ function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
     options: {
       autoResume: true,
       resumeTracking: state.settings.autoResumeAfterRebuild,
-      // Keep the walk the user is already on rather than rediscovering it.
-      keepAttractions: state.currentAttractions,
+      // Keep the walk the user is already on rather than rediscovering it —
+      // minus anything the walker has turned their back on, when a heading says
+      // which way that is.
+      keepAttractions,
       pinnedIds: state.pinnedIds,
       fillRemainingTime,
     },
