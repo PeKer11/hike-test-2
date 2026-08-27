@@ -11,8 +11,10 @@ import {
   buildExtendedTimeRebuildRequest,
   buildHeadingContinuedRebuildRequest,
   buildPaceRebuildRequest,
+  buildRecallRebuildRequest,
   promptWalkBuildOptions,
   stopsAheadOfHeading,
+  stopsLostInRebuild,
   toggleSimulatedStray,
   type BuildWalkOptions,
   type PaceRebuildState,
@@ -687,5 +689,288 @@ describe("what the two answers do to the walker's stops", () => {
       "s3",
     ]);
     expect(extendedPlan.feasible).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "Wait, I wanted that one back"
+// ---------------------------------------------------------------------------
+
+const NO_VISITS = new Set<string>();
+
+describe("stopsLostInRebuild", () => {
+  const before = [attraction("a"), attraction("b"), attraction("c")];
+
+  it("names the stop that went in and did not come out", () => {
+    const lost = stopsLostInRebuild({
+      alreadyLost: [],
+      before,
+      requested: before,
+      after: [attraction("a"), attraction("b")],
+      visitedIds: NO_VISITS,
+    });
+
+    expect(lost.map((s) => s.attraction.id)).toEqual(["c"]);
+    expect(lost[0].reason).toBe("nofit");
+  });
+
+  // The cone cuts on the client, so a stop it removed never reaches the server
+  // and never appears in the plan's own droppedAttractions — the diff is the
+  // only thing that can see it at all.
+  it("calls a stop the heading cone cut behind, not a bad fit", () => {
+    const lost = stopsLostInRebuild({
+      alreadyLost: [],
+      before,
+      requested: [attraction("a"), attraction("b")],
+      after: [attraction("a"), attraction("b")],
+      visitedIds: NO_VISITS,
+    });
+
+    expect(lost.map((s) => s.attraction.id)).toEqual(["c"]);
+    expect(lost[0].reason).toBe("behind");
+  });
+
+  it("tells the two losses apart inside one rebuild", () => {
+    const lost = stopsLostInRebuild({
+      alreadyLost: [],
+      before,
+      // "c" never made the request; "b" made it and still did not fit.
+      requested: [attraction("a"), attraction("b")],
+      after: [attraction("a")],
+      visitedIds: NO_VISITS,
+    });
+
+    expect(lost.map((s) => [s.attraction.id, s.reason])).toEqual([
+      ["b", "nofit"],
+      ["c", "behind"],
+    ]);
+  });
+
+  it("says nothing was lost when the walk came back whole", () => {
+    expect(
+      stopsLostInRebuild({
+        alreadyLost: [],
+        before,
+        requested: before,
+        after: before,
+        visitedIds: NO_VISITS,
+      }),
+    ).toEqual([]);
+  });
+
+  // A stop the walker finished is done, not lost — and `excludeVisited` is
+  // exactly why it is missing from the new plan.
+  it("does not mourn a stop the walker already reached", () => {
+    const lost = stopsLostInRebuild({
+      alreadyLost: [],
+      before,
+      requested: [attraction("a"), attraction("b")],
+      after: [attraction("a"), attraction("b")],
+      visitedIds: new Set(["c"]),
+    });
+
+    expect(lost).toEqual([]);
+  });
+
+  // The whole reason this accumulates: the walker has ninety seconds of not
+  // looking at their phone, and two rebuilds can happen inside it.
+  it("keeps the first rebuild's casualty when a second rebuild takes another", () => {
+    const first = stopsLostInRebuild({
+      alreadyLost: [],
+      before,
+      requested: before,
+      after: [attraction("a"), attraction("b")],
+      visitedIds: NO_VISITS,
+    });
+
+    const second = stopsLostInRebuild({
+      alreadyLost: first,
+      before: [attraction("a"), attraction("b")],
+      requested: [attraction("a"), attraction("b")],
+      after: [attraction("a")],
+      visitedIds: NO_VISITS,
+    });
+
+    expect(second.map((s) => s.attraction.id)).toEqual(["c", "b"]);
+  });
+
+  it("keeps the reason a stop was first lost for, not the latest rebuild's", () => {
+    const first = stopsLostInRebuild({
+      alreadyLost: [],
+      before,
+      requested: [attraction("a"), attraction("b")],
+      after: [attraction("a"), attraction("b")],
+      visitedIds: NO_VISITS,
+    });
+
+    const second = stopsLostInRebuild({
+      alreadyLost: first,
+      before: [attraction("a"), attraction("b")],
+      requested: [attraction("a"), attraction("b")],
+      after: [attraction("a"), attraction("b")],
+      visitedIds: NO_VISITS,
+    });
+
+    expect(second.map((s) => [s.attraction.id, s.reason])).toEqual([
+      ["c", "behind"],
+    ]);
+  });
+
+  it("takes a recalled stop off the list once it is back in the plan", () => {
+    const first = stopsLostInRebuild({
+      alreadyLost: [],
+      before,
+      requested: before,
+      after: [attraction("a"), attraction("b")],
+      visitedIds: NO_VISITS,
+    });
+
+    const afterRecall = stopsLostInRebuild({
+      alreadyLost: first,
+      before: [attraction("a"), attraction("b")],
+      requested: before,
+      after: before,
+      visitedIds: NO_VISITS,
+    });
+
+    expect(afterRecall).toEqual([]);
+  });
+
+  it("takes a stop off the list when the walker visits it after all", () => {
+    const first = stopsLostInRebuild({
+      alreadyLost: [],
+      before,
+      requested: before,
+      after: [attraction("a"), attraction("b")],
+      visitedIds: NO_VISITS,
+    });
+
+    const later = stopsLostInRebuild({
+      alreadyLost: first,
+      before: [attraction("a"), attraction("b")],
+      requested: [attraction("a"), attraction("b")],
+      after: [attraction("a"), attraction("b")],
+      visitedIds: new Set(["c"]),
+    });
+
+    expect(later).toEqual([]);
+  });
+});
+
+describe("buildRecallRebuildRequest", () => {
+  it("puts the stop back in the kept set and pins it", () => {
+    const { options } = buildRecallRebuildRequest(state(), attraction("c"));
+
+    expect(keptIds(options)).toEqual(["a", "b", "c"]);
+    expect(options.pinnedIds).toEqual(["a", "c"]);
+  });
+
+  it("does not pin a stop twice when it is recalled twice", () => {
+    const { options } = buildRecallRebuildRequest(
+      state({ pinnedIds: ["a", "c"] }),
+      attraction("c"),
+    );
+
+    expect(keptIds(options)).toEqual(["a", "b", "c"]);
+    expect(options.pinnedIds).toEqual(["a", "c"]);
+  });
+
+  it("leaves the kept set alone when the stop is somehow already on the walk", () => {
+    const { options } = buildRecallRebuildRequest(state(), attraction("b"));
+
+    expect(keptIds(options)).toEqual(["a", "b"]);
+    expect(options.pinnedIds).toEqual(["a", "b"]);
+  });
+
+  // The walker asked for one stop back, not for the walk to be topped up
+  // around it — least of all at the moment the budget is known to be tight.
+  it("does not go looking for extra stops on the way", () => {
+    const { options } = buildRecallRebuildRequest(state(), attraction("c"));
+
+    expect(options.fillRemainingTime).toBe(false);
+  });
+
+  // Recall's one job is the pin. Running the cone again would cut every *other*
+  // stop behind the walker, turning "give me the museum back" into "give me the
+  // museum and take everything else".
+  it("does not re-run the heading cone that cut the stop in the first place", () => {
+    const behind = {
+      ...attraction("behind"),
+      coordinates: { lat: 32.07, lng: 34.78 },
+    };
+    const recalled = {
+      ...attraction("recalled"),
+      coordinates: { lat: 32.069, lng: 34.78 },
+    };
+
+    const { options } = buildRecallRebuildRequest(
+      state({ currentAttractions: [behind], pinnedIds: [] }),
+      recalled,
+    );
+
+    expect(keptIds(options)).toEqual(["behind", "recalled"]);
+  });
+
+  it("rebuilds from where the walker is, against the clock they have left", () => {
+    const { input } = buildRecallRebuildRequest(state(), attraction("c"));
+
+    expect(input.origin).toEqual(CURRENT);
+    expect(input.endAnchor).toEqual(ORIGIN);
+    expect(input.availableMinutes).toBe(60);
+  });
+
+  it("drops the walker straight back into tracking, as every rebuild does", () => {
+    const { options } = buildRecallRebuildRequest(state(), attraction("c"));
+
+    expect(options.autoResume).toBe(true);
+    expect(options.resumeTracking).toBe(
+      DEFAULT_WALK_SETTINGS.autoResumeAfterRebuild,
+    );
+  });
+});
+
+// The claim recall makes is not "the request has the right shape" but "the stop
+// comes back". Run the real planner over the same budget that dropped it.
+describe("what recall does to the walker's stops", () => {
+  const planRequest = (
+    availableMinutes: number,
+    pinnedAttractionIds?: string[],
+  ): WalkPlanRequest => ({
+    origin: ORIGIN,
+    availableMinutes,
+    walkingPaceMinPerKm: WALK_INPUT.walkingPaceMinPerKm,
+    radiusMeters: WALK_INPUT.radiusMeters,
+    pinnedAttractionIds,
+  });
+
+  it("puts back a stop the same budget dropped, and says the walk no longer fits", async () => {
+    const budget = buildPaceRebuildRequest(
+      "sustained-slow-pace",
+      slowWalkerState(),
+    ).input.availableMinutes;
+
+    const dropped = await planWalkOrder(planRequest(budget), SPREAD_STOPS);
+    expect(dropped.droppedAttractions.map((a) => a.id)).toEqual(["s3"]);
+
+    // What the walker's tap builds: s3 back in the kept set, pinned.
+    const { options } = buildRecallRebuildRequest(
+      slowWalkerState({ currentAttractions: SPREAD_STOPS.slice(0, 2) }),
+      SPREAD_STOPS[2],
+    );
+
+    const recalled = await planWalkOrder(
+      planRequest(budget, options.pinnedIds),
+      options.keepAttractions ?? [],
+    );
+
+    expect(recalled.orderedAttractions.map((a) => a.id)).toEqual([
+      "s1",
+      "s2",
+      "s3",
+    ]);
+    expect(recalled.droppedAttractions).toEqual([]);
+    // Honest rather than quietly over budget: this is what raises the
+    // pinned-stop warning the walker then decides on.
+    expect(recalled.feasible).toBe(false);
   });
 });

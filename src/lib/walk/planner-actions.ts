@@ -194,6 +194,147 @@ export function buildHeadingContinuedRebuildRequest<
 }
 
 /**
+ * A stop that was on the walk and is not any more.
+ *
+ * The reason is carried because the two are not the same loss and should not
+ * read as one. `"nofit"` is a stop the planner could not fit in the time that
+ * was left — getting it back costs something, and the walker is choosing to
+ * spend it. `"behind"` is a stop a heading-continued rebuild cut for being
+ * behind the walker: still open, still worth an hour, just not the way they are
+ * currently pointing, and getting it back costs a turn rather than a budget.
+ */
+export interface LostStop {
+  attraction: Attraction;
+  reason: "nofit" | "behind";
+}
+
+export interface LostStopsInput {
+  /** What was already known to be lost, so a second rebuild doesn't erase the first's casualties. */
+  alreadyLost: LostStop[];
+  /** The stops the walker was on before this rebuild. */
+  before: Attraction[];
+  /**
+   * The stops this rebuild actually asked the planner to keep. Anything in
+   * `before` and missing here never reached the server at all — today that is
+   * only the heading cone, which is why its absence is what names the reason.
+   * `undefined` means the rebuild kept nothing on purpose (ordinary discovery).
+   */
+  requested: Attraction[] | undefined;
+  /** The stops that came back. */
+  after: Attraction[];
+  /** Stops already reached. A stop the walker finished is done, never lost. */
+  visitedIds: ReadonlySet<string>;
+}
+
+/**
+ * What a rebuild cost the walker, as a running total for the whole walk.
+ *
+ * Deliberately a before/after diff of the walk itself rather than a read of the
+ * plan's own `droppedAttractions`, which is the field this first looked like it
+ * should ride on. Two reasons, and either alone would settle it. `droppedAttractions`
+ * is *wider* than the question — on a rebuild that runs discovery it is full of
+ * candidates Overpass turned up and the planner declined, which the walker never
+ * had and cannot have "lost". And it is *narrower* than the question — the
+ * heading cone (`stopsAheadOfHeading`) removes stops on the client, before the
+ * request is built, so the server never sees them and never reports them
+ * dropped, yet they are exactly the stops that vanished from under the walker.
+ * The diff answers precisely the asked question and nothing else: was it on my
+ * walk, and is it still.
+ *
+ * Accumulating rather than replacing, because a rebuild is not the only thing
+ * that can happen in the ninety seconds before the walker looks at their phone.
+ * If a pace rebuild drops the museum and a deviation rebuild fires two minutes
+ * later, the museum is still gone; a list that only ever showed the last
+ * rebuild's casualties would have quietly dropped it a second time.
+ *
+ * Two ways off the list, and both are the stop stopping being lost rather than
+ * the walker giving up on it: it is back in the plan (recalled, or rediscovered
+ * on its own), or it has been visited after all.
+ *
+ * A stop already on the list keeps the reason it first went for, because a later
+ * rebuild's `before` is the previous rebuild's `after` and so cannot contain it —
+ * the one thing that can wind the plan backwards is a revert, which puts the
+ * stops back and clears the list outright.
+ */
+export function stopsLostInRebuild({
+  alreadyLost,
+  before,
+  requested,
+  after,
+  visitedIds,
+}: LostStopsInput): LostStop[] {
+  const afterIds = new Set(after.map((a) => a.id));
+  const requestedIds =
+    requested === undefined ? null : new Set(requested.map((a) => a.id));
+
+  const lost = new Map<string, LostStop>();
+  for (const stop of alreadyLost) lost.set(stop.attraction.id, stop);
+
+  for (const attraction of before) {
+    lost.set(attraction.id, {
+      attraction,
+      reason:
+        requestedIds !== null && !requestedIds.has(attraction.id)
+          ? "behind"
+          : "nofit",
+    });
+  }
+
+  return [...lost.values()].filter(
+    (stop) =>
+      !afterIds.has(stop.attraction.id) && !visitedIds.has(stop.attraction.id),
+  );
+}
+
+/**
+ * What "wait, I wanted that one back" should rebuild.
+ *
+ * Recall is a pin, and deliberately nothing more exotic: the mechanism that
+ * already means "this stop stays whatever else changes" is the one the walker
+ * is reaching for, and reusing it means the recalled stop is protected from
+ * every *later* rebuild too, not just from this one. So the stop goes back into
+ * the kept set and its id goes into the pins, and the rest of the request is
+ * the plain redraw — same current-position origin, same end anchor, same
+ * re-timing.
+ *
+ * Discovery stays off. The walker asked for one particular stop, not for the
+ * walk to be topped up around it, and a rebuild that answered "here is your
+ * museum, and also three cafés" would be answering a question nobody asked at
+ * the moment the budget is already known to be tight.
+ *
+ * No heading either, even when this is undoing a heading-continued rebuild's
+ * cut. Passing one would run the same cone that removed the stop in the first
+ * place, and while the pin would survive it (pins beat the cone), the *other*
+ * stops behind the walker would be cut a second time — turning "give me the
+ * museum back" into "give me the museum and take everything else". The pin is
+ * the only thing this is allowed to change.
+ *
+ * What it does not do is promise the stop fits. It cannot: a pin is exactly the
+ * thing the planner refuses to drop, so forcing one back in can return a plan
+ * over budget — and that is reported rather than hidden, by the same
+ * pinned-stop warning that already covers a pin made from the list.
+ */
+export function buildRecallRebuildRequest<TInput extends RebuildInput>(
+  state: PaceRebuildState<TInput>,
+  recalled: Attraction,
+): { input: TInput; options: BuildWalkOptions } {
+  const kept = state.currentAttractions ?? [];
+
+  return buildMidWalkRebuildRequest(
+    {
+      ...state,
+      currentAttractions: kept.some((a) => a.id === recalled.id)
+        ? kept
+        : [...kept, recalled],
+      pinnedIds: state.pinnedIds.includes(recalled.id)
+        ? state.pinnedIds
+        : [...state.pinnedIds, recalled.id],
+    },
+    { fillRemainingTime: false },
+  );
+}
+
+/**
  * Straight line to street network. Every leg below is measured as the crow
  * flies, but the walk is done on pavements that turn corners, so a budget built
  * from raw haversine legs would be short of the distance actually walked. The
