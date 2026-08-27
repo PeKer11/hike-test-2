@@ -1932,12 +1932,16 @@ export function WalkPlannerApp({
           // work above. `handleBuildWalk` sends `pinnedAttractionIds` on
           // every build, including the very first one, so a pin set while
           // looking at the "planned" screen (before pressing Start Walk)
-          // already does something real: it survives the walker's own retry
-          // the same way it survives a mid-walk rebuild. Restricting the tap
-          // to `walking` only hid a control that already worked. Still off
-          // before a plan exists at all, because until then the markers on
-          // screen may be hand-drawn waypoints whose ids no pin means
-          // anything against.
+          // already does something real: it survives straight into
+          // `Start Walk` and is honoured by the first automatic mid-walk
+          // rebuild that follows. It does NOT survive a walker-initiated
+          // `Build My Walk` retry — that path takes the `!options?.autoResume`
+          // branch, which clears pins before the request body is even built,
+          // and neither "+ 15 min and retry" nor the prompt-walk options pass
+          // pins through. Restricting the tap to `walking` only hid a control
+          // that already worked on this one path. Still off before a plan
+          // exists at all, because until then the markers on screen may be
+          // hand-drawn waypoints whose ids no pin means anything against.
           onTogglePin={walkPlan ? toggleAttractionPin : undefined}
         />
       </section>
