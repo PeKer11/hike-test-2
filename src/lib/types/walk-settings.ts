@@ -45,11 +45,15 @@ export interface WalkSettings {
    */
   deviationMode: DeviationResponseMode;
   /**
-   * After a pace-triggered rebuild, whether live GPS tracking picks straight up
-   * on the new route or the walker is handed the plan to start themselves.
+   * After a mid-walk rebuild, whether live GPS tracking picks straight up on
+   * the new route or the walker is handed the plan to start themselves.
    * Separate from the modes above because it answers a different question: those
    * decide whether the route changes at all, this decides whether the walker
    * gets to look at the change before they are walking it.
+   *
+   * "Mid-walk", not "pace-triggered" as this comment used to say: pace and
+   * off-route rebuilds both go through `buildMidWalkRebuildRequest`, so the
+   * flag has always covered both. The settings panel groups it accordingly.
    */
   autoResumeAfterRebuild: boolean;
   paceCheckIntervalMs: number; // enforced min: 30_000

@@ -1,4 +1,12 @@
-import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
@@ -9,6 +17,15 @@ const STORAGE_KEY = "walk-settings";
 
 const AUTO_RESUME_LABEL = "Start the new walk for me";
 
+function disclosure() {
+  return screen.getByRole("button", { name: /walk settings/i });
+}
+
+/**
+ * Renders the panel and opens it, because the controls are behind a disclosure
+ * that starts closed. Every test below is about a control, not about the
+ * disclosure — the disclosure gets its own describe block.
+ */
 function renderSettings(overrides: Partial<WalkSettings> = {}) {
   const onChange = vi.fn();
   render(
@@ -17,7 +34,13 @@ function renderSettings(overrides: Partial<WalkSettings> = {}) {
       onChange={onChange}
     />,
   );
+  fireEvent.click(disclosure());
   return { onChange };
+}
+
+/** A named group inside the open panel — `<section aria-labelledby>`. */
+function section(name: string) {
+  return screen.getByRole("region", { name });
 }
 
 function deviationSelect() {
@@ -367,5 +390,146 @@ describe("history persistence setting", () => {
     fireEvent.click(historyCheckbox());
 
     expect(onChange).toHaveBeenCalledWith({ historyPersistenceEnabled: false });
+  });
+});
+
+// The settings surface was reorganized on 2026-08-23: every control now sits
+// in a named group, and the whole thing lives behind a disclosure. These tests
+// are about where a control is and whether it is reachable, not about what it
+// does — the blocks above already own that, and none of them changed.
+describe("the settings disclosure", () => {
+  function renderClosed(overrides: Partial<WalkSettings> = {}) {
+    const onChange = vi.fn();
+    render(
+      <WalkSettingsPanel
+        settings={{ ...DEFAULT_WALK_SETTINGS, ...overrides }}
+        onChange={onChange}
+      />,
+    );
+    return { onChange };
+  }
+
+  it("starts closed, so the walk form is not buried under seven settings", () => {
+    renderClosed();
+
+    expect(disclosure().getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByLabelText(AUTO_RESUME_LABEL)).toBeNull();
+    expect(screen.queryByRole("region")).toBeNull();
+  });
+
+  it("leaves no control behind to be changed while it is closed", () => {
+    // The distinction that matters for a hidden control: it is gone from the
+    // page, not merely invisible while still wired to onChange.
+    const { onChange } = renderClosed();
+
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.queryAllByRole("combobox")).toHaveLength(0);
+    expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("opens onto every control the panel had before it was grouped", () => {
+    renderClosed();
+
+    fireEvent.click(disclosure());
+
+    expect(disclosure().getAttribute("aria-expanded")).toBe("true");
+    for (const label of [
+      "When I fall behind",
+      "When I'm ahead",
+      "How often we check your pace (seconds)",
+      "When I've strayed from the path",
+      AUTO_RESUME_LABEL,
+      "Remember my preferences",
+      "Keep my recent requests",
+    ]) {
+      expect(screen.getByLabelText(label)).toBeTruthy();
+    }
+  });
+
+  it("closes again on a second press", () => {
+    renderClosed();
+
+    fireEvent.click(disclosure());
+    fireEvent.click(disclosure());
+
+    expect(disclosure().getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByLabelText(AUTO_RESUME_LABEL)).toBeNull();
+  });
+});
+
+describe("which group each control lands in", () => {
+  it("keeps both pace directions and the check interval under the pace heading", () => {
+    renderSettings();
+
+    const pace = within(section("If my pace drifts"));
+    expect(pace.getByLabelText("When I fall behind")).toBeTruthy();
+    expect(pace.getByLabelText("When I'm ahead")).toBeTruthy();
+    expect(
+      pace.getByLabelText("How often we check your pace (seconds)"),
+    ).toBeTruthy();
+  });
+
+  it("no longer leaves the pace interval sitting under the off-route heading", () => {
+    // Where it used to render: below the off-route group, under no heading of
+    // its own, reading as though going off route were what got checked every
+    // 60 seconds.
+    renderSettings();
+
+    const offRoute = within(section("If I go off route"));
+    expect(offRoute.getByLabelText("When I've strayed from the path")).toBeTruthy();
+    expect(
+      offRoute.queryByLabelText("How often we check your pace (seconds)"),
+    ).toBeNull();
+  });
+
+  it("files auto-resume under the rebuild, not under pace — both rebuilds read it", () => {
+    renderSettings();
+
+    expect(
+      within(section("When we reshape your walk")).getByLabelText(
+        AUTO_RESUME_LABEL,
+      ),
+    ).toBeTruthy();
+    expect(
+      within(section("If my pace drifts")).queryByLabelText(AUTO_RESUME_LABEL),
+    ).toBeNull();
+  });
+
+  it("gives the two cross-walk memory toggles a heading of their own", () => {
+    renderSettings();
+
+    const memory = within(section("What we remember between walks"));
+    expect(memory.getByLabelText("Remember my preferences")).toBeTruthy();
+    expect(memory.getByLabelText("Keep my recent requests")).toBeTruthy();
+  });
+
+  it("leads the memory group with the toggle that changes what gets built", () => {
+    // Preference learning quietly changes the walks we hand back; keeping the
+    // requests only shows the walker their own words. The more consequential
+    // one goes first.
+    renderSettings();
+
+    const checkboxes = within(
+      section("What we remember between walks"),
+    ).getAllByRole("checkbox");
+
+    expect(checkboxes).toHaveLength(2);
+    expect(checkboxes[0]).toBe(screen.getByLabelText("Remember my preferences"));
+    expect(checkboxes[1]).toBe(screen.getByLabelText("Keep my recent requests"));
+  });
+
+  it("still reports a change made from inside a group", () => {
+    // Grouping is presentation: a control moved into a section must still be
+    // wired to the same onChange it always was.
+    const { onChange } = renderSettings({ autoResumeAfterRebuild: true });
+
+    fireEvent.click(
+      within(section("When we reshape your walk")).getByLabelText(
+        AUTO_RESUME_LABEL,
+      ),
+    );
+
+    expect(onChange).toHaveBeenCalledWith({ autoResumeAfterRebuild: false });
   });
 });
