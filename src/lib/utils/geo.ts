@@ -19,6 +19,36 @@ export function haversineDistance(a: Coordinates, b: Coordinates): number {
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(hav));
 }
 
+/**
+ * Compass bearing from a to b, in degrees clockwise from north.
+ *
+ * `walk-tracker.ts` and `poi-alerter.ts` each carry their own private copy of
+ * this; they are deliberately left alone rather than pointed here, since
+ * rewriting two working files is not part of any change that needed a third
+ * caller. New callers use this one.
+ */
+export function bearingBetween(a: Coordinates, b: Coordinates): number {
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+  const dLng = toRadians(b.lng - a.lng);
+
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+/**
+ * The smaller of the two angles between two bearings, 0–180 degrees. Wraps, so
+ * 350° and 10° are 20° apart rather than 340°.
+ */
+export function angleDifference(a: number, b: number): number {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
 export function toOrsCoord(coord: Coordinates): OrsCoordinate {
   return [coord.lng, coord.lat];
 }
