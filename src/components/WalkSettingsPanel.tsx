@@ -150,7 +150,7 @@ export function WalkSettingsPanel({
 
           <SettingsSection title="If I go off route">
             <label className={ROW_CLASS}>
-              <span>When I&apos;ve strayed from the path</span>
+              <span>How to respond</span>
               <select
                 value={settings.deviationMode}
                 onChange={(event) =>

@@ -44,7 +44,7 @@ function section(name: string) {
 }
 
 function deviationSelect() {
-  return screen.getByLabelText(/strayed from the path/i) as HTMLSelectElement;
+  return screen.getByLabelText("How to respond") as HTMLSelectElement;
 }
 
 function autoResumeToggle() {
@@ -499,7 +499,7 @@ describe("the settings disclosure", () => {
       "When I fall behind",
       "When I'm ahead",
       "How often we check your pace (seconds)",
-      "When I've strayed from the path",
+      "How to respond",
       AUTO_RESUME_LABEL,
       "Remember my preferences",
       "Keep my recent requests",
@@ -538,7 +538,7 @@ describe("which group each control lands in", () => {
     renderSettings();
 
     const offRoute = within(section("If I go off route"));
-    expect(offRoute.getByLabelText("When I've strayed from the path")).toBeTruthy();
+    expect(offRoute.getByLabelText("How to respond")).toBeTruthy();
     expect(
       offRoute.queryByLabelText("How often we check your pace (seconds)"),
     ).toBeNull();
