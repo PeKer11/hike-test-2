@@ -1844,6 +1844,16 @@ export function WalkPlannerApp({
           currentPosition={currentPosition ?? undefined}
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}
+          pinnedIds={pinnedAttractionIds}
+          // Offered on exactly the same terms as the list view's pin toggle —
+          // while a walk is being walked, where a pin has a rebuild to survive.
+          // Off otherwise, because outside that the markers on screen may be
+          // hand-drawn waypoints whose ids no pin means anything against.
+          onTogglePin={
+            walkPhase === "walking" && walkPlan
+              ? toggleAttractionPin
+              : undefined
+          }
         />
       </section>
       </div>

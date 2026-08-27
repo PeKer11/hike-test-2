@@ -24,6 +24,10 @@ interface MapViewProps {
   followPosition?: boolean;
   /** Places found from free text but not accepted into a walk yet. */
   previewPlaces?: Attraction[];
+  /** Stops the walker has pinned, drawn with a ring — see `MapMarkers`. */
+  pinnedIds?: string[];
+  /** Present only while the markers on screen are a walk's own stops. */
+  onTogglePin?: (waypointId: string) => void;
 }
 
 function MapViewport({ center, zoom }: { center: Coordinates; zoom: number }) {
@@ -101,6 +105,8 @@ export default function MapView({
   currentPosition,
   followPosition,
   previewPlaces,
+  pinnedIds,
+  onTogglePin,
 }: MapViewProps) {
   return (
     <div className="absolute inset-0">
@@ -120,7 +126,11 @@ export default function MapView({
         currentPosition={currentPosition}
         followPosition={followPosition}
       />
-      <MapMarkers waypoints={waypoints} />
+      <MapMarkers
+        waypoints={waypoints}
+        pinnedIds={pinnedIds}
+        onTogglePin={onTogglePin}
+      />
       <PreviewMarkers places={previewPlaces ?? []} />
       {currentPosition ? <CurrentPositionMarker position={currentPosition} /> : null}
       <RoutePolyline geometry={routeGeometry} />
