@@ -12,6 +12,8 @@ import {
   PREFERRED_CATEGORY_BOOST,
   rankAttractions,
   selectFeasibleAttractions,
+  TRENDING_CATEGORY_BOOST,
+  trendingCategoryBoost,
 } from "@/lib/attractions/attraction-ranker";
 import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
@@ -947,5 +949,200 @@ describe("rankAttractions — decayed standing tastes", () => {
       expect(ranked[0].id).toBe("museum");
       expect(ranked[0].isExplorationPick).toBe(true);
     });
+  });
+});
+
+// The cold-start signal: what other walkers have voted up, applied to a walker
+// this app has learned nothing about. Everything here is about WHEN it applies
+// at least as much as by how much — a boost that leaked into a walker with real
+// preferences would be a stranger's opinion overriding theirs.
+describe("rankAttractions — trending categories", () => {
+  const park = makeAttraction("park", "park", 32.082);
+
+  function trending(
+    ...entries: [AttractionCategory, number][]
+  ): Map<AttractionCategory, number> {
+    return new Map(entries);
+  }
+
+  function scoreOf(
+    id: string,
+    options: Partial<Parameters<typeof rankAttractions>[1]> = {},
+  ): number {
+    const ranked = rankAttractions([museum, viewpoint, park], {
+      origin,
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      ...options,
+    });
+
+    return ranked.find((a) => a.id === id)?.score ?? Number.NaN;
+  }
+
+  it("gives the most upvoted category the full boost", () => {
+    const blind = scoreOf("museum");
+
+    expect(
+      scoreOf("museum", { trendingCategories: trending(["museum", 6]) }),
+    ).toBeCloseTo(blind + TRENDING_CATEGORY_BOOST);
+  });
+
+  // Scaled against the leader, so the curve says only what the aggregate can
+  // support: this kind of place is liked about half as often as the top one.
+  it("scales a category against the most upvoted one", () => {
+    const options = {
+      trendingCategories: trending(["museum", 8], ["park", 4], ["viewpoint", 1]),
+    };
+
+    expect(scoreOf("museum", options) - scoreOf("museum")).toBeCloseTo(
+      TRENDING_CATEGORY_BOOST,
+    );
+    expect(scoreOf("park", options) - scoreOf("park")).toBeCloseTo(
+      TRENDING_CATEGORY_BOOST / 2,
+    );
+    expect(scoreOf("viewpoint", options) - scoreOf("viewpoint")).toBeCloseTo(
+      TRENDING_CATEGORY_BOOST / 8,
+    );
+  });
+
+  it("leaves a category nobody has voted up exactly where it was", () => {
+    expect(
+      scoreOf("viewpoint", { trendingCategories: trending(["museum", 6]) }),
+    ).toBeCloseTo(scoreOf("viewpoint"));
+  });
+
+  // The magnitude argument, pinned as a relation rather than as the number 2 —
+  // this is a guess about strangers and must stay worth less than the least the
+  // walker has ever said about themselves.
+  it("is worth less than a taste stated once", () => {
+    expect(TRENDING_CATEGORY_BOOST).toBeLessThan(PREFERRED_CATEGORY_BOOST);
+    expect(TRENDING_CATEGORY_BOOST).toBeLessThan(MAX_OCCURRENCE_PREFERENCE_BOOST);
+
+    const blind = scoreOf("museum");
+    const trendingOnly = scoreOf("museum", {
+      trendingCategories: trending(["museum", 6]),
+    });
+    const statedOnce = scoreOf("museum", {
+      preferredCategories: ["museum"],
+    });
+
+    expect(trendingOnly - blind).toBeLessThan(statedOnce - blind);
+  });
+
+  // The whole trigger condition, one source of personal signal per case. Any one
+  // of them means we are no longer guessing, and the aggregate is dropped whole
+  // rather than layered underneath.
+  it.each<[string, Partial<Parameters<typeof rankAttractions>[1]>]>([
+    ["a category ticked for this walk", { preferredCategories: ["park"] }],
+    [
+      "a standing taste still counting",
+      { preferredCategoryWeights: new Map([["park", 4]] as const) },
+    ],
+    [
+      "a stated dislike, which is a negative weight",
+      { preferredCategoryWeights: new Map([["park", -8]] as const) },
+    ],
+    [
+      "a category tapped up on a previous walk",
+      { upvotedCategories: new Map([["park", 1]] as const) },
+    ],
+    [
+      "a category tapped down on a previous walk",
+      { downvotedCategories: new Map([["park", 1]] as const) },
+    ],
+  ])("ignores the aggregate for a walker with %s", (_label, signal) => {
+    const withSignal = scoreOf("museum", signal);
+    const withBoth = scoreOf("museum", {
+      ...signal,
+      trendingCategories: trending(["museum", 6]),
+    });
+
+    expect(withBoth).toBeCloseTo(withSignal);
+  });
+
+  // Every one of those signals is about `park`, not `museum` — so this is not
+  // "the museum already had a number that won". The aggregate is switched off
+  // for a walker we know something about, whatever that something is about, and
+  // the museum falls back to the preference-blind score exactly.
+  it("ignores the aggregate even when the signal is about another category", () => {
+    expect(
+      scoreOf("museum", {
+        upvotedCategories: new Map([["park", 3]] as const),
+        trendingCategories: trending(["museum", 6]),
+      }),
+    ).toBeCloseTo(scoreOf("museum"));
+  });
+
+  // A POI downvote names one place, not a kind of place. It closes no question
+  // about categories, so it must not switch the cold-start signal off.
+  it("still applies for a walker who only ever rejected one specific place", () => {
+    const blind = scoreOf("museum");
+
+    expect(
+      scoreOf("museum", {
+        downvotedPoiKeys: new Set(["osm-node-99"]),
+        trendingCategories: trending(["museum", 6]),
+      }),
+    ).toBeCloseTo(blind + TRENDING_CATEGORY_BOOST);
+  });
+
+  // Membership of `exploited` means "the walker has answered this". A trending
+  // category is the app's own guess, made because they answered nothing — so it
+  // closes no question, and must not switch exploration on for the one group it
+  // is currently off for.
+  it("never counts as an answer the exploration slot should skip", () => {
+    const ranked = rankAttractions([museum, viewpoint], {
+      origin,
+      trendingCategories: trending(["museum", 6]),
+      availableMinutes: 90,
+      walkingPaceMinPerKm: 15,
+      allowExploration: true,
+      random: () => 0,
+    });
+
+    expect(ranked.some((a) => a.isExplorationPick)).toBe(false);
+  });
+
+  it.each<[string, Map<AttractionCategory, number> | undefined]>([
+    ["no aggregate at all", undefined],
+    ["an empty aggregate", new Map()],
+    ["an aggregate whose totals are all zero", new Map([["museum", 0]] as const)],
+  ])("leaves every score untouched given %s", (_label, aggregate) => {
+    expect(scoreOf("museum", { trendingCategories: aggregate })).toBeCloseTo(
+      scoreOf("museum"),
+    );
+  });
+});
+
+describe("trendingCategoryBoost", () => {
+  it("gives the leader the whole boost and scales the rest against it", () => {
+    expect(trendingCategoryBoost(10, 10)).toBe(TRENDING_CATEGORY_BOOST);
+    expect(trendingCategoryBoost(5, 10)).toBe(TRENDING_CATEGORY_BOOST / 2);
+    expect(trendingCategoryBoost(1, 10)).toBeCloseTo(
+      TRENDING_CATEGORY_BOOST / 10,
+    );
+  });
+
+  // The scale needs no cutoff of its own: a category far behind the leader lands
+  // under MIN_CATEGORY_WEIGHT (1), which this codebase already calls the
+  // narrowest gap that can reorder anything.
+  it("puts a category far behind the leader below the point of mattering", () => {
+    expect(trendingCategoryBoost(1, 20)).toBeLessThan(1);
+  });
+
+  it.each([
+    ["nothing on record", 0, 0],
+    ["a peak that is not a number", 3, Number.NaN],
+    ["a total that is not a number", Number.NaN, 10],
+    ["a negative peak", 3, -1],
+  ])("is worth nothing given %s", (_label, total, peak) => {
+    expect(trendingCategoryBoost(total, peak)).toBe(0);
+  });
+
+  // Defensive: the peak is computed from the same map, so a total above it
+  // cannot happen — but a boost above the ceiling should be impossible by
+  // construction rather than by that argument.
+  it("never exceeds the ceiling, whatever it is handed", () => {
+    expect(trendingCategoryBoost(1000, 10)).toBe(TRENDING_CATEGORY_BOOST);
   });
 });

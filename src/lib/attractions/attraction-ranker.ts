@@ -145,6 +145,64 @@ export function occurrencePreferenceBoost(occurrenceCount: number): number {
 }
 
 /**
+ * The most a category can gain from being popular with OTHER walkers — the
+ * cold-start signal, applied only to a walker this app knows nothing about (see
+ * `trendingCategories`).
+ *
+ * Two, and the number is chosen to read as clearly weaker than any personal
+ * signal, because it is a guess about a stranger rather than evidence about this
+ * walker:
+ *
+ *   - Half of `PREFERRED_CATEGORY_BOOST` (4), which is the weakest real personal
+ *     signal this ranker has — a taste stated once, today. Something we inferred
+ *     from other people should be worth less than the least the walker has ever
+ *     said about themselves, and half is the same relation
+ *     `PER_OCCURRENCE_DOWNVOTE_PENALTY` already has to that boost.
+ *   - Not 8. Eight is what this ranker reserves for the strongest single
+ *     category signal in either direction (`MAX_DOWNVOTE_PENALTY`,
+ *     `MAX_OCCURRENCE_PREFERENCE_BOOST`, a five-times-confirmed taste), and every
+ *     one of those is evidence about the walker in front of us.
+ *   - Above `MIN_CATEGORY_WEIGHT` (1), which is this codebase's own number for
+ *     "the smallest boost that can still do anything here": 1 is the narrowest
+ *     gap between adjacent `CATEGORY_BASE_SCORE` values (park 7 / religious 6 /
+ *     food 5 / shopping 4), so a boost of 1 cannot move a category past its
+ *     neighbour. At 2 the top trending category moves exactly one step up that
+ *     table and buys two kilometres against the `-metres/1000` distance term —
+ *     a visible nudge on a list that would otherwise be a fixed editorial
+ *     ranking, and nowhere near enough to bury it.
+ */
+export const TRENDING_CATEGORY_BOOST = 2;
+
+/**
+ * What one category's population upvote total is worth, given the largest total
+ * in the same aggregate.
+ *
+ * Scaled against the leader rather than against an absolute count, because an
+ * absolute scale would need a denominator nobody can name: "5 upvotes is a lot"
+ * is true of an app with two users and meaningless of one with two thousand, and
+ * whichever number were picked would silently change meaning as the app grew.
+ * Relative to the leader the curve says only what the data can support — this is
+ * the most-liked kind of place, this one is liked about half as often — and it
+ * behaves sanely at both ends: with one category on record that category gets
+ * the full boost and everything else gets nothing, and with a thousand it still
+ * spans exactly 0 to `TRENDING_CATEGORY_BOOST`.
+ *
+ * A rank-based version (flat boost to the top N) was the alternative, and it
+ * loses on having to invent N. Proportional needs no cutoff: a category with one
+ * upvote against a leader with twenty earns 0.1, which is under
+ * `MIN_CATEGORY_WEIGHT` and cannot reorder anything — the cutoff falls out of
+ * the scale instead of being chosen.
+ *
+ * A peak at or below zero means there is no aggregate to scale against, and the
+ * answer is 0 rather than a division by it.
+ */
+export function trendingCategoryBoost(total: number, peak: number): number {
+  if (!Number.isFinite(total) || !Number.isFinite(peak) || peak <= 0) return 0;
+
+  return TRENDING_CATEGORY_BOOST * (Math.min(total, peak) / peak);
+}
+
+/**
  * How many stops one walk gets, unless a caller asks for fewer. Exported so a
  * caller that pre-spends part of the walk on stops this function never sees
  * (the walk-plan route's named places) can subtract from the same number.
@@ -206,6 +264,33 @@ export interface RankerOptions {
    * spending the exploration slot on.
    */
   upvotedCategories?: ReadonlyMap<AttractionCategory, number>;
+  /**
+   * What every OTHER walker has voted up, by category, as raw occurrence totals
+   * — `trending_category_upvotes()` via `getTrendingCategoryCounts`. The
+   * cold-start signal, and the only input here that is not about the walker in
+   * front of us.
+   *
+   * **Applied only when there is nothing personal to rank on**, and this
+   * function enforces that itself rather than trusting the caller to: if the
+   * walker asked for a category on this walk, has any standing taste still
+   * counting, or has ever tapped a category up or down, the whole map is
+   * ignored however full it is. That is the difference between a cold-start
+   * fallback and a general-purpose tiebreaker layered under everybody's
+   * personalization — the second would spend a stranger's opinion on a walker
+   * who has already told us their own, which is the app not listening.
+   *
+   * Raw totals rather than pre-computed boosts, like `downvotedCategories` and
+   * `upvotedCategories` and unlike `preferredCategoryWeights`: what a count is
+   * worth on this ranker's scale is a ranking decision, so the curve
+   * (`trendingCategoryBoost`) lives here with the constants it is measured
+   * against rather than next to the query.
+   *
+   * A POI-level downvote (`downvotedPoiKeys`) deliberately does NOT count as
+   * personal signal. It names one place the walker did not want again and says
+   * nothing about kinds of place, so it leaves the category question exactly as
+   * open as it was.
+   */
+  trendingCategories?: ReadonlyMap<AttractionCategory, number>;
   /**
    * `poi_key` identities of specific places the walker has voted down. Dropped
    * from the ranking outright rather than penalized: a category downvote means
@@ -323,6 +408,7 @@ export function rankAttractions(
     preferredCategoryWeights,
     downvotedCategories,
     upvotedCategories,
+    trendingCategories,
     downvotedPoiKeys,
     availableMinutes,
     walkingPaceMinPerKm,
@@ -334,6 +420,27 @@ export function rankAttractions(
   // Maximum walk distance that could fit in the available time (rough upper bound)
   const maxReachableMeters =
     (availableMinutes / walkingPaceMinPerKm) * 1000 * 0.5; // use half the time for walking
+
+  // Anything at all the walker has told us, in words or in taps. Four sources,
+  // and any one of them is enough: a category ticked for this walk, a standing
+  // taste still above `MIN_CATEGORY_WEIGHT`, or a category tapped up or down at
+  // the end of any previous walk. Note that a stated DISLIKE counts — it is a
+  // key in the weight map with a negative value, and it is an answer about that
+  // category in exactly the sense a liking is.
+  const hasPersonalSignal =
+    (preferredCategories?.length ?? 0) > 0 ||
+    (preferredCategoryWeights?.size ?? 0) > 0 ||
+    (downvotedCategories?.size ?? 0) > 0 ||
+    (upvotedCategories?.size ?? 0) > 0;
+
+  // The largest population total in the aggregate, which `trendingCategoryBoost`
+  // scales the rest against. Zero whenever the trending signal must not apply,
+  // which collapses the whole branch to a no-op without a second condition
+  // inside the loop.
+  const trendingPeak =
+    hasPersonalSignal || !trendingCategories
+      ? 0
+      : Math.max(0, ...trendingCategories.values());
 
   const scored: ScoredAttraction[] = [];
 
@@ -383,6 +490,17 @@ export function rankAttractions(
       score += occurrencePreferenceBoost(upvoteOccurrences);
     }
 
+    // Only ever reached with `trendingPeak > 0`, which by construction means
+    // every personal signal above came back empty. Additive and kept out of the
+    // `Math.max` above on purpose: that max resolves two claims about the same
+    // walker arriving twice, and this is not a claim about them at all.
+    if (trendingPeak > 0) {
+      const trendingTotal = trendingCategories?.get(a.category);
+      if (trendingTotal !== undefined) {
+        score += trendingCategoryBoost(trendingTotal, trendingPeak);
+      }
+    }
+
     score -= distanceMeters / 1000;
 
     scored.push({ ...a, distanceFromOriginMeters: distanceMeters, score });
@@ -394,6 +512,15 @@ export function rankAttractions(
   // already showing the walker whatever is best nearby. A profile whose every
   // taste has decayed under the threshold reaches this the same way a brand new
   // one does, which is right: we no longer know what they like.
+  //
+  // `trendingCategories` is deliberately NOT in here, and its absence is the
+  // whole of what exploration should do with it. Membership of this set means
+  // "the walker has answered this question", and a trending category is the
+  // opposite — it is the app's own guess, made precisely because they have
+  // answered nothing. Adding it would also flip exploration ON for exactly the
+  // walkers it is currently off for (`exploited.size > 0` below), and then send
+  // the one exploration stop away from the only categories we have any reason
+  // at all to think they might like.
   const exploited = new Set<AttractionCategory>([
     ...(preferredCategories ?? []),
     ...(preferredCategoryWeights?.keys() ?? []),
