@@ -44,6 +44,7 @@ import {
 } from "@/components/walk/DeviationConfirmationNotification";
 import { PaceChecker } from "@/lib/walk/pace-checker";
 import { DeviationMonitor } from "@/lib/walk/deviation-monitor";
+import { HeadingMonitor } from "@/lib/walk/heading-monitor";
 import { detectDeviation, remainingRoute } from "@/lib/walk/deviation-detector";
 import { WalkRecorder } from "@/lib/walk/walk-recorder";
 import { WalkTracker } from "@/lib/walk/walk-tracker";
@@ -60,6 +61,7 @@ import {
 } from "@/lib/walk/replan-trigger";
 import {
   buildDeviationRebuildRequest,
+  buildHeadingContinuedRebuildRequest,
   buildExtendedTimeRebuildRequest,
   buildPaceRebuildRequest,
   promptWalkBuildOptions,
@@ -263,11 +265,20 @@ export function WalkPlannerApp({
   // because a re-plan is exactly the event that ends the excursion it was
   // watching.
   const deviationMonitorRef = useRef<DeviationMonitor | null>(null);
+  // Which way the walker has been going, asked for at exactly one moment: when
+  // the off-route question below lapses unanswered. Fed from the same throttled
+  // handler as the deviation monitor so the two windows are measured off the
+  // same cadence of fixes.
+  const headingMonitorRef = useRef<HeadingMonitor | null>(null);
   // The standing "you're off route — redraw?" question, for `deviationMode: ask`.
   const [deviationConfirmation, setDeviationConfirmation] = useState(false);
   const deviationConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  // `isOffRoute` as a closure-safe read. The banner's timeout fires 90 seconds
+  // after the render that armed it, and by then the state that render captured
+  // may say the walker is still astray when they have long since rejoined.
+  const isOffRouteRef = useRef(false);
   const [poiAlert, setPoiAlert] = useState<PoiAlert | null>(null);
   const poiAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buildWalkRequestIdRef = useRef(0);
@@ -320,6 +331,12 @@ export function WalkPlannerApp({
   const [remainingGeometry, setRemainingGeometry] = useState<Coordinates[]>([]);
   const [isOffRoute, setIsOffRoute] = useState(false);
   const [offRouteDeviation, setOffRouteDeviation] = useState(0);
+  // Every write to "is the walker off route" goes through here, so the ref and
+  // the rendered badge can never disagree.
+  const markOffRoute = (next: boolean) => {
+    isOffRouteRef.current = next;
+    setIsOffRoute(next);
+  };
   const [walkPhase, setWalkPhase] = useState<"idle" | "planned" | "walking">("idle");
   const [mapClickedCoords, setMapClickedCoords] = useState<Coordinates | null>(null);
   const [walkTrackingMessage, setWalkTrackingMessage] = useState<string | null>(null);
@@ -358,6 +375,7 @@ export function WalkPlannerApp({
     paceCheckerRef.current?.stop();
     paceCheckerRef.current = null;
     deviationMonitorRef.current = null;
+    headingMonitorRef.current = null;
     walkTrackerRef.current?.stop();
     walkTrackerRef.current = null;
     walkRecorderRef.current?.stop();
@@ -371,7 +389,7 @@ export function WalkPlannerApp({
     setIsRecording(false);
     setCurrentPosition(null);
     setRemainingGeometry([]);
-    setIsOffRoute(false);
+    markOffRoute(false);
     setOffRouteDeviation(0);
     setWalkPhase("idle");
     setWalkTrackingMessage(null);
@@ -430,7 +448,7 @@ export function WalkPlannerApp({
     setWalkPhase("planned");
     walkGeometryRef.current = geometry;
     setRemainingGeometry(geometry);
-    setIsOffRoute(false);
+    markOffRoute(false);
     setOffRouteDeviation(0);
     setWalkTrackingMessage(null);
     // The candidates are in the plan now — they get numbered waypoint markers
@@ -715,10 +733,56 @@ export function WalkPlannerApp({
   };
 
   /**
+   * The third answer to the off-route question, for a walker who gave none.
+   *
+   * Runs when the banner lapses, and only rebuilds if the walker is *both*
+   * still off route and has held one direction for the whole heading window.
+   * Anything else — they rejoined, they stopped, they turned a corner, the GPS
+   * stream went quiet — falls back to the old behaviour of leaving the route
+   * alone, which is also what every `null` from `sustainedHeading` means.
+   *
+   * The "still off route" check is not redundant with the banner being up. The
+   * banner outlives the excursion that raised it: a walker who wandered off,
+   * was asked, ignored the banner and then rejoined would otherwise be rebuilt
+   * ninety seconds later around a route they are already walking.
+   *
+   * Judged against the last fix's timestamp rather than `Date.now()`, for the
+   * reason `PaceChecker.evaluationTime` documents — the simulator's stream runs
+   * ahead of the wall clock, and a heading window measured against the wrong
+   * one can never close.
+   */
+  const continueInHeadingAfterSilence = () => {
+    if (!isOffRouteRef.current) return;
+
+    const lastFix = latestPaceUpdateRef.current;
+    if (!lastFix) return;
+
+    const heading = headingMonitorRef.current?.sustainedHeading(
+      lastFix.timestamp,
+    );
+    if (heading === null || heading === undefined) return;
+
+    const state = midWalkRebuildState();
+    if (!state) return;
+
+    const { input, options } = buildHeadingContinuedRebuildRequest(
+      state,
+      heading,
+    );
+    void handleBuildWalk(input, options);
+  };
+
+  /**
    * Raise the off-route question rather than redrawing, for `deviationMode:
-   * ask`. Unlike the slow-pace question, no answer means no rebuild: the
-   * walker may have deliberately stepped off the route, and the cost of
-   * ignoring that is nothing.
+   * ask`. Unlike the slow-pace question, no answer does not simply mean
+   * rebuild: the walker may have deliberately stepped off the route, and the
+   * cost of ignoring that is nothing. What silence means instead is decided by
+   * `continueInHeadingAfterSilence` — the stale route stands unless the walker
+   * has spent the whole ninety seconds walking steadily away from it.
+   *
+   * Nothing extra rate-limits that path. `DeviationMonitor` armed its
+   * three-minute cooldown the moment it raised this banner, and one banner can
+   * only lapse once, so the worst case is unchanged: one rebuild per cooldown.
    */
   const askBeforeRedrawing = () => {
     if (walkTrackerRef.current === null) return;
@@ -729,6 +793,7 @@ export function WalkPlannerApp({
     deviationConfirmTimeoutRef.current = setTimeout(() => {
       deviationConfirmTimeoutRef.current = null;
       setDeviationConfirmation(false);
+      continueInHeadingAfterSilence();
     }, DEVIATION_CONFIRMATION_TIMEOUT_MS);
   };
 
@@ -779,7 +844,7 @@ export function WalkPlannerApp({
     lastSegmentIndexRef.current = null;
     setRecordedPointCount(0);
     setCurrentPosition(initialPosition);
-    setIsOffRoute(false);
+    markOffRoute(false);
     setOffRouteDeviation(0);
     setWalkPhase("walking");
     setWalkTrackingMessage(null);
@@ -849,6 +914,16 @@ export function WalkPlannerApp({
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
 
+      // Recorded on and off the route alike. Where the walker is going is a
+      // fact about the walker, not about the plan, and the question it answers
+      // is asked ninety seconds after the deviation that raised it — by which
+      // point a window that had only started filling at the threshold would
+      // have thrown away the run-up that shows they were already going there.
+      headingMonitorRef.current?.record(
+        update.currentPosition,
+        update.timestamp,
+      );
+
       const deviation = detectDeviation(
         update.currentPosition,
         walkGeometryRef.current,
@@ -861,10 +936,10 @@ export function WalkPlannerApp({
       // offer a rebuild, and takes its time over it — the sustain window gates
       // the offer, never the badge.
       if (deviation.needsReroute) {
-        setIsOffRoute(true);
+        markOffRoute(true);
         setOffRouteDeviation(Math.round(deviation.deviationMeters));
       } else {
-        setIsOffRoute(false);
+        markOffRoute(false);
         setOffRouteDeviation(0);
       }
 
@@ -934,6 +1009,11 @@ export function WalkPlannerApp({
     });
     paceCheckerRef.current = checker;
     checker.start();
+
+    // A fresh window per walk, and per re-plan: a heading measured against
+    // geometry that has been replaced says nothing about the route the walker
+    // is on now.
+    headingMonitorRef.current = new HeadingMonitor();
 
     deviationMonitorRef.current = new DeviationMonitor(walkSettings, (response) => {
       if (response === "auto") {

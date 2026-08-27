@@ -23,12 +23,19 @@ interface DeviationConfirmationNotificationProps {
  * valid answer, the caller owns the timeout — are conventions, and they are
  * followed here rather than abstracted.
  *
- * Silence means the route stands. That is the opposite of the slow-pace
+ * Silence usually means the route stands. That is the opposite of the slow-pace
  * question, which falls back to rebuilding, and the asymmetry follows the
  * cost: falling behind quietly eats the time the walker said they had, while
  * being off route may simply mean they stepped into a shop and are coming back
  * out. Rebuilding someone's walk because they didn't look at their phone is
  * the wrong way round.
+ *
+ * The one exception is a walker who spent the whole 90 seconds walking steadily
+ * further away — see `HeadingMonitor` and
+ * `buildHeadingContinuedRebuildRequest`. They are not someone who missed the
+ * banner, and the route they are being left on is one they have visibly stopped
+ * walking. "I know where I'm going" is a button, not a silence, so the walker
+ * who wants this left alone has a way to say so that costs one tap.
  */
 export function DeviationConfirmationNotification({
   visible,
