@@ -64,11 +64,15 @@ import {
   buildHeadingContinuedRebuildRequest,
   buildExtendedTimeRebuildRequest,
   buildPaceRebuildRequest,
+  buildRecallRebuildRequest,
   promptWalkBuildOptions,
   setSimulatedPaceDrift,
+  stopsLostInRebuild,
   toggleSimulatedStray,
+  type LostStop,
   type SimulatedPaceDrift,
 } from "@/lib/walk/planner-actions";
+import { DroppedStopsPanel } from "@/components/walk/DroppedStopsPanel";
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -226,6 +230,10 @@ export function WalkPlannerApp({
   const [pinnedAttractionIds, setPinnedAttractionIds] = useState<string[]>([]);
   const [previousPlan, setPreviousPlan] = useState<PlanSnapshot | null>(null);
   const [pinnedTimeWarning, setPinnedTimeWarning] = useState<string | null>(null);
+  // What the mid-walk rebuilds have taken off this walk so far, and haven't
+  // given back. A running total for the whole walk, not the last rebuild's —
+  // see `stopsLostInRebuild`.
+  const [lostStops, setLostStops] = useState<LostStop[]>([]);
   const walkTrackerRef = useRef<WalkTracker | SimulatedWalkTracker | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   // Whether the simulated walker is currently off the planned line. Mirrors the
@@ -421,6 +429,7 @@ export function WalkPlannerApp({
     stopWalkTracking();
     setPreviousPlan(null);
     setPinnedTimeWarning(null);
+    setLostStops([]);
     setPinnedAttractionIds([]);
     pinnedAttractionIdsRef.current = [];
     visitTrackerRef.current?.reset();
@@ -538,6 +547,9 @@ export function WalkPlannerApp({
     setPinnedTimeWarning(null);
     if (!options?.autoResume) {
       setPreviousPlan(null);
+      // A build the walker asked for starts a new walk, and a new walk has not
+      // lost anything yet.
+      setLostStops([]);
       setPinnedAttractionIds([]);
       pinnedAttractionIdsRef.current = [];
       visitTrackerRef.current?.reset();
@@ -616,6 +628,24 @@ export function WalkPlannerApp({
         }
       } else {
         showPlan(data, data.geometry ?? []);
+
+        // What this rebuild cost. Only on the automatic path — a snapshot is
+        // exactly "there was a walk under way that this replaced", and a build
+        // the walker asked for has no before to be missing anything from.
+        if (snapshot) {
+          setLostStops((prev) =>
+            stopsLostInRebuild({
+              alreadyLost: prev,
+              before: snapshot.plan.orderedAttractions,
+              requested: keepAttractions,
+              after: data.orderedAttractions,
+              // Re-read rather than reusing the set from before the request:
+              // the walker kept walking while it was in flight.
+              visitedIds:
+                visitTrackerRef.current?.visitedIds ?? new Set<string>(),
+            }),
+          );
+        }
 
         // A pinned stop is never dropped, so the plan can come back over budget.
         // Say so instead of failing quietly — the walker decides what to do.
@@ -1046,6 +1076,10 @@ export function WalkPlannerApp({
     latestPaceUpdateRef.current = null;
     setPinnedTimeWarning(null);
     setPreviousPlan(null);
+    // The snapshot is the *first* of a re-plan chain, so reverting undoes every
+    // rebuild since — and with them every stop those rebuilds took. Offering to
+    // put back stops the walker is standing on again would be nonsense.
+    setLostStops([]);
 
     // Undo the re-plan, not the walk: stops already reached stay reached, so the
     // restored plan lists only what is still ahead. The geometry is the original
@@ -1089,6 +1123,38 @@ export function WalkPlannerApp({
 
   const handleRevertPlan = () => {
     if (previousPlan) revertToSnapshot(previousPlan);
+  };
+
+  /**
+   * "Wait, I wanted that one back."
+   *
+   * Pins the stop for real — the same pin the list and the map toggles write,
+   * so it is protected from every later rebuild too and not just from this one
+   * — and then rebuilds with it in the kept set. The pin is written through the
+   * ref as well as through state because the request is built in this same
+   * tick, before React has committed anything.
+   *
+   * The stop stays on the dropped list until the rebuild actually returns it;
+   * `stopsLostInRebuild` takes it off when it appears in the new plan. If the
+   * rebuild fails, the walker still has the offer in front of them.
+   */
+  const recallDroppedStop = (attractionId: string) => {
+    const lost = lostStops.find((s) => s.attraction.id === attractionId);
+    if (!lost) return;
+    const state = midWalkRebuildState();
+    if (!state) return;
+
+    const nextPinned = pinnedAttractionIdsRef.current.includes(attractionId)
+      ? pinnedAttractionIdsRef.current
+      : [...pinnedAttractionIdsRef.current, attractionId];
+    pinnedAttractionIdsRef.current = nextPinned;
+    setPinnedAttractionIds(nextPinned);
+
+    const { input, options } = buildRecallRebuildRequest(
+      { ...state, pinnedIds: nextPinned },
+      lost.attraction,
+    );
+    void handleBuildWalk(input, options);
   };
 
   const toggleAttractionPin = (attractionId: string) => {
@@ -1507,6 +1573,16 @@ export function WalkPlannerApp({
                     </Button>
                   </div>
                 </Card>
+              )}
+              {/* What the mid-walk rebuilds took, and one tap to get it back.
+                  Walking only, like the stops list — recall is a rebuild, and
+                  `midWalkRebuildState` only answers while a tracker is alive. */}
+              {walkPhase === "walking" && (
+                <DroppedStopsPanel
+                  stops={lostStops}
+                  onRecall={recallDroppedStop}
+                  onDismiss={() => setLostStops([])}
+                />
               )}
               {/* Geometry warning banner (LOW-4) */}
               {walkPlan?.warnings?.some((w) => w.includes("geometry")) && (
