@@ -167,6 +167,56 @@ describe("deviationMode default, migration and control", () => {
   });
 });
 
+describe("continueHeadingOnSilence default and migration", () => {
+  it("defaults off — this is a rebuild taken on silence, not a yes", () => {
+    expect(DEFAULT_WALK_SETTINGS.continueHeadingOnSilence).toBe(false);
+
+    const { result } = renderHook(() => useWalkSettings());
+    expect(result.current.settings.continueHeadingOnSilence).toBe(false);
+  });
+
+  it("fills the flag in as off for a blob written before it existed", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ deviationMode: "ask", autoResumeAfterRebuild: false }),
+    );
+
+    const { result } = renderHook(() => useWalkSettings());
+
+    expect(result.current.settings.continueHeadingOnSilence).toBe(false);
+    // The rest of the blob survives the fill-in.
+    expect(result.current.settings.deviationMode).toBe("ask");
+    expect(result.current.settings.autoResumeAfterRebuild).toBe(false);
+  });
+
+  it("keeps a stored opt-in instead of defaulting it back off", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...DEFAULT_WALK_SETTINGS,
+        continueHeadingOnSilence: true,
+      }),
+    );
+
+    const { result } = renderHook(() => useWalkSettings());
+    expect(result.current.settings.continueHeadingOnSilence).toBe(true);
+  });
+
+  it("persists an opt-in so the next walk starts from it", () => {
+    const { result } = renderHook(() => useWalkSettings());
+
+    act(() => {
+      result.current.setSettings({ continueHeadingOnSilence: true });
+    });
+
+    expect(result.current.settings.continueHeadingOnSilence).toBe(true);
+    const stored = JSON.parse(
+      window.localStorage.getItem(STORAGE_KEY) ?? "{}",
+    ) as WalkSettings;
+    expect(stored.continueHeadingOnSilence).toBe(true);
+  });
+});
+
 describe("autoResumeAfterRebuild default and migration", () => {
   it("defaults on, so a walker who never opens settings keeps the old auto-resume", () => {
     expect(DEFAULT_WALK_SETTINGS.autoResumeAfterRebuild).toBe(true);
@@ -517,6 +567,39 @@ describe("which group each control lands in", () => {
     expect(checkboxes).toHaveLength(2);
     expect(checkboxes[0]).toBe(screen.getByLabelText("Remember my preferences"));
     expect(checkboxes[1]).toBe(screen.getByLabelText("Keep my recent requests"));
+  });
+
+  it("only offers the silence-heading toggle when there's a question to leave unanswered", () => {
+    renderSettings({ deviationMode: "ask" });
+    expect(
+      screen.getByLabelText(/don't answer but keep walking one way/i),
+    ).toBeTruthy();
+  });
+
+  it("hides the silence-heading toggle for auto and off modes", () => {
+    renderSettings({ deviationMode: "auto" });
+    expect(
+      screen.queryByLabelText(/don't answer but keep walking one way/i),
+    ).toBeNull();
+
+    cleanup();
+    renderSettings({ deviationMode: "off" });
+    expect(
+      screen.queryByLabelText(/don't answer but keep walking one way/i),
+    ).toBeNull();
+  });
+
+  it("reports a change to the silence-heading toggle", () => {
+    const { onChange } = renderSettings({
+      deviationMode: "ask",
+      continueHeadingOnSilence: false,
+    });
+
+    fireEvent.click(
+      screen.getByLabelText(/don't answer but keep walking one way/i),
+    );
+
+    expect(onChange).toHaveBeenCalledWith({ continueHeadingOnSilence: true });
   });
 
   it("still reports a change made from inside a group", () => {

@@ -735,6 +735,11 @@ export function WalkPlannerApp({
   /**
    * The third answer to the off-route question, for a walker who gave none.
    *
+   * Opt-in via `WalkSettings.continueHeadingOnSilence` (default off) — this is
+   * a rebuild taken on an absence of input, not a response to one, so it only
+   * runs at all for a walker who has said that's what they want silence to
+   * mean. Everyone else's silence still just leaves the old route alone.
+   *
    * Runs when the banner lapses, and only rebuilds if the walker is *both*
    * still off route and has held one direction for the whole heading window.
    * Anything else — they rejoined, they stopped, they turned a corner, the GPS
@@ -752,6 +757,7 @@ export function WalkPlannerApp({
    * one can never close.
    */
   const continueInHeadingAfterSilence = () => {
+    if (!walkSettingsRef.current.continueHeadingOnSilence) return;
     if (!isOffRouteRef.current) return;
 
     const lastFix = latestPaceUpdateRef.current;

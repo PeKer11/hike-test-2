@@ -32,6 +32,13 @@ function sanitizeSettings(
       candidate?.paceCheckEnabled,
     ),
     deviationMode: toDeviationResponseMode(candidate?.deviationMode),
+    // A blob written before this flag existed predates the heading-continued
+    // rebuild entirely, so a missing field is not an opt-out from anything —
+    // it fills in as the default, same reasoning as history persistence below.
+    continueHeadingOnSilence:
+      typeof candidate?.continueHeadingOnSilence === "boolean"
+        ? candidate.continueHeadingOnSilence
+        : DEFAULT_WALK_SETTINGS.continueHeadingOnSilence,
     // A blob written before this flag existed has no opinion on it, and the
     // behaviour it was written under was "resume automatically" — so a missing
     // field has to fill in as true, not false.

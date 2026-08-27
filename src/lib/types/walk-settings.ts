@@ -45,6 +45,24 @@ export interface WalkSettings {
    */
   deviationMode: DeviationResponseMode;
   /**
+   * For `deviationMode: "ask"` only: if the walker never answers the banner,
+   * whether silence can still mean something other than "leave the route
+   * alone" — specifically, that they kept walking steadily in one direction
+   * for the whole question window, and the walk should be rebuilt around
+   * where they're actually going rather than left stale or redrawn from
+   * scratch.
+   *
+   * Off by default, same reasoning as the speed-up offer below it: this is an
+   * automatic action taken on the walker's behalf from an absence of input,
+   * not a response to one, and `autoResumeAfterRebuild` defaulting to `true`
+   * means it can tear down tracking and hand back a different route with
+   * nobody having said yes to anything. A conjunction this specific (sustained
+   * off-route, sustained heading, no answer) is hard to trigger by accident —
+   * but "hard to trigger by accident" is not the same promise as "the walker
+   * asked for this," and only the walker gets to make that call.
+   */
+  continueHeadingOnSilence: boolean;
+  /**
    * After a mid-walk rebuild, whether live GPS tracking picks straight up on
    * the new route or the walker is handed the plan to start themselves.
    * Separate from the modes above because it answers a different question: those
@@ -93,6 +111,8 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   fastPaceMode: "off",
   slowPaceMode: "off",
   deviationMode: "ask",
+  // Off: this is a rebuild taken on silence, not on a yes.
+  continueHeadingOnSilence: false,
   // Also the old behaviour: before this flag existed, a pace rebuild always
   // resumed tracking on its own.
   autoResumeAfterRebuild: true,

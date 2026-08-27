@@ -168,6 +168,30 @@ export function WalkSettingsPanel({
                 ))}
               </select>
             </label>
+
+            {/* Only means anything once there's a question to leave unanswered. */}
+            {settings.deviationMode === "ask" && (
+              <div className="space-y-1">
+                <label className={ROW_CLASS}>
+                  <span>If I don&apos;t answer but keep walking one way</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.continueHeadingOnSilence}
+                    onChange={(event) =>
+                      onChange({
+                        continueHeadingOnSilence: event.target.checked,
+                      })
+                    }
+                    className={CHECKBOX_CLASS}
+                  />
+                </label>
+                <p className="text-xs text-charcoal/60">
+                  {settings.continueHeadingOnSilence
+                    ? "On — if I hold one direction the whole time you don't answer, redraw the walk around where I'm actually going."
+                    : "Off — silence leaves the old route alone, same as always."}
+                </p>
+              </div>
+            )}
           </SettingsSection>
 
           {/* Its own group rather than a fourth row under "If my pace drifts",
