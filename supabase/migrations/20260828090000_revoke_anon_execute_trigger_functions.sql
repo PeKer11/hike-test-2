@@ -1,0 +1,39 @@
+-- Finish the job 20260824090000 started.
+--
+-- That migration closed the default-ACL gap for the two functions the app
+-- actually calls as RPCs -- `record_walk_session()` and
+-- `trending_category_upvotes()`. It did not touch the other two functions this
+-- schema creates, because nothing was calling them and they did not look like
+-- an attack surface. They carry the identical grant for the identical reason:
+-- the `public` schema's default ACL grants EXECUTE to `anon`, `authenticated`
+-- and `service_role` on EVERY function at creation time, and neither
+-- `set_updated_at()` nor `handle_new_user()` has ever had a `revoke` of any
+-- kind written against it. So `anon` holds EXECUTE on both, and has since
+-- 2026-07-28.
+--
+-- Being honest about what this is worth. It is close to nothing in practice,
+-- and this migration is not claiming otherwise. Both are `returns trigger`
+-- functions, and Postgres refuses a direct call to one -- "trigger functions
+-- can only be called as triggers" -- before privileges are ever consulted.
+-- There is no call an anonymous caller can make here that gets past the parser,
+-- including for `handle_new_user()`, which is the one that would matter: it is
+-- SECURITY DEFINER and inserts into `public.profiles`.
+--
+-- Doing it anyway, for the same reason 20260824090000 gave: the grant is a real
+-- privilege sitting on a role that should not have it, and it is being relied
+-- on to be unreachable rather than being absent. That reliance is on a Postgres
+-- implementation detail, not on anything this schema controls. If either
+-- function is ever rewritten to return something other than `trigger` -- the
+-- obvious version being `handle_new_user()` growing a callable
+-- `ensure_profile()` sibling -- the block disappears silently and the grant is
+-- suddenly load-bearing. Revoking now costs one statement each and removes the
+-- question.
+--
+-- The general rule this schema is now following, recorded here because it is
+-- the third time it has come up: EVERY function created in `public` needs an
+-- explicit `revoke execute ... from anon`, whether or not it looks callable.
+-- `revoke ... from public` does not do it -- the anon grant comes from the
+-- default ACL, held directly by the role, and PUBLIC is a different thing.
+
+revoke execute on function public.set_updated_at() from anon;
+revoke execute on function public.handle_new_user() from anon;
