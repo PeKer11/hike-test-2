@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockOptimizeRoute = vi.fn();
 
@@ -7,6 +7,13 @@ vi.mock("@/lib/api/ors-client", () => ({
 }));
 
 import { POST } from "@/app/api/optimization/route";
+
+// The mock is module-level and accumulates calls, so "was ORS never reached?"
+// only means anything if the count starts at zero. Without this the two tests
+// below pass in file order and fail in the other one.
+beforeEach(() => {
+  mockOptimizeRoute.mockReset();
+});
 
 describe("POST /api/optimization", () => {
   it("rejects empty-array fixed endpoints", async () => {
