@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // `.next` for everything a person runs by hand. The override exists for one
+  // caller: the e2e suite, which builds and serves the app into `.next-e2e` so
+  // it never touches the directory a running `npm run dev` owns. Next takes a
+  // lockfile inside distDir -- `<distDir>/lock` while building,
+  // `<distDir>/dev/lock` while serving -- so sharing one directory would mean
+  // `npm run test:e2e` either refuses to start next to a dev server or
+  // overwrites the build under it mid-session.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+
   // Headers the app has never sent. None of these change what a page renders —
   // they narrow what a browser is willing to do with it.
   //
