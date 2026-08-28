@@ -1670,10 +1670,6 @@ export function WalkPlannerApp({
               <WalkPlanResults
                 plan={walkPlan}
                 error={walkPlanError}
-                walkOrigin={lastWalkInput?.origin}
-                walkMinutes={lastWalkInput?.availableMinutes}
-                walkRadius={lastWalkInput?.radiusMeters}
-                showDebugLink={isAdvancedOpen}
               />
               {walkPhase !== "walking" && (
                 <label className="flex cursor-pointer items-center gap-2 rounded-[10px] border border-dashed border-charcoal/20 bg-white px-3 py-2 text-xs text-charcoal/70">
@@ -1894,18 +1890,6 @@ export function WalkPlannerApp({
                   error={trailBriefingError}
                 />
               ) : null}
-              <a
-                href={
-                  lastWalkInput
-                    ? `/tsp-debug?lat=${lastWalkInput.origin.lat}&lng=${lastWalkInput.origin.lng}&minutes=${lastWalkInput.availableMinutes}&radius=${lastWalkInput.radiusMeters}`
-                    : "/tsp-debug"
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border border-charcoal/15 bg-white py-2 text-xs font-semibold text-charcoal/70 transition-colors hover:bg-white/60"
-              >
-                🔬 Route graph inspector
-              </a>
             </>
           ) : null}
         </div>

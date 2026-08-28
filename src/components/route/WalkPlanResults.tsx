@@ -8,14 +8,9 @@ import { CATEGORY_EMOJI } from "@/lib/constants/categories";
 interface WalkPlanResultsProps {
   plan: WalkPlan | null;
   error: string | null;
-  walkOrigin?: { lat: number; lng: number };
-  walkMinutes?: number;
-  walkRadius?: number;
-  /** The route-graph inspector is a debugging tool — advanced view only. */
-  showDebugLink?: boolean;
 }
 
-export function WalkPlanResults({ plan, error, walkOrigin, walkMinutes, walkRadius, showDebugLink = false }: WalkPlanResultsProps) {
+export function WalkPlanResults({ plan, error }: WalkPlanResultsProps) {
   if (error) {
     return (
       <Card>
@@ -102,18 +97,6 @@ export function WalkPlanResults({ plan, error, walkOrigin, walkMinutes, walkRadi
           <span>{Math.round(plan.totalMinutes)} min</span>
         </div>
       </div>
-
-      {/* Route-graph inspector (advanced view only) */}
-      {showDebugLink && walkOrigin && (
-        <a
-          href={`/tsp-debug?lat=${walkOrigin.lat}&lng=${walkOrigin.lng}&minutes=${walkMinutes ?? 90}&radius=${walkRadius ?? 2000}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-charcoal/15 py-2 text-xs font-medium text-charcoal/80 hover:bg-cream/70"
-        >
-          🔬 View TSP Graph
-        </a>
-      )}
 
       {/* Dropped attractions */}
       {plan.droppedAttractions.length > 0 && (
