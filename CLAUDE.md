@@ -90,7 +90,13 @@ npm run dev        # Dev server at http://localhost:3000
 npm run build      # Production build
 npm run lint       # ESLint
 npm run test       # Vitest
+npm run test:e2e   # Playwright smoke suite — builds and serves the app itself on :3101
 ```
+
+`test:e2e` runs against a production build in the app's auth-not-configured mode, with
+`/api/walk-plan` stubbed at the browser. `E2E_REAL_UPSTREAM=1 npm run test:e2e` drops that
+stub and drives the real Overpass/ORS path instead — worth doing by hand whenever the
+walk-plan route changes.
 
 ---
 
