@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { optimizeRoute } from "@/lib/api/ors-client";
+import {
+  callerKey,
+  orsRateLimiter,
+  rateLimitedResponse,
+} from "@/lib/api/rate-limit";
 import type { OrsOptimizationRequest } from "@/lib/types";
 
 function isValidCoordinateTuple(value: unknown): value is [number, number] {
@@ -22,6 +27,11 @@ function isValidCoordinateTuple(value: unknown): value is [number, number] {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const verdict = orsRateLimiter.check(callerKey(request));
+  if (!verdict.allowed) {
+    return rateLimitedResponse(verdict);
+  }
+
   try {
     const payload = (await request.json()) as OrsOptimizationRequest;
 

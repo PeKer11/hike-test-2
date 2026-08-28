@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  callerKey,
+  overpassRateLimiter,
+  rateLimitedResponse,
+} from "@/lib/api/rate-limit";
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
 import {
   rankAttractions,
@@ -17,6 +22,11 @@ interface AttractionRequest {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const verdict = overpassRateLimiter.check(callerKey(request));
+  if (!verdict.allowed) {
+    return rateLimitedResponse(verdict);
+  }
+
   try {
     const body = (await request.json()) as AttractionRequest;
 

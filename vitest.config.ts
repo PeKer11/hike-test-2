@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    // Module-level rate-limit counters, cleared before every test. See the
+    // file for why a route test would otherwise start 429-ing itself.
+    setupFiles: ["tests/setup/rate-limit-reset.ts"],
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts", "src/**/*.tsx"],

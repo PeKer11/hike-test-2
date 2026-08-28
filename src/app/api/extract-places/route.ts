@@ -5,6 +5,11 @@ import {
   resolveCanonicalName,
 } from "@/lib/api/gemini-client";
 import { searchPlaces } from "@/lib/api/nominatim-client";
+import {
+  callerKey,
+  geminiRateLimiter,
+  rateLimitedResponse,
+} from "@/lib/api/rate-limit";
 import { rankAttractions } from "@/lib/attractions/attraction-ranker";
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
 import { isPlausibleGeocodeMatch } from "@/lib/places/geocode-plausibility";
@@ -358,6 +363,11 @@ async function clarificationFor(
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const verdict = geminiRateLimiter.check(callerKey(request));
+  if (!verdict.allowed) {
+    return rateLimitedResponse(verdict);
+  }
+
   try {
     const body = (await request.json()) as ExtractPlacesRequest;
 
