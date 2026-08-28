@@ -1,11 +1,12 @@
 name: CI
 
-# The gate this repo has never had. Every push and PR runs the same three
-# checks a contributor is expected to run by hand before committing --
-# typecheck, lint, unit tests -- so "I forgot" stops being how a broken
-# build reaches main. Nothing here needs a secret: the whole suite runs
-# against fakes and mocked fetches (Supabase, Gemini, ORS, Overpass,
-# Nominatim), never a real network call, so there is no key to configure.
+# The gate this repo has never had. Every push and PR runs the checks a
+# contributor is expected to run by hand before committing -- typecheck, lint,
+# unit tests, and the e2e smoke suite -- so "I forgot" stops being how a broken
+# build reaches main. Nothing here needs a secret: the unit suite runs against
+# fakes and mocked fetches (Supabase, Gemini, ORS, Overpass, Nominatim), and the
+# e2e suite runs the app in its documented auth-not-configured mode with
+# /api/walk-plan stubbed at the browser, so there is still no key to configure.
 on:
   push:
     branches: [main]
@@ -39,3 +40,42 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+  # Its own job rather than three more steps on `check`, for two reasons: it
+  # needs a browser binary downloaded and a production build compiled, which is
+  # minutes of setup the cheap checks should not queue behind, and running the
+  # two in parallel means a lint failure still reports in about a minute. A
+  # green `check` and a red `e2e` also read as two different problems, which is
+  # what they are.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      # Chromium only -- playwright.config.ts defines one project, and pulling
+      # Firefox and WebKit for a smoke suite would triple the setup for
+      # coverage nobody asked for. `--with-deps` is what installs the system
+      # libraries the runner image does not ship.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts's webServer builds and serves the app itself, so
+      # there is no separate build step here. It also blanks the Supabase env
+      # vars, which is what keeps /app reachable without a session.
+      - name: E2E smoke tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
