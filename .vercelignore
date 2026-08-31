@@ -1,0 +1,13 @@
+# Vercel is documented to fall back to .gitignore when this file is absent,
+# but that fallback wasn't reliable on this machine's CLI version (a local
+# `vercel --prod` tried to upload 583.5MB -- node_modules, .next's
+# accumulated dev cache, and .next-e2e's build output all included, despite
+# all three being gitignored). Explicit list, so the upload size doesn't
+# depend on which fallback behavior a given CLI version has.
+node_modules
+.next
+.next-e2e
+coverage
+playwright-report
+test-results
+blob-report
