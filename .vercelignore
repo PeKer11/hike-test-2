@@ -11,3 +11,8 @@ coverage
 playwright-report
 test-results
 blob-report
+
+# The real remaining weight after the above: .git is 336MB against a 16MB
+# source tree, and rode along on every deploy attempt regardless of CLI
+# version -- Vercel doesn't need repo history, only the working files.
+.git
