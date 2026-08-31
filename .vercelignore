@@ -16,3 +16,14 @@ blob-report
 # source tree, and rode along on every deploy attempt regardless of CLI
 # version -- Vercel doesn't need repo history, only the working files.
 .git
+
+# 479MB, a renamed old .next backup from earlier local debugging
+# (eslint.config.mjs's own ignores tell the same story) that was never
+# actually deleted from disk -- rm -rf on it is blocked by this sandbox's
+# permissions, so it's still sitting here and was the one directory this
+# file didn't yet know about.
+.next-stale-bak
+
+# Not needed for a deploy; found while auditing what was actually large.
+graphify-out
+output
