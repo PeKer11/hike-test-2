@@ -67,12 +67,36 @@ export class ReplanTrigger {
   private readonly plannedPaceMinPerKm: number;
   private samples: ReplanSample[] = [];
   private cooldownUntil = 0;
+  // Stretches of time spent standing at a planned stop. A visit is not slowness,
+  // so these are cut out of the pace windows' duration.
+  private dwells: Array<{ from: number; to: number }> = [];
+  private dwellStart: number | null = null;
+  // Timestamps of samples that are the first fix after a dwell. The hop leading to
+  // one spans the whole gap, whose time is cut out of the window, so its distance
+  // must be left out too or a slow walker passing stops reads as fast.
+  private resumeAfterDwell = new Set<number>();
 
   constructor(plannedPaceMinPerKm: number) {
     this.plannedPaceMinPerKm = plannedPaceMinPerKm;
   }
 
-  recordSample(sample: ReplanSample): void {
+  /**
+   * `atStop` marks a fix taken within visiting range of an unvisited stop. Such
+   * a fix is left out of both windows: standing at a planned stop is the walk
+   * working, not a full stop, and the time spent there must not read as slowness.
+   */
+  recordSample(sample: ReplanSample, atStop?: boolean): void {
+    if (atStop) {
+      if (this.dwellStart === null) {
+        this.dwellStart = this.samples[this.samples.length - 1]?.timestamp ?? sample.timestamp;
+      }
+      return;
+    }
+    if (this.dwellStart !== null) {
+      this.dwells.push({ from: this.dwellStart, to: sample.timestamp });
+      this.dwellStart = null;
+      this.resumeAfterDwell.add(sample.timestamp);
+    }
     this.samples.push(sample);
     this.pruneOlderThan(sample.timestamp - SUSTAINED_SLOW_WINDOW_MS);
   }
@@ -110,10 +134,39 @@ export class ReplanTrigger {
   reset(): void {
     this.samples = [];
     this.cooldownUntil = 0;
+    this.dwells = [];
+    this.dwellStart = null;
+    this.resumeAfterDwell.clear();
   }
 
   private pruneOlderThan(cutoff: number): void {
     this.samples = this.samples.filter((s) => s.timestamp >= cutoff);
+    this.dwells = this.dwells.filter((d) => d.to >= cutoff);
+    for (const t of this.resumeAfterDwell) {
+      if (t < cutoff) this.resumeAfterDwell.delete(t);
+    }
+  }
+
+  /** Window duration with the time spent dwelling at stops taken out. */
+  private movingDurationMs(window: ReplanSample[]): number {
+    const start = window[0].timestamp;
+    const end = window[window.length - 1].timestamp;
+    let duration = end - start;
+    for (const d of this.dwells) {
+      const overlap = Math.min(end, d.to) - Math.max(start, d.from);
+      if (overlap > 0) duration -= overlap;
+    }
+    return duration;
+  }
+
+  /** Sum of consecutive hops, skipping the one that bridges a stop dwell. */
+  private hopDistanceMeters(window: ReplanSample[]): number {
+    let distMeters = 0;
+    for (let i = 1; i < window.length; i += 1) {
+      if (this.resumeAfterDwell.has(window[i].timestamp)) continue;
+      distMeters += haversineDistance(window[i - 1].coordinates, window[i].coordinates);
+    }
+    return distMeters;
   }
 
   private windowSamples(now: number, windowMs: number): ReplanSample[] {
@@ -146,13 +199,10 @@ export class ReplanTrigger {
 
     // Sum consecutive hops: a straight line from first to last under-counts
     // every turn and makes the walker look slower than they are.
-    let distMeters = 0;
-    for (let i = 1; i < window.length; i += 1) {
-      distMeters += haversineDistance(window[i - 1].coordinates, window[i].coordinates);
-    }
+    const distMeters = this.hopDistanceMeters(window);
     if (distMeters < MIN_DISTANCE_FOR_PACE_METERS) return false;
 
-    const durationMs = window[window.length - 1].timestamp - window[0].timestamp;
+    const durationMs = this.movingDurationMs(window);
     if (durationMs <= 0) return false;
 
     const paceMinPerKm = durationMs / 60_000 / (distMeters / 1000);
@@ -171,13 +221,10 @@ export class ReplanTrigger {
     if (window.length < MIN_SAMPLES_FOR_SLOW_PACE) return false;
     if (!this.coversWindow(window, now, SUSTAINED_SLOW_WINDOW_MS)) return false;
 
-    let distMeters = 0;
-    for (let i = 1; i < window.length; i += 1) {
-      distMeters += haversineDistance(window[i - 1].coordinates, window[i].coordinates);
-    }
+    const distMeters = this.hopDistanceMeters(window);
     if (distMeters < MIN_DISTANCE_FOR_PACE_METERS) return false;
 
-    const durationMs = window[window.length - 1].timestamp - window[0].timestamp;
+    const durationMs = this.movingDurationMs(window);
     if (durationMs <= 0) return false;
 
     const paceMinPerKm = durationMs / 60_000 / (distMeters / 1000);

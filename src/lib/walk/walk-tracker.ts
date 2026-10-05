@@ -1,5 +1,6 @@
 import type { Attraction, Coordinates } from "@/lib/types";
 import { haversineDistance, routeDistanceBetween } from "@/lib/utils/geo";
+import { GPS_MAX_AGE_MS, GPS_TIMEOUT_MS } from "@/lib/walk/walk-cadence";
 
 /**
  * Compass bearing (degrees, 0 = north, clockwise) from a to b.
@@ -28,6 +29,8 @@ export interface PaceUpdate {
   timestamp: number;
   attractionDistances: Record<string, number>; // attraction ID → meters
   bearing?: number; // compass bearing from previous accepted sample, degrees (0=north)
+  /** The device's own speed (`coords.speed`), m/s. Absent when it has none. */
+  speedMps?: number;
 }
 
 export type PaceUpdateHandler = (update: PaceUpdate) => void;
@@ -82,10 +85,15 @@ export class WalkTracker {
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 15000,
-        timeout: 20000,
+        maximumAge: GPS_MAX_AGE_MS,
+        timeout: GPS_TIMEOUT_MS,
       },
     );
+  }
+
+  /** Swap in new route geometry mid-walk (a local rejoin spliced the route). */
+  updateGeometry(geometry: Coordinates[]): void {
+    this.geometry = geometry;
   }
 
   stop(): void {
@@ -128,6 +136,10 @@ export class WalkTracker {
       timestamp: sample.timestamp,
       attractionDistances: this.computeAttractionDistances(sample.coordinates),
       bearing,
+      speedMps:
+        typeof pos.coords.speed === "number" && Number.isFinite(pos.coords.speed)
+          ? pos.coords.speed
+          : undefined,
     });
   }
 

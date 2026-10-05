@@ -100,6 +100,7 @@ export function PlannerFrame({
     >
       <WalkPlannerApp
         isExpanded={isExpanded}
+        onRequestExpand={setIsExpanded}
         suggestedPace={suggestedPace}
         suggestedCategories={suggestedCategories}
       />

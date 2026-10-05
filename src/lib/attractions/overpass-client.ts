@@ -1,5 +1,6 @@
 import type { Attraction, AttractionCategory } from "@/lib/types";
-import type { Coordinates } from "@/lib/types";
+import type { Coordinates, NearbyPlace } from "@/lib/types";
+import { walkCopy } from "@/lib/walk/walk-copy";
 
 // Primary + mirror — tried in order if the previous one times out or fails
 const OVERPASS_ENDPOINTS = [
@@ -218,11 +219,12 @@ function elementToAttraction(el: OverpassElement): Attraction | null {
   };
 }
 
-export async function fetchAttractions(
-  center: Coordinates,
-  radiusMeters: number,
-): Promise<Attraction[]> {
-  const query = buildOverpassQuery(center, radiusMeters);
+/**
+ * Run one Overpass query against the endpoint list (POST then GET on each, next
+ * mirror on failure) and return its elements. Shared by the attraction search
+ * and the along-the-walk lookups so they fail over identically.
+ */
+export async function runOverpassQuery(query: string): Promise<OverpassElement[]> {
   const body = `data=${encodeURIComponent(query)}`;
   const attempts: EndpointAttempt[] = OVERPASS_ENDPOINTS.flatMap((endpoint) => [
     { endpoint, method: "POST" as const },
@@ -264,19 +266,7 @@ export async function fetchAttractions(
       }
 
       const data = (await response.json()) as OverpassResponse;
-
-      const attractions: Attraction[] = [];
-      const seenIds = new Set<string>();
-
-      for (const el of data.elements) {
-        const attraction = elementToAttraction(el);
-        if (!attraction) continue;
-        if (seenIds.has(attraction.id)) continue;
-        seenIds.add(attraction.id);
-        attractions.push(attraction);
-      }
-
-      return attractions;
+      return data.elements;
     } catch (err) {
       lastError =
         err instanceof Error ? err : new Error("Overpass request failed.");
@@ -294,4 +284,186 @@ export async function fetchAttractions(
   }
 
   throw lastError;
+}
+
+export async function fetchAttractions(
+  center: Coordinates,
+  radiusMeters: number,
+): Promise<Attraction[]> {
+  const elements = await runOverpassQuery(buildOverpassQuery(center, radiusMeters));
+
+  const attractions: Attraction[] = [];
+  const seenIds = new Set<string>();
+
+  for (const el of elements) {
+    const attraction = elementToAttraction(el);
+    if (!attraction) continue;
+    if (seenIds.has(attraction.id)) continue;
+    seenIds.add(attraction.id);
+    attractions.push(attraction);
+  }
+
+  return attractions;
+}
+
+// --- Places along a walk -----------------------------------------------------
+
+// `around` takes "radius, lat1, lon1, lat2, lon2, ..." — a corridor around the
+// polyline; with a single point it is the circle fetchAttractions already uses.
+function aroundClause(radiusMeters: number, points: Coordinates[]): string {
+  const coords = points.map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join(",");
+  return `(around:${radiusMeters},${coords})`;
+}
+
+const MAX_NEARBY_ELEMENTS = 300;
+// The scan's union is bigger: a corridor's worth plus a notable-only ring.
+const MAX_SCAN_ELEMENTS = 450;
+
+function corridorStatements(a: string): string {
+  return `  node["tourism"~"museum|attraction|viewpoint|artwork|gallery|theme_park|zoo|aquarium"]${a};
+  node["historic"]${a};
+  node["amenity"~"place_of_worship|theatre|cinema|restaurant|cafe"]${a};
+  node["leisure"~"park|garden|miniature_golf|water_park|amusement_arcade|escape_game|bowling_alley"]${a};
+  node["natural"~"peak|waterfall|cave_entrance"]${a};
+  way["tourism"~"museum|attraction|viewpoint|theme_park|zoo|aquarium"]${a};
+  way["historic"]${a};
+  way["leisure"~"park|garden|nature_reserve|miniature_golf|water_park|amusement_arcade|escape_game|bowling_alley"]${a};
+  way["landuse"="forest"]${a};
+  way["natural"~"wood|water|beach"]${a};`;
+}
+
+// The ring: only what is worth a detour. Viewpoints, attractions, museums,
+// anything historic, named parks / reserves / gardens, peaks, water, beaches,
+// woods, and anything with a Wikidata item.
+function ringStatements(r: string): string {
+  return `  nwr["tourism"~"viewpoint|attraction|museum"]${r};
+  nwr["historic"]${r};
+  nwr["leisure"~"park|nature_reserve|garden"]["name"]${r};
+  nwr["natural"~"peak|water|beach|wood"]${r};
+  nwr["wikidata"]${r};`;
+}
+
+function buildNearbyQuery(radiusMeters: number, points: Coordinates[]): string {
+  const a = aroundClause(radiusMeters, points);
+  return `
+[out:json][timeout:25];
+(
+${corridorStatements(a)}
+);
+out center ${MAX_NEARBY_ELEMENTS};
+`.trim();
+}
+
+/** One union: the corridor with full tags plus the notable-only ring. */
+function buildScanQuery(
+  radiusMeters: number,
+  ringRadiusMeters: number,
+  points: Coordinates[],
+): string {
+  const a = aroundClause(radiusMeters, points);
+  const r = aroundClause(ringRadiusMeters, points);
+  return `
+[out:json][timeout:25];
+(
+${corridorStatements(a)}
+${ringStatements(r)}
+);
+out center ${MAX_SCAN_ELEMENTS};
+`.trim();
+}
+
+function sceneryLabel(tags: Record<string, string>): string {
+  if (tags.landuse === "forest" || tags.natural === "wood") return walkCopy.scenery.wood;
+  if (tags.natural === "water") return walkCopy.scenery.water;
+  if (tags.natural === "beach") return walkCopy.scenery.beach;
+  if (tags.tourism === "viewpoint") return walkCopy.scenery.viewpoint;
+  if (tags.leisure === "park" || tags.leisure === "garden") return walkCopy.scenery.park;
+  return walkCopy.scenery.other;
+}
+
+const SCENERY_ONLY = (tags: Record<string, string>): boolean =>
+  tags.landuse === "forest" ||
+  tags.natural === "wood" ||
+  tags.natural === "water" ||
+  tags.natural === "beach" ||
+  tags.leisure === "nature_reserve";
+
+function elementToNearbyPlace(el: OverpassElement): NearbyPlace | null {
+  const tags = el.tags ?? {};
+  const lat = el.lat ?? el.center?.lat;
+  const lng = el.lon ?? el.center?.lon;
+  if (lat === undefined || lng === undefined) return null;
+
+  const named = elementToAttraction(el);
+  const isScenery =
+    SCENERY_ONLY(tags) ||
+    (named === null && (tags.leisure === "park" || tags.leisure === "garden"));
+  if (named && !isScenery) {
+    return { ...named, source: "osm", verification: "registered", kind: "poi" };
+  }
+
+  // Unnamed land cover is still worth a mention ("wooded area"); an unnamed
+  // restaurant or shop is not.
+  if (!isScenery) return null;
+  const category = inferCategory(tags);
+  return {
+    id: `osm-${el.type}-${el.id}`,
+    name: named?.name ?? sceneryLabel(tags),
+    coordinates: { lat, lng },
+    category: category === "other" ? "nature" : category,
+    avgVisitMinutes: 0,
+    tags,
+    source: "osm",
+    verification: named ? "registered" : "mapped-unnamed",
+    kind: "scenery",
+  };
+}
+
+async function fetchNearby(
+  radiusMeters: number,
+  points: Coordinates[],
+  ringRadiusMeters?: number,
+): Promise<NearbyPlace[]> {
+  const elements = await runOverpassQuery(
+    ringRadiusMeters === undefined
+      ? buildNearbyQuery(radiusMeters, points)
+      : buildScanQuery(radiusMeters, ringRadiusMeters, points),
+  );
+  const places: NearbyPlace[] = [];
+  const seen = new Set<string>();
+  for (const el of elements) {
+    const place = elementToNearbyPlace(el);
+    if (!place || seen.has(place.id)) continue;
+    seen.add(place.id);
+    places.push(place);
+  }
+  return places;
+}
+
+/** Places within `radiusMeters` of a (pre-simplified) walking path. */
+export function fetchPlacesAlongPath(
+  path: Coordinates[],
+  radiusMeters: number,
+): Promise<NearbyPlace[]> {
+  return fetchNearby(radiusMeters, path);
+}
+
+/**
+ * The discovery scan: corridor and ring in ONE Overpass request. The caller
+ * splits the result by distance to the path.
+ */
+export function fetchPlacesScan(
+  points: Coordinates[],
+  radiusMeters: number,
+  ringRadiusMeters: number,
+): Promise<NearbyPlace[]> {
+  return fetchNearby(radiusMeters, points, ringRadiusMeters);
+}
+
+/** Places within `radiusMeters` of one point. */
+export function fetchPlacesAround(
+  point: Coordinates,
+  radiusMeters: number,
+): Promise<NearbyPlace[]> {
+  return fetchNearby(radiusMeters, [point]);
 }

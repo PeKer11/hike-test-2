@@ -4,6 +4,8 @@ export interface OrsDirectionsRequest {
   coordinates: OrsCoordinate[];
   profile?: "foot-walking" | "foot-hiking" | "cycling-regular" | "driving-car";
   instructions?: boolean;
+  /** Passed through as ORS `options` (round_trip, avoid_polygons, ...). */
+  options?: Record<string, unknown>;
 }
 
 export interface OrsDirectionsStep {

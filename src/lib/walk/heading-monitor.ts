@@ -184,6 +184,23 @@ export class HeadingMonitor {
     return bearingBetween(chords[0].from, chords[chords.length - 1].to);
   }
 
+  /**
+   * Bearing of the walker's most recent stretch of at least 15 m, taken from the
+   * last 20 s of fixes; null if they have not covered that much ground. Much
+   * shorter-sighted than `sustainedHeading` — it feeds "turn left", not a rebuild.
+   */
+  recentHeading(now: number): number | null {
+    const recent = this.samples.filter((s) => now - s.timestamp <= 20_000);
+    if (recent.length < 2) return null;
+    const last = recent[recent.length - 1].coordinates;
+    for (let i = recent.length - 2; i >= 0; i -= 1) {
+      if (haversineDistance(recent[i].coordinates, last) >= 15) {
+        return bearingBetween(recent[i].coordinates, last);
+      }
+    }
+    return null;
+  }
+
   /** Clears the window — call when a new walk starts, or tracking stops. */
   reset(): void {
     this.samples = [];

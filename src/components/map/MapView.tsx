@@ -10,9 +10,12 @@ import { useEffect } from "react";
 import { MapClickHandler } from "@/components/map/MapClickHandler";
 import { CurrentPositionMarker } from "@/components/map/CurrentPositionMarker";
 import { MapMarkers } from "@/components/map/MapMarkers";
+import { OptionPreviewLines, type PreviewRoute } from "@/components/map/OptionPreviewLines";
+import { PoiCallouts } from "@/components/map/PoiCallouts";
 import { PreviewMarkers } from "@/components/map/PreviewMarkers";
 import { RoutePolyline } from "@/components/map/RoutePolyline";
 import type { Attraction, Coordinates, Waypoint } from "@/lib/types";
+import type { Announcement } from "@/lib/walk/poi-announcer";
 
 interface MapViewProps {
   waypoints: Waypoint[];
@@ -28,6 +31,13 @@ interface MapViewProps {
   pinnedIds?: string[];
   /** Present only while the markers on screen are a walk's own stops. */
   onTogglePin?: (waypointId: string) => void;
+  /** A walk HUD covers the map's bottom edge: keep the attribution above it. */
+  hudInset?: boolean;
+  /** Places the walker is being told about right now (walking only). */
+  callouts?: Announcement[];
+  onCalloutSelect?: (announcement: Announcement) => void;
+  /** Dashed previews of the directions on offer after a collapse. */
+  previewRoutes?: PreviewRoute[];
 }
 
 function MapViewport({ center, zoom }: { center: Coordinates; zoom: number }) {
@@ -107,9 +117,13 @@ export default function MapView({
   previewPlaces,
   pinnedIds,
   onTogglePin,
+  hudInset = false,
+  callouts,
+  onCalloutSelect,
+  previewRoutes,
 }: MapViewProps) {
   return (
-    <div className="absolute inset-0">
+    <div className={hudInset ? "walk-hud absolute inset-0" : "absolute inset-0"}>
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
@@ -134,6 +148,12 @@ export default function MapView({
       <PreviewMarkers places={previewPlaces ?? []} />
       {currentPosition ? <CurrentPositionMarker position={currentPosition} /> : null}
       <RoutePolyline geometry={routeGeometry} />
+      {previewRoutes && previewRoutes.length > 0 ? (
+        <OptionPreviewLines routes={previewRoutes} />
+      ) : null}
+      {callouts && onCalloutSelect ? (
+        <PoiCallouts announcements={callouts} onSelect={onCalloutSelect} />
+      ) : null}
       <MapClickHandler onMapClick={onMapClick} />
       </MapContainer>
     </div>

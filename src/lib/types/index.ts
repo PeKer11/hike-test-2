@@ -5,3 +5,4 @@ export * from "./route";
 export * from "./trail-intelligence";
 export * from "./walk-plan";
 export * from "./waypoint";
+export * from "./nearby";

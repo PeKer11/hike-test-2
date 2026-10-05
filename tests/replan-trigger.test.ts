@@ -352,3 +352,60 @@ describe("toPaceResponseMode", () => {
     expect(toPaceResponseMode("sometimes", undefined)).toBe("auto");
   });
 });
+
+describe("ReplanTrigger — dwelling at a planned stop (atStop)", () => {
+  it("does not read standing at a stop as a full stop", () => {
+    const trigger = new ReplanTrigger(15);
+    let end = T0;
+    for (let t = T0; t <= T0 + FULL_STOP_WINDOW_MS + 60_000; t += SAMPLE_INTERVAL_MS) {
+      trigger.recordSample({ coordinates: START, timestamp: t }, true);
+      end = t;
+    }
+    expect(trigger.evaluate(end)).toBeNull();
+  });
+
+  it("does not let a long visit drag the slow-pace window over the line", () => {
+    const trigger = new ReplanTrigger(15);
+    const walked = { meters: 0 };
+    // 8 minutes on plan, then 6 minutes at a stop, then 1 more on plan.
+    const afterWalk = walk(trigger, T0, 8 * 60_000, 15, walked);
+    let t = afterWalk + SAMPLE_INTERVAL_MS;
+    const stopEnd = t + 6 * 60_000;
+    for (; t <= stopEnd; t += SAMPLE_INTERVAL_MS) {
+      trigger.recordSample(
+        { coordinates: eastOf(START, walked.meters), timestamp: t },
+        true,
+      );
+    }
+    const end = walk(trigger, t, 60_000, 15, walked);
+    expect(trigger.evaluate(end)).toBeNull();
+  });
+});
+
+describe("ReplanTrigger — walking past stops keeps the pace honest", () => {
+  // Walks east at a constant pace for 16 minutes; fixes inside two 3-minute
+  // stretches are flagged `atStop`. The walker keeps moving through them, so the
+  // distance bridging each gap must not be counted against the time cut out.
+  function walkPastStops(paceMinPerKm: number): ReplanTrigger {
+    const trigger = new ReplanTrigger(15);
+    const end = 16 * 60_000;
+    for (let dt = 0; dt <= end; dt += SAMPLE_INTERVAL_MS) {
+      const atStop =
+        (dt >= 3 * 60_000 && dt < 6 * 60_000) || (dt >= 9 * 60_000 && dt < 12 * 60_000);
+      const meters = (dt / 60_000 / paceMinPerKm) * 1000;
+      trigger.recordSample(
+        { coordinates: eastOf(START, meters), timestamp: T0 + dt },
+        atStop,
+      );
+    }
+    return trigger;
+  }
+
+  it("does not read a plan-pace walker as fast", () => {
+    expect(walkPastStops(15).evaluate(T0 + 16 * 60_000)).toBeNull();
+  });
+
+  it("still reads a 21 min/km walker as slow", () => {
+    expect(walkPastStops(21).evaluate(T0 + 16 * 60_000)).toBe("sustained-slow-pace");
+  });
+});

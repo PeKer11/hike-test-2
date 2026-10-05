@@ -115,6 +115,9 @@ export class SimulatedWalkTracker {
         paceMinPerKm: this.paceMinPerKm,
         timestamp: this.simulatedTime,
         attractionDistances: this.computeAttractionDistances(position),
+        // What a phone's Doppler speed would read: real walking speed, since
+        // the timestamps above already carry the playback multiplier.
+        speedMps: 1000 / (this.paceMinPerKm * 60),
       };
 
       this.onUpdate(update);
@@ -309,6 +312,13 @@ export class SimulatedWalkTracker {
       }
     }
   }
+
+  /**
+   * A local rejoin spliced new geometry into the walk. The simulated walker's
+   * own path (planned route + detour) is not affected, so this is a no-op; it
+   * exists so the app can treat both trackers alike.
+   */
+  updateGeometry(): void {}
 
   /** Rejoin the route now, whatever `strayOffRoute` said about when. */
   returnToRoute(): void {

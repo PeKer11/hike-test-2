@@ -14,46 +14,87 @@ import {
   WalkCompanionPanel,
   WalkPlanResults,
 } from "@/components/route";
-import { OffRouteNotification } from "@/components/walk/OffRouteNotification";
+import { DirectionOptionsSheet } from "@/components/walk/DirectionOptionsSheet";
+import { WalkHud } from "@/components/walk/WalkHud";
+import type { WalkAlert } from "@/components/walk/WalkAlertCard";
+import type { WalkStatsData } from "@/components/walk/WalkStatsBar";
 import { WalkFeedbackCard } from "@/components/walk/WalkFeedbackCard";
 import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
-import type { Attraction, AttractionCategory, WalkPlan } from "@/lib/types";
+import type {
+  Attraction,
+  AttractionCategory,
+  NearbyPlace,
+  WalkPlan,
+} from "@/lib/types";
 import { Button, Card } from "@/components/ui";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
+  useCollapseFlow,
   useConstraints,
   useHikeSearch,
   useIsSignedIn,
   useMapInteraction,
   useRouteCalculation,
   useTrailIntelligence,
+  useWakeLock,
   useWalkSettings,
+  useWalkTicker,
   useWaypoints,
 } from "@/lib/hooks";
 import type { Coordinates } from "@/lib/types";
+import { haversineDistance } from "@/lib/utils/geo";
 import type { WalkSettings } from "@/lib/types/walk-settings";
 import { downloadCsv, downloadGpx } from "@/lib/walk/gpx-exporter";
 import { AttractionDistancesPanel } from "@/components/walk/AttractionDistancesPanel";
-import {
-  PaceConfirmationNotification,
-  PACE_CONFIRMATION_TIMEOUT_MS,
-} from "@/components/walk/PaceConfirmationNotification";
-import {
-  DeviationConfirmationNotification,
-  DEVIATION_CONFIRMATION_TIMEOUT_MS,
-} from "@/components/walk/DeviationConfirmationNotification";
+import { PACE_CONFIRMATION_TIMEOUT_MS } from "@/components/walk/PaceConfirmationNotification";
+import { DEVIATION_CONFIRMATION_TIMEOUT_MS } from "@/components/walk/DeviationConfirmationNotification";
 import { PaceChecker } from "@/lib/walk/pace-checker";
 import { DeviationMonitor } from "@/lib/walk/deviation-monitor";
 import { HeadingMonitor } from "@/lib/walk/heading-monitor";
-import { detectDeviation, remainingRoute } from "@/lib/walk/deviation-detector";
+import {
+  detectDeviation,
+  nextOffRouteState,
+  remainingRoute,
+} from "@/lib/walk/deviation-detector";
+import {
+  ADVISOR_CARD_TTL_MS,
+  ADVISOR_STOP_QUIET_RADIUS_M,
+  ENGINE_MAX_ACCURACY_M,
+  LOCAL_REJOIN_COOLDOWN_MS,
+  LOCAL_REJOIN_MAX_DEVIATION_M,
+} from "@/lib/walk/walk-cadence";
+import { SpeedEstimator } from "@/lib/walk/speed-estimator";
+import { PaceAdvisor, type PaceAdvice } from "@/lib/walk/pace-advisor";
+import {
+  detourMinutes,
+  isNearAnyStop,
+  nextStopAlongM,
+  progressAlong,
+  routeDirectionDeg,
+  timeToFinishMin,
+} from "@/lib/walk/walk-stats";
+import {
+  rejoinCandidates,
+  spliceRoute,
+  turnInstruction,
+} from "@/lib/walk/rejoin";
+import { walkCopy } from "@/lib/walk/walk-copy";
 import { WalkRecorder } from "@/lib/walk/walk-recorder";
 import { WalkTracker } from "@/lib/walk/walk-tracker";
 import type { PaceUpdate } from "@/lib/walk/walk-tracker";
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 import { WalkRecordingPanel } from "@/components/WalkRecordingPanel";
-import { PoiAlerter } from "@/lib/walk/poi-alerter";
-import type { PoiAlert } from "@/lib/walk/poi-alerter";
-import { VisitTracker, excludeVisited } from "@/lib/walk/visit-tracker";
+import { PoiAnnouncer, type Announcement } from "@/lib/walk/poi-announcer";
+import { DiscoveryLoader, itemToPlace } from "@/lib/walk/discovery-loader";
+import { STOP_QUIET_M } from "@/lib/walk/discovery-cadence";
+import { calloutsSuppressed, canOfferAdd } from "@/lib/walk/detour-offer";
+import { relatePlace } from "@/lib/walk/poi-relation";
+import type { OfferedOption, OptionsContext } from "@/lib/walk/options-request";
+import {
+  VISIT_RADIUS_METERS,
+  VisitTracker,
+  excludeVisited,
+} from "@/lib/walk/visit-tracker";
 import {
   replanPaceDirection,
   ReplanTrigger,
@@ -63,7 +104,9 @@ import {
   buildDeviationRebuildRequest,
   buildHeadingContinuedRebuildRequest,
   buildExtendedTimeRebuildRequest,
+  buildOptionRebuildRequest,
   buildPaceRebuildRequest,
+  MIN_REBUILD_MINUTES,
   buildRecallRebuildRequest,
   promptWalkBuildOptions,
   setSimulatedPaceDrift,
@@ -157,6 +200,9 @@ interface WalkPlannerAppProps {
   /** True while the frame around this planner fills the viewport. Only drives
       density — every control works identically in both states. */
   isExpanded?: boolean;
+  /** Asks the frame around this planner to fill the viewport (or not). Called
+      with `true` when a walk starts so the map gets the whole screen. */
+  onRequestExpand?: (expanded: boolean) => void;
   /** The signed-in walker's saved pace and interests, read on the server. Passed
       straight through to the companion form, which opens on them. */
   suggestedPace?: number | null;
@@ -169,6 +215,7 @@ interface WalkPlannerAppProps {
 // the breakpoints are container queries (`@4xl:`), not viewport ones.
 export function WalkPlannerApp({
   isExpanded = false,
+  onRequestExpand,
   suggestedPace = null,
   suggestedCategories = null,
 }: WalkPlannerAppProps) {
@@ -250,7 +297,28 @@ export function WalkPlannerApp({
   const paceCheckerRef = useRef<PaceChecker | null>(null);
   const walkSettingsRef = useRef<WalkSettings>(walkSettings);
   const walkRecorderRef = useRef<WalkRecorder | null>(null);
-  const poiAlerterRef = useRef<PoiAlerter | null>(null);
+  // What is near the route (loaded once per route, classified locally) and which
+  // of it the walker has been told about. Both outlive a re-plan — a place seen
+  // stays seen — and are cleared only when the walk ends.
+  // The Discovery Collection is the registered tier of that store: one scan per
+  // route geometry (plus the uncovered stretch of a splice), framed against the
+  // route so callouts use cross-track left/right, never a noisy heading.
+  const discoveryRef = useRef<DiscoveryLoader | null>(null);
+  const announcerRef = useRef<PoiAnnouncer | null>(null);
+  // Every accepted fix of this walk (the track the direction options must not
+  // retrace) and where the walk began (the anchor when nothing else is).
+  const walkedTrackRef = useRef<Coordinates[]>([]);
+  const walkStartPointRef = useRef<Coordinates | null>(null);
+  // Mirrors "a card is up" for the per-fix callout gate, which runs in a closure.
+  const cardVisibleRef = useRef(false);
+  // Written in the same place as the state they mirror, so the per-fix gate sees an
+  // off-route / ask card on the very fix that raises it (before the next render).
+  const offRouteDismissedRef = useRef(false);
+  const deviationConfirmationRef = useRef(false);
+  // The ONE "While you're here" line the off-route card may carry.
+  const [whileHereNote, setWhileHereNote] = useState<string | null>(null);
+  const [callouts, setCallouts] = useState<Announcement[]>([]);
+  const [selectedCallout, setSelectedCallout] = useState<Announcement | null>(null);
   // Lives for the whole walk — a re-plan must not forget what was already seen.
   const visitTrackerRef = useRef<VisitTracker | null>(null);
   // Render mirror of the tracker's set: the tracker is a ref, so the stops list
@@ -287,8 +355,6 @@ export function WalkPlannerApp({
   // after the render that armed it, and by then the state that render captured
   // may say the walker is still astray when they have long since rejoined.
   const isOffRouteRef = useRef(false);
-  const [poiAlert, setPoiAlert] = useState<PoiAlert | null>(null);
-  const poiAlertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buildWalkRequestIdRef = useRef(0);
   // Bumped whenever an in-flight hike search must be abandoned (clear / mode switch / unmount)
   const hikeSearchTokenRef = useRef(0);
@@ -338,7 +404,6 @@ export function WalkPlannerApp({
   const [currentPosition, setCurrentPosition] = useState<Coordinates | null>(null);
   const [remainingGeometry, setRemainingGeometry] = useState<Coordinates[]>([]);
   const [isOffRoute, setIsOffRoute] = useState(false);
-  const [offRouteDeviation, setOffRouteDeviation] = useState(0);
   // Every write to "is the walker off route" goes through here, so the ref and
   // the rendered badge can never disagree.
   const markOffRoute = (next: boolean) => {
@@ -346,6 +411,40 @@ export function WalkPlannerApp({
     setIsOffRoute(next);
   };
   const [walkPhase, setWalkPhase] = useState<"idle" | "planned" | "walking">("idle");
+  // A full mid-walk rebuild tears tracking down (phase -> idle) and resumes it when
+  // the new plan lands; keeping the walk screen up meanwhile stops the layout from
+  // flipping back to the form for the length of an ORS/Overpass request.
+  const [rebuildingMidWalk, setRebuildingMidWalk] = useState(false);
+  const walkMode = walkPhase === "walking" || rebuildingMidWalk;
+  // The planning form is hidden while walking; this opens it as a bottom sheet.
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  // Live-walk instruments. Refs, not state: they are fed on every fix, and only
+  // the numbers that reach the screen go through setState (once a second).
+  const speedEstimatorRef = useRef<SpeedEstimator | null>(null);
+  const paceAdvisorRef = useRef<PaceAdvisor | null>(null);
+  const [paceAdvisory, setPaceAdvisory] = useState<{
+    kind: PaceAdvice;
+    at: number;
+  } | null>(null);
+  const [walkStats, setWalkStats] = useState<WalkStatsData | null>(null);
+  // Timestamp (fix clock) of the first fix of this walk leg, for "elapsed".
+  const firstFixAtRef = useRef<number | null>(null);
+  // Fix clock vs wall clock: lets the ticker ask "what time is it on the fix
+  // clock" between fixes without mixing the simulator's clock with Date.now().
+  const lastFixWallRef = useRef<number>(0);
+  // Where the last accepted fix matched onto the route.
+  const matchedRef = useRef<{ segmentIndex: number; point: Coordinates } | null>(
+    null,
+  );
+  // "Turn left, 80 m" while off route; null otherwise.
+  const [offRouteHint, setOffRouteHint] = useState<string | null>(null);
+  const [offRouteDismissed, setOffRouteDismissed] = useState(false);
+  // A local rejoin is being routed (the "Show way back" tap has a network call
+  // behind it) / when the last one succeeded, on the fix clock.
+  const [isFindingWayBack, setIsFindingWayBack] = useState(false);
+  const rejoinInFlightRef = useRef(false);
+  const lastLocalRejoinAtRef = useRef(Number.NEGATIVE_INFINITY);
+  const isUnmountedRef = useRef(false);
   const [mapClickedCoords, setMapClickedCoords] = useState<Coordinates | null>(null);
   const [walkTrackingMessage, setWalkTrackingMessage] = useState<string | null>(null);
   const [attractionDistances, setAttractionDistances] = useState<Record<string, number>>({});
@@ -357,6 +456,51 @@ export function WalkPlannerApp({
     error: trailBriefingError,
   } = useTrailIntelligence(route, routeAnchor);
   const { center, zoom, clickMode, setClickMode, focusOn } = useMapInteraction();
+
+  // A walker who has gone clearly a different way is offered directions, never
+  // an automatic re-plan. The machine runs on fix timestamps; `getOptionsContext`
+  // reads the live walk at call time.
+  const getOptionsContext = (): OptionsContext | null => {
+    const fix = latestPaceUpdateRef.current;
+    const input = walkInputRef.current;
+    const discovery = discoveryRef.current;
+    if (!fix || !input || !discovery) return null;
+    const matched = matchedRef.current;
+    const elapsedMin =
+      firstFixAtRef.current === null
+        ? 0
+        : (fix.timestamp - firstFixAtRef.current) / 60_000;
+    const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    return {
+      origin: fix.currentPosition,
+      // `/api/walk-options` needs an anchor: where the plan was heading, else where it began.
+      endAnchor: input.endAnchor ?? walkStartPointRef.current,
+      walked: walkedTrackRef.current,
+      remainingMin: Math.max(
+        MIN_REBUILD_MINUTES,
+        input.availableMinutes - elapsedMin,
+      ),
+      speedMpm: 1000 / input.walkingPaceMinPerKm,
+      items: discovery.items(),
+      excludeIds: new Set([...visited, ...discovery.offeredTwice()]),
+      abandonedPlan: matched
+        ? remainingRoute(walkGeometryRef.current, matched.segmentIndex, matched.point)
+        : walkGeometryRef.current,
+    };
+  };
+  const collapseFlow = useCollapseFlow({
+    getContext: getOptionsContext,
+    onShown: (options) =>
+      discoveryRef.current?.markOffered([
+        ...new Set(options.flatMap((o) => o.stops.map((s) => s.id))),
+      ]),
+    // Nothing to offer: no auto-pick. Only a walker who chose "redraw from here"
+    // gets the old full re-plan; everyone else keeps the off-route card and the
+    // route alone, as before the collapse existed.
+    onNoOptions: () => {
+      if (walkSettingsRef.current.deviationMode === "auto") runDeviationTriggeredRebuild();
+    },
+  });
 
   // Take the standing mid-walk question down, and disarm the timer that would
   // have answered it. Called on every walk teardown as well as on an answer:
@@ -374,10 +518,103 @@ export function WalkPlannerApp({
       clearTimeout(deviationConfirmTimeoutRef.current);
       deviationConfirmTimeoutRef.current = null;
     }
+    deviationConfirmationRef.current = false;
     setDeviationConfirmation(false);
   };
 
+  // The fix clock's "now": the last fix's timestamp plus however much wall time
+  // has passed since it arrived.
+  const fixClockNow = (fixTimestamp: number) =>
+    fixTimestamp + (Date.now() - lastFixWallRef.current);
+
+  const refreshWalkStats = () => {
+    const fix = latestPaceUpdateRef.current;
+    const input = walkInputRef.current;
+    const matched = matchedRef.current;
+    const firstFixAt = firstFixAtRef.current;
+    if (!fix || !input || !matched || firstFixAt === null) return;
+
+    const now = fixClockNow(fix.timestamp);
+    const speed = speedEstimatorRef.current?.current(now) ?? {
+      kmh: null,
+      state: "unknown" as const,
+    };
+    const { walkedM, remainingM } = progressAlong(
+      walkGeometryRef.current,
+      matched.segmentIndex,
+      matched.point,
+    );
+    const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    const remainingVisitMin = (walkPlanRef.current?.orderedAttractions ?? [])
+      .filter((a) => !visited.has(a.id))
+      .reduce((sum, a) => sum + a.avgVisitMinutes, 0);
+    const toFinish = timeToFinishMin({
+      remainingM,
+      kmh: speed.kmh,
+      plannedPace: input.walkingPaceMinPerKm,
+      remainingVisitMin,
+    });
+    const elapsedMin = Math.max(0, (now - firstFixAt) / 60_000);
+    setWalkStats({
+      kmh: speed.kmh,
+      speedState: speed.state,
+      plannedPaceMinPerKm: input.walkingPaceMinPerKm,
+      timeToFinishMin: toFinish,
+      elapsedMin,
+      overBudget: elapsedMin + toFinish > input.availableMinutes * 1.05,
+      distanceToFinishKm: remainingM / 1000,
+      walkedM,
+      remainingM,
+    });
+  };
+
+  // Everything on the walk screen that runs on a schedule instead of per fix.
+  const handleWalkTick = () => {
+    const fix = latestPaceUpdateRef.current;
+    if (!fix) return;
+    const now = fixClockNow(fix.timestamp);
+
+    const advisor = paceAdvisorRef.current;
+    if (advisor) {
+      const nearStop = isNearAnyStop(
+        fix.currentPosition,
+        walkPlanRef.current?.orderedAttractions ?? [],
+        ADVISOR_STOP_QUIET_RADIUS_M,
+      );
+      const advice = advisor.evaluate(now, nearStop);
+      // `at` is wall-clock on purpose: it times how long the card has been in
+      // front of the walker, not a window of fixes — and the simulator's fix
+      // clock runs 10x, which would take every card down after six seconds.
+      if (advice) setPaceAdvisory({ kind: advice, at: Date.now() });
+    }
+    // An unanswered offer takes itself down; the next one is a fresh question.
+    setPaceAdvisory((prev) =>
+      prev && Date.now() - prev.at > ADVISOR_CARD_TTL_MS ? null : prev,
+    );
+    // A stalled GPS sends no fixes, so callout expiry cannot ride on them alone.
+    const announcer = announcerRef.current;
+    if (announcer) {
+      const before = announcer.active();
+      const after = announcer.expire(now);
+      if (after.length !== before.length) setCallouts(after);
+    }
+    refreshWalkStats();
+  };
+  useWalkTicker(walkMode, handleWalkTick);
+  useWakeLock(walkMode);
+
   const stopWalkTracking = () => {
+    speedEstimatorRef.current = null;
+    paceAdvisorRef.current = null;
+    firstFixAtRef.current = null;
+    matchedRef.current = null;
+    setPaceAdvisory(null);
+    setWalkStats(null);
+    setOffRouteHint(null);
+    offRouteDismissedRef.current = false;
+    setOffRouteDismissed(false);
+    setIsFindingWayBack(false);
+    setIsDetailsOpen(false);
     setIsSimulatedStray(false);
     setSimulatedPaceDriftState(null);
     paceCheckerRef.current?.stop();
@@ -388,23 +625,22 @@ export function WalkPlannerApp({
     walkTrackerRef.current = null;
     walkRecorderRef.current?.stop();
     walkRecorderRef.current = null;
-    poiAlerterRef.current = null;
-    if (poiAlertTimeoutRef.current !== null) {
-      clearTimeout(poiAlertTimeoutRef.current);
-      poiAlertTimeoutRef.current = null;
-    }
     lastGpsUpdateRef.current = 0;
     setIsRecording(false);
     setCurrentPosition(null);
     setRemainingGeometry([]);
     markOffRoute(false);
-    setOffRouteDeviation(0);
     setWalkPhase("idle");
     setWalkTrackingMessage(null);
     setAttractionDistances({});
-    setPoiAlert(null);
+    setCallouts([]);
+    setSelectedCallout(null);
     clearPaceConfirmation();
     clearDeviationConfirmation();
+    // Drops the options sheet and ignores a `/api/walk-options` answer still in
+    // flight: End walk or a re-plan must not be undone by a late response.
+    collapseFlow.clear();
+    setWhileHereNote(null);
   };
 
   // Ending the walk tears down everything scoped to *this walk*, not just the GPS
@@ -416,7 +652,7 @@ export function WalkPlannerApp({
     // somewhere to put the answer: signed in, with preference learning on.
     // Asked before the teardown below, while the plan is still readable.
     if (
-      walkPhase === "walking" &&
+      walkMode &&
       isSignedIn &&
       walkSettings.preferenceLearningEnabled
     ) {
@@ -426,7 +662,15 @@ export function WalkPlannerApp({
       }
     }
 
+    // Invalidate any in-flight (mid-walk) rebuild: its success and failure
+    // paths both check the id before restarting tracking, and its `finally`
+    // skips the loading flags once superseded.
+    buildWalkRequestIdRef.current += 1;
+    setIsWalkPlanLoading(false);
+    setIsWalkPlanSlow(false);
     stopWalkTracking();
+    setRebuildingMidWalk(false);
+    lastLocalRejoinAtRef.current = Number.NEGATIVE_INFINITY;
     setPreviousPlan(null);
     setPinnedTimeWarning(null);
     setLostStops([]);
@@ -435,6 +679,11 @@ export function WalkPlannerApp({
     visitTrackerRef.current?.reset();
     setVisitedAttractionIds([]);
     replanTriggerRef.current = null;
+    announcerRef.current = null;
+    discoveryRef.current?.reset();
+    collapseFlow.endWalk();
+    walkedTrackRef.current = [];
+    walkStartPointRef.current = null;
   };
 
   // Full reset — the same teardown behind "Clear All" (advanced) and
@@ -451,14 +700,19 @@ export function WalkPlannerApp({
 
   // Draws a plan on the map and moves the walk into the "planned" phase. Shared by
   // the build path and the revert-to-previous-route path.
-  const showPlan = (plan: WalkPlan, geometry: Coordinates[]) => {
+  // `keepViewport` is for mid-walk re-plans: the map is following the walker,
+  // and re-centring on the first stop would yank it away from them.
+  const showPlan = (
+    plan: WalkPlan,
+    geometry: Coordinates[],
+    keepViewport = false,
+  ) => {
     setWalkPlan(plan);
     walkPlanRef.current = plan;
     setWalkPhase("planned");
     walkGeometryRef.current = geometry;
     setRemainingGeometry(geometry);
     markOffRoute(false);
-    setOffRouteDeviation(0);
     setWalkTrackingMessage(null);
     // The candidates are in the plan now — they get numbered waypoint markers
     // below, so the amber "not committed yet" pins would only duplicate them.
@@ -489,7 +743,7 @@ export function WalkPlannerApp({
         warnings: [],
       });
     }
-    if (plan.orderedAttractions[0]) {
+    if (plan.orderedAttractions[0] && !keepViewport) {
       focusOn(plan.orderedAttractions[0].coordinates, 14);
     }
   };
@@ -539,6 +793,7 @@ export function WalkPlannerApp({
       setPreviousPlan((prev) => prev ?? snapshot);
     }
 
+    if (snapshot) setRebuildingMidWalk(true);
     stopWalkTracking();
     walkInputRef.current = input;
     setLastWalkInput(input);
@@ -546,6 +801,7 @@ export function WalkPlannerApp({
     latestPaceUpdateRef.current = null;
     setPinnedTimeWarning(null);
     if (!options?.autoResume) {
+      lastLocalRejoinAtRef.current = Number.NEGATIVE_INFINITY;
       setPreviousPlan(null);
       // A build the walker asked for starts a new walk, and a new walk has not
       // lost anything yet.
@@ -555,6 +811,11 @@ export function WalkPlannerApp({
       visitTrackerRef.current?.reset();
       setVisitedAttractionIds([]);
       replanTriggerRef.current = null;
+      announcerRef.current = null;
+      discoveryRef.current?.reset();
+      collapseFlow.endWalk();
+      walkedTrackRef.current = [];
+      walkStartPointRef.current = input.origin;
     }
     setCurrentPosition(input.origin);
 
@@ -627,7 +888,7 @@ export function WalkPlannerApp({
           setWalkPlanError(data.error ?? "Failed to build walk plan.");
         }
       } else {
-        showPlan(data, data.geometry ?? []);
+        showPlan(data, data.geometry ?? [], options?.autoResume === true);
 
         // What this rebuild cost. Only on the automatic path — a snapshot is
         // exactly "there was a walk under way that this replaced", and a build
@@ -701,6 +962,7 @@ export function WalkPlannerApp({
       if (requestId === buildWalkRequestIdRef.current) {
         setIsWalkPlanLoading(false);
         setIsWalkPlanSlow(false);
+        setRebuildingMidWalk(false);
       }
     }
   };
@@ -727,7 +989,13 @@ export function WalkPlannerApp({
       originalInput: orig,
       walkStartTime: walkStartTimeRef.current,
       now: Date.now(),
-      currentPosition: latestPaceUpdateRef.current?.currentPosition ?? null,
+      // Only a trustworthy fix (<=50 m, see `onPositionUpdate`) or the point
+      // the walker matched onto the route — never a fix with a wide error
+      // circle, which is how a rebuild once started 100 m from the walker.
+      currentPosition:
+        latestPaceUpdateRef.current?.currentPosition ??
+        matchedRef.current?.point ??
+        null,
       settings: walkSettingsRef.current,
       currentAttractions: walkPlanRef.current?.orderedAttractions,
       pinnedIds: pinnedAttractionIdsRef.current,
@@ -763,6 +1031,107 @@ export function WalkPlannerApp({
   };
 
   /**
+   * Get a straying walker back onto the route they already have, without
+   * re-planning anything: pick a couple of points ahead on the old route, ask
+   * ORS for a street-following way to the better one, and splice it in front of
+   * the rest of the route. Stops, their order and the GPS watch are untouched —
+   * which is the point; `handleBuildWalk` would tear all three down.
+   *
+   * Never draws a straight line. If it cannot get a real street route (offline,
+   * quota, implausible detour) it falls back to the full re-plan from here — the
+   * second such failure collapses the walk into direction options instead. A
+   * walker too far away for "back on the route" to be honest is, when the
+   * rejoin was started automatically, left to the collapse (options after 60 s);
+   * when they asked for it, they get the full re-plan from here.
+   */
+  const runLocalRejoin = async (auto = false) => {
+    const fix = latestPaceUpdateRef.current;
+    const matched = matchedRef.current;
+    const geometry = walkGeometryRef.current;
+    if (walkTrackerRef.current === null) return;
+    if (rejoinInFlightRef.current) return;
+    // Options are on screen (or being fetched): nothing re-plans on its own.
+    if (collapseFlow.isCollapsed()) return;
+    const rejoinFailed = () => {
+      if (fix && collapseFlow.rejoinFailed(fix.timestamp)) return;
+      runDeviationTriggeredRebuild();
+    };
+    if (!fix || !matched || geometry.length < 2) {
+      runDeviationTriggeredRebuild();
+      return;
+    }
+    if (fix.timestamp - lastLocalRejoinAtRef.current < LOCAL_REJOIN_COOLDOWN_MS) {
+      return;
+    }
+    const from = fix.currentPosition;
+    if (haversineDistance(from, matched.point) > LOCAL_REJOIN_MAX_DEVIATION_M) {
+      if (auto && collapseFlow.canCollapse(fix.timestamp)) return;
+      runDeviationTriggeredRebuild();
+      return;
+    }
+
+    const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    const stopsAhead = (walkPlanRef.current?.orderedAttractions ?? [])
+      .filter((a) => !visited.has(a.id))
+      .map((a) => a.coordinates);
+    const candidates = rejoinCandidates(
+      from,
+      geometry,
+      matched.segmentIndex,
+      nextStopAlongM(geometry, matched.segmentIndex, matched.point, stopsAhead),
+    );
+    if (candidates.length === 0) {
+      rejoinFailed();
+      return;
+    }
+
+    rejoinInFlightRef.current = true;
+    setIsFindingWayBack(true);
+    const requestGeometry = geometry;
+    try {
+      const res = await fetch("/api/reroute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from, candidates: candidates.map((c) => c.point) }),
+      });
+      const data = (await res.json()) as {
+        geometry?: Coordinates[];
+        candidateIndex?: number;
+      };
+      const candidate = candidates[data.candidateIndex ?? -1];
+      // The walk may have ended, or been re-planned, while this was in flight.
+      if (walkTrackerRef.current === null || walkGeometryRef.current !== requestGeometry) {
+        return;
+      }
+      if (!res.ok || !candidate || !data.geometry || data.geometry.length < 2) {
+        rejoinFailed();
+        return;
+      }
+
+      const spliced = spliceRoute(requestGeometry, candidate, data.geometry);
+      lastLocalRejoinAtRef.current = fix.timestamp;
+      walkGeometryRef.current = spliced;
+      lastSegmentIndexRef.current = null;
+      matchedRef.current = { segmentIndex: 0, point: spliced[0] };
+      setRemainingGeometry(spliced);
+      walkTrackerRef.current.updateGeometry(spliced);
+      // A new routeVersion: re-frame the collection locally. It is scanned again
+      // only for a stretch the old scan did not cover (usually none: 0 requests).
+      discoveryRef.current?.setRoute(
+        spliced,
+        1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? 15),
+        walkInputRef.current?.preferredCategories ?? [],
+      );
+      void discoveryRef.current?.ensureCovered(spliced, fix.timestamp);
+    } catch {
+      if (walkTrackerRef.current !== null) rejoinFailed();
+    } finally {
+      rejoinInFlightRef.current = false;
+      setIsFindingWayBack(false);
+    }
+  };
+
+  /**
    * The third answer to the off-route question, for a walker who gave none.
    *
    * Opt-in via `WalkSettings.continueHeadingOnSilence` (default off) — this is
@@ -789,6 +1158,9 @@ export function WalkPlannerApp({
   const continueInHeadingAfterSilence = () => {
     if (!walkSettingsRef.current.continueHeadingOnSilence) return;
     if (!isOffRouteRef.current) return;
+    // Visible options are never overridden; a collapse still being fetched is
+    // simply superseded by this rebuild (its `stopWalkTracking` drops the request).
+    if (collapseFlow.isOffering()) return;
 
     const lastFix = latestPaceUpdateRef.current;
     if (!lastFix) return;
@@ -824,10 +1196,12 @@ export function WalkPlannerApp({
     if (walkTrackerRef.current === null) return;
 
     clearDeviationConfirmation();
+    deviationConfirmationRef.current = true;
     setDeviationConfirmation(true);
 
     deviationConfirmTimeoutRef.current = setTimeout(() => {
       deviationConfirmTimeoutRef.current = null;
+      deviationConfirmationRef.current = false;
       setDeviationConfirmation(false);
       continueInHeadingAfterSilence();
     }, DEVIATION_CONFIRMATION_TIMEOUT_MS);
@@ -853,7 +1227,7 @@ export function WalkPlannerApp({
     paceConfirmTimeoutRef.current = setTimeout(() => {
       paceConfirmTimeoutRef.current = null;
       setPaceConfirmation(null);
-      if (replanPaceDirection(reason) === "slow") {
+      if (replanPaceDirection(reason) === "slow" && !collapseFlow.isCollapsed()) {
         runPaceTriggeredRebuild(reason);
       }
     }, PACE_CONFIRMATION_TIMEOUT_MS);
@@ -862,13 +1236,16 @@ export function WalkPlannerApp({
   // `planOverride` is passed by the auto-resume path, where `walkPlan` state has just
   // been set and this closure would still read the previous (null) value.
   const handleStartWalk = (planOverride?: WalkPlan) => {
+    // An in-flight rebuild can resolve after unmount; it must not start a GPS watch.
+    if (isUnmountedRef.current) return;
     const plan = planOverride ?? walkPlan;
     if (!plan || walkGeometryRef.current.length < 2) {
       setWalkPlanError("Build a walk plan before starting live tracking.");
       return;
     }
     walkPlanRef.current = plan;
-
+    // Give the map the whole screen for the walk.
+    onRequestExpand?.(true);
     const initialPosition =
       (planOverride ? walkInputRef.current?.origin : currentPosition) ??
       walkInputRef.current?.origin ??
@@ -881,7 +1258,6 @@ export function WalkPlannerApp({
     setRecordedPointCount(0);
     setCurrentPosition(initialPosition);
     markOffRoute(false);
-    setOffRouteDeviation(0);
     setWalkPhase("walking");
     setWalkTrackingMessage(null);
 
@@ -891,11 +1267,17 @@ export function WalkPlannerApp({
         walkGeometryRef.current,
       );
       lastSegmentIndexRef.current = initialDeviation.closestSegmentIndex;
+      matchedRef.current = {
+        segmentIndex: initialDeviation.closestSegmentIndex,
+        point: initialDeviation.closestPointOnRoute,
+      };
       setRemainingGeometry(
         remainingRoute(
           walkGeometryRef.current,
           initialDeviation.closestSegmentIndex,
-          initialPosition,
+          // The matched point, not the raw fix: a fix 60 m off the line would
+          // otherwise start the drawn route with a straight cut to a vertex.
+          initialDeviation.closestPointOnRoute,
         ),
       );
     } else {
@@ -904,41 +1286,85 @@ export function WalkPlannerApp({
 
     const attractions = plan.orderedAttractions;
 
-    // Instantiate PoiAlerter for this walk session (CRITICAL-1)
-    const alerter = new PoiAlerter();
-    poiAlerterRef.current = alerter;
+    // The announcer and the nearby store belong to the whole walk, not to one
+    // route: a re-plan restarts this function but must not re-announce places.
+    const discovery = discoveryRef.current ?? new DiscoveryLoader();
+    discoveryRef.current = discovery;
+    const announcer =
+      announcerRef.current ??
+      new PoiAnnouncer(walkInputRef.current?.preferredCategories ?? []);
+    announcerRef.current = announcer;
+    // The plan's stops are collection members; frames and scores follow the new
+    // route, and only geometry the earlier scans do not cover is scanned.
+    discovery.setRoute(
+      walkGeometryRef.current,
+      1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? 15),
+      walkInputRef.current?.preferredCategories ?? [],
+    );
+    discovery.addPlanStops(attractions);
+    void discovery.ensureCovered(
+      walkGeometryRef.current,
+      (latestPaceUpdateRef.current as PaceUpdate | null)?.timestamp ?? Date.now(),
+    );
 
     // Reused across re-plans within the same walk — only a fresh build resets it.
     const visits = visitTrackerRef.current ?? new VisitTracker();
     visitTrackerRef.current = visits;
 
+    const planInput = walkInputRef.current;
+    speedEstimatorRef.current = new SpeedEstimator();
+    paceAdvisorRef.current = planInput
+      ? new PaceAdvisor(planInput.walkingPaceMinPerKm)
+      : null;
+    firstFixAtRef.current = null;
+
     const onPositionUpdate = (update: PaceUpdate) => {
+      // The dot accepts any fix the tracker lets through (<=100 m); speed,
+      // deviation and visits only trust fixes this good. A poor fix still moves
+      // the dot, but never changes what the engine believes.
+      if (update.accuracyMeters > ENGINE_MAX_ACCURACY_M) {
+        const poorNow = Date.now();
+        if (poorNow - lastGpsUpdateRef.current >= 1000) {
+          lastGpsUpdateRef.current = poorNow;
+          setCurrentPosition(update.currentPosition);
+        }
+        return;
+      }
       latestPaceUpdateRef.current = update;
+      lastFixWallRef.current = Date.now();
+      if (firstFixAtRef.current === null) firstFixAtRef.current = update.timestamp;
+
+      speedEstimatorRef.current?.record({
+        coordinates: update.currentPosition,
+        timestamp: update.timestamp,
+        accuracyMeters: update.accuracyMeters,
+        speedMps: update.speedMps,
+      });
+      paceAdvisorRef.current?.record(
+        {
+          coordinates: update.currentPosition,
+          timestamp: update.timestamp,
+        },
+        isNearAnyStop(update.currentPosition, attractions, ADVISOR_STOP_QUIET_RADIUS_M),
+      );
 
       // Feed the re-plan windows from every accepted fix, not from the coarse
       // pace-check tick — the stop/slow detection needs the full sample stream.
-      paceCheckerRef.current?.recordSample({
-        coordinates: update.currentPosition,
-        timestamp: update.timestamp,
-      });
+      // A fix at a planned stop is the walk working, not slowness (`atStop`).
+      paceCheckerRef.current?.recordSample(
+        {
+          coordinates: update.currentPosition,
+          timestamp: update.timestamp,
+        },
+        isNearAnyStop(update.currentPosition, attractions, VISIT_RADIUS_METERS),
+      );
 
       // Visited detection runs on every accepted fix, like the alerter — a stop
       // walked past between two throttled ticks must still count as reached.
-      if (visits.recordPosition(update.currentPosition, attractions).length > 0) {
+      const newlyVisited = visits.recordPosition(update.currentPosition, attractions);
+      if (newlyVisited.length > 0) {
+        for (const id of newlyVisited) discovery.setState(id, "visited");
         setVisitedAttractionIds([...visits.visitedIds]);
-      }
-
-      // PoiAlerter check — runs every tick, not throttled (CRITICAL-1)
-      const alert = alerter.check(
-        update.currentPosition,
-        update.bearing ?? null,
-        attractions,
-      );
-      if (alert) {
-        setPoiAlert(alert);
-        // Auto-dismiss after 8 seconds
-        if (poiAlertTimeoutRef.current !== null) clearTimeout(poiAlertTimeoutRef.current);
-        poiAlertTimeoutRef.current = setTimeout(() => setPoiAlert(null), 8000);
       }
 
       // Throttle setState calls to at most once per second (LOW-2)
@@ -949,6 +1375,11 @@ export function WalkPlannerApp({
       setCurrentPosition(update.currentPosition);
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
+      walkedTrackRef.current.push(update.currentPosition);
+      if (walkedTrackRef.current.length > 5_000) {
+        // Keep the whole walk's shape at half the resolution rather than only its tail.
+        walkedTrackRef.current = walkedTrackRef.current.filter((_, i) => i % 2 === 0);
+      }
 
       // Recorded on and off the route alike. Where the walker is going is a
       // fact about the walker, not about the plan, and the question it answers
@@ -966,28 +1397,163 @@ export function WalkPlannerApp({
         lastSegmentIndexRef.current,
       );
       lastSegmentIndexRef.current = deviation.closestSegmentIndex;
+      matchedRef.current = {
+        segmentIndex: deviation.closestSegmentIndex,
+        point: deviation.closestPointOnRoute,
+      };
 
       // The badge is pure information and appears the moment the walker is off
       // route. The monitor below decides the separate question of whether to
       // offer a rebuild, and takes its time over it — the sustain window gates
       // the offer, never the badge.
-      if (deviation.needsReroute) {
-        markOffRoute(true);
-        setOffRouteDeviation(Math.round(deviation.deviationMeters));
-      } else {
-        markOffRoute(false);
-        setOffRouteDeviation(0);
-      }
-
-      deviationMonitorRef.current?.record(
-        deviation.needsReroute,
-        update.timestamp,
+      // Hysteresis (off >50 m, on <30 m) and an accuracy gate, so a walker
+      // hovering around the line does not flicker the state.
+      const offRoute = nextOffRouteState(
+        isOffRouteRef.current,
+        deviation.deviationMeters,
+        update.accuracyMeters,
       );
+      markOffRoute(offRoute);
+
+      deviationMonitorRef.current?.record(offRoute, update.timestamp);
+      // Fix timestamps only. A walker 400 m+ away for 60 s, two failed rejoins or
+      // 8 minutes off route collapse into direction options.
+      collapseFlow.feed({
+        atMs: update.timestamp,
+        deviationM: deviation.deviationMeters,
+        accuracyM: update.accuracyMeters,
+      });
+
+      // What to tell a walker who is off the line: a turn if their recent
+      // movement gives a heading, a compass direction if it does not.
+      setOffRouteHint(
+        offRoute
+          ? turnInstruction(
+              headingMonitorRef.current?.recentHeading(update.timestamp) ?? null,
+              update.currentPosition,
+              deviation.closestPointOnRoute,
+            ).text
+          : null,
+      );
+      if (!offRoute) {
+        offRouteDismissedRef.current = false;
+        setOffRouteDismissed(false);
+      }
+      refreshWalkStats();
+
+      // Places ahead / left / right. Local only: the collection was scanned once
+      // up front, and a walker far outside it triggers (at most) one more scan.
+      // On the route, side and distance come from the cross-track frame and the
+      // level's gates (`eligibleForCallout`); a GPS heading never decides left or
+      // right there. Off the route the walker's own recent heading does.
+      void discovery.maybeScanAround(update.currentPosition, update.timestamp);
+      const level = walkSettingsRef.current.calloutLevel;
+      const heading = headingMonitorRef.current?.recentHeading(update.timestamp) ?? null;
+      const unvisitedStops = attractions.filter((a) => !visits.visitedIds.has(a.id));
+      const stopIds = new Set(unvisitedStops.map((a) => a.id));
+      const alreadyUp = new Set(announcer.active().map((a) => a.place.id));
+      let shown: Announcement[];
+      if (
+        calloutsSuppressed({
+          collapsed: collapseFlow.isCollapsed(),
+          offRoute,
+          cardVisible: cardVisibleRef.current,
+          offRouteDismissed: offRouteDismissedRef.current,
+          askUp: deviationConfirmationRef.current,
+        })
+      ) {
+        // Direction options are pending or on screen, or the off-route card is
+        // up: nothing new is announced until it is dismissed.
+        shown = announcer.expire(update.timestamp);
+      } else if (!offRoute) {
+        const alongM = discovery.alongM(
+          deviation.closestSegmentIndex,
+          deviation.closestPointOnRoute,
+        );
+        const planSpeedMps =
+          1000 / (60 * (walkInputRef.current?.walkingPaceMinPerKm ?? 15));
+        const measuredKmh = speedEstimatorRef.current?.current(update.timestamp);
+        const eligible = discovery.eligible({
+          alongM,
+          speedMps: (measuredKmh?.kmh ?? planSpeedMps * 3.6) / 3.6,
+          level,
+          nowFixMs: update.timestamp,
+          ctx: {
+            nearTurn: discovery.isNearTurn(alongM),
+            nearStop: isNearAnyStop(update.currentPosition, unvisitedStops, STOP_QUIET_M),
+            cardVisible: cardVisibleRef.current,
+            paused: measuredKmh?.state === "paused",
+            offRoute: false,
+            onScreen: announcer.active().length,
+            planStopIds: stopIds,
+            preferred: walkInputRef.current?.preferredCategories ?? [],
+            planSpeedMps,
+          },
+        });
+        shown = announcer.check(
+          update.currentPosition,
+          heading,
+          routeDirectionDeg(
+            walkGeometryRef.current,
+            deviation.closestSegmentIndex,
+            deviation.closestPointOnRoute,
+          ),
+          eligible.map(itemToPlace),
+          stopIds,
+          update.timestamp,
+          {
+            trusted: true,
+            frameOf: (id) => discovery.relationOf(id, alongM, update.currentPosition),
+          },
+        );
+      } else {
+        const stopPlaces: NearbyPlace[] = unvisitedStops.map((a) => ({
+          ...a,
+          source: "osm" as const,
+          verification: "registered" as const,
+          kind: "poi" as const,
+        }));
+        shown = announcer.check(
+          update.currentPosition,
+          heading,
+          null,
+          [...stopPlaces, ...discovery.offRoutePlaces(level)],
+          stopIds,
+          update.timestamp,
+        );
+      }
+      // The collection is the one "announced once" record; it also feeds the
+      // level's budgets (gap, per-10-minutes, category cooldown).
+      for (const a of shown) {
+        if (!alreadyUp.has(a.place.id)) discovery.recordAnnounced(a.place.id, update.timestamp);
+      }
+      setCallouts(shown);
+
+      // The off-route card may carry ONE line about something right here.
+      const here = offRoute ? discovery.whileHere(update.currentPosition) : null;
+      if (here) {
+        const { relation } = relatePlace(
+          update.currentPosition,
+          heading,
+          null,
+          here.item.attraction.coordinates,
+        );
+        const side = relation === "left" || relation === "right" ? relation : "on";
+        setWhileHereNote(
+          walkCopy.discovery.text("en", "deviation.whileHere", {
+            name: here.item.attraction.name,
+            m: Math.max(10, Math.round(here.distanceM / 10) * 10),
+            side: walkCopy.discovery.text("en", `side.${side}`),
+          }),
+        );
+      } else {
+        setWhileHereNote(null);
+      }
 
       const remaining = remainingRoute(
         walkGeometryRef.current,
         deviation.closestSegmentIndex,
-        update.currentPosition,
+        deviation.closestPointOnRoute,
       );
       setRemainingGeometry(remaining);
     };
@@ -1035,8 +1601,9 @@ export function WalkPlannerApp({
       replanTriggerRef.current ?? new ReplanTrigger(input.walkingPaceMinPerKm);
     replanTriggerRef.current = trigger;
 
-    const checker = new PaceChecker(walkSettings, trigger, (reason, response) => {
+    const checker = new PaceChecker(walkSettingsRef.current, trigger, (reason, response) => {
       if (response === "auto") {
+        if (collapseFlow.isCollapsed()) return;
         runPaceTriggeredRebuild(reason);
         return;
       }
@@ -1051,9 +1618,9 @@ export function WalkPlannerApp({
     // is on now.
     headingMonitorRef.current = new HeadingMonitor();
 
-    deviationMonitorRef.current = new DeviationMonitor(walkSettings, (response) => {
+    deviationMonitorRef.current = new DeviationMonitor(walkSettingsRef.current, (response) => {
       if (response === "auto") {
-        runDeviationTriggeredRebuild();
+        void runLocalRejoin(true);
         return;
       }
 
@@ -1113,7 +1680,7 @@ export function WalkPlannerApp({
       };
     }
 
-    showPlan(restoredPlan, snapshot.geometry);
+    showPlan(restoredPlan, snapshot.geometry, true);
     setCurrentPosition(resumePosition);
 
     if (snapshot.geometry.length >= 2) {
@@ -1157,6 +1724,102 @@ export function WalkPlannerApp({
     void handleBuildWalk(input, options);
   };
 
+  // "Add to walk" on a place the walker was told about: the same rebuild as
+  // recalling a dropped stop — pinned, so no later rebuild takes it back out.
+  const addNearbyPlaceToWalk = (place: NearbyPlace) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    discoveryRef.current?.setState(place.id, "added");
+    const nextPinned = pinnedAttractionIdsRef.current.includes(place.id)
+      ? pinnedAttractionIdsRef.current
+      : [...pinnedAttractionIdsRef.current, place.id];
+    pinnedAttractionIdsRef.current = nextPinned;
+    setPinnedAttractionIds(nextPinned);
+    // Only the plan's own fields go to the planner API.
+    const attraction: Attraction = {
+      id: place.id,
+      name: place.name,
+      coordinates: place.coordinates,
+      category: place.category,
+      avgVisitMinutes: place.avgVisitMinutes,
+      tags: place.tags,
+    };
+    const { input, options } = buildRecallRebuildRequest(
+      { ...state, pinnedIds: nextPinned },
+      attraction,
+    );
+    void handleBuildWalk(input, options);
+  };
+
+  const dismissCallout = (placeId: string) => {
+    announcerRef.current?.dismiss(placeId);
+    discoveryRef.current?.setState(placeId, "dismissed");
+    setSelectedCallout(null);
+    setCallouts(announcerRef.current?.active() ?? []);
+  };
+
+  // A stop-less option (a round trip, or the way home) has no stops to re-plan
+  // around: its previewed line IS the route, so it is walked as drawn instead of
+  // being rebuilt by `/api/walk-plan` into something the walker never saw.
+  const startFromOptionRoute = (option: OfferedOption) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const { input } = buildOptionRebuildRequest(state, []);
+    if (walkPlanRef.current && walkInputRef.current) {
+      const snapshot: PlanSnapshot = {
+        plan: walkPlanRef.current,
+        input: walkInputRef.current,
+        geometry: walkGeometryRef.current,
+        startTime: walkStartTimeRef.current,
+      };
+      setPreviousPlan((prev) => prev ?? snapshot);
+    }
+    const plan: WalkPlan = {
+      orderedAttractions: [],
+      segments: [],
+      totalDistanceMeters: option.distanceM,
+      totalMinutes: option.minutes,
+      feasible: true,
+      droppedAttractions: [],
+      geometry: option.geometry,
+    };
+    stopWalkTracking();
+    walkInputRef.current = input;
+    setLastWalkInput(input);
+    walkStartTimeRef.current = Date.now();
+    latestPaceUpdateRef.current = null;
+    showPlan(plan, option.geometry, true);
+    setCurrentPosition(input.origin);
+    handleStartWalk(plan);
+  };
+
+  // The walker picked a direction: rebuild through exactly its stops, from here.
+  const chooseOption = (index: number) => {
+    const offer = collapseFlow.offer;
+    const option = offer?.options[index];
+    if (!option) return;
+    const state = midWalkRebuildState();
+    if (!state) return;
+    collapseFlow.resolve();
+    if (option.stops.length === 0) {
+      startFromOptionRoute(option);
+      return;
+    }
+    const { input, options } = buildOptionRebuildRequest(
+      state,
+      option.stops.map((s) => s.attraction),
+    );
+    void handleBuildWalk(input, options);
+  };
+
+  // "Back to my plan": after a collapse that is the existing redraw-from-here;
+  // from "Show me something different" it simply closes the sheet.
+  const backFromOptions = () => {
+    const mode = collapseFlow.offer?.mode;
+    collapseFlow.resolve();
+    if (mode === "collapse") runDeviationTriggeredRebuild();
+  };
+
   const toggleAttractionPin = (attractionId: string) => {
     setPinnedAttractionIds((prev) => {
       const next = prev.includes(attractionId)
@@ -1177,6 +1840,7 @@ export function WalkPlannerApp({
     // Idempotent by construction: a skip click racing a GPS fix for the same stop
     // only ever adds it once, in either order.
     visits.markVisited(attractionId);
+    discoveryRef.current?.setState(attractionId, "visited");
     setVisitedAttractionIds([...visits.visitedIds]);
     // A pin on a stop that's done has nothing left to enforce.
     setPinnedAttractionIds((prev) => {
@@ -1199,15 +1863,15 @@ export function WalkPlannerApp({
 
   // Tear down the GPS watch, timers and in-flight searches if the page unmounts mid-walk
   useEffect(() => {
+    isUnmountedRef.current = false;
     return () => {
       hikeSearchTokenRef.current += 1;
       buildWalkRequestIdRef.current += 1;
+      isUnmountedRef.current = true;
       paceCheckerRef.current?.stop();
       walkTrackerRef.current?.stop();
+      walkTrackerRef.current = null;
       walkRecorderRef.current?.stop();
-      if (poiAlertTimeoutRef.current !== null) {
-        clearTimeout(poiAlertTimeoutRef.current);
-      }
       if (paceConfirmTimeoutRef.current !== null) {
         clearTimeout(paceConfirmTimeoutRef.current);
       }
@@ -1274,56 +1938,243 @@ export function WalkPlannerApp({
     setClickMode("add-waypoint");
   };
 
+  // The one card the walk HUD may show. A single slot: the walker takes in one
+  // question at a time, so something decides which of these wins.
+  const turnBody = offRouteHint ? walkCopy.turn.toGetBack(offRouteHint) : undefined;
+  let walkAlert: WalkAlert | null = null;
+  if (walkMode) {
+    if (selectedCallout) {
+      // The walker asked about this place: it outranks everything but itself.
+      const placePaceMin = walkInputRef.current?.walkingPaceMinPerKm ?? 15;
+      const calloutPlace = selectedCallout.place;
+      const calloutItem = discoveryRef.current?.collection.items.get(calloutPlace.id);
+      const remainingWalkMin =
+        walkStats?.timeToFinishMin ??
+        Math.max(0, (walkInputRef.current?.availableMinutes ?? 0) - (walkStats?.elapsedMin ?? 0));
+      const isPlanStop = (walkPlanRef.current?.orderedAttractions ?? []).some(
+        (a) => a.id === calloutPlace.id,
+      );
+      const mayAdd =
+        isPlanStop ||
+        canOfferAdd({
+          lateralM: isOffRoute ? null : (calloutItem?.frame?.lateralM ?? null),
+          fallbackDistanceM: selectedCallout.distanceM,
+          speedMpm: 1000 / placePaceMin,
+          remainingWalkMin,
+          environment: discoveryRef.current?.environment ?? "urban",
+        });
+      const calloutWarning =
+        calloutPlace.verification === "crowd-signal"
+          ? walkCopy.discovery.en["warn.crowd"]
+          : calloutPlace.verification === "detected"
+            ? walkCopy.discovery.en["warn.detected"]
+            : undefined;
+      walkAlert = {
+        id: `visit-${selectedCallout.place.id}`,
+        tone: "info",
+        title: walkCopy.visit.title,
+        subject: selectedCallout.place.name,
+        body: walkCopy.visit.detour(
+          detourMinutes(
+            selectedCallout.distanceM,
+            placePaceMin,
+            selectedCallout.place.avgVisitMinutes,
+          ),
+        ),
+        note: calloutWarning,
+        actions: [
+          ...(mayAdd
+            ? [
+                {
+                  label: walkCopy.visit.add,
+                  primary: true,
+                  onClick: () => {
+                    const place = selectedCallout.place;
+                    dismissCallout(place.id);
+                    addNearbyPlaceToWalk(place);
+                  },
+                },
+              ]
+            : []),
+          {
+            label: walkCopy.visit.notNow,
+            primary: !mayAdd,
+            onClick: () => dismissCallout(selectedCallout.place.id),
+          },
+        ],
+      };
+    } else if (deviationConfirmation) {
+      walkAlert = {
+        id: "off-route-ask",
+        tone: "alert",
+        title: walkCopy.offRoute.askTitle,
+        body: isFindingWayBack ? walkCopy.offRoute.findingWay : turnBody,
+        note: whileHereNote ?? undefined,
+        actions: [
+          {
+            label: walkCopy.offRoute.showWayBack,
+            primary: true,
+            onClick: () => {
+              clearDeviationConfirmation();
+              void runLocalRejoin();
+            },
+          },
+          {
+            label: walkCopy.offRoute.replan,
+            onClick: () => {
+              clearDeviationConfirmation();
+              runDeviationTriggeredRebuild();
+            },
+          },
+          {
+            label: walkCopy.offRoute.dismiss,
+            onClick: () => {
+              clearDeviationConfirmation();
+              offRouteDismissedRef.current = true;
+              setOffRouteDismissed(true);
+            },
+          },
+        ],
+      };
+    } else if (isOffRoute && !offRouteDismissed) {
+      walkAlert = {
+        id: "off-route",
+        tone: "alert",
+        title: walkCopy.offRoute.title,
+        body: isFindingWayBack ? walkCopy.offRoute.findingWay : turnBody,
+        note: whileHereNote ?? undefined,
+        // Without this, auto/off mode could never dismiss the card, so callouts
+        // stayed held back until the walker rejoined.
+        actions: [
+          {
+            label: walkCopy.offRoute.dismiss,
+            onClick: () => {
+              offRouteDismissedRef.current = true;
+              setOffRouteDismissed(true);
+            },
+          },
+        ],
+      };
+    } else if (paceConfirmation) {
+      const slow = replanPaceDirection(paceConfirmation) === "slow";
+      walkAlert = {
+        id: `pace-ask-${paceConfirmation}`,
+        tone: "info",
+        title: slow
+          ? paceConfirmation === "full-stop"
+            ? walkCopy.pace.askStill
+            : walkCopy.pace.askSlow
+          : walkCopy.pace.askFast,
+        actions: [
+          {
+            label: slow ? walkCopy.pace.askSlowConfirm : walkCopy.pace.askFastConfirm,
+            primary: true,
+            onClick: () => {
+              const reason = paceConfirmation;
+              clearPaceConfirmation();
+              runPaceTriggeredRebuild(reason);
+            },
+          },
+          {
+            label: slow ? walkCopy.pace.askSlowDismiss : walkCopy.pace.askFastDismiss,
+            onClick: clearPaceConfirmation,
+          },
+          ...(slow
+            ? [
+                {
+                  label: walkCopy.pace.askMoreTime,
+                  onClick: () => {
+                    clearPaceConfirmation();
+                    runExtendedTimeRebuild();
+                  },
+                },
+              ]
+            : []),
+        ],
+      };
+    } else if (paceAdvisory) {
+      const slow = paceAdvisory.kind === "slow";
+      walkAlert = {
+        id: `pace-${paceAdvisory.kind}`,
+        tone: "info",
+        icon: slow ? "🐢" : "🚶",
+        title: slow ? walkCopy.pace.slowTitle : walkCopy.pace.fastTitle,
+        actions: [
+          {
+            label: slow ? walkCopy.pace.slowAction : walkCopy.pace.fastAction,
+            primary: true,
+            onClick: () => {
+              setPaceAdvisory(null);
+              runPaceTriggeredRebuild(
+                slow ? "sustained-slow-pace" : "sustained-fast-pace",
+              );
+            },
+          },
+          ...(slow
+            ? [
+                {
+                  label: walkCopy.pace.slowKeepStops,
+                  onClick: () => {
+                    setPaceAdvisory(null);
+                    runExtendedTimeRebuild();
+                  },
+                },
+              ]
+            : []),
+          { label: walkCopy.pace.dismiss, onClick: () => setPaceAdvisory(null) },
+        ],
+      };
+    }
+  }
+
+  // For the per-fix callout gate (a closure): is any card, or the options sheet, up?
+  const optionsOffer = walkMode ? collapseFlow.offer : null;
+  useEffect(() => {
+    cardVisibleRef.current = walkAlert !== null || optionsOffer !== null;
+  });
+  const directionSheet = optionsOffer ? (
+    <DirectionOptionsSheet
+      options={optionsOffer.options.map((o) => ({
+        theme: o.theme,
+        minutes: o.minutes,
+        distanceM: o.distanceM,
+        stopNames: o.stops.map((s) => s.attraction.name),
+      }))}
+      highlight={collapseFlow.highlight}
+      onHighlight={collapseFlow.setHighlight}
+      onChoose={chooseOption}
+      onBack={backFromOptions}
+    />
+  ) : undefined;
+
   return (
     /* @container: every breakpoint below reacts to the frame's width, not the
        window's, so the embedded planner stacks and the expanded one splits.
        The flex row lives on the child, not here — an element can't match its
        own container query, so `@4xl:flex-row` would silently never fire. */
     <div className="@container relative h-full w-full overflow-hidden bg-cream font-brand text-charcoal">
-      <OffRouteNotification
-        visible={isOffRoute}
-        deviationMeters={offRouteDeviation}
-      />
-      <PaceConfirmationNotification
-        reason={paceConfirmation}
-        onConfirm={() => {
-          const reason = paceConfirmation;
-          clearPaceConfirmation();
-          if (reason) runPaceTriggeredRebuild(reason);
-        }}
-        onDismiss={clearPaceConfirmation}
-        onExtendTime={() => {
-          clearPaceConfirmation();
-          runExtendedTimeRebuild();
-        }}
-      />
-      <DeviationConfirmationNotification
-        visible={deviationConfirmation}
-        onConfirm={() => {
-          clearDeviationConfirmation();
-          runDeviationTriggeredRebuild();
-        }}
-        onDismiss={clearDeviationConfirmation}
-      />
-      {/* POI alert overlay (CRITICAL-1) — absolute, so it lands inside the
-          planner frame rather than at the bottom of the window when embedded. */}
-      {poiAlert && (
-        <div className="absolute bottom-4 left-1/2 z-[500] -translate-x-1/2 rounded-xl bg-forest px-5 py-3 text-sm font-medium text-white shadow-lg">
-          {poiAlert.message}
-          <button
-            className="ml-3 text-cream/70 hover:text-white"
-            onClick={() => setPoiAlert(null)}
-          >
-            ✕
-          </button>
-        </div>
-      )}
       <div className="flex h-full w-full flex-col @4xl:flex-row">
+      {/* The aside stays mounted through a walk (form state survives). On a
+          narrow frame it is hidden until "Details" lifts it as a bottom sheet;
+          from @4xl up it is simply the sidebar it always was. */}
       <aside
-        className={`relative isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 bg-cream @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
-          compact ? "p-3 pb-6" : "p-4 pb-8 @4xl:pb-4"
-        }`}
+        className={`isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 bg-cream @4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
+          walkMode && !isDetailsOpen ? "hidden @4xl:block" : ""
+        } ${
+          walkMode && isDetailsOpen
+            ? "absolute inset-x-0 bottom-0 z-[700] max-h-[70%] flex-none rounded-t-2xl shadow-[0_-4px_20px_rgba(30,61,47,0.18)] @4xl:static @4xl:max-h-none @4xl:flex-1 @4xl:rounded-none @4xl:shadow-none"
+            : "relative"
+        } ${compact ? "p-3 pb-6" : "p-4 pb-8 @4xl:pb-4"}`}
       >
+        {walkMode && isDetailsOpen && (
+          <button
+            type="button"
+            onClick={() => setIsDetailsOpen(false)}
+            className="relative z-10 mb-2 ms-auto flex rounded-full border border-forest/20 bg-white px-3 py-1 text-xs font-semibold text-forest @4xl:hidden"
+          >
+            {walkCopy.hud.closeDetails}
+          </button>
+        )}
         {/* Ambient studio-sweep wash behind the panel. Same blurred-photo +
             gradient-scrim technique as /login, but dialled far down: the
             planner is a working surface, so the image only survives as a warm
@@ -1518,6 +2369,21 @@ export function WalkPlannerApp({
                   walking it is the least useful thing on the screen — placing
                   a cut stop underneath the whole form meant scrolling past
                   it on a narrow screen to notice anything was lost. */}
+              {walkPhase === "walking" && (
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  disabled={collapseFlow.loading}
+                  onClick={() => {
+                    setIsDetailsOpen(false);
+                    collapseFlow.offerDifferent();
+                  }}
+                >
+                  {collapseFlow.loading
+                    ? walkCopy.discovery.text("en", "options.loading")
+                    : walkCopy.discovery.text("en", "options.different")}
+                </Button>
+              )}
               {walkPhase === "walking" && (
                 <DroppedStopsPanel
                   stops={lostStops}
@@ -1898,7 +2764,13 @@ export function WalkPlannerApp({
       {/* Percentage height, not viewport height: when stacked, the map takes a
           share of the frame it is in — a 45vh map inside a 560px frame would
           leave the sidebar nothing. */}
-      <section className="relative order-1 h-[45%] min-h-[180px] shrink-0 overflow-hidden @4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1">
+      <section
+        className={`relative order-1 overflow-hidden @4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1 ${
+          walkMode
+            ? "h-full min-h-0 flex-1"
+            : "h-[45%] min-h-[180px] shrink-0"
+        }`}
+      >
         <DynamicMap
           waypoints={waypoints}
           routeGeometry={
@@ -1927,7 +2799,24 @@ export function WalkPlannerApp({
           // exists at all, because until then the markers on screen may be
           // hand-drawn waypoints whose ids no pin means anything against.
           onTogglePin={walkPlan ? toggleAttractionPin : undefined}
+          hudInset={walkMode}
+          callouts={walkMode ? callouts : undefined}
+          onCalloutSelect={walkMode ? setSelectedCallout : undefined}
+          previewRoutes={optionsOffer?.options.map((o, i) => ({
+            id: `${o.theme}-${i}`,
+            geometry: o.geometry,
+            highlighted: i === collapseFlow.highlight,
+          }))}
         />
+        {walkMode && (
+          <WalkHud
+            alert={walkAlert}
+            sheet={directionSheet}
+            stats={walkStats}
+            onDetails={() => setIsDetailsOpen(true)}
+            onEndWalk={handleEndWalk}
+          />
+        )}
       </section>
       </div>
     </div>

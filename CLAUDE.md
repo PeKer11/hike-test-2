@@ -53,6 +53,9 @@ The `walk-plan` API (`src/app/api/walk-plan/route.ts`) already wires Phase 2 + 3
 - **No Redux/Zustand.** Hook-based state management (`useWaypoints`, `useConstraints`, `useRouteCalculation`, `useMapInteraction`, `useWalkSettings`).
 - **Leaflet SSR rule.** Any component importing `leaflet` or `react-leaflet` must have `"use client"` + `next/dynamic` with `{ ssr: false }`.
 - **User profile in localStorage first.** Backend persistence comes after the feedback loop is proven.
+- **Corridor POIs, not per-fix lookups (2026-10-01).** Places near a walk come from one Overpass corridor query per route geometry (`/api/nearby`, `NearbyLoader`); left/right/ahead is classified locally on every fix. A walker >200 m outside the corridor triggers at most one point fetch per 2 min. Never a network call per GPS fix.
+- **Local rejoin vs full rebuild (2026-10-01).** Off route, the default answer is `runLocalRejoin`: up to 2 street-snapped ORS directions (`/api/reroute`, no matrix) spliced onto the existing route; stops, order and the GPS watch are untouched. A full `/api/walk-plan` rebuild is the fallback (no routable way back, or >400 m away) and the "Redraw from here" button. The drawn route never starts with a straight GPS-to-vertex segment (`remainingRoute` gets the matched point).
+- **No Google Places/Routes (2026-10-01).** Google's terms forbid showing Places/Routes data on a non-Google map, and imagery+vision on Google imagery is forbidden. Stay on OSM/Overpass + ORS; `NearbyProvider` (`src/lib/places/nearby-provider.ts`) is the seam if the basemap ever becomes Google.
 - **ORS VROOM returns order only, not geometry.** Always follow up with `/v2/directions` calls per consecutive pair.
 
 ---

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   clampPaceCheckInterval,
   DEFAULT_WALK_SETTINGS,
+  toCalloutLevel,
   toDeviationResponseMode,
   toPaceResponseMode,
   type WalkSettings,
@@ -62,6 +63,8 @@ function sanitizeSettings(
       typeof candidate?.historyPersistenceEnabled === "boolean"
         ? candidate.historyPersistenceEnabled
         : DEFAULT_WALK_SETTINGS.historyPersistenceEnabled,
+    // Older blobs have no level: they get the default, "normal".
+    calloutLevel: toCalloutLevel(candidate?.calloutLevel),
   };
 }
 

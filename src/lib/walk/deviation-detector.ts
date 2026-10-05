@@ -1,5 +1,10 @@
 import type { Coordinates } from "@/lib/types";
 import { closestPointOnSegment, haversineDistance } from "@/lib/utils/geo";
+import {
+  OFF_ROUTE_MAX_ACCURACY_M,
+  OFF_ROUTE_OFF_M,
+  OFF_ROUTE_ON_M,
+} from "@/lib/walk/walk-cadence";
 
 // Only flag deviation when user is this far off-route
 const DEVIATION_THRESHOLD_METERS = 50;
@@ -116,4 +121,23 @@ export function remainingRoute(
     return [currentPosition];
   }
   return [currentPosition, ...routeCoordinates.slice(fromSegmentIndex + 1)];
+}
+
+/**
+ * Off-route with hysteresis, so a walker hovering around the 50 m line does not
+ * flicker the warning on and off.
+ *
+ * Off needs more than 50 m *and* more than the fix's own error radius; back on
+ * route needs under 30 m; anything in between keeps the previous answer. A fix
+ * too poor to trust (accuracy over 50 m) never changes the state either way.
+ */
+export function nextOffRouteState(
+  prev: boolean,
+  deviationM: number,
+  accuracyM: number,
+): boolean {
+  if (accuracyM > OFF_ROUTE_MAX_ACCURACY_M) return prev;
+  if (deviationM > OFF_ROUTE_ON_M && deviationM > accuracyM) return true;
+  if (deviationM < OFF_ROUTE_OFF_M) return false;
+  return prev;
 }

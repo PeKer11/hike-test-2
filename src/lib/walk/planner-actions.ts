@@ -479,6 +479,25 @@ function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
 }
 
 /**
+ * What choosing a direction option rebuilds: the walk from where the walker is
+ * now, through exactly the option's stops (no discovery, no old stops), keeping
+ * only the pins that are still part of it.
+ */
+export function buildOptionRebuildRequest<TInput extends RebuildInput>(
+  state: PaceRebuildState<TInput>,
+  stops: Attraction[],
+): { input: TInput; options: BuildWalkOptions } {
+  return buildMidWalkRebuildRequest(
+    {
+      ...state,
+      currentAttractions: stops,
+      pinnedIds: state.pinnedIds.filter((id) => stops.some((s) => s.id === id)),
+    },
+    { fillRemainingTime: false },
+  );
+}
+
+/**
  * How a user-initiated build treats the stops named in the place prompt.
  *
  * Returns `undefined` when there is nothing named, which is what tells the API

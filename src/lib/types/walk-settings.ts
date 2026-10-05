@@ -1,3 +1,5 @@
+import type { CalloutLevel } from "@/lib/types/discovery";
+
 /**
  * What the app is allowed to do when the walker's pace has drifted far enough
  * from the plan to matter.
@@ -95,6 +97,21 @@ export interface WalkSettings {
    * request body and the server obeys it.
    */
   historyPersistenceEnabled: boolean;
+  /**
+   * How much the walk points out along the way. Quiet: listed places and notable
+   * ones only, rarely. Normal: plus mapped green spaces. Chatty: plus photo
+   * hotspots and unverified finds (each with a warning). The rules per level live
+   * in `LEVELS` (`discovery-cadence.ts`).
+   */
+  calloutLevel: CalloutLevel;
+}
+
+export const CALLOUT_LEVELS: readonly CalloutLevel[] = ["quiet", "normal", "chatty"];
+
+export function toCalloutLevel(value: unknown): CalloutLevel {
+  return CALLOUT_LEVELS.includes(value as CalloutLevel)
+    ? (value as CalloutLevel)
+    : "normal";
 }
 
 export const MIN_PACE_CHECK_INTERVAL_MS = 30_000;
@@ -122,6 +139,7 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   // persists and has a "Clear history" button next to it, which is what makes
   // defaulting it on defensible where a silent memory would not be.
   historyPersistenceEnabled: true,
+  calloutLevel: "normal",
 };
 
 /**

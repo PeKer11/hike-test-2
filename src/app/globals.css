@@ -41,3 +41,10 @@ body {
   outline: 2px solid var(--color-terra, #c15f3c);
   outline-offset: 2px;
 }
+
+/* While walking, the HUD stack covers the map's bottom edge. WalkHud publishes
+   its height as --hud-h on the map section; lifting Leaflet's bottom controls by
+   that much keeps the (mandatory) OSM attribution visible above it. */
+.walk-hud .leaflet-bottom {
+  margin-bottom: var(--hud-h, 9rem);
+}

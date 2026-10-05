@@ -44,9 +44,9 @@ export class PaceChecker {
   }
 
   /** Feed every accepted GPS position here — the trigger windows are built from these. */
-  recordSample(sample: ReplanSample): void {
+  recordSample(sample: ReplanSample, atStop?: boolean): void {
     this.lastSampleTimestamp = sample.timestamp;
-    this.trigger.recordSample(sample);
+    this.trigger.recordSample(sample, atStop);
   }
 
   /**

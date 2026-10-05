@@ -3,6 +3,9 @@
 import { useId, useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Toggle } from "@/components/ui/Toggle";
+import { walkCopy } from "@/lib/walk/walk-copy";
+import { CALLOUT_LEVELS } from "@/lib/types/walk-settings";
+import type { CalloutLevel } from "@/lib/types/discovery";
 import type {
   DeviationResponseMode,
   PaceResponseMode,
@@ -185,6 +188,25 @@ export function WalkSettingsPanel({
                 </p>
               </div>
             )}
+          </SettingsSection>
+
+          <SettingsSection title={walkCopy.discovery.en["level.title"]}>
+            <label className={ROW_CLASS}>
+              <span>{walkCopy.discovery.en["level.label"]}</span>
+              <select
+                value={settings.calloutLevel}
+                onChange={(event) =>
+                  onChange({ calloutLevel: event.target.value as CalloutLevel })
+                }
+                className={SELECT_CLASS}
+              >
+                {CALLOUT_LEVELS.map((level) => (
+                  <option key={level} value={level}>
+                    {walkCopy.discovery.en[`level.${level}`]}
+                  </option>
+                ))}
+              </select>
+            </label>
           </SettingsSection>
 
           {/* Its own group rather than a fourth row under "If my pace drifts",

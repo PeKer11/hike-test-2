@@ -26,6 +26,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Lets the walk HUD pad for the notch / home bar via env(safe-area-inset-*),
+  // and stops Samsung's forced dark mode from repainting the cream UI.
+  viewportFit: "cover",
+  colorScheme: "light",
 };
 
 export default function RootLayout({
