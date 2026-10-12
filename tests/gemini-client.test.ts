@@ -20,6 +20,7 @@ vi.mock("@google/genai", () => ({
   },
 }));
 
+import { DEFAULT_GEMINI_MODEL } from "@/lib/llm/config";
 import {
   extractCategoryPreferences,
   extractPlaceNames,
@@ -76,6 +77,15 @@ describe("extractPlaceNames", () => {
     await extractPlaceNames("a walk in Jaffa");
 
     expect(sentRequest().contents).toBe("a walk in Jaffa");
+  });
+
+  it("pins the model and sends a per-request timeout and abort signal", async () => {
+    await extractPlaceNames("a walk in Jaffa");
+
+    const req = sentRequest();
+    expect(req.model).toBe(DEFAULT_GEMINI_MODEL);
+    expect(req.config.httpOptions.timeout).toBe(6000);
+    expect(req.config.abortSignal).toBeInstanceOf(AbortSignal);
   });
 
   it("sends the bare prompt when an empty fact list is passed explicitly", async () => {

@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+import { getTileUrl, tileImgSrc } from "./src/lib/map/tile-config";
+
 const nextConfig: NextConfig = {
   // `.next` for everything a person runs by hand. The override exists for one
   // caller: the e2e suite, which builds and serves the app into `.next-e2e` so
@@ -37,7 +39,7 @@ const nextConfig: NextConfig = {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      `img-src 'self' data: https://*.tile.openstreetmap.org`,
+      `img-src 'self' data: ${tileImgSrc(getTileUrl())}`,
       "font-src 'self'",
       `connect-src 'self' ${supabaseOrigin}`,
       "object-src 'none'",

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
 
 const PRIMARY = "https://overpass-api.de/api/interpreter";
-const MIRROR = "https://overpass.kumi.systems/api/interpreter";
+const MIRROR = "https://overpass.private.coffee/api/interpreter";
 
 function ok(payload: unknown) {
   return { ok: true, status: 200, json: async () => payload, text: async () => "" };

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchOsmHikingTrails } from "@/lib/api/osm-trails-client";
 
 const PRIMARY = "https://overpass-api.de/api/interpreter";
-const MIRROR = "https://overpass.kumi.systems/api/interpreter";
+const MIRROR = "https://overpass.private.coffee/api/interpreter";
 
 function ok(payload: unknown) {
   return { ok: true, status: 200, json: async () => payload };
@@ -62,6 +62,9 @@ describe("fetchOsmHikingTrails request", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(PRIMARY);
     expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>)["User-Agent"]).toContain(
+      "HikingRoutePlanner/1.0 (contact:",
+    );
 
     const query = decodeURIComponent((init.body as string).replace(/^data=/, ""));
     expect(query).toContain('relation["route"="hiking"](around:4200,31.77,35.21)');

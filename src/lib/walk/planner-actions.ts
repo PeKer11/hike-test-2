@@ -65,6 +65,12 @@ export interface PaceRebuildState<TInput extends RebuildInput> {
    * walker who has stopped altogether.
    */
   currentPaceMinPerKm?: number | null;
+  /**
+   * Hard cap on the rebuilt walk's minutes (e.g. minutes to sunset). Unlike
+   * MIN_REBUILD_MINUTES it is respected even below 15: a walk that must end by
+   * sunset beats a "worth walking" stub.
+   */
+  capMin?: number;
 }
 
 /**
@@ -100,6 +106,35 @@ export function buildDeviationRebuildRequest<TInput extends RebuildInput>(
   state: PaceRebuildState<TInput>,
 ): { input: TInput; options: BuildWalkOptions } {
   return buildMidWalkRebuildRequest(state, { fillRemainingTime: false });
+}
+
+/**
+ * "Skip {stop}": the rebuild minus the named stops, the rest in their original
+ * order. A dropped stop is also unpinned. No discovery runs, so the walk gets
+ * shorter rather than being refilled. The last remaining stop is never dropped.
+ */
+export function buildDropStopsRebuildRequest<TInput extends RebuildInput>(
+  state: PaceRebuildState<TInput>,
+  dropStopIds: string[],
+  capMin?: number,
+): { input: TInput; options: BuildWalkOptions } {
+  if (capMin !== undefined) state = { ...state, capMin };
+  const drop = new Set(dropStopIds);
+  const kept = state.currentAttractions?.filter((s) => !drop.has(s.id));
+  // Dropping the last stop would send an empty list, which makes /api/walk-plan
+  // run fresh discovery and ADD stops. Refuse: keep the stops as they are and
+  // only re-time, which routes the walker toward the end anchor.
+  if (state.currentAttractions && state.currentAttractions.length > 0 && kept?.length === 0) {
+    return buildMidWalkRebuildRequest(state, { fillRemainingTime: false });
+  }
+  return buildMidWalkRebuildRequest(
+    {
+      ...state,
+      currentAttractions: kept,
+      pinnedIds: state.pinnedIds.filter((id) => !drop.has(id)),
+    },
+    { fillRemainingTime: false },
+  );
 }
 
 /**
@@ -434,11 +469,15 @@ function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
 ): { input: TInput; options: BuildWalkOptions } {
   const { originalInput: orig } = state;
   const elapsedMinutes = (state.now - state.walkStartTime) / 60_000;
-  const remainingMinutes = Math.max(
+  const uncapped = Math.max(
     MIN_REBUILD_MINUTES,
     orig.availableMinutes - elapsedMinutes,
     extendToFitRemainingStops ? minutesToFinishRemainingStops(state) : 0,
   );
+  const remainingMinutes =
+    state.capMin !== undefined && Number.isFinite(state.capMin)
+      ? Math.min(uncapped, Math.max(1, state.capMin))
+      : uncapped;
 
   const origin = state.currentPosition ?? orig.origin;
 

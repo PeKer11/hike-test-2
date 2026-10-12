@@ -1,3 +1,5 @@
+import { createCircuitBreaker, parseRetryAfterMs } from "@/lib/api/circuit-breaker";
+import { appUserAgent } from "@/lib/api/http-identity";
 import type { Attraction, AttractionCategory } from "@/lib/types";
 import type { Coordinates, NearbyPlace } from "@/lib/types";
 import { walkCopy } from "@/lib/walk/walk-copy";
@@ -5,7 +7,7 @@ import { walkCopy } from "@/lib/walk/walk-copy";
 // Primary + mirror — tried in order if the previous one times out or fails
 const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
@@ -172,10 +174,20 @@ interface EndpointAttempt {
   method: "GET" | "POST";
 }
 
+// Per-mirror breaker: three failures in a row (or a Retry-After) skips that
+// mirror for 10 minutes so a refusing public instance is not hammered.
+export const overpassBreaker = createCircuitBreaker();
+
+function requestHeaders(): Record<string, string> {
+  return {
+    ...REQUEST_HEADERS,
+    "User-Agent": appUserAgent(),
+  };
+}
+
 const REQUEST_HEADERS = {
   Accept: "application/json,text/plain,*/*",
   "Accept-Language": "en-US,en;q=0.9",
-  "User-Agent": "hiking-route-planner/0.1 (+local-dev)",
 };
 
 function buildOverpassQuery(center: Coordinates, radiusMeters: number): string {
@@ -234,6 +246,7 @@ export async function runOverpassQuery(query: string): Promise<OverpassElement[]
   let lastError: Error = new Error("Overpass API unavailable.");
 
   for (const attempt of attempts) {
+    if (overpassBreaker.isOpen(attempt.endpoint)) continue;
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 20_000);
@@ -242,7 +255,7 @@ export async function runOverpassQuery(query: string): Promise<OverpassElement[]
           ? await fetch(attempt.endpoint, {
               method: "POST",
               headers: {
-                ...REQUEST_HEADERS,
+                ...requestHeaders(),
                 "Content-Type": "application/x-www-form-urlencoded",
               },
               body,
@@ -250,13 +263,19 @@ export async function runOverpassQuery(query: string): Promise<OverpassElement[]
             })
           : await fetch(`${attempt.endpoint}?data=${encodeURIComponent(query)}`, {
               method: "GET",
-              headers: REQUEST_HEADERS,
+              headers: requestHeaders(),
               signal: controller.signal,
             });
 
       clearTimeout(timeout);
 
       if (!response.ok) {
+        if (response.status === 429 || response.status >= 500) {
+          overpassBreaker.recordFailure(
+            attempt.endpoint,
+            parseRetryAfterMs(response.headers?.get?.("Retry-After")),
+          );
+        }
         const errorText = await response.text().catch(() => "");
         const detail = errorText.trim().slice(0, 160);
         lastError = new Error(
@@ -266,8 +285,10 @@ export async function runOverpassQuery(query: string): Promise<OverpassElement[]
       }
 
       const data = (await response.json()) as OverpassResponse;
+      overpassBreaker.recordSuccess(attempt.endpoint);
       return data.elements;
     } catch (err) {
+      overpassBreaker.recordFailure(attempt.endpoint);
       lastError =
         err instanceof Error ? err : new Error("Overpass request failed.");
       // try next mirror

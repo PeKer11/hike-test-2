@@ -114,7 +114,9 @@ describe("callout tier badges and warnings", () => {
   });
 
   it("an unverified find says so; a listed place carries no warning", () => {
-    expect(calloutHtml(announcement({ verification: "detected" }))).toContain(en["warn.detected"]);
+    expect(calloutHtml(announcement({ verification: "detected" }))).toContain(
+      en["detected.lead"].split(".")[0],
+    );
     const listed = calloutHtml(announcement({ verification: "registered", source: "osm" }));
     expect(listed).not.toContain(en["warn.crowd"]);
     expect(listed).not.toContain(en["warn.detected"]);

@@ -144,6 +144,18 @@ export const SCORE_PHOTO_CAP = 0.6;
 export const SCORE_PHOTO_DIVISOR = 3;
 export const SCORE_DETOUR_PENALTY_PER_MIN = 0.08;
 
+// --- Point scan distance (speed-adaptive) -----------------------------------
+/** A walker is "outside everything scanned" at least this far from a cover. */
+export const POINT_SCAN_MIN_DISTANCE_M = 450;
+/** A runner or cyclist gets one point scan per this much travel time. */
+export const POINT_SCAN_TRAVEL_S = 300;
+
+/** `max(450, speed x 300 s)`: 4 m/s -> 1,200 m. Unknown / non-finite speed -> 450 m. */
+export function pointScanDistanceM(speedMps: number): number {
+  if (!Number.isFinite(speedMps) || speedMps <= 0) return POINT_SCAN_MIN_DISTANCE_M;
+  return Math.max(POINT_SCAN_MIN_DISTANCE_M, speedMps * POINT_SCAN_TRAVEL_S);
+}
+
 // --- Wikipedia / Commons scans ---------------------------------------------
 export const WIKI_USER_AGENT = "HikingRoutePlanner/1.0 (contact: hiking-planner)";
 export const WIKI_TIMEOUT_MS = 8_000;

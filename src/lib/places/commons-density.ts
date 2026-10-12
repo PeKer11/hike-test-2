@@ -1,5 +1,6 @@
 import "server-only";
 
+import { appUserAgent } from "@/lib/api/http-identity";
 import type { Coordinates } from "@/lib/types";
 import type { DiscoveryItem } from "@/lib/types/discovery";
 import {
@@ -9,7 +10,6 @@ import {
   COMMONS_MAX_CALLS,
   COMMONS_RADIUS_M,
   WIKI_TIMEOUT_MS,
-  WIKI_USER_AGENT,
 } from "@/lib/walk/discovery-cadence";
 import { discoveryCopy } from "@/lib/walk/discovery-copy";
 
@@ -101,7 +101,7 @@ export async function fetchPhotoClusters(
       const response = await fetch(
         `https://commons.wikimedia.org/w/api.php?${params}`,
         {
-          headers: { "User-Agent": WIKI_USER_AGENT, Accept: "application/json" },
+          headers: { "User-Agent": appUserAgent(), Accept: "application/json" },
           signal: AbortSignal.timeout(WIKI_TIMEOUT_MS),
           cache: "no-store",
         },

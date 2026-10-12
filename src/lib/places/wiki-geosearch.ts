@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createCircuitBreaker, parseRetryAfterMs } from "@/lib/api/circuit-breaker";
+import { appUserAgent } from "@/lib/api/http-identity";
 import type { Coordinates } from "@/lib/types";
 import type { DiscoveryItem } from "@/lib/types/discovery";
 import {
@@ -10,7 +12,6 @@ import {
   WIKI_RADIUS_M,
   WIKI_SAMPLE_EVERY_M,
   WIKI_TIMEOUT_MS,
-  WIKI_USER_AGENT,
 } from "@/lib/walk/discovery-cadence";
 import { samplePath } from "@/lib/walk/route-overlap";
 
@@ -75,13 +76,33 @@ export function parseWikiResponse(json: unknown, lang: string): WikiPlace[] {
   return out;
 }
 
+// One breaker key per wiki host: he.wikipedia.org being down must not cost the
+// English lookups, but a host that keeps failing is skipped for 10 minutes.
+export const wikiBreaker = createCircuitBreaker();
+
 async function fetchJson(url: string): Promise<unknown> {
-  const response = await fetch(url, {
-    headers: { "User-Agent": WIKI_USER_AGENT, Accept: "application/json" },
-    signal: AbortSignal.timeout(WIKI_TIMEOUT_MS),
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`Wikipedia ${response.status}`);
+  const host = new URL(url).host;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { "User-Agent": appUserAgent(), Accept: "application/json" },
+      signal: AbortSignal.timeout(WIKI_TIMEOUT_MS),
+      cache: "no-store",
+    });
+  } catch (error) {
+    wikiBreaker.recordFailure(host);
+    throw error;
+  }
+  if (!response.ok) {
+    if (response.status === 429 || response.status >= 500) {
+      wikiBreaker.recordFailure(
+        host,
+        parseRetryAfterMs(response.headers?.get?.("Retry-After")),
+      );
+    }
+    throw new Error(`Wikipedia ${response.status}`);
+  }
+  wikiBreaker.recordSuccess(host);
   return response.json();
 }
 
@@ -99,6 +120,7 @@ export async function fetchWikiPlaces(
     const langs = isInIsrael(p) ? ["he", "en"] : ["en"];
     for (const lang of langs) {
       if (calls >= WIKI_MAX_CALLS) return { places: [...places.values()], calls };
+      if (wikiBreaker.isOpen(`${lang}.wikipedia.org`)) continue;
       calls += 1;
       const params = new URLSearchParams({
         action: "query",

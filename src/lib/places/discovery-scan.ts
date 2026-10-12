@@ -3,6 +3,7 @@ import "server-only";
 import type { NearbyProvider } from "@/lib/places/nearby-provider";
 import { distanceToPath } from "@/lib/places/path";
 import { clusterToItem, fetchPhotoClusters } from "@/lib/places/commons-density";
+import { runDetectedScanCounted } from "@/lib/places/detected-scan";
 import {
   fetchWikiPlaces,
   sampleScanPoints,
@@ -21,6 +22,8 @@ export interface DiscoveryScan {
   ring: NearbyPlace[];
   wikipedia: DiscoveryItem[];
   commons: DiscoveryItem[];
+  /** Imagery finds (flag NEXT_PUBLIC_DETECTED_TIER=1; empty when off or on any failure). */
+  detected: DiscoveryItem[];
   /** Upstream calls made, for the budget (1 Overpass, <=8 Wikipedia, <=4 Commons). */
   calls: { overpass: number; wikipedia: number; commons: number };
 }
@@ -73,13 +76,20 @@ export async function runDiscoveryScan(
     )
     .map(clusterToItem);
 
+  // Flag off: no calls. Any failure: no items (never throws, never blocks).
+  const detectedRun = await runDetectedScanCounted(points, ringRadiusMeters, {
+    wikiPlaces: wikiPlaces.map((w) => w.coordinates),
+    photoClusters: clusters,
+  });
+
   return {
     places,
     ring,
     wikipedia,
     commons: commonsItems,
+    detected: detectedRun.items,
     calls: {
-      overpass: 1,
+      overpass: 1 + detectedRun.overpassCalls,
       wikipedia: wiki.status === "fulfilled" ? wiki.value.calls : 0,
       commons: commons.status === "fulfilled" ? commons.value.calls : 0,
     },

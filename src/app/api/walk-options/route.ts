@@ -114,7 +114,13 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   let payload: Record<string, unknown>;
   try {
-    payload = (await request.json()) as Record<string, unknown>;
+    const parsed: unknown = await request.json();
+    // `null`, arrays and bare scalars are valid JSON but not a request object;
+    // destructuring `null` below would otherwise throw into a 500.
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    }
+    payload = parsed as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }

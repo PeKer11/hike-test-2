@@ -71,7 +71,7 @@ describe("wiki geosearch", () => {
     expect(calls).toBeLessThanOrEqual(8);
     expect(spy.mock.calls.length).toBe(calls);
     const init = (spy.mock.calls[0] as unknown as [string, RequestInit])[1];
-    expect((init.headers as Record<string, string>)["User-Agent"]).toContain("HikingRoutePlanner/1.0");
+    expect((init.headers as Record<string, string>)["User-Agent"]).toContain("HikingRoutePlanner/1.0 (contact:");
   });
 
   it("de-duplicates by QID and survives a failed call", async () => {

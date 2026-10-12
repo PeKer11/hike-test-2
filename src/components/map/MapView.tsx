@@ -14,6 +14,7 @@ import { OptionPreviewLines, type PreviewRoute } from "@/components/map/OptionPr
 import { PoiCallouts } from "@/components/map/PoiCallouts";
 import { PreviewMarkers } from "@/components/map/PreviewMarkers";
 import { RoutePolyline } from "@/components/map/RoutePolyline";
+import { getTileAttribution, getTileUrl } from "@/lib/map/tile-config";
 import type { Attraction, Coordinates, Waypoint } from "@/lib/types";
 import type { Announcement } from "@/lib/walk/poi-announcer";
 
@@ -131,8 +132,8 @@ export default function MapView({
         style={{ height: "100%", width: "100%" }}
       >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution={getTileAttribution()}
+        url={getTileUrl()}
       />
       <MapViewport center={center} zoom={zoom} />
       <MapSizeInvalidator />

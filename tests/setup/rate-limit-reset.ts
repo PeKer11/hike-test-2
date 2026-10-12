@@ -1,5 +1,6 @@
 import { beforeEach } from "vitest";
 
+import { resetAllCircuitBreakers } from "@/lib/api/circuit-breaker";
 import {
   geminiRateLimiter,
   nominatimRateLimiter,
@@ -27,4 +28,5 @@ beforeEach(() => {
   orsRateLimiter.reset();
   nominatimRateLimiter.reset();
   overpassRateLimiter.reset();
+  resetAllCircuitBreakers();
 });

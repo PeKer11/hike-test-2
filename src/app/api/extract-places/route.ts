@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/rate-limit";
 import { rankAttractions } from "@/lib/attractions/attraction-ranker";
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
+import type { LlmCallContext } from "@/lib/llm/types";
 import { isPlausibleGeocodeMatch } from "@/lib/places/geocode-plausibility";
 import {
   buildExtractionResult,
@@ -370,6 +371,15 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     const body = (await request.json()) as ExtractPlacesRequest;
+    // Who the budget guard counts this call against: the signed-in walker when
+    // learning is on (the session is only resolved then), else the ip bucket.
+    // A LlmBudgetExceededError from the extraction below is deliberately left
+    // to the catch at the end: it gets the same `{ error }` response as any
+    // other "the LLM is unavailable" failure of this route.
+    const llmContext = (userId: string | null): LlmCallContext => ({
+      userId,
+      ip: callerKey(request),
+    });
 
     const prompt =
       typeof body.prompt === "string" ? body.prompt.trim() : "";
@@ -393,9 +403,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     // not a second way of reading a duration — but nothing else runs, and what
     // the earlier turns established survives whatever this one failed to say.
     if (body.followUp === true) {
+      const followUpSession = await learningSession(body.learnPreferences);
       const followUp = await extractPlaceNames(
         prompt,
-        await standingFactsFor(await learningSession(body.learnPreferences)),
+        await standingFactsFor(followUpSession),
+        llmContext(followUpSession?.userId ?? null),
       );
       return NextResponse.json({
         followUp: true,
@@ -430,7 +442,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       notableOnly,
       maxEndDistanceKm,
       searchRadiusKm,
-    } = await extractPlaceNames(prompt, facts);
+    } = await extractPlaceNames(prompt, facts, llmContext(session?.userId ?? null));
 
     // A chip the walker tapped answers the question the text left open, so it
     // stands in for what the model read (nothing) rather than joining it.

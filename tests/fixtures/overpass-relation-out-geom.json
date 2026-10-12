@@ -1,0 +1,39 @@
+{
+  "_note": "NOT a live recording: the live Overpass instance returned 'dispatcher timeout' on 3 polite attempts on 2026-10-12. Shape follows the Overpass API 0.7.x documentation for `out geom;` on a multipolygon relation (members with role + per-node geometry, plus bounds). Re-record with: [out:json];relation['landuse'='military'](bbox);out geom 1;",
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62",
+  "osm3s": { "timestamp_osm_base": "2026-10-12T08:00:00Z", "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL." },
+  "elements": [
+    {
+      "type": "relation",
+      "id": 1000001,
+      "bounds": { "minlat": 31.899, "minlon": 34.849, "maxlat": 31.9015, "maxlon": 34.8515 },
+      "members": [
+        {
+          "type": "way",
+          "ref": 2000001,
+          "role": "outer",
+          "geometry": [
+            { "lat": 31.899, "lon": 34.849 },
+            { "lat": 31.899, "lon": 34.8515 },
+            { "lat": 31.9015, "lon": 34.8515 },
+            { "lat": 31.9015, "lon": 34.849 },
+            { "lat": 31.899, "lon": 34.849 }
+          ]
+        },
+        {
+          "type": "way",
+          "ref": 2000002,
+          "role": "inner",
+          "geometry": [
+            { "lat": 31.9, "lon": 34.85 },
+            { "lat": 31.9, "lon": 34.8505 },
+            { "lat": 31.9005, "lon": 34.8505 },
+            { "lat": 31.9, "lon": 34.85 }
+          ]
+        }
+      ],
+      "tags": { "landuse": "military", "type": "multipolygon" }
+    }
+  ]
+}

@@ -16,6 +16,7 @@ import {
 } from "@/components/route";
 import { DirectionOptionsSheet } from "@/components/walk/DirectionOptionsSheet";
 import { WalkHud } from "@/components/walk/WalkHud";
+import { detectedNote, mayAddToWalk } from "@/lib/walk/detected-note";
 import type { WalkAlert } from "@/components/walk/WalkAlertCard";
 import type { WalkStatsData } from "@/components/walk/WalkStatsBar";
 import { WalkFeedbackCard } from "@/components/walk/WalkFeedbackCard";
@@ -1727,6 +1728,7 @@ export function WalkPlannerApp({
   // "Add to walk" on a place the walker was told about: the same rebuild as
   // recalling a dropped stop — pinned, so no later rebuild takes it back out.
   const addNearbyPlaceToWalk = (place: NearbyPlace) => {
+    if (place.verification === "detected") return;
     const state = midWalkRebuildState();
     if (!state) return;
     discoveryRef.current?.setState(place.id, "added");
@@ -1954,20 +1956,22 @@ export function WalkPlannerApp({
       const isPlanStop = (walkPlanRef.current?.orderedAttractions ?? []).some(
         (a) => a.id === calloutPlace.id,
       );
-      const mayAdd =
+      const mayAdd = mayAddToWalk(
+        calloutPlace.verification,
         isPlanStop ||
-        canOfferAdd({
-          lateralM: isOffRoute ? null : (calloutItem?.frame?.lateralM ?? null),
-          fallbackDistanceM: selectedCallout.distanceM,
-          speedMpm: 1000 / placePaceMin,
-          remainingWalkMin,
-          environment: discoveryRef.current?.environment ?? "urban",
-        });
+          canOfferAdd({
+            lateralM: isOffRoute ? null : (calloutItem?.frame?.lateralM ?? null),
+            fallbackDistanceM: selectedCallout.distanceM,
+            speedMpm: 1000 / placePaceMin,
+            remainingWalkMin,
+            environment: discoveryRef.current?.environment ?? "urban",
+          }),
+      );
       const calloutWarning =
         calloutPlace.verification === "crowd-signal"
           ? walkCopy.discovery.en["warn.crowd"]
           : calloutPlace.verification === "detected"
-            ? walkCopy.discovery.en["warn.detected"]
+            ? detectedNote(calloutPlace.tags)
             : undefined;
       walkAlert = {
         id: `visit-${selectedCallout.place.id}`,

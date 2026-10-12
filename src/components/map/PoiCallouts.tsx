@@ -31,7 +31,45 @@ function escapeHtml(text: string): string {
     .replace(/'/g, "&#39;");
 }
 
+const HAZARD_KEY = {
+  private: "hazard.private",
+  reserve: "hazard.reserve",
+  flood: "hazard.flood",
+  fire: "hazard.fire",
+  cliff: "hazard.cliff",
+  "mixed-area": "hazard.mixed",
+} as const;
+
+/**
+ * The card for an imagery-detected find: EN and HE lines, always the lead
+ * ("not a registered place"), at least one hazard (private is the floor),
+ * "check signs", and the footer. Never says safe or verified.
+ */
+export function detectedCardHtml(a: Announcement): string {
+  const en = walkCopy.discovery.en;
+  const he = walkCopy.discovery.he;
+  const water = a.place.tags["detected:class"] === "water";
+  const codes = (a.place.tags["detected:hazards"] ?? "")
+    .split(",")
+    .filter((c): c is keyof typeof HAZARD_KEY => c in HAZARD_KEY);
+  const hazards = codes.length > 0 ? codes : (["private"] as const);
+  const pair = (k: keyof typeof en, cls: string) =>
+    `<span class="block ${cls}">${escapeHtml(en[k])}</span><span dir="rtl" class="block ${cls}">${escapeHtml(he[k])}</span>`;
+  const lead = water ? "detected.leadWater" : "detected.lead";
+  return `<div class="w-64 rounded-xl border border-terra/40 bg-cream/95 p-2 text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)]">
+    <span class="flex items-start justify-between gap-2">
+      <span dir="auto" class="min-w-0 flex-1 truncate text-sm font-semibold">${escapeHtml(a.place.name)}</span>
+      <span class="rounded bg-forest/10 px-1 text-[10px] font-semibold">${escapeHtml(en["badge.detected"])} · ${escapeHtml(he["badge.detected"])}</span>
+    </span>
+    ${pair(lead, "mt-0.5 text-[10px] leading-tight text-charcoal/80")}
+    ${hazards.map((h) => pair(HAZARD_KEY[h], "mt-0.5 text-[10px] leading-tight text-terra")).join("")}
+    ${pair("detected.checkSigns", "mt-0.5 text-[10px] font-semibold leading-tight")}
+    ${pair("detected.footer", "mt-0.5 text-[9px] leading-tight text-charcoal/60")}
+  </div>`;
+}
+
 export function calloutHtml(a: Announcement): string {
+  if (a.place.verification === "detected") return detectedCardHtml(a);
   const categoryLabel = a.isPlanStop
     ? walkCopy.callout.nextStop
     : a.place.kind === "scenery"
@@ -49,16 +87,10 @@ export function calloutHtml(a: Announcement): string {
       ? d["badge.mapped"]
       : verification === "crowd-signal"
         ? d["badge.crowd"]
-        : verification === "detected"
-          ? d["badge.detected"]
-          : walkCopy.callout.osmBadge;
-  // A photo hotspot or an unverified find always says so — never "verified".
-  const warning =
-    verification === "crowd-signal"
-      ? d["warn.crowd"]
-      : verification === "detected"
-        ? d["warn.detected"]
-        : null;
+        : walkCopy.callout.osmBadge;
+  // A photo hotspot always says so — never "verified". (Detected finds take
+  // the early return above, with their own multi-line card.)
+  const warning = verification === "crowd-signal" ? d["warn.crowd"] : null;
   const icon = CATEGORY_ICON[a.place.category] ?? CATEGORY_ICON.other;
   return `<div class="flex w-56 items-start gap-2 rounded-xl border border-forest/20 bg-cream/95 p-2 text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)]">
     <span aria-hidden="true" class="text-lg leading-none">${icon}</span>
@@ -102,15 +134,16 @@ function CalloutMarker({
   const tall =
     announcement.place.verification === "crowd-signal" ||
     announcement.place.verification === "detected";
+  const detected = announcement.place.verification === "detected";
   const icon = useMemo(
     () =>
       L.divIcon({
         className: "",
         html,
-        iconSize: [224, tall ? 96 : 52],
-        iconAnchor: [112, tall ? 104 : 60],
+        iconSize: detected ? [256, 300] : [224, tall ? 96 : 52],
+        iconAnchor: detected ? [128, 308] : [112, tall ? 104 : 60],
       }),
-    [html, tall],
+    [html, tall, detected],
   );
   return (
     <Marker

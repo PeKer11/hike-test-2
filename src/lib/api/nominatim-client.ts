@@ -1,8 +1,15 @@
 import "server-only";
 
+import { createCircuitBreaker, parseRetryAfterMs } from "@/lib/api/circuit-breaker";
+import { appUserAgent } from "@/lib/api/http-identity";
 import type { Coordinates, NominatimPlace } from "@/lib/types";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+
+// Three failures in a row (or a Retry-After) and we stop asking for 10 minutes:
+// the public instance is shared and its policy is to back off, not to retry.
+export const nominatimBreaker = createCircuitBreaker();
+const BREAKER_KEY = "nominatim";
 
 // Roughly 10 km around the bias point. Generic names ("מדרחוב", "גן טייל")
 // exist in every town, so a preference-only viewbox silently returned matches
@@ -38,21 +45,38 @@ export async function searchPlaces(
     params.set("bounded", "1");
   }
 
-  const response = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {
-    method: "GET",
-    headers: {
-      "User-Agent": "HikingRoutePlanner/1.0",
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
+  if (nominatimBreaker.isOpen(BREAKER_KEY)) {
+    throw new Error("Nominatim temporarily skipped after repeated failures.");
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        "User-Agent": appUserAgent(),
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+  } catch (error) {
+    nominatimBreaker.recordFailure(BREAKER_KEY);
+    throw error;
+  }
 
   if (!response.ok) {
+    if (response.status === 429 || response.status >= 500) {
+      nominatimBreaker.recordFailure(
+        BREAKER_KEY,
+        parseRetryAfterMs(response.headers?.get?.("Retry-After")),
+      );
+    }
     const errorText = await response.text();
     throw new Error(
       `Nominatim request failed (${response.status}): ${errorText}`,
     );
   }
 
+  nominatimBreaker.recordSuccess(BREAKER_KEY);
   return (await response.json()) as NominatimPlace[];
 }
