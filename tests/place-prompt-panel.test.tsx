@@ -737,7 +737,19 @@ describe("PlacePromptPanel — the session scrollback", () => {
 
     const thread = within(await screen.findByRole("list", { name: "Conversation" }));
     expect(thread.getByText("מדרחוב וגן טייל בזכרון יעקב")).toBeTruthy();
+    expect(thread.getByText(/זה מתאים, או שתרצה עוד מקומות\?/)).toBeTruthy();
+  });
+
+  it("replies in English to an English prompt, and New chat clears the thread", async () => {
+    stubExtract([{ attractions: FOUND, unresolvedNames: [] }]);
+    renderPanel();
+    sendPrompt("a walk in Zichron Yaakov");
+
+    const thread = within(await screen.findByRole("list", { name: "Conversation" }));
     expect(thread.getByText(/Does that look right, or do you want more places\?/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "New chat" }));
+    expect(screen.queryByRole("list", { name: "Conversation" })).toBeNull();
   });
 
   it("logs the question when the prompt was too vague to answer", async () => {

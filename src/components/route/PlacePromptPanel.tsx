@@ -165,22 +165,40 @@ interface ChatMessage {
   text: string;
 }
 
-/** Like a chat window: only the latest few messages stay on screen. */
-const VISIBLE_CHAT_MESSAGES = 5;
+/** The thread scrolls like a chat window; this only bounds memory. */
+const MAX_CHAT_MESSAGES = 50;
+
+const HEBREW_LETTER = /[\u0590-\u05FF]/;
 
 /** The assistant's reply to an extraction, in words rather than a count. */
-function chatReplyFor(data: ExtractPlacesResponse): string {
+function chatReplyFor(data: ExtractPlacesResponse, hebrew: boolean): string {
   if (data.needsClarification) {
-    return "Tell me what you're in the mood for — pick one below and I'll find stops.";
+    return hebrew
+      ? "ספר לי מה בא לך — בחר אחת מהאפשרויות למטה ואמצא עצירות."
+      : "Tell me what you're in the mood for — pick one below and I'll find stops.";
   }
   const names = (data.attractions ?? []).map((a) => a.name);
   const unresolved = data.unresolvedNames ?? [];
-  const missed =
-    unresolved.length > 0 ? ` I couldn't locate ${unresolved.join(", ")}.` : "";
   if (names.length === 0) {
-    return `I didn't find anything for that.${missed} Try different wording or a nearby area?`;
+    const missed =
+      unresolved.length > 0
+        ? hebrew
+          ? ` לא הצלחתי לאתר: ${unresolved.join(", ")}.`
+          : ` I couldn't locate ${unresolved.join(", ")}.`
+        : "";
+    return hebrew
+      ? `לא מצאתי כלום לבקשה הזו.${missed} אפשר לנסות ניסוח אחר או אזור קרוב?`
+      : `I didn't find anything for that.${missed} Try different wording or a nearby area?`;
   }
-  return `I found ${names.join(", ")}.${missed} Does that look right, or do you want more places?`;
+  const missed =
+    unresolved.length > 0
+      ? hebrew
+        ? ` לא הצלחתי לאתר: ${unresolved.join(", ")}.`
+        : ` I couldn't locate ${unresolved.join(", ")}.`
+      : "";
+  return hebrew
+    ? `מצאתי: ${names.join(", ")}.${missed} זה מתאים, או שתרצה עוד מקומות?`
+    : `I found ${names.join(", ")}.${missed} Does that look right, or do you want more places?`;
 }
 
 type MissingField = "duration" | "endDistance";
@@ -356,12 +374,16 @@ export function PlacePromptPanel({
   const nextEntryId = useRef(0);
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const nextChatId = useRef(0);
+  const chatEndRef = useRef<HTMLLIElement | null>(null);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [chat, isLoading]);
   const addChat = (...messages: Array<Omit<ChatMessage, "id">>) =>
     setChat((current) =>
       [
         ...current,
         ...messages.map((m) => ({ ...m, id: nextChatId.current++ })),
-      ].slice(-VISIBLE_CHAT_MESSAGES),
+      ].slice(-MAX_CHAT_MESSAGES),
     );
 
   // Whether this walker's stored log has anything in it, so the "Clear
@@ -541,6 +563,22 @@ export function PlacePromptPanel({
     })();
   };
 
+  /** Back to a blank conversation, like "New chat": thread, box and found places. */
+  const startNewChat = () => {
+    setChat([]);
+    setPrompt("");
+    setError(null);
+    setFollowUpReply(null);
+    setHasResult(false);
+    setAttractions([]);
+    setRemovedIds([]);
+    setUnresolvedNames([]);
+    setClarificationCategories([]);
+    setSelectedCategories([]);
+    setFollowUpMissing(null);
+    onFoundPlacesChange([]);
+  };
+
   const extract = async (categoryNeeds?: AttractionCategory[]) => {
     const trimmed = prompt.trim();
     if (!trimmed) {
@@ -579,7 +617,10 @@ export function PlacePromptPanel({
       logExchange(turn, loggedPrompt, summarizeExtraction(data));
       addChat(
         { role: "user", text: loggedPrompt },
-        { role: "assistant", text: chatReplyFor(data) },
+        {
+          role: "assistant",
+          text: chatReplyFor(data, HEBREW_LETTER.test(trimmed)),
+        },
       );
 
       // One at a time. Two reversals in one sentence is rare enough that
@@ -662,7 +703,12 @@ export function PlacePromptPanel({
       logExchange(turn, loggedPrompt, message);
       addChat(
         { role: "user", text: loggedPrompt },
-        { role: "assistant", text: `Sorry, that didn't work: ${message}` },
+        {
+          role: "assistant",
+          text: HEBREW_LETTER.test(trimmed)
+            ? `סליחה, זה לא עבד: ${message}`
+            : `Sorry, that didn't work: ${message}`,
+        },
       );
     } finally {
       setIsLoading(false);
@@ -861,25 +907,39 @@ export function PlacePromptPanel({
       )}
 
       {chat.length > 0 && (
-        <ul aria-label="Conversation" className="space-y-1.5">
-          {chat.map((message) => (
-            <li
-              key={message.id}
-              className={
-                message.role === "user"
-                  ? "ml-6 rounded-lg bg-terra/10 px-2.5 py-1.5 text-sm text-charcoal"
-                  : "mr-6 rounded-lg bg-white/80 px-2.5 py-1.5 text-sm text-charcoal/90"
-              }
+        <div className="space-y-1.5">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={startNewChat}
+              className="cursor-pointer text-xs text-charcoal/60 underline hover:text-terra"
             >
-              {message.text}
-            </li>
-          ))}
-          {isLoading && (
-            <li className="mr-6 rounded-lg bg-white/80 px-2.5 py-1.5 text-sm text-charcoal/50">
-              Looking…
-            </li>
-          )}
-        </ul>
+              New chat
+            </button>
+          </div>
+          <ul
+            aria-label="Conversation"
+            className="max-h-72 space-y-2 overflow-y-auto pr-1"
+          >
+            {chat.map((message) => (
+              <li
+                key={message.id}
+                dir="auto"
+                className={
+                  message.role === "user"
+                    ? "ml-auto w-fit max-w-[85%] rounded-2xl bg-forest/10 px-3 py-1.5 text-sm text-charcoal"
+                    : "max-w-[95%] px-1 text-sm leading-relaxed text-charcoal/90"
+                }
+              >
+                {message.text}
+              </li>
+            ))}
+            {isLoading && (
+              <li className="px-1 text-sm text-charcoal/50">…</li>
+            )}
+            <li ref={chatEndRef} aria-hidden="true" />
+          </ul>
+        </div>
       )}
 
       <textarea
