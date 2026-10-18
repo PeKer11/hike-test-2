@@ -239,8 +239,15 @@ async function findNeedAttractions(
   }
 
   const found = new Set(picked.map((a) => a.category));
+  // Overpass gave nothing (or less than the stated count): ask Nominatim, with
+  // enough per kind to reach the count.
   const missing = categories.filter((c) => !found.has(c));
-  return [...picked, ...(await findNeedsViaNominatim(missing, origin, excludeNames))];
+  const stillShort = Math.max(0, (count ?? 0) - picked.length);
+  const nominatimKinds = missing.length > 0 ? missing : stillShort > 0 ? categories : [];
+  const perKind = Math.max(1, Math.ceil(Math.max(stillShort, nominatimKinds.length) / Math.max(1, nominatimKinds.length)));
+  const extra = await findNeedsViaNominatim(nominatimKinds, origin, new Set([...excludeNames, ...picked.map((a) => a.name)]), perKind);
+  const all = [...picked, ...extra];
+  return count ? all.slice(0, Math.max(count, picked.length)) : all;
 }
 
 /** Nominatim search word per kind of stop, for when Overpass has nothing. */
@@ -267,13 +274,14 @@ async function findNeedsViaNominatim(
   categories: AttractionCategory[],
   origin: Coordinates,
   excludeNames: Set<string>,
+  perKind = 1,
 ): Promise<Attraction[]> {
   const stops: Attraction[] = [];
   for (const category of categories) {
     try {
       await delay(GEOCODE_DELAY_MS);
       const results = await searchPlaces(NEED_FALLBACK_QUERY[category], 10, origin);
-      const nearest = results
+      const nearestList = results
         .map((r) => ({
           r,
           coordinates: { lat: Number(r.lat), lng: Number(r.lon) },
@@ -283,17 +291,23 @@ async function findNeedsViaNominatim(
         .sort(
           (a, b) =>
             haversineDistance(origin, a.coordinates) - haversineDistance(origin, b.coordinates),
-        )[0];
-      if (!nearest) continue;
-      stops.push({
-        id: `need-${category}-${nearest.r.place_id}`,
-        name: nearest.r.display_name.split(",")[0].trim(),
-        coordinates: nearest.coordinates,
-        category,
-        avgVisitMinutes: category === "food" ? 45 : 30,
-        tags: { source: "prompt-need", needCategory: category, via: "nominatim" },
-        distanceFromOriginMeters: Math.round(haversineDistance(origin, nearest.coordinates)),
-      });
+        );
+      const seen = new Set<string>();
+      for (const nearest of nearestList) {
+        const name = nearest.r.display_name.split(",")[0].trim();
+        if (seen.has(name) || stops.some((s) => s.name === name)) continue;
+        seen.add(name);
+        stops.push({
+          id: `need-${category}-${nearest.r.place_id}`,
+          name,
+          coordinates: nearest.coordinates,
+          category,
+          avgVisitMinutes: category === "food" ? 45 : 30,
+          tags: { source: "prompt-need", needCategory: category, via: "nominatim" },
+          distanceFromOriginMeters: Math.round(haversineDistance(origin, nearest.coordinates)),
+        });
+        if (seen.size >= perKind) break;
+      }
     } catch {
       // No stop for this one.
     }
