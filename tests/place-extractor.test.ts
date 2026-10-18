@@ -669,6 +669,11 @@ describe("pickNeedAttractions", () => {
     },
   ];
 
+  it("tops up to a stated count round-robin from the requested kinds", () => {
+    const names = pickNeedAttractions(ranked, ["food", "park"], 3).map((a) => a.name);
+    expect(names).toEqual(["Best Restaurant", "City Park", "Second Restaurant"]);
+  });
+
   it("takes the best-ranked match for each need", () => {
     expect(pickNeedAttractions(ranked, ["food"]).map((a) => a.name)).toEqual([
       "Best Restaurant",

@@ -211,6 +211,7 @@ async function findNeedAttractions(
   origin: Coordinates | undefined,
   durationMinutes: number | null,
   excludeNames: Set<string>,
+  count?: number | null,
 ): Promise<Attraction[]> {
   if (categories.length === 0 || !origin) {
     return [];
@@ -232,7 +233,7 @@ async function findNeedAttractions(
       availableMinutes: durationMinutes ?? FALLBACK_WALK_MINUTES,
       walkingPaceMinPerKm: NEED_RANKING_PACE_MIN_PER_KM,
     });
-    picked = pickNeedAttractions(ranked, categories);
+    picked = pickNeedAttractions(ranked, categories, count);
   } catch {
     // Fall through: whatever is still missing is looked up on Nominatim below.
   }
@@ -651,6 +652,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           ? body.excludeNames.filter((n): n is string => typeof n === "string").slice(0, 50)
           : [],
       ),
+      stopCount,
     );
 
     const factContradictions = await learnFromText(session, prompt, llmContext(session?.userId ?? null));

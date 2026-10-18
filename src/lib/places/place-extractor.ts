@@ -607,22 +607,49 @@ export function toExplicitAttraction(
 export function pickNeedAttractions(
   ranked: Attraction[],
   categories: AttractionCategory[],
+  count?: number | null,
 ): Attraction[] {
   const picked: Attraction[] = [];
   const usedIds = new Set<string>();
+
+  const take = (match: Attraction, category: AttractionCategory) => {
+    usedIds.add(match.id);
+    picked.push({
+      ...match,
+      tags: { ...match.tags, source: "prompt-need", needCategory: category },
+    });
+  };
 
   for (const category of categories) {
     const match = ranked.find(
       (attraction) =>
         attraction.category === category && !usedIds.has(attraction.id),
     );
-    if (!match) continue;
+    if (match) take(match, category);
+  }
 
-    usedIds.add(match.id);
-    picked.push({
-      ...match,
-      tags: { ...match.tags, source: "prompt-need", needCategory: category },
-    });
+  // A stated count ("5 places") is a floor the walker asked for: top up round
+  // robin from the requested kinds, then from any other mapped stop.
+  const target = count ?? 0;
+  let progressed = true;
+  while (picked.length < target && categories.length > 0 && progressed) {
+    progressed = false;
+    for (const category of categories) {
+      if (picked.length >= target) break;
+      const match = ranked.find(
+        (attraction) =>
+          attraction.category === category && !usedIds.has(attraction.id),
+      );
+      if (match) {
+        take(match, category);
+        progressed = true;
+      }
+    }
+  }
+  for (const match of ranked) {
+    if (picked.length >= target) break;
+    if (match.category === "other" || usedIds.has(match.id)) continue;
+    take(match, match.category);
   }
 
   return picked;
