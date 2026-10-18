@@ -147,6 +147,7 @@ export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   '"תביא לי גם לראות בית כנסת באיזור" -> categoryNeeds ["religious"] — a kind of place, not a named one.',
   '"אני אוהב דברים טבעיים" -> categoryNeeds [] — a taste, not a request for a stop on this walk.',
   '"I want to see Habima Square" -> categoryNeeds [] — the stop is named, so it is in `places` instead.',
+  '"עוד שני דברים מעניינים" / "two more interesting things" -> categoryNeeds ["landmark", "viewpoint"] — a count of stops with no kind given: return that many DIFFERENT categories from landmark, viewpoint, park, museum, nature.',
   "",
   "`stopCount`: how many stops the walker asked for, as a whole number.",
   "Only fill it in when the text states a count of places to visit unambiguously — 'bring me 3 famous places' -> 3, 'four stops' -> 4, 'תביא לי 5 מקומות' -> 5.",

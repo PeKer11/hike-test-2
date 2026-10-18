@@ -159,6 +159,30 @@ function summarizeExtraction(data: ExtractPlacesResponse): string {
   return "Didn't find anything for that";
 }
 
+interface ChatMessage {
+  id: number;
+  role: "user" | "assistant";
+  text: string;
+}
+
+/** Like a chat window: only the latest few messages stay on screen. */
+const VISIBLE_CHAT_MESSAGES = 5;
+
+/** The assistant's reply to an extraction, in words rather than a count. */
+function chatReplyFor(data: ExtractPlacesResponse): string {
+  if (data.needsClarification) {
+    return "Tell me what you're in the mood for — pick one below and I'll find stops.";
+  }
+  const names = (data.attractions ?? []).map((a) => a.name);
+  const unresolved = data.unresolvedNames ?? [];
+  const missed =
+    unresolved.length > 0 ? ` I couldn't locate ${unresolved.join(", ")}.` : "";
+  if (names.length === 0) {
+    return `I didn't find anything for that.${missed} Try different wording or a nearby area?`;
+  }
+  return `I found ${names.join(", ")}.${missed} Does that look right, or do you want more places?`;
+}
+
 type MissingField = "duration" | "endDistance";
 
 /**
@@ -330,6 +354,15 @@ export function PlacePromptPanel({
   const [scrollback, setScrollback] = useState<ScrollbackEntry[]>([]);
   const [isScrollbackOpen, setIsScrollbackOpen] = useState(false);
   const nextEntryId = useRef(0);
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const nextChatId = useRef(0);
+  const addChat = (...messages: Array<Omit<ChatMessage, "id">>) =>
+    setChat((current) =>
+      [
+        ...current,
+        ...messages.map((m) => ({ ...m, id: nextChatId.current++ })),
+      ].slice(-VISIBLE_CHAT_MESSAGES),
+    );
 
   // Whether this walker's stored log has anything in it, so the "Clear
   // history" control is only offered when there is something to clear —
@@ -544,6 +577,10 @@ export function PlacePromptPanel({
       );
 
       logExchange(turn, loggedPrompt, summarizeExtraction(data));
+      addChat(
+        { role: "user", text: loggedPrompt },
+        { role: "assistant", text: chatReplyFor(data) },
+      );
 
       // One at a time. Two reversals in one sentence is rare enough that
       // stacking confirmations for them would cost more than it saves.
@@ -623,6 +660,10 @@ export function PlacePromptPanel({
       // the thing a walker most wants to look back at, and an entry that
       // silently never appears reads as the app losing the request.
       logExchange(turn, loggedPrompt, message);
+      addChat(
+        { role: "user", text: loggedPrompt },
+        { role: "assistant", text: `Sorry, that didn't work: ${message}` },
+      );
     } finally {
       setIsLoading(false);
     }
@@ -817,6 +858,28 @@ export function PlacePromptPanel({
             </div>
           )}
         </div>
+      )}
+
+      {chat.length > 0 && (
+        <ul aria-label="Conversation" className="space-y-1.5">
+          {chat.map((message) => (
+            <li
+              key={message.id}
+              className={
+                message.role === "user"
+                  ? "ml-6 rounded-lg bg-terra/10 px-2.5 py-1.5 text-sm text-charcoal"
+                  : "mr-6 rounded-lg bg-white/80 px-2.5 py-1.5 text-sm text-charcoal/90"
+              }
+            >
+              {message.text}
+            </li>
+          ))}
+          {isLoading && (
+            <li className="mr-6 rounded-lg bg-white/80 px-2.5 py-1.5 text-sm text-charcoal/50">
+              Looking…
+            </li>
+          )}
+        </ul>
       )}
 
       <textarea

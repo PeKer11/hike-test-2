@@ -730,6 +730,16 @@ describe("PlacePromptPanel — the session scrollback", () => {
     expect(log().getByText("Found 3 stops")).toBeTruthy();
   });
 
+  it("answers in a visible conversation that names the stops and asks if they fit", async () => {
+    stubExtract([{ attractions: FOUND, unresolvedNames: [] }]);
+    renderPanel();
+    sendPrompt("מדרחוב וגן טייל בזכרון יעקב");
+
+    const thread = within(await screen.findByRole("list", { name: "Conversation" }));
+    expect(thread.getByText("מדרחוב וגן טייל בזכרון יעקב")).toBeTruthy();
+    expect(thread.getByText(/Does that look right, or do you want more places\?/)).toBeTruthy();
+  });
+
   it("logs the question when the prompt was too vague to answer", async () => {
     stubExtract([CHIPS_UP]);
     renderPanel();
@@ -806,7 +816,7 @@ describe("PlacePromptPanel — the session scrollback", () => {
     expect(
       screen.getByText("Asked what kind of walk you're after"),
     ).toBeTruthy();
-    expect(screen.getByText("טיול בזכרון יעקב — Food")).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Recent requests" })).getByText("טיול בזכרון יעקב — Food")).toBeTruthy();
     expect(screen.getByText("Found 3 stops")).toBeTruthy();
     expect(screen.getByText("3 hours, up to 1km")).toBeTruthy();
     expect(screen.getByText("Built a walk through 3 stops")).toBeTruthy();
@@ -860,7 +870,7 @@ describe("PlacePromptPanel — the session scrollback", () => {
     expect(
       screen.getByText("Asked what kind of walk you're after"),
     ).toBeTruthy();
-    expect(screen.getByText("טיול בזכרון יעקב")).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Recent requests" })).getByText("טיול בזכרון יעקב")).toBeTruthy();
   });
 
   it("keeps the log when a new prompt clears what the conversation knew", async () => {
@@ -893,7 +903,7 @@ describe("PlacePromptPanel — the session scrollback", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     await screen.findByRole("button", { name: "Recent requests (3)" });
     await openLog();
-    expect(screen.getByText("טיול בזכרון יעקב — Nature")).toBeTruthy();
+    expect(within(screen.getByRole("list", { name: "Recent requests" })).getByText("טיול בזכרון יעקב — Nature")).toBeTruthy();
   });
 
   it("shortens a prompt too long to sit above the box", async () => {

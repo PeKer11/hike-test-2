@@ -609,6 +609,22 @@ export async function POST(request: Request): Promise<NextResponse> {
       entries.push({ name, coordinates: match?.coordinates ?? null });
     }
 
+    // "A walk in Binyamina with food and nature": Binyamina is where the walk
+    // is, not a stop. The model leaves a lone area in `places`; once the
+    // geocode says it is an area and needs were asked for, it becomes the
+    // context rather than an attraction.
+    if (
+      effectiveNeeds.length > 0 &&
+      isAreaOnlyPrompt({ places, contextLocation: contextLocation ?? null, placeKind: solePlaceKind })
+    ) {
+      const areaCoordinates = entries[0]?.coordinates ?? null;
+      if (areaCoordinates) {
+        contextCoordinates = areaCoordinates;
+        bias = areaCoordinates;
+      }
+      entries.length = 0;
+    }
+
     const { attractions, unresolvedNames } = buildExtractionResult(entries);
 
     // Searched around the same point the named stops were biased towards: the
