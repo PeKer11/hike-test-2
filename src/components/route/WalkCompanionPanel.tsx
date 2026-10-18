@@ -89,9 +89,11 @@ interface WalkCompanionPanelProps {
 }
 
 const PACE_OPTIONS = [
+  { label: "Very slow (25 min/km)", value: 25 },
   { label: "Slow (20 min/km)", value: 20 },
   { label: "Normal (15 min/km)", value: 15 },
   { label: "Brisk (12 min/km)", value: 12 },
+  { label: "Fast (10 min/km)", value: 10 },
 ];
 
 /**
@@ -146,6 +148,7 @@ export function WalkCompanionPanel({
   const [lng, setLng] = useState("");
   const [availableMinutes, setAvailableMinutes] = useState("90");
   const [pace, setPace] = useState(15);
+  const [customPace, setCustomPace] = useState("");
   const [radiusKm, setRadiusKm] = useState("2");
   // Blank on purpose, and stays blank unless the walker asks for it: most walks
   // do not care where they end, and defaulting to a number would quietly start
@@ -435,9 +438,22 @@ export function WalkCompanionPanel({
 
       {/* Time */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-charcoal/80">
-          Time available (minutes)
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium text-charcoal/80">
+            Time available (minutes)
+          </label>
+          <button
+            type="button"
+            onClick={() => setAvailableMinutes(availableMinutes === "" ? "90" : "")}
+            className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
+              availableMinutes === ""
+                ? "border-terra bg-terra/10 text-terra"
+                : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
+            }`}
+          >
+            No time limit
+          </button>
+        </div>
         <input
           type="number"
           min={15}
@@ -493,7 +509,10 @@ export function WalkCompanionPanel({
           {PACE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => setPace(opt.value)}
+              onClick={() => {
+                setPace(opt.value);
+                setCustomPace("");
+              }}
               className={`rounded-md border px-2 py-3 text-xs font-medium transition sm:py-1.5 ${
                 pace === opt.value
                   ? "border-terra bg-terra/10 text-terra"
@@ -504,6 +523,20 @@ export function WalkCompanionPanel({
             </button>
           ))}
         </div>
+        <input
+          type="number"
+          min={4}
+          max={40}
+          step={0.5}
+          placeholder="Custom pace (min/km)"
+          value={customPace}
+          onChange={(e) => {
+            setCustomPace(e.target.value);
+            const n = parseFloat(e.target.value);
+            if (Number.isFinite(n) && n >= 4 && n <= 40) setPace(n);
+          }}
+          className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
+        />
       </div>
 
       {/* Categories */}
