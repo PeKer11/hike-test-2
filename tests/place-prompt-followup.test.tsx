@@ -83,6 +83,8 @@ describe("PlacePromptPanel follow-up reply", () => {
     await reachFollowUp();
     await screen.findByRole("status");
     fetchMock.mockImplementation(() => new Promise(() => {}) as never);
+    // The box empties after each send, so a new submit needs new text.
+    fireEvent.change(screen.getByPlaceholderText(/Habima Square/), { target: { value: "another walk" } });
     fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
     expect(screen.queryByRole("status")).toBeNull();
   });

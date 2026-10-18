@@ -740,6 +740,23 @@ describe("PlacePromptPanel — the session scrollback", () => {
     expect(thread.getByText(/זה מתאים, או שתרצה עוד מקומות\?/)).toBeTruthy();
   });
 
+  it("empties the box after sending and keeps only the last 3 messages", async () => {
+    stubExtract([
+      { attractions: FOUND, unresolvedNames: [] },
+      { attractions: FOUND, unresolvedNames: [] },
+    ]);
+    renderPanel();
+    sendPrompt("first walk");
+    const thread = within(await screen.findByRole("list", { name: "Conversation" }));
+    await thread.findByText(/Does that look right/);
+    expect((screen.getByRole("textbox", { name: "" }) as HTMLTextAreaElement).value).toBe("");
+
+    sendPrompt("second walk");
+    await waitFor(() => expect(thread.getAllByText(/Does that look right/).length).toBe(2));
+    expect(thread.queryByText("first walk")).toBeNull();
+    expect(thread.getByText("second walk")).toBeTruthy();
+  });
+
   it("replies in English to an English prompt, and New chat clears the thread", async () => {
     stubExtract([{ attractions: FOUND, unresolvedNames: [] }]);
     renderPanel();

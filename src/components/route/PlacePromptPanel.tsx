@@ -165,8 +165,8 @@ interface ChatMessage {
   text: string;
 }
 
-/** The thread scrolls like a chat window; this only bounds memory. */
-const MAX_CHAT_MESSAGES = 50;
+/** Only the latest few messages stay on screen; older ones fall off. */
+const MAX_CHAT_MESSAGES = 3;
 
 const HEBREW_LETTER = /[\u0590-\u05FF]/;
 
@@ -374,6 +374,9 @@ export function PlacePromptPanel({
   const nextEntryId = useRef(0);
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const nextChatId = useRef(0);
+  // The box empties after sending, like a chat; a chip tapped afterwards
+  // re-runs this.
+  const lastPromptRef = useRef("");
   const chatEndRef = useRef<HTMLLIElement | null>(null);
   useEffect(() => {
     chatEndRef.current?.scrollIntoView?.({ block: "nearest" });
@@ -566,6 +569,7 @@ export function PlacePromptPanel({
   /** Back to a blank conversation, like "New chat": thread, box and found places. */
   const startNewChat = () => {
     setChat([]);
+    lastPromptRef.current = "";
     setPrompt("");
     setError(null);
     setFollowUpReply(null);
@@ -580,7 +584,7 @@ export function PlacePromptPanel({
   };
 
   const extract = async (categoryNeeds?: AttractionCategory[]) => {
-    const trimmed = prompt.trim();
+    const trimmed = prompt.trim() || (categoryNeeds ? lastPromptRef.current : "");
     if (!trimmed) {
       setError("Describe the places you want to see.");
       return;
@@ -593,6 +597,8 @@ export function PlacePromptPanel({
       : trimmed;
     const turn: ExchangeTurn = categoryNeeds?.length ? "chip" : "prompt";
 
+    lastPromptRef.current = trimmed;
+    setPrompt("");
     setIsLoading(true);
     setError(null);
     setFollowUpReply(null);
