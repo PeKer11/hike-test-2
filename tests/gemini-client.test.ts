@@ -88,7 +88,7 @@ describe("extractPlaceNames", () => {
 
     const req = sentRequest();
     expect(req.model).toBe(DEFAULT_GEMINI_MODEL);
-    expect(req.config.httpOptions.timeout).toBe(6000);
+    expect(req.config.httpOptions.timeout).toBe(20000);
     expect(req.config.abortSignal).toBeInstanceOf(AbortSignal);
   });
 

@@ -29,8 +29,8 @@ import {
 
 /** Per-request timeout by tier; the old Gemini wrapper had none. */
 export const TIER_TIMEOUT_MS: Record<LlmTier, number> = {
-  1: 6_000,
-  2: 8_000,
+  1: 20_000,
+  2: 20_000,
   3: 30_000,
 };
 
