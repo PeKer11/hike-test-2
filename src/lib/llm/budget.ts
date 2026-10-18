@@ -60,6 +60,12 @@ export function callerKeyFor(ctx: LlmCallContext, salt: string = resolveIpSalt()
   return `ip:${createHash("sha256").update(`${salt}|${ctx.ip}`).digest("hex").slice(0, 32)}`;
 }
 
+function isOwner(ctx: LlmCallContext): boolean {
+  if (!ctx.userId) return false;
+  const ids = (process.env.LLM_OWNER_USER_IDS ?? "").split(",").map((id) => id.trim());
+  return ids.includes(ctx.userId);
+}
+
 export function capFor(ctx: LlmCallContext): number {
   const plan = ctx.plan ?? (ctx.userId ? "free" : "anonymous");
   return DAILY_CALL_CAPS[plan];
@@ -154,6 +160,12 @@ export function createBudgetGuard(
       } catch (error) {
         console.warn(`LLM budget store unavailable; ${failClosed ? "refusing" : "allowing"} the call.`, error);
         if (failClosed) throw new LlmBudgetExceededError("global");
+        return;
+      }
+      // The owner's own account (LLM_OWNER_USER_IDS, comma-separated) is exempt
+      // from the per-user caps; the global daily budget below still applies.
+      if (isOwner(ctx)) {
+        if (totals.globalCostMicros >= budgetMicros) throw new LlmBudgetExceededError("global");
         return;
       }
       if (totals.callerCalls > capFor(ctx)) throw new LlmBudgetExceededError("user");
