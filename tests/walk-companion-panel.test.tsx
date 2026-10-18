@@ -274,13 +274,13 @@ describe("WalkCompanionPanel — GPS outranks the prompt's area", () => {
     expect(lng.value).toBe("34.781800");
   });
 
-  it("still fills from the prompt when the walker never detected a position", () => {
+  it("still lets the prompt's area win over the automatic on-load detection", () => {
     const getCurrentPosition = mockGeolocation({ lat: 32.0853, lng: 34.7818 });
     const { rerender } = render(panel(null));
 
     rerender(panel({ lat: 31.7683, lng: 35.2137 }));
 
-    expect(getCurrentPosition).not.toHaveBeenCalled();
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1);
     const { lat, lng } = coordinateFields();
     expect(lat.value).toBe("31.768300");
     expect(lng.value).toBe("35.213700");

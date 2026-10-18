@@ -256,44 +256,73 @@ export function WalkCompanionPanel({
     );
   }, [suggestedCategoryKey]);
 
-  const detectLocation = () => {
+  /**
+   * `auto` is the silent default (page load, or Build with no point yet): it
+   * only fills BLANK fields and does not lock the origin to GPS, so a place the
+   * walker names in the prompt still wins. A tap on the button is the explicit
+   * choice and locks it, as before.
+   */
+  const detectLocation = (auto = false): Promise<Coordinates | null> => {
     setLocationError(null);
+    const fail = (message: string) => {
+      if (!auto) setLocationError(message);
+      return Promise.resolve(null);
+    };
     if (
       typeof window !== "undefined" &&
       !window.isSecureContext &&
       window.location.hostname !== "localhost" &&
       window.location.hostname !== "127.0.0.1"
     ) {
-      setLocationError(
+      return fail(
         "Current location on mobile usually requires HTTPS (or localhost in development). Open the app over HTTPS to use GPS.",
       );
-      return;
     }
 
-    if (!navigator.geolocation) {
-      setLocationError("Geolocation not supported on this device.");
-      return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      return fail("Geolocation not supported on this device.");
     }
     setIsDetecting(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        };
-        hasDetectedGpsRef.current = true;
-        setLat(coords.lat.toFixed(6));
-        setLng(coords.lng.toFixed(6));
-        onLocationDetected?.(coords);
-        setIsDetecting(false);
-      },
-      () => {
-        setLocationError("Could not detect location. Enter coordinates manually.");
-        setIsDetecting(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          };
+          if (!auto) {
+            hasDetectedGpsRef.current = true;
+            setLat(coords.lat.toFixed(6));
+            setLng(coords.lng.toFixed(6));
+          } else {
+            setLat((prev) => (prev === "" ? coords.lat.toFixed(6) : prev));
+            setLng((prev) => (prev === "" ? coords.lng.toFixed(6) : prev));
+          }
+          onLocationDetected?.(coords);
+          setIsDetecting(false);
+          resolve(coords);
+        },
+        () => {
+          if (!auto) {
+            setLocationError("Could not detect location. Enter coordinates manually.");
+          }
+          setIsDetecting(false);
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 10000 },
+      );
+    });
   };
+
+  // Current location is the default start: ask for it as soon as the planner
+  // opens, unless a point is already there.
+  useEffect(() => {
+    if (lat === "" && lng === "") {
+      void detectLocation(true);
+    }
+    // Once, on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleCategory = (cat: AttractionCategory) => {
     setSelectedCategories((prev) =>
@@ -301,11 +330,25 @@ export function WalkCompanionPanel({
     );
   };
 
-  const submit = () => {
+  const submit = async () => {
     setFormError(null);
 
-    const parsedLat = parseFloat(lat);
-    const parsedLng = parseFloat(lng);
+    let latText = lat;
+    let lngText = lng;
+    if (latText.trim() === "" && lngText.trim() === "") {
+      // No start point yet: ask for the current location instead of an error.
+      const detected = await detectLocation(true);
+      if (detected) {
+        latText = detected.lat.toFixed(6);
+        lngText = detected.lng.toFixed(6);
+      } else {
+        setFormError("We need a starting point — allow location access, or tap the map.");
+        return;
+      }
+    }
+
+    const parsedLat = parseFloat(latText);
+    const parsedLng = parseFloat(lngText);
     const parsedMinutes = parseInt(availableMinutes, 10);
     const parsedRadiusKm = parseFloat(radiusKm);
 
@@ -363,7 +406,7 @@ export function WalkCompanionPanel({
         <Button
           variant="secondary"
           fullWidth
-          onClick={detectLocation}
+          onClick={() => void detectLocation()}
           disabled={isDetecting || isLoading}
         >
           {isDetecting ? "Detecting…" : "Use my current location"}
