@@ -50,6 +50,8 @@ import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
 interface ExtractPlacesRequest {
   prompt: string;
   nearLocation?: Coordinates;
+  /** Names already on the walker's list in this chat, so "more" finds new ones. */
+  excludeNames?: string[];
   /** Client-side "Remember my preferences" setting. Absent means off. */
   learnPreferences?: boolean;
   /**
@@ -208,6 +210,7 @@ async function findNeedAttractions(
   categories: AttractionCategory[],
   origin: Coordinates | undefined,
   durationMinutes: number | null,
+  excludeNames: Set<string>,
 ): Promise<Attraction[]> {
   if (categories.length === 0 || !origin) {
     return [];
@@ -223,7 +226,7 @@ async function findNeedAttractions(
         setTimeout(() => reject(new Error("Overpass need-search timed out.")), NEED_OVERPASS_BUDGET_MS),
       ),
     ]);
-    const ranked = rankAttractions(nearby, {
+    const ranked = rankAttractions(nearby.filter((a) => !excludeNames.has(a.name)), {
       origin,
       preferredCategories: categories,
       availableMinutes: durationMinutes ?? FALLBACK_WALK_MINUTES,
@@ -236,7 +239,7 @@ async function findNeedAttractions(
 
   const found = new Set(picked.map((a) => a.category));
   const missing = categories.filter((c) => !found.has(c));
-  return [...picked, ...(await findNeedsViaNominatim(missing, origin))];
+  return [...picked, ...(await findNeedsViaNominatim(missing, origin, excludeNames))];
 }
 
 /** Nominatim search word per kind of stop, for when Overpass has nothing. */
@@ -262,6 +265,7 @@ const NEED_FALLBACK_QUERY: Record<AttractionCategory, string> = {
 async function findNeedsViaNominatim(
   categories: AttractionCategory[],
   origin: Coordinates,
+  excludeNames: Set<string>,
 ): Promise<Attraction[]> {
   const stops: Attraction[] = [];
   for (const category of categories) {
@@ -274,6 +278,7 @@ async function findNeedsViaNominatim(
           coordinates: { lat: Number(r.lat), lng: Number(r.lon) },
         }))
         .filter(({ coordinates }) => Number.isFinite(coordinates.lat) && Number.isFinite(coordinates.lng))
+        .filter(({ r }) => !excludeNames.has(r.display_name.split(",")[0].trim()))
         .sort(
           (a, b) =>
             haversineDistance(origin, a.coordinates) - haversineDistance(origin, b.coordinates),
@@ -641,6 +646,11 @@ export async function POST(request: Request): Promise<NextResponse> {
         ? entries[0]?.coordinates
         : undefined) ?? bias,
       durationMinutes,
+      new Set(
+        Array.isArray(body.excludeNames)
+          ? body.excludeNames.filter((n): n is string => typeof n === "string").slice(0, 50)
+          : [],
+      ),
     );
 
     const factContradictions = await learnFromText(session, prompt, llmContext(session?.userId ?? null));

@@ -11,6 +11,7 @@ import {
 import { MAX_CATEGORY_NEEDS } from "@/lib/places/place-extractor";
 import type { FactContradiction } from "@/lib/preferences/fact-extractor";
 import type { Attraction, AttractionCategory, Coordinates } from "@/lib/types";
+import { haversineDistance } from "@/lib/utils/geo";
 
 interface ExtractPlacesResponse {
   extractedNames?: string[];
@@ -377,6 +378,9 @@ export function PlacePromptPanel({
   // The box empties after sending, like a chat; a chip tapped afterwards
   // re-runs this.
   const lastPromptRef = useRef("");
+  // Where this chat's walk is. A follow-up like "two more interesting things"
+  // names no area, so it searches around the last one instead of nowhere.
+  const chatAreaRef = useRef<Coordinates | null>(null);
   const chatEndRef = useRef<HTMLLIElement | null>(null);
   useEffect(() => {
     chatEndRef.current?.scrollIntoView?.({ block: "nearest" });
@@ -570,6 +574,7 @@ export function PlacePromptPanel({
   const startNewChat = () => {
     setChat([]);
     lastPromptRef.current = "";
+    chatAreaRef.current = null;
     setPrompt("");
     setError(null);
     setFollowUpReply(null);
@@ -598,6 +603,9 @@ export function PlacePromptPanel({
     const turn: ExchangeTurn = categoryNeeds?.length ? "chip" : "prompt";
 
     lastPromptRef.current = trimmed;
+    // Later messages in the same chat add to the list rather than replace it.
+    const continuing = chat.length > 0;
+    const keptAttractions = attractions.filter((a) => !removedIds.includes(a.id));
     setPrompt("");
     setIsLoading(true);
     setError(null);
@@ -613,7 +621,8 @@ export function PlacePromptPanel({
       const data = await postExtractPlaces(
         {
           prompt: trimmed,
-          nearLocation: nearLocation ?? undefined,
+          nearLocation: chatAreaRef.current ?? nearLocation ?? undefined,
+          excludeNames: continuing ? keptAttractions.map((a) => a.name) : undefined,
           learnPreferences,
           categoryNeeds,
         },
@@ -634,9 +643,28 @@ export function PlacePromptPanel({
       setContradiction(data.factContradictions?.[0] ?? null);
       setUndoFailed(false);
 
-      setAttractions(data.attractions ?? []);
+      // Same area (or none named) means the walker is adding to the list; a
+      // different area means a new walk.
+      const movedArea =
+        data.contextCoordinates != null &&
+        chatAreaRef.current != null &&
+        haversineDistance(chatAreaRef.current, data.contextCoordinates) > 5000;
+      if (data.contextCoordinates) {
+        chatAreaRef.current = data.contextCoordinates;
+      }
+      const incoming = data.attractions ?? [];
+      const merged =
+        continuing && !movedArea
+          ? [
+              ...keptAttractions,
+              ...incoming.filter(
+                (a) => !keptAttractions.some((k) => k.id === a.id || k.name === a.name),
+              ),
+            ]
+          : incoming;
+      setAttractions(merged);
       setRemovedIds([]);
-      onFoundPlacesChange(data.attractions ?? []);
+      onFoundPlacesChange(merged);
       setUnresolvedNames(data.unresolvedNames ?? []);
       setHasResult(true);
       setClarificationCategories(

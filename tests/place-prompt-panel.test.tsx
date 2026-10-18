@@ -757,6 +757,23 @@ describe("PlacePromptPanel — the session scrollback", () => {
     expect(thread.getByText("second walk")).toBeTruthy();
   });
 
+  it("searches around the chat's area and excludes what it already found on a follow-up", async () => {
+    const area = { lat: 32.5, lng: 34.95 };
+    const fetchMock = stubExtract([
+      { attractions: FOUND, unresolvedNames: [], contextCoordinates: area },
+      { attractions: [attraction("need-1", "מקום חדש")], unresolvedNames: [] },
+    ]);
+    renderPanel();
+    sendPrompt("טיול בבנימינה");
+    await within(await screen.findByRole("list", { name: "Conversation" })).findByText(/זה מתאים/);
+
+    sendPrompt("תביא עוד שני דברים");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const second = JSON.parse((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
+    expect(second.nearLocation).toEqual(area);
+    expect(second.excludeNames).toEqual(["מדרחוב", "גן טייל", "זכרון יעקב"]);
+  });
+
   it("replies in English to an English prompt, and New chat clears the thread", async () => {
     stubExtract([{ attractions: FOUND, unresolvedNames: [] }]);
     renderPanel();
