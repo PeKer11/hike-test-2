@@ -42,12 +42,12 @@ function tierVar(env: Env, name: string, tier: LlmTier): string | undefined {
 
 /**
  * Zero-config routing: with only OPENAI_API_KEY set (no explicit LLM_PROVIDER /
- * LLM_MODEL anywhere), tiers 1-2 run on Luna and tier 3 on Sol. Any explicit
+ * LLM_MODEL anywhere), every tier runs on Sol. Any explicit
  * LLM_PROVIDER* / LLM_MODEL* variable turns this off.
  */
 const OPENAI_ZERO_CONFIG: Record<LlmTier, string> = {
-  1: "gpt-6-luna",
-  2: "gpt-6-luna",
+  1: "gpt-6.1-sol",
+  2: "gpt-6.1-sol",
   3: "gpt-6.1-sol",
 };
 
