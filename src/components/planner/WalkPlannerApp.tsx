@@ -1759,9 +1759,13 @@ export function WalkPlannerApp({
     setWalkTrackingMessage(null);
 
     if (initialPosition) {
+      // Anchored at the start of the route: a walk begins at its beginning.
+      // Searching the whole line let a round trip (which ends where it began)
+      // match the walker to the LAST leg, leaving almost nothing to draw.
       const initialDeviation = detectDeviation(
         initialPosition,
         walkGeometryRef.current,
+        0,
       );
       lastSegmentIndexRef.current = initialDeviation.closestSegmentIndex;
       matchedRef.current = {
@@ -3419,6 +3423,7 @@ export function WalkPlannerApp({
           center={center}
           zoom={zoom}
           onMapClick={handleMapClick}
+          walkedGeometry={walkPhase === "walking" ? [...walkedTrackRef.current] : undefined}
           currentPosition={currentPosition ?? undefined}
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}

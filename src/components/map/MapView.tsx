@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
 import "leaflet-defaulticon-compatibility";
 
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 import { useEffect } from "react";
 
 import { MapClickHandler } from "@/components/map/MapClickHandler";
@@ -23,6 +23,8 @@ import type { Announcement } from "@/lib/walk/poi-announcer";
 interface MapViewProps {
   waypoints: Waypoint[];
   routeGeometry: Coordinates[];
+  /** The path already walked, drawn in a muted colour under the remaining route. */
+  walkedGeometry?: Coordinates[];
   center: Coordinates;
   zoom: number;
   onMapClick: (coordinates: Coordinates) => void;
@@ -114,6 +116,7 @@ function PositionFollower({
 export default function MapView({
   waypoints,
   routeGeometry,
+  walkedGeometry,
   center,
   zoom,
   onMapClick,
@@ -161,6 +164,12 @@ export default function MapView({
       />
       <PreviewMarkers places={previewPlaces ?? []} />
       {currentPosition ? <CurrentPositionMarker position={currentPosition} /> : null}
+      {walkedGeometry && walkedGeometry.length > 1 ? (
+        <Polyline
+          positions={walkedGeometry.map((p) => [p.lat, p.lng])}
+          pathOptions={{ color: "#94a3b8", weight: 5, opacity: 0.9 }}
+        />
+      ) : null}
       <RoutePolyline geometry={routeGeometry} />
       {previewRoutes && previewRoutes.length > 0 ? (
         <OptionPreviewLines routes={previewRoutes} />
