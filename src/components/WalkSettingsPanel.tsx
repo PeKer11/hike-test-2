@@ -1,8 +1,11 @@
 "use client";
 
+import { clearLocalLearning } from "@/lib/preferences/forget-client";
 import { useId, useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Toggle } from "@/components/ui/Toggle";
+import { syncOptIn } from "@/lib/social/client";
+import { socialEnabled } from "@/lib/social/flag";
 import { walkCopy } from "@/lib/walk/walk-copy";
 import { CALLOUT_LEVELS } from "@/lib/types/walk-settings";
 import type { CalloutLevel } from "@/lib/types/discovery";
@@ -87,6 +90,7 @@ export function WalkSettingsPanel({
    * between the walker and the Build My Walk button on every single visit.
    */
   const [isOpen, setIsOpen] = useState(false);
+  const [forgetState, setForgetState] = useState<"idle" | "working" | "done" | "failed">("idle");
   const intervalSeconds = Math.round(settings.paceCheckIntervalMs / 1000);
 
   const handleIntervalChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -231,12 +235,35 @@ export function WalkSettingsPanel({
           {/* The two toggles that outlive the walk. Preference learning leads
               because it is the one that quietly changes what gets built;
               keeping the requests only shows the walker their own words back. */}
+          <SettingsSection title="Language / שפה">
+            <div role="group" aria-label="Language" className="flex gap-2 text-sm">
+              {(["auto", "he", "en"] as const).map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  aria-pressed={settings.uiLanguage === code}
+                  onClick={() => onChange({ uiLanguage: code })}
+                  className={`rounded-full px-3 py-1 ${
+                    settings.uiLanguage === code
+                      ? "bg-forest text-cream"
+                      : "bg-charcoal/10"
+                  }`}
+                >
+                  {code === "auto" ? "Auto" : code === "he" ? "עברית" : "English"}
+                </button>
+              ))}
+            </div>
+          </SettingsSection>
+
           <SettingsSection title="What we remember between walks">
             <div className="space-y-1">
               <Toggle
                 checked={settings.preferenceLearningEnabled}
                 onChange={(next) =>
-                  onChange({ preferenceLearningEnabled: next })
+                  onChange({
+                    preferenceLearningEnabled: next,
+                    learningConsent: next ? "granted" : "declined",
+                  })
                 }
                 label="Remember my preferences"
               />
@@ -260,6 +287,63 @@ export function WalkSettingsPanel({
                   ? "On — the last few things you typed stay in the Recent requests list next time you open Traike. Clear them any time from that list."
                   : "Off — your requests are forgotten when you close the tab."}
               </p>
+            </div>
+
+          </SettingsSection>
+
+          {/* Own section, own flag: contributing to OTHER walkers' recommendations is a
+              different purpose from "Remember my preferences". Absent unless
+              NEXT_PUBLIC_SOCIAL=1. */}
+          {socialEnabled() ? (
+            <SettingsSection title="Community">
+              <div className="space-y-1">
+                <Toggle
+                  checked={settings.socialSharingEnabled}
+                  onChange={(next) => {
+                    onChange({ socialSharingEnabled: next });
+                    // The only place the opt-in is written to the server: an explicit toggle.
+                    void syncOptIn(next);
+                  }}
+                  label="Contribute anonymously to community recommendations"
+                />
+                <p className="text-xs text-charcoal/60">
+                  {settings.socialSharingEnabled
+                    ? "On — your place upvotes can count toward \"Recommended by walkers\" for others, only once at least 5 walkers agree and after a 2-day delay. No names or locations are ever shared, and you see these hints too."
+                    : "Off — your upvotes stay yours, and you won't see community hints."}
+                </p>
+              </div>
+            </SettingsSection>
+          ) : null}
+
+          <SettingsSection title="Your data">
+            <div className="space-y-1">
+              <button
+                type="button"
+                disabled={forgetState === "working"}
+                onClick={() => {
+                  setForgetState("working");
+                  fetch("/api/forget-everything", { method: "DELETE" })
+                    .then((res) => {
+                      setForgetState(res.ok ? "done" : "failed");
+                      if (res.ok) clearLocalLearning();
+                      // The server just deleted the opt-in row; keep the local
+                      // setting in step so it is not silently re-sent.
+                      if (res.ok && socialEnabled() && settings.socialSharingEnabled) {
+                        onChange({ socialSharingEnabled: false });
+                      }
+                    })
+                    .catch(() => setForgetState("failed"));
+                }}
+                className="rounded-lg bg-charcoal/10 px-3 py-2 text-sm"
+              >
+                Forget everything Traike learned about me
+              </button>
+              {forgetState === "done" ? (
+                <p className="text-xs text-charcoal/60">Done. Your learned data is deleted.</p>
+              ) : null}
+              {forgetState === "failed" ? (
+                <p className="text-xs text-charcoal/60">Couldn&apos;t clear everything. Try again.</p>
+              ) : null}
             </div>
           </SettingsSection>
         </div>

@@ -17,6 +17,14 @@ const en = {
   "q.stop-closing": "{stop} closes at {hhmm}. Skip this stop?",
   "q.rain": "Rain is likely soon ({p}%). Head back?",
   "q.stop-closing.info": "{stop} closes at {hhmm}.",
+  "q.habit-eat": "It's around the time you usually eat. Stop for food?",
+  "q.habit-coffee": "It's around the time you usually have coffee. Stop for one?",
+  "habit.somePlace": "a place nearby",
+  "notice.habitMuted.eat": "I'll stop suggesting meal stops. Turn it back on in Settings.",
+  "notice.habitMuted.coffee": "I'll stop suggesting coffee stops. Turn it back on in Settings.",
+  "notice.amenityFailed": "Couldn't find a walkable way there. Staying on your route.",
+  "ui.voiceOn": "Spoken questions: on",
+  "ui.voiceOff": "Spoken questions: off",
   "answer.ok": "OK",
   "answer.shorten": "Shorten",
   "answer.keepAll": "Keep all, add {n} min",
@@ -32,6 +40,9 @@ const en = {
   "answer.no": "No",
   "answer.skip": "Skip it",
   "answer.headBack": "Head back",
+  "answer.habitTakeMe": "Take me to {place} ({d} m)",
+  "answer.habitAlreadyEat": "Already ate",
+  "answer.habitAlreadyCoffee": "Already had one",
 } as const;
 
 export type CompanionCopyKey = keyof typeof en;
@@ -47,6 +58,14 @@ const he: Record<CompanionCopyKey, string> = {
   "q.stop-closing": "שעת הסגירה של {stop}: {hhmm}. לדלג על העצירה?",
   "q.rain": "צפוי גשם בקרוב ({p}%). לחזור?",
   "q.stop-closing.info": "שעת הסגירה של {stop}: {hhmm}.",
+  "q.habit-eat": "זה בערך הזמן שבו אתם בדרך כלל אוכלים. לעצור לאכול?",
+  "q.habit-coffee": "זה בערך הזמן שבו אתם בדרך כלל שותים קפה. לעצור לקפה?",
+  "habit.somePlace": "מקום קרוב",
+  "notice.habitMuted.eat": "אפסיק להציע עצירות אוכל. אפשר להחזיר בהגדרות.",
+  "notice.habitMuted.coffee": "אפסיק להציע עצירות קפה. אפשר להחזיר בהגדרות.",
+  "notice.amenityFailed": "לא נמצאה דרך הליכה לשם. ממשיכים במסלול.",
+  "ui.voiceOn": "שאלות בקול: פעיל",
+  "ui.voiceOff": "שאלות בקול: כבוי",
   "answer.ok": "הבנתי",
   "answer.shorten": "לקצר",
   "answer.keepAll": "לשמור הכול ולהוסיף {n} דק׳",
@@ -62,6 +81,9 @@ const he: Record<CompanionCopyKey, string> = {
   "answer.no": "לא",
   "answer.skip": "לדלג",
   "answer.headBack": "לחזור",
+  "answer.habitTakeMe": "לקחת אותי אל {place} ({d} מ׳)",
+  "answer.habitAlreadyEat": "כבר אכלתי",
+  "answer.habitAlreadyCoffee": "כבר שתיתי",
 };
 
 export const companionCopy: Record<CopyLang, Record<CompanionCopyKey, string>> = {

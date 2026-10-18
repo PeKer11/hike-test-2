@@ -50,14 +50,25 @@ describe("POST /api/extract-places budget guard wiring", () => {
     expect(mockExtractPlaceNames.mock.calls[2][2]).toEqual({ userId: null, ip: "7.7.7.9" });
   });
 
-  it("answers an exhausted budget exactly like an unavailable LLM", async () => {
-    mockExtractPlaceNames.mockRejectedValueOnce(new Error("LLM unavailable"));
-    const unavailable = await POST(post({ prompt: "a walk" }, { "x-forwarded-for": "6.6.6.1" }));
-
+  it("answers an exhausted budget with HTTP 429 and a friendly message, not a 500", async () => {
     mockExtractPlaceNames.mockRejectedValueOnce(new LlmBudgetExceededError("user"));
-    const exhausted = await POST(post({ prompt: "a walk" }, { "x-forwarded-for": "6.6.6.2" }));
+    const user = await POST(post({ prompt: "a walk" }, { "x-forwarded-for": "6.6.6.2" }));
+    expect(user.status).toBe(429);
+    expect(user.headers.get("Retry-After")).toBe("3600");
+    const userBody = await user.json();
+    expect(userBody.error).toMatch(/limit/i);
 
-    expect(exhausted.status).toBe(unavailable.status);
-    expect(Object.keys(await exhausted.json())).toEqual(Object.keys(await unavailable.json()));
+    // Per-caller and global caps are indistinguishable from outside.
+    mockExtractPlaceNames.mockRejectedValueOnce(new LlmBudgetExceededError("global"));
+    const global = await POST(post({ prompt: "a walk" }, { "x-forwarded-for": "6.6.6.3" }));
+    expect(global.status).toBe(429);
+    expect(await global.json()).toEqual(userBody);
+  });
+
+  it("keeps any other LLM failure a 500 with its own message", async () => {
+    mockExtractPlaceNames.mockRejectedValueOnce(new Error("LLM unavailable"));
+    const res = await POST(post({ prompt: "a walk" }, { "x-forwarded-for": "6.6.6.1" }));
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("LLM unavailable");
   });
 });

@@ -139,17 +139,52 @@ export function createRateLimiter(rules: readonly RateLimitRule[]): RateLimiter 
  * answer anyway: local development is one person.
  */
 export function callerKey(request: Request): string {
+  // Outside Vercel nothing overwrites these headers, so a client could rotate
+  // them to get a fresh rate-limit bucket and a fresh anonymous LLM budget per
+  // request. In production they are therefore trusted only on Vercel, or when
+  // the operator says a trusted proxy sets them (TRUST_PROXY_HEADERS=1);
+  // otherwise everyone shares one bucket, which fails safe for cost.
+  if (!trustsProxyHeaders()) {
+    return "unidentified";
+  }
+
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   if (forwarded) {
-    return forwarded;
+    return normalizeIp(forwarded);
   }
 
   const realIp = request.headers.get("x-real-ip")?.trim();
   if (realIp) {
-    return realIp;
+    return normalizeIp(realIp);
   }
 
   return "unidentified";
+}
+
+function trustsProxyHeaders(env: Record<string, string | undefined> = process.env): boolean {
+  return (
+    env.NODE_ENV !== "production" || Boolean(env.VERCEL) || env.TRUST_PROXY_HEADERS === "1"
+  );
+}
+
+/**
+ * An IPv6 user owns a whole /64, so every address inside it is one caller:
+ * keying on the full address would let them mint a bucket per request.
+ */
+export function normalizeIp(ip: string): string {
+  if (!ip.includes(":") || ip.includes(".")) return ip; // IPv4 or ::ffff:1.2.3.4
+  const [head, tail = ""] = ip.split("::");
+  const headGroups = head ? head.split(":") : [];
+  const tailGroups = ip.includes("::") && tail ? tail.split(":") : [];
+  const missing = 8 - headGroups.length - tailGroups.length;
+  const groups = ip.includes("::")
+    ? [...headGroups, ...Array(Math.max(missing, 0)).fill("0"), ...tailGroups]
+    : headGroups;
+  if (groups.length !== 8) return ip;
+  return `${groups
+    .slice(0, 4)
+    .map((g) => g.toLowerCase().replace(/^0+(?=.)/, ""))
+    .join(":")}::/64`;
 }
 
 /** The refusal every rate-limited route sends, in the `{ error }` shape they all use. */
@@ -226,4 +261,38 @@ export const nominatimRateLimiter = createRateLimiter([
  */
 export const overpassRateLimiter = createRateLimiter([
   { limit: 20, windowMs: MINUTE_MS },
+]);
+
+/**
+ * `/api/social/aggregates` — a DB lookup that is only ever called for the places
+ * on screen. Keyed per signed-in walker, so repeated calls cannot be used to
+ * probe the k-anonymity threshold by differencing (each call is also capped at
+ * 50 keys). 30/minute is far above a walker rebuilding routes.
+ */
+export const socialRateLimiter = createRateLimiter([
+  { limit: 30, windowMs: MINUTE_MS },
+  { limit: 600, windowMs: DAY_MS },
+]);
+
+/**
+ * `/api/walk-feedback` and `/api/session-summary` - signed-in only, but each
+ * request spends model calls (up to two for feedback, one tier-2 for the
+ * summary). A walker ends a walk a few times a day; 10/minute and 60/day is
+ * generous for that and stops a script cold. One bucket, so alternating
+ * between the two routes does not double the allowance.
+ */
+export const learningRateLimiter = createRateLimiter([
+  { limit: 10, windowMs: MINUTE_MS },
+  { limit: 60, windowMs: DAY_MS },
+]);
+
+/**
+ * `/api/walk-chat` - the in-walk text box. Only the free-form fallback reaches
+ * the route (keyword commands are answered on the device), one tier-1 call
+ * each. 6/minute is a person typing; 30/day keeps headroom under the free
+ * walker's daily LLM call cap, which this shares with the other tasks.
+ */
+export const chatRateLimiter = createRateLimiter([
+  { limit: 6, windowMs: MINUTE_MS },
+  { limit: 30, windowMs: DAY_MS },
 ]);

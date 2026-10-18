@@ -5,6 +5,7 @@ import type { PlaceExtraction } from "@/lib/places/place-extractor";
 import type { ExtractedFact } from "@/lib/preferences/fact-extractor";
 
 import { runLlm, type LlmDeps } from "./llm-client";
+import { UNMETERED } from "./types";
 import { estimateCostMicros } from "./pricing";
 import type { ProviderChoice } from "./config";
 
@@ -182,7 +183,7 @@ export async function runCase(
   const started = Date.now();
   try {
     if (testCase.kind === "facts") {
-      const r = await runLlm(buildFactsTask(testCase.prompt), undefined, { ...deps, choice });
+      const r = await runLlm(buildFactsTask(testCase.prompt), UNMETERED, { ...deps, choice });
       const s = scoreFacts(testCase.expect, r.data);
       return {
         ...base,
@@ -197,7 +198,7 @@ export async function runCase(
     }
     const r = await runLlm(
       buildExtractPlacesTask(testCase.prompt, storedFacts(testCase.facts)),
-      undefined,
+      UNMETERED,
       { ...deps, choice },
     );
     const s = scoreExtraction(testCase.expect, r.data);

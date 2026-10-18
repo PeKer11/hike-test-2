@@ -246,7 +246,8 @@ const sheet = () => screen.queryByTestId("direction-options");
 beforeEach(() => {
   vi.useFakeTimers();
   mapRenders.length = 0;
-  settingsStore = {};
+  // These suites exercise the ask-mode flow; the app default is now auto.
+  settingsStore = { "walk-settings": JSON.stringify({ deviationMode: "ask" }) };
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: {
@@ -458,6 +459,21 @@ describe("Show me something different", () => {
   });
 });
 
+describe("Show me something different while a collapse is pending (A7)", () => {
+  it("is disabled once the options are up, so a second request cannot replace the sheet", async () => {
+    await startSimulatedWalk();
+    await advance(3_000);
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    const different = () => screen.getByRole("button", { name: "Show me something different" }) as HTMLButtonElement;
+    expect(different().disabled).toBe(false);
+    fireEvent.click(different());
+    await flush(6);
+    expect(sheet()).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(different().disabled).toBe(true);
+  });
+});
+
 describe("what the collection adds on the way", () => {
   it("scans once for the plan, and a local splice causes no new scan", async () => {
     settingsStore["walk-settings"] = JSON.stringify({ deviationMode: "auto" });
@@ -540,6 +556,38 @@ describe("what the collection adds on the way", () => {
     const resumed = idsFrom(dismissIndex);
     expect(resumed.has("placeA") || resumed.has("placeB")).toBe(true);
     expect(resumed.has("placeB")).toBe(true);
+  });
+
+  // A6: a dismissal belongs to one excursion. Rejoining the route re-arms the
+  // card, so the next stray raises it again.
+  it("re-arms the off-route card after the walker rejoins: dismiss, rejoin, stray again, card returns", async () => {
+    settingsStore["walk-settings"] = JSON.stringify({ deviationMode: "off" });
+    vi.spyOn(SimulatedWalkTracker.prototype, "strayOffRoute").mockImplementation(async function (
+      this: SimulatedWalkTracker,
+    ) {
+      (this as unknown as { stray: unknown }).stray = { offsetMeters: 100, untilDistance: Infinity };
+      return false;
+    });
+    await startSimulatedWalk();
+    await clickStray();
+    const dismiss = () => screen.queryByRole("button", { name: /I know where I'm going/ });
+    for (let i = 0; i < 20 && dismiss() === null; i += 1) await advance(1_000);
+    expect(dismiss()).not.toBeNull();
+
+    fireEvent.click(dismiss()!);
+    await flush(3);
+    // Still off the route: the dismissed card stays down.
+    for (let i = 0; i < 6; i += 1) await advance(1_000);
+    expect(dismiss()).toBeNull();
+
+    // Rejoin, let the on-route fix re-arm, then stray again.
+    fireEvent.click(screen.getByRole("button", { name: "Rejoin the route" }));
+    await flush(3);
+    for (let i = 0; i < 4; i += 1) await advance(1_000);
+    fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
+    await flush(3);
+    for (let i = 0; i < 20 && dismiss() === null; i += 1) await advance(1_000);
+    expect(dismiss()).not.toBeNull();
   });
 
   for (const mode of ["auto", "off"] as const) {

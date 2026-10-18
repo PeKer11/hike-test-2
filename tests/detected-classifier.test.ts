@@ -137,6 +137,8 @@ describe("detected classifier", () => {
     });
     it("motorway / foot=no / private track do not count", () => {
       suppressed(run([lineAt({ highway: "motorway" }, 120)]), "no-path");
+      suppressed(run([lineAt({ highway: "primary" }, 120)]), "no-path");
+      suppressed(run([lineAt({ highway: "secondary" }, 120)]), "no-path");
       suppressed(run([lineAt({ highway: "path", foot: "no" }, 120)]), "no-path");
       suppressed(run([lineAt({ highway: "track", access: "private" }, 120)]), "no-path");
     });
@@ -151,6 +153,12 @@ describe("detected classifier", () => {
       expect(hazards(run([trail, lineAt({ waterway: "wadi" }, 90)]))).toContain("flood");
       expect(hazards(run([trail, lineAt({ waterway: "stream", intermittent: "yes" }, 90)]))).toContain("flood");
       expect(hazards(run([trail, lineAt({ waterway: "stream" }, 90)]))).not.toContain("flood");
+    });
+    it("any intermittent / seasonal water nearby -> flood (canal, pond, wetland), not just streams", () => {
+      expect(hazards(run([trail, lineAt({ waterway: "canal", intermittent: "yes" }, 90)]))).toContain("flood");
+      expect(hazards(run([trail, lineAt({ natural: "water", intermittent: "yes" }, 90)]))).toContain("flood");
+      expect(hazards(run([trail, lineAt({ waterway: "ditch", seasonal: "yes" }, 90)]))).toContain("flood");
+      expect(hazards(run([trail, lineAt({ natural: "water" }, 90)]))).not.toContain("flood");
     });
     it("cliff nearby -> cliff", () => {
       expect(hazards(run([trail, lineAt({ natural: "cliff" }, 110)]))).toContain("cliff");

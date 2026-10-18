@@ -32,10 +32,16 @@ export async function postJson(
   return response.json();
 }
 
+/** A provider with no key cannot answer; another configured provider can. */
+export class MissingKeyError extends Error {
+  constructor(name: string) {
+    super(`${name} is not set. Add it to .env.local (see .env.example).`);
+    this.name = "MissingKeyError";
+  }
+}
+
 export function requireEnv(name: string): string {
   const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} is not set. Add it to .env.local (see .env.example).`);
-  }
+  if (!value) throw new MissingKeyError(name);
   return value;
 }

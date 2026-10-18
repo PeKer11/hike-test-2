@@ -1,6 +1,7 @@
 import "server-only";
 
 import { extractCategoryPreferences } from "@/lib/api/gemini-client";
+import type { LlmCallContext } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
 import type { AttractionCategory } from "@/lib/types";
 
@@ -38,6 +39,7 @@ export async function learnPreferencesFromText(
   supabase: ServerClient,
   userId: string,
   text: string,
+  ctx: LlmCallContext,
 ): Promise<AttractionCategory[] | null> {
   const trimmed = text.trim().slice(0, MAX_LEARNING_TEXT_LENGTH);
   if (!trimmed) {
@@ -45,7 +47,7 @@ export async function learnPreferencesFromText(
   }
 
   try {
-    const detected = await extractCategoryPreferences(trimmed);
+    const detected = await extractCategoryPreferences(trimmed, ctx);
     return await saveCategoryPreferences(supabase, userId, detected);
   } catch {
     // Learning is a side effect — never let it fail the request it rode in on.

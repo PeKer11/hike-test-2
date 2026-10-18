@@ -228,6 +228,7 @@ describe("POST /api/walk-feedback", () => {
       expect.anything(),
       "user-1",
       "I loved the nature stops",
+      { userId: "user-1", ip: expect.any(String) },
     );
     expect((await response.json()).preferredCategories).toEqual(["nature"]);
   });

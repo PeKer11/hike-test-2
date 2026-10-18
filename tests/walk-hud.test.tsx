@@ -216,7 +216,8 @@ async function stray() {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  settingsStore = {};
+  // These suites exercise the ask-mode flow; the app default is now auto.
+  settingsStore = { "walk-settings": JSON.stringify({ deviationMode: "ask" }) };
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: {

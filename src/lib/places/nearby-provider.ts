@@ -3,6 +3,7 @@ import "server-only";
 import {
   fetchPlacesAlongPath,
   fetchPlacesAround,
+  fetchPlacesInBboxes,
   fetchPlacesScan,
 } from "@/lib/attractions/overpass-client";
 import type { Coordinates, NearbyPlace } from "@/lib/types";
@@ -21,12 +22,17 @@ export interface NearbyProvider {
     radiusMeters: number,
     ringRadiusMeters: number,
   ): Promise<NearbyPlace[]>;
+  /** Everything in a union of boxes (the tile cache's misses). Optional: no cache without it. */
+  fetchInBboxes?(
+    bboxes: Array<{ south: number; west: number; north: number; east: number }>,
+  ): Promise<NearbyPlace[]>;
 }
 
 const osmProvider: NearbyProvider = {
   fetchAlongPath: fetchPlacesAlongPath,
   fetchAround: fetchPlacesAround,
   fetchScan: fetchPlacesScan,
+  fetchInBboxes: fetchPlacesInBboxes,
 };
 
 /** Reads `NEARBY_PROVIDER` (server-only; default "osm"). Unknown values fall back to OSM. */

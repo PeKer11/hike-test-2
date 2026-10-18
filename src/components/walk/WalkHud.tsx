@@ -10,6 +10,8 @@ interface WalkHudProps {
   alert: WalkAlert | null;
   /** The direction options after a collapse; takes the alert's slot (one card, never two). */
   sheet?: ReactNode;
+  /** The in-walk chat (the "Ask" pill); sits between the alert and the pill row. */
+  chat?: ReactNode;
   stats: WalkStatsData | null;
   onDetails: () => void;
   onEndWalk: () => void;
@@ -24,7 +26,7 @@ interface WalkHudProps {
  * `--hud-h` on the map section so the map can lift Leaflet's attribution (a
  * licence requirement) clear of it.
  */
-export function WalkHud({ alert, sheet, stats, onDetails, onEndWalk }: WalkHudProps) {
+export function WalkHud({ alert, sheet, chat, stats, onDetails, onEndWalk }: WalkHudProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
 
@@ -55,6 +57,7 @@ export function WalkHud({ alert, sheet, stats, onDetails, onEndWalk }: WalkHudPr
         className="pointer-events-none absolute inset-x-3 bottom-0 flex flex-col gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] @4xl:mx-auto @4xl:max-w-xl"
       >
         {sheet ?? (alert ? <WalkAlertCard key={alert.id} alert={alert} /> : null)}
+        {chat}
         <div className="pointer-events-none flex justify-between gap-2">
           <button
             type="button"

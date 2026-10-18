@@ -14,9 +14,15 @@ const PRICES: Record<string, [number, number]> = {
   "gpt-5.4-mini": [0.75, 4.5],
   "claude-haiku-4-5-20251001": [1, 5],
   "claude-sonnet-5-5": [2, 10],
+  "gpt-6.1-sol": [2, 10],
 };
 
-const UNKNOWN_MODEL_PRICE: [number, number] = [1, 5];
+// Pessimistic: the dearest known rate on each side, so a dated or mistyped id
+// is never counted cheaper than the priciest model we know.
+const UNKNOWN_MODEL_PRICE: [number, number] = [
+  Math.max(...Object.values(PRICES).map(([i]) => i)),
+  Math.max(...Object.values(PRICES).map(([, o]) => o)),
+];
 
 /** Estimated cost of one call in micro-dollars (1e-6 USD). */
 export function estimateCostMicros(model: string, inTok: number, outTok: number): number {

@@ -1,7 +1,9 @@
 import "server-only";
 
 import type { NearbyProvider } from "@/lib/places/nearby-provider";
+import { isRingNotable } from "@/lib/attractions/overpass-client";
 import { distanceToPath } from "@/lib/places/path";
+import { createSupabaseTileStore, scanWithTileCache } from "@/lib/places/osm-tile-scan";
 import { clusterToItem, fetchPhotoClusters } from "@/lib/places/commons-density";
 import { runDetectedScanCounted } from "@/lib/places/detected-scan";
 import {
@@ -45,10 +47,23 @@ export async function runDiscoveryScan(
   radiusMeters: number,
   ringRadiusMeters: number,
   signals: boolean,
+  options: { lang?: "en" | "he"; nowMs?: number } = {},
 ): Promise<DiscoveryScan> {
   const samples = signals ? sampleScanPoints(points) : [];
+  // Shared tile cache (service role): any trouble means the plain scan.
+  const tileStore = provider.fetchInBboxes
+    ? await createSupabaseTileStore().catch(() => null)
+    : null;
   const [osm, wiki, commons] = await Promise.allSettled([
-    provider.fetchScan(points, radiusMeters, ringRadiusMeters),
+    scanWithTileCache({
+      points,
+      radiusMeters,
+      ringRadiusMeters,
+      nowMs: options.nowMs ?? Date.now(),
+      store: tileStore,
+      fetchInBboxes: provider.fetchInBboxes?.bind(provider),
+      fallback: () => provider.fetchScan(points, radiusMeters, ringRadiusMeters),
+    }),
     signals ? fetchWikiPlaces(samples) : Promise.resolve({ places: [], calls: 0 }),
     signals ? fetchPhotoClusters(samples) : Promise.resolve({ clusters: [], calls: 0 }),
   ]);
@@ -60,6 +75,8 @@ export async function runDiscoveryScan(
   const ring = all.filter(
     (p) =>
       !placeIds.has(p.id) &&
+      // A cached tile holds the whole corridor set: thin it to the plain ring's.
+      (tileStore === null || isRingNotable(p.tags)) &&
       distanceToPath(p.coordinates, points) <= ringRadiusMeters + 50,
   );
 
@@ -80,6 +97,7 @@ export async function runDiscoveryScan(
   const detectedRun = await runDetectedScanCounted(points, ringRadiusMeters, {
     wikiPlaces: wikiPlaces.map((w) => w.coordinates),
     photoClusters: clusters,
+    lang: options.lang,
   });
 
   return {

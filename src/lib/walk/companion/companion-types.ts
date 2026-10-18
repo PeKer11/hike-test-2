@@ -9,9 +9,11 @@ export type QuestionKind =
   | "heat-water"
   | "rest"
   | "stop-closing"
-  | "rain";
+  | "rain"
+  | "habit-eat"
+  | "habit-coffee";
 
-export type AmenityKind = "drinking_water" | "toilets" | "bench" | "shade" | "cafe";
+export type AmenityKind = "drinking_water" | "toilets" | "bench" | "shade" | "cafe" | "food";
 
 /**
  * What an answer does to the plan. Each op maps to a rebuild that already

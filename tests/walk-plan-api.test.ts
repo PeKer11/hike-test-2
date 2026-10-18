@@ -1288,10 +1288,20 @@ describe("POST /api/walk-plan — counting the walker's sessions", () => {
       makeAttraction("osm-1", 32.081, 34.78, 20),
     ]);
 
-    const response = await POST(postRequest(discoveryBody()));
+    const response = await POST(postRequest(discoveryBody({ learnPreferences: true })));
 
     expect(response.status).toBe(200);
     expect(mockRecordWalkSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not count a session without learning consent", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("osm-1", 32.081, 34.78, 20),
+    ]);
+
+    await POST(postRequest(discoveryBody()));
+
+    expect(mockRecordWalkSession).not.toHaveBeenCalled();
   });
 
   // The retry ladder can build a plan up to three times for one request. That is
@@ -1301,7 +1311,7 @@ describe("POST /api/walk-plan — counting the walker's sessions", () => {
     // ladder rather than stopping at a good first plan.
     mockFetchAttractions.mockResolvedValue([]);
 
-    await POST(postRequest(discoveryBody()));
+    await POST(postRequest(discoveryBody({ learnPreferences: true })));
 
     expect(mockFetchAttractions.mock.calls.length).toBeGreaterThan(1);
     expect(mockRecordWalkSession).toHaveBeenCalledTimes(1);
@@ -1346,5 +1356,31 @@ describe("POST /api/walk-plan — counting the walker's sessions", () => {
 
     expect(response.status).toBe(200);
     expect(plan.orderedAttractions).toHaveLength(1);
+  });
+});
+
+describe("POST /api/walk-plan — forward-only add-a-stop", () => {
+  beforeEach(resetMocks);
+
+  const named = makeAttraction("named", 32.0805, 34.78, 1);
+
+  it("runs one discovery pass when the walker is heading somewhere", async () => {
+    await POST(
+      postRequest({
+        ...baseBody([named]),
+        fillRemainingTime: true,
+        heading: 0,
+      }),
+    );
+
+    expect(mockFetchAttractions).toHaveBeenCalledTimes(1);
+  });
+
+  it("still widens and retries a fill without a heading", async () => {
+    await POST(
+      postRequest({ ...baseBody([named]), fillRemainingTime: true }),
+    );
+
+    expect(mockFetchAttractions.mock.calls.length).toBeGreaterThan(1);
   });
 });

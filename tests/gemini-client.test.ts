@@ -21,13 +21,17 @@ vi.mock("@google/genai", () => ({
 }));
 
 import { DEFAULT_GEMINI_MODEL } from "@/lib/llm/config";
-import {
-  extractCategoryPreferences,
-  extractPlaceNames,
-  extractStandingFacts,
-} from "@/lib/api/gemini-client";
+import * as client from "@/lib/api/gemini-client";
+import type { LlmCallContext } from "@/lib/llm/types";
 import { PLACE_EXTRACTION_SYSTEM_PROMPT } from "@/lib/places/place-extractor";
 import type { StoredFact } from "@/lib/preferences/fact-extractor";
+
+// The wrappers now require a caller context; these tests are about the request
+// they send, so they all run as one anonymous caller.
+const CTX: LlmCallContext = { userId: null, ip: "1.1.1.1" };
+const extractPlaceNames = (p: string, f: StoredFact[] = []) => client.extractPlaceNames(p, f, CTX);
+const extractStandingFacts = (t: string, k: StoredFact[] = []) => client.extractStandingFacts(t, k, CTX);
+const extractCategoryPreferences = (t: string) => client.extractCategoryPreferences(t, CTX);
 
 function fact(text: string, overrides: Partial<StoredFact> = {}): StoredFact {
   return {

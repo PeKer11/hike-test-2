@@ -34,9 +34,7 @@ function build(req: ProviderRequest, compatible: boolean) {
       ? { max_tokens: req.maxOutputTokens }
       : { max_completion_tokens: req.maxOutputTokens }),
     // Only the real OpenAI API takes it; compatible hosts may 400 on the field.
-    ...(!compatible && process.env.LLM_REASONING_EFFORT
-      ? { reasoning_effort: process.env.LLM_REASONING_EFFORT }
-      : {}),
+    ...(!compatible && req.reasoningEffort ? { reasoning_effort: req.reasoningEffort } : {}),
   };
 }
 

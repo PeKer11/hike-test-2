@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { HabitState } from "@/lib/preferences/habit-model";
+import {
+  loadRoutineHabits,
+  persistRoutineHabits,
+  type HabitWalkEnd,
+} from "@/lib/preferences/routine-habits";
 import type { AttractionCategory } from "@/lib/types";
 import type { AskPriors, QuestionKind } from "@/lib/walk/companion/companion-types";
 import type { WalkEnvironment } from "@/lib/types/discovery";
@@ -196,6 +202,11 @@ export interface WalkEndInput {
   collapseCount: number;
   paceSamples: EnvPaceSample[];
   interactions: Array<{ poiKey: string; kind: InteractionKind; category: AttractionCategory }>;
+  /**
+   * Routine-habit evidence (local-time bins, answers). The caller sets it only
+   * when `learningConsent === "granted"`; it is dropped without learning consent.
+   */
+  habits?: HabitWalkEnd | null;
 }
 
 export interface WalkSummaryRow {
@@ -215,6 +226,7 @@ export interface WalkEndPlan {
   summary: WalkSummaryRow;
   interactions: Array<{ poiKey: string; kind: InteractionKind; category: AttractionCategory }>;
   paceSamples: EnvPaceSample[];
+  habits: HabitWalkEnd | null;
 }
 
 export function truncateToHour(ms: number): string {
@@ -247,6 +259,7 @@ export function planWalkEndWrites(input: WalkEndInput): WalkEndPlan | null {
     },
     interactions: input.interactions,
     paceSamples: input.paceSamples,
+    habits: input.habits ?? null,
   };
 }
 
@@ -259,6 +272,8 @@ export interface CompanionMemory {
   typicalWalkMinutes: number | null;
   interactions: InteractionRow[];
   priors: AskPriors;
+  /** Routine habits (wall clock); empty when none or the table is unavailable. */
+  habits?: HabitState;
 }
 
 export async function loadCompanionMemory(
@@ -291,6 +306,7 @@ export async function loadCompanionMemory(
     uiLanguage: (p.ui_language as CompanionMemory["uiLanguage"]) ?? null,
     typicalWalkMinutes: (p.typical_walk_minutes as number | null) ?? null,
     interactions: (rows as InteractionRow[] | null) ?? [],
+    habits: await loadRoutineHabits(client, userId),
     priors: priorsFromSummaries(
       ((sums as Array<{ questions: QuestionEntry[] }> | null) ?? []).map((s) => ({
         questions: Array.isArray(s.questions) ? s.questions : [],
@@ -304,14 +320,29 @@ export async function persistWalkEnd(
   client: SupabaseClient,
   userId: string,
   input: WalkEndInput,
-  currentSession: number,
-  prevPaceByEnv: PaceByEnv,
+  _clientSessionCount: number,
+  _clientPaceByEnv: PaceByEnv,
 ): Promise<boolean> {
   const plan = planWalkEndWrites(input);
   if (plan === null) return false;
+  // `_client*` are deliberately ignored: client-held memory can be stale (another
+  // tab, an in-flight plan) and would resurrect a profile that "forget" cleared.
+  // Session count and pace are re-read from the database below.
 
   const ins = await client.from("walk_summaries").insert({ user_id: userId, ...plan.summary });
-  if (ins.error) return false;
+  // A second write of the same walk (a double "end walk", a retry) hits the unique
+  // index on the summary's identity: already stored, so nothing else is counted twice.
+  if (ins.error) return (ins.error as { code?: string }).code === "23505";
+
+  const { data: profile, error: profErr } = await client
+    .from("profiles")
+    .select("session_count, pace_by_env")
+    .eq("id", userId)
+    .maybeSingle();
+  if (profErr) return false;
+  const p = (profile ?? null) as Record<string, unknown> | null;
+  const currentSession = Number(p?.session_count) || 0;
+  const dbPaceByEnv = sanitizePaceByEnv(p?.pace_by_env);
 
   if (plan.interactions.length > 0) {
     const keys = [...new Set(plan.interactions.map((i) => i.poiKey))];
@@ -344,12 +375,16 @@ export async function persistWalkEnd(
     if (up.error) return false;
   }
 
-  if (plan.paceSamples.length > 0) {
+  if (plan.paceSamples.length > 0 && p) {
     const upd = await client
       .from("profiles")
-      .update({ pace_by_env: updatePaceByEnv(prevPaceByEnv, plan.paceSamples) })
+      .update({ pace_by_env: updatePaceByEnv(dbPaceByEnv, plan.paceSamples) })
       .eq("id", userId);
     if (upd.error) return false;
+  }
+
+  if (plan.habits) {
+    if (!(await persistRoutineHabits(client, userId, plan.habits))) return false;
   }
   return true;
 }

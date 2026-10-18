@@ -110,13 +110,13 @@ describe("pace mode defaults", () => {
 
 describe("deviationMode default, migration and control", () => {
   it("defaults to ask — being off route may mean lost, or may mean a shop", () => {
-    expect(DEFAULT_WALK_SETTINGS.deviationMode).toBe("ask");
+    expect(DEFAULT_WALK_SETTINGS.deviationMode).toBe("auto");
 
     const { result } = renderHook(() => useWalkSettings());
-    expect(result.current.settings.deviationMode).toBe("ask");
+    expect(result.current.settings.deviationMode).toBe("auto");
   });
 
-  it("fills the field in as ask for a blob written before it existed", () => {
+  it("fills the field in as auto for a blob written before it existed", () => {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -130,7 +130,7 @@ describe("deviationMode default, migration and control", () => {
 
     // Nothing happened off-route before this field, so there is no earlier
     // preference to respect — only someone who has never been asked.
-    expect(result.current.settings.deviationMode).toBe("ask");
+    expect(result.current.settings.deviationMode).toBe("auto");
     expect(result.current.settings.slowPaceMode).toBe("auto");
   });
 

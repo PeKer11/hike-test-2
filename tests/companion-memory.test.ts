@@ -143,6 +143,7 @@ describe("consent gating", () => {
           return b;
         };
       }
+      b.maybeSingle = async () => ({ data: { session_count: 5, pace_by_env: {} }, error: null });
       b.then = (res: (v: unknown) => void) => res({ data: [], error: null });
       return b;
     };
@@ -155,6 +156,54 @@ describe("consent gating", () => {
     ]);
     const upsert = calls[1].arg as Array<Record<string, unknown>>;
     expect(upsert[0]).toMatchObject({ user_id: "u1", poi_key: "osm-node-1", count: 1, last_session: 5, category: "museum" });
+  });
+});
+
+describe("persistWalkEnd is idempotent for a walk already stored (R1)", () => {
+  it("a unique violation on the summary means 'already stored': true, and no interaction or pace write", async () => {
+    const calls: string[] = [];
+    const builder = (table: string) => {
+      const b: Record<string, unknown> = {};
+      for (const op of ["select", "eq", "in", "update"]) b[op] = () => b;
+      for (const op of ["insert", "upsert"]) {
+        b[op] = () => {
+          calls.push(`${table}:${op}`);
+          return table === "walk_summaries"
+            ? Promise.resolve({ data: null, error: { code: "23505" } })
+            : b;
+        };
+      }
+      b.then = (res: (v: unknown) => void) => res({ data: [], error: null });
+      return b;
+    };
+    expect(await persistWalkEnd({ from: builder } as never, "u1", input(), 5, {})).toBe(true);
+    expect(calls).toEqual(["walk_summaries:insert"]);
+  });
+  it("any other insert error is still a failure", async () => {
+    const builder = () => ({ insert: () => Promise.resolve({ data: null, error: { code: "42501" } }) });
+    expect(await persistWalkEnd({ from: builder } as never, "u1", input(), 5, {})).toBe(false);
+  });
+});
+
+describe("persistWalkEnd never writes client-held pace back (privacy)", () => {
+  it("after the DB rows are empty, stale client pace history is not resurrected", async () => {
+    const updates: Array<Record<string, unknown>> = [];
+    const builder = () => {
+      const b: Record<string, unknown> = {};
+      for (const op of ["select", "eq", "in", "upsert"]) b[op] = () => b;
+      b.insert = () => b;
+      b.update = (arg: Record<string, unknown>) => {
+        updates.push(arg);
+        return b;
+      };
+      b.maybeSingle = async () => ({ data: { session_count: 0, pace_by_env: {} }, error: null });
+      b.then = (res: (v: unknown) => void) => res({ data: [], error: null });
+      return b;
+    };
+    const stale = { urban: { minPerKm: 20, n: 50 } };
+    expect(await persistWalkEnd({ from: builder } as never, "u1", input(), 99, stale)).toBe(true);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].pace_by_env).toEqual({ urban: { minPerKm: 13, n: 1 } });
   });
 });
 
@@ -172,6 +221,7 @@ describe("store error handling", () => {
           return b;
         };
       }
+      b.maybeSingle = async () => ({ data: { session_count: 5, pace_by_env: {} }, error: null });
       b.then = (res: (v: unknown) => void) =>
         res(
           table === failTable && op === failOp

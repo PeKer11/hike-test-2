@@ -12,7 +12,9 @@ import {
 } from "@/lib/api/rate-limit";
 import { rankAttractions } from "@/lib/attractions/attraction-ranker";
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
+import { countStatedConstraints, maybeReorderWithT3 } from "@/lib/llm/plan-escalation";
 import type { LlmCallContext } from "@/lib/llm/types";
+import { haversineDistance } from "@/lib/utils/geo";
 import { isPlausibleGeocodeMatch } from "@/lib/places/geocode-plausibility";
 import {
   buildExtractionResult,
@@ -38,6 +40,7 @@ import {
   getPreferredCategories,
   learnPreferencesFromText,
 } from "@/lib/preferences/preference-store";
+import { LlmBudgetExceededError } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
 
 /** The session-aware server client, as every store on this path takes it. */
@@ -94,12 +97,18 @@ function toRequestedNeeds(value: unknown): AttractionCategory[] | null {
 }
 
 const MAX_PROMPT_LENGTH = 1000;
+
+/** Shown when the AI budget is used up; deliberately silent on which cap it was. */
+const BUDGET_EXCEEDED_MESSAGE =
+  "AI planning is at its limit for now. Try again later, or add your places by name.";
 // Nominatim allows 1 request/sec — geocode the names serially with a margin.
 const GEOCODE_DELAY_MS = 1100;
 
 // Same 2 km the City Walk Companion form defaults to, so a stop found for a
 // stated need is as reachable as one the open-mode search would have offered.
 const NEED_SEARCH_RADIUS_METERS = 2000;
+// How long the need search waits on Overpass before using Nominatim instead.
+const NEED_OVERPASS_BUDGET_MS = 5000;
 // Only used to bound how far the ranker will look when the walker did not say
 // how long they have; matches the form's default walk length and pace.
 const FALLBACK_WALK_MINUTES = 90;
@@ -170,9 +179,10 @@ async function geocode(
 async function canonicalNameFor(
   name: string,
   contextLocation: string | null,
+  ctx: LlmCallContext,
 ): Promise<string | null> {
   try {
-    const canonical = await resolveCanonicalName(name, contextLocation);
+    const canonical = await resolveCanonicalName(name, contextLocation, ctx);
     if (!canonical || canonical.toLowerCase() === name.toLowerCase()) {
       return null;
     }
@@ -203,18 +213,86 @@ async function findNeedAttractions(
     return [];
   }
 
+  let picked: Attraction[] = [];
   try {
-    const nearby = await fetchAttractions(origin, NEED_SEARCH_RADIUS_METERS);
+    // The public Overpass mirrors are often down or hung; a walker should not
+    // wait out every retry for a stop, so give them a fixed budget.
+    const nearby = await Promise.race([
+      fetchAttractions(origin, NEED_SEARCH_RADIUS_METERS),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Overpass need-search timed out.")), NEED_OVERPASS_BUDGET_MS),
+      ),
+    ]);
     const ranked = rankAttractions(nearby, {
       origin,
       preferredCategories: categories,
       availableMinutes: durationMinutes ?? FALLBACK_WALK_MINUTES,
       walkingPaceMinPerKm: NEED_RANKING_PACE_MIN_PER_KM,
     });
-    return pickNeedAttractions(ranked, categories);
+    picked = pickNeedAttractions(ranked, categories);
   } catch {
-    return [];
+    // Fall through: whatever is still missing is looked up on Nominatim below.
   }
+
+  const found = new Set(picked.map((a) => a.category));
+  const missing = categories.filter((c) => !found.has(c));
+  return [...picked, ...(await findNeedsViaNominatim(missing, origin))];
+}
+
+/** Nominatim search word per kind of stop, for when Overpass has nothing. */
+const NEED_FALLBACK_QUERY: Record<AttractionCategory, string> = {
+  food: "restaurant",
+  nature: "nature reserve",
+  park: "park",
+  museum: "museum",
+  landmark: "monument",
+  viewpoint: "viewpoint",
+  religious: "synagogue",
+  shopping: "shopping",
+  entertainment: "cinema",
+  other: "attraction",
+};
+
+/**
+ * One stop per category from Nominatim, nearest to `origin` of what it returns.
+ * Poorer than the Overpass ranking (no tags to score on), but it answers when
+ * Overpass does not. Serial and spaced like every other Nominatim call here;
+ * any failure just contributes no stop.
+ */
+async function findNeedsViaNominatim(
+  categories: AttractionCategory[],
+  origin: Coordinates,
+): Promise<Attraction[]> {
+  const stops: Attraction[] = [];
+  for (const category of categories) {
+    try {
+      await delay(GEOCODE_DELAY_MS);
+      const results = await searchPlaces(NEED_FALLBACK_QUERY[category], 10, origin);
+      const nearest = results
+        .map((r) => ({
+          r,
+          coordinates: { lat: Number(r.lat), lng: Number(r.lon) },
+        }))
+        .filter(({ coordinates }) => Number.isFinite(coordinates.lat) && Number.isFinite(coordinates.lng))
+        .sort(
+          (a, b) =>
+            haversineDistance(origin, a.coordinates) - haversineDistance(origin, b.coordinates),
+        )[0];
+      if (!nearest) continue;
+      stops.push({
+        id: `need-${category}-${nearest.r.place_id}`,
+        name: nearest.r.display_name.split(",")[0].trim(),
+        coordinates: nearest.coordinates,
+        category,
+        avgVisitMinutes: category === "food" ? 45 : 30,
+        tags: { source: "prompt-need", needCategory: category, via: "nominatim" },
+        distanceFromOriginMeters: Math.round(haversineDistance(origin, nearest.coordinates)),
+      });
+    } catch {
+      // No stop for this one.
+    }
+  }
+  return stops;
 }
 
 /**
@@ -263,6 +341,7 @@ async function learningSession(
 async function learnFromText(
   session: { supabase: ServerClient; userId: string } | null,
   prompt: string,
+  ctx: LlmCallContext,
 ): Promise<FactContradiction[]> {
   if (!session) {
     return [];
@@ -270,10 +349,10 @@ async function learnFromText(
 
   try {
     const [, learnedFacts] = await Promise.all([
-      learnPreferencesFromText(session.supabase, session.userId, prompt).catch(
+      learnPreferencesFromText(session.supabase, session.userId, prompt, ctx).catch(
         () => null,
       ),
-      learnFactsFromText(session.supabase, session.userId, prompt).catch(
+      learnFactsFromText(session.supabase, session.userId, prompt, ctx).catch(
         () => null,
       ),
     ]);
@@ -363,6 +442,9 @@ async function clarificationFor(
   ]);
 }
 
+/** Model calls one request may spend on canonical-name retries (R3 cost caps). */
+export const MAX_CANONICAL_LOOKUPS_PER_REQUEST = 3;
+
 export async function POST(request: Request): Promise<NextResponse> {
   const verdict = geminiRateLimiter.check(callerKey(request));
   if (!verdict.allowed) {
@@ -373,9 +455,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     const body = (await request.json()) as ExtractPlacesRequest;
     // Who the budget guard counts this call against: the signed-in walker when
     // learning is on (the session is only resolved then), else the ip bucket.
-    // A LlmBudgetExceededError from the extraction below is deliberately left
-    // to the catch at the end: it gets the same `{ error }` response as any
-    // other "the LLM is unavailable" failure of this route.
+    // A LlmBudgetExceededError from the extraction below is answered by the
+    // catch at the end as HTTP 429 with a friendly message (it never says which
+    // cap was hit: per-caller and global look the same from outside).
     const llmContext = (userId: string | null): LlmCallContext => ({
       userId,
       ip: callerKey(request),
@@ -502,6 +584,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     // thing that tells "a walk in Zichron Yaakov" apart from "a walk to Habima
     // Square", both of which arrive as one entry with no context location.
     let solePlaceKind: string | null = null;
+    let canonicalLookups = 0;
     for (const name of places) {
       let match = await spacedGeocode(name, bias);
 
@@ -509,8 +592,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       // such a place only under its formal name ("מדרחוב" is mapped as the
       // street "המייסדים"), so ask the model for that name and try once more —
       // once, never in a loop. The stop keeps the user's own wording either way.
-      if (!match) {
-        const canonical = await canonicalNameFor(name, contextLocation);
+      // At most MAX_CANONICAL_LOOKUPS_PER_REQUEST model calls per request: a
+      // prompt naming dozens of unknown places must not fan out into dozens.
+      if (!match && canonicalLookups < MAX_CANONICAL_LOOKUPS_PER_REQUEST) {
+        canonicalLookups += 1;
+        const canonical = await canonicalNameFor(name, contextLocation, llmContext(session?.userId ?? null));
         if (canonical) {
           match = await spacedGeocode(canonical, bias);
         }
@@ -541,7 +627,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       durationMinutes,
     );
 
-    const factContradictions = await learnFromText(session, prompt);
+    const factContradictions = await learnFromText(session, prompt, llmContext(session?.userId ?? null));
 
     const promptShape = {
       places,
@@ -552,9 +638,30 @@ export async function POST(request: Request): Promise<NextResponse> {
       isUnderSpecifiedPrompt({ ...promptShape, categoryNeeds: effectiveNeeds }),
     );
 
+    // Behind LLM_T3_PLAN=1 (off: this returns the same array untouched): a
+    // prompt that states many constraints may have its stops ordered by the
+    // tier-3 planner. Reorder only, any failure keeps this order.
+    const orderedAttractions = await maybeReorderWithT3({
+      prompt,
+      attractions: [...attractions, ...needAttractions],
+      needIds: new Set(needAttractions.map((a) => a.id)),
+      signals: {
+        constraintCount: countStatedConstraints({
+          durationMinutes,
+          stopCount,
+          notableOnly,
+          maxEndDistanceKm,
+          searchRadiusKm,
+          needs: effectiveNeeds,
+        }),
+      },
+      walkKey: `${callerKey(request)}|${prompt}`,
+      ctx: llmContext(session?.userId ?? null),
+    });
+
     return NextResponse.json({
       extractedNames: places,
-      attractions: [...attractions, ...needAttractions],
+      attractions: orderedAttractions,
       unresolvedNames,
       contextLocation: contextLocation ?? null,
       contextCoordinates,
@@ -593,6 +700,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       areaOnlyPrompt: isAreaOnlyPrompt(promptShape),
     });
   } catch (error) {
+    if (error instanceof LlmBudgetExceededError) {
+      return NextResponse.json(
+        { error: BUDGET_EXCEEDED_MESSAGE },
+        { status: 429, headers: { "Retry-After": "3600" } },
+      );
+    }
     const message =
       error instanceof Error ? error.message : "Failed to extract places.";
     return NextResponse.json({ error: message }, { status: 500 });

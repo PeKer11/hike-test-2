@@ -5,6 +5,7 @@ import { resetAllCircuitBreakers } from "@/lib/api/circuit-breaker";
 
 import { calloutHtml } from "@/components/map/PoiCallouts";
 import {
+  DETECTED_TIMEOUT_MS,
   ENCLOSING_BEGIN,
   ENCLOSING_SEPARATOR,
   buildHazardQuery,
@@ -236,6 +237,11 @@ describe("overpass parsing and query", () => {
     const miss = parseHazardResponse({ elements: [pathEl, bare, { type: ENCLOSING_BEGIN }, sep] }, 1);
     expect(miss?.some((x) => x.encloses === 0)).toBe(false);
     expect(parseHazardResponse({ elements: [pathEl, bare, sep] }, 1)).toBeNull(); // no begin marker -> fail closed
+  });
+  it("the query's own timeout is under the client's, so Overpass does not keep working after we gave up", () => {
+    const m = /\[timeout:(\d+)\]/.exec(buildHazardQuery([comp]));
+    expect(Number(m![1]) * 1000).toBeLessThan(DETECTED_TIMEOUT_MS);
+    expect(buildHazardQuery([comp])).not.toMatch(/\|secondary|\|primary/);
   });
   it("query asks for each hazard key independently", () => {
     const q = buildHazardQuery([comp]);

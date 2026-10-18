@@ -1,3 +1,4 @@
+import { WORLDCOVER_ATTRIBUTION } from "@/lib/types/landcover";
 import { appUserAgent } from "@/lib/api/http-identity";
 import { createCircuitBreaker, parseRetryAfterMs } from "@/lib/api/circuit-breaker";
 import { classifyComponent } from "@/lib/places/detected-classifier";
@@ -32,7 +33,13 @@ import { haversineDistance } from "@/lib/utils/geo";
 export const DETECTED_FLAG = "NEXT_PUBLIC_DETECTED_TIER";
 export const DETECTED_MAX_CANDIDATES = 12;
 export const DETECTED_TIMEOUT_MS = 8_000;
-export const WORLDCOVER_ATTRIBUTION = "ESA WorldCover 2021 (CC BY 4.0)";
+/**
+ * The server-side query budget, one second under the client's: Overpass stops
+ * working when we have already given up, and a query it can finish in time is
+ * one we will still be listening for (it was `[timeout:25]` against an 8 s client).
+ */
+export const DETECTED_QUERY_TIMEOUT_S = Math.floor(DETECTED_TIMEOUT_MS / 1000) - 1;
+export { WORLDCOVER_ATTRIBUTION };
 const WIKI_MATCH_M = 75;
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 /** Breaker for the detected tier's own Overpass calls (keyed by endpoint). */
@@ -124,7 +131,7 @@ export function buildHazardQuery(
       return `is_in(${at})->.a${i};(${filters})->.e${i};.e${i} out tags;make ${ENCLOSING_SEPARATOR} idx="${i}";out;`;
     })
     .join("\n");
-  return `[out:json][timeout:25];(
+  return `[out:json][timeout:${DETECTED_QUERY_TIMEOUT_S}];(
 way["landuse"](${box});relation["landuse"~"^(${HAZARD_LANDUSE})$"](${box});
 way["man_made"~"^(${HAZARD_MAN_MADE})$"](${box});relation["man_made"~"^(${HAZARD_MAN_MADE})$"](${box});
 way["military"](${box});relation["military"](${box});
@@ -135,8 +142,8 @@ way["natural"~"^(wood|water|grassland|scrub|wetland|cliff|coastline)$"](${box});
 way["boundary"~"^(protected_area|national_park)$"](${box});relation["boundary"~"^(protected_area|national_park)$"](${box});
 way["amenity"="grave_yard"](${box});
 way["access"~"^(private|no)$"]["highway"!~"."](${box});
-way["waterway"~"^(wadi|stream|river|drain)$"](${box});
-way["highway"~"^(footway|path|track|pedestrian|steps|cycleway|bridleway|living_street|residential|service|unclassified|tertiary|secondary|primary)$"](${box});
+way["waterway"~"^(wadi|stream|river|drain|canal|ditch)$"](${box});way["intermittent"="yes"](${box});
+way["highway"~"^(footway|path|track|pedestrian|steps|cycleway|bridleway|living_street|residential|service|unclassified|tertiary)$"](${box});
 ${fences}
 );out geom;
 make ${ENCLOSING_BEGIN} x="1";out;

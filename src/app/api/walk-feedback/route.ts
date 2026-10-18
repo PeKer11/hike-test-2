@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { callerKey, learningRateLimiter, rateLimitedResponse } from "@/lib/api/rate-limit";
 import { learnFactsFromText } from "@/lib/preferences/fact-store";
 import { ATTRACTION_CATEGORIES } from "@/lib/preferences/preference-extractor";
 import type { AttractionCategory } from "@/lib/types";
@@ -108,6 +109,12 @@ function toRatings(value: unknown): AttractionRating[] {
  * required to answer.
  */
 export async function POST(request: Request): Promise<NextResponse> {
+  // Spends model calls (preference + fact learning) on the comment box.
+  const verdict = learningRateLimiter.check(callerKey(request));
+  if (!verdict.allowed) {
+    return rateLimitedResponse(verdict);
+  }
+
   try {
     const body = (await request.json()) as WalkFeedbackRequest;
 
@@ -153,10 +160,11 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Both passes over the same comment box, exactly as the prompt route runs
     // them: what the walker likes, and what is true about them.
+    const llmCtx = { userId: user.id, ip: callerKey(request) };
     const [learned, learnedFacts] = comment
       ? await Promise.all([
-          learnPreferencesFromText(supabase, user.id, comment).catch(() => null),
-          learnFactsFromText(supabase, user.id, comment).catch(() => null),
+          learnPreferencesFromText(supabase, user.id, comment, llmCtx).catch(() => null),
+          learnFactsFromText(supabase, user.id, comment, llmCtx).catch(() => null),
         ])
       : [null, null];
 

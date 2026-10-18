@@ -61,6 +61,8 @@ const REGISTERED_LANDUSE = new Set([
 const REGISTERED_NATURAL = new Set(["wood", "water", "grassland", "scrub", "wetland"]);
 const REGISTERED_LEISURE = new Set(["park", "garden"]);
 const BARRIERS = new Set(["fence", "wall", "gate", "chain", "retaining_wall"]);
+// Primary and secondary roads are deliberately absent: a road with traffic is not
+// a way a walker can reach a patch by.
 const WALKABLE_HIGHWAY = new Set([
   "footway",
   "path",
@@ -74,8 +76,6 @@ const WALKABLE_HIGHWAY = new Set([
   "service",
   "unclassified",
   "tertiary",
-  "secondary",
-  "primary",
 ]);
 
 // ---- geometry -------------------------------------------------------------
@@ -193,6 +193,16 @@ function isReserve(t: Record<string, string>): boolean {
   return t.leisure === "nature_reserve" || t.boundary === "protected_area" || t.boundary === "national_park";
 }
 
+export function isFloodWater(t: Record<string, string>): boolean {
+  return (
+    t.waterway === "wadi" ||
+    t.water === "wadi" ||
+    t.intermittent === "yes" ||
+    t.seasonal === "yes" ||
+    t.seasonal === "wet_season"
+  );
+}
+
 export function isWalkable(t: Record<string, string>): boolean {
   if (!t.highway || !WALKABLE_HIGHWAY.has(t.highway)) return false;
   if (t.foot === "no" || t.access === "no" || t.access === "private") return false;
@@ -299,10 +309,9 @@ export function classifyComponent(
   if (
     ctx.features.some(
       (f) =>
-        (f.tags.waterway === "wadi" ||
-          ((f.tags.waterway === "stream" || f.tags.waterway === "river" || f.tags.waterway === "drain") &&
-            f.tags.intermittent === "yes")) &&
-        d(f) <= WADI_MARGIN_M,
+        // A wadi, or anything mapped as intermittent / seasonal water (streams,
+        // drains, canals, ponds, wetlands): all of it can run after rain.
+        isFloodWater(f.tags) && d(f) <= WADI_MARGIN_M,
     )
   ) {
     hazards.push("flood");

@@ -11,9 +11,11 @@ import { MapClickHandler } from "@/components/map/MapClickHandler";
 import { CurrentPositionMarker } from "@/components/map/CurrentPositionMarker";
 import { MapMarkers } from "@/components/map/MapMarkers";
 import { OptionPreviewLines, type PreviewRoute } from "@/components/map/OptionPreviewLines";
+import { ExtraAttribution } from "@/components/map/ExtraAttribution";
 import { PoiCallouts } from "@/components/map/PoiCallouts";
 import { PreviewMarkers } from "@/components/map/PreviewMarkers";
 import { RoutePolyline } from "@/components/map/RoutePolyline";
+import { WORLDCOVER_ATTRIBUTION } from "@/lib/types/landcover";
 import { getTileAttribution, getTileUrl } from "@/lib/map/tile-config";
 import type { Attraction, Coordinates, Waypoint } from "@/lib/types";
 import type { Announcement } from "@/lib/walk/poi-announcer";
@@ -39,6 +41,8 @@ interface MapViewProps {
   onCalloutSelect?: (announcement: Announcement) => void;
   /** Dashed previews of the directions on offer after a collapse. */
   previewRoutes?: PreviewRoute[];
+  /** Extra data-source credits (e.g. Open-Meteo while the companion uses weather). */
+  extraAttribution?: string[];
 }
 
 function MapViewport({ center, zoom }: { center: Coordinates; zoom: number }) {
@@ -122,7 +126,15 @@ export default function MapView({
   callouts,
   onCalloutSelect,
   previewRoutes,
+  extraAttribution,
 }: MapViewProps) {
+  // ESA WorldCover (CC BY 4.0) is credited whenever a satellite find is on the map.
+  const credits = [
+    ...(callouts?.some((a) => a.place.verification === "detected")
+      ? [WORLDCOVER_ATTRIBUTION]
+      : []),
+    ...(extraAttribution ?? []),
+  ];
   return (
     <div className={hudInset ? "walk-hud absolute inset-0" : "absolute inset-0"}>
       <MapContainer
@@ -135,6 +147,7 @@ export default function MapView({
         attribution={getTileAttribution()}
         url={getTileUrl()}
       />
+      <ExtraAttribution texts={credits} />
       <MapViewport center={center} zoom={zoom} />
       <MapSizeInvalidator />
       <PositionFollower

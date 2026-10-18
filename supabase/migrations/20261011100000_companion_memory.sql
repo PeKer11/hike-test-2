@@ -56,6 +56,11 @@ create table public.walk_summaries (
 
 create index walk_summaries_user_idx on public.walk_summaries (user_id, started_hour desc);
 
+-- The same walk written twice (double "end walk", a retry) is one row: persistWalkEnd
+-- treats the unique violation as "already stored" and counts nothing a second time.
+create unique index walk_summaries_identity_idx
+  on public.walk_summaries (user_id, started_hour, planned_min, actual_min, distance_m);
+
 -- ---------------------------------------------------------------------------
 -- RLS: own rows only, authenticated only. `anon` and PUBLIC get nothing: this
 -- project's default ACL grants table privileges to anon at creation time (see

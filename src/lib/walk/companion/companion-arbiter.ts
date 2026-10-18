@@ -189,7 +189,7 @@ export function arbitrate(
       (m, r) => (m === null || r.askedAt > m.askedAt ? r : m),
       null,
     );
-    let safety = cand.urgency === 3;
+    const safety = cand.urgency === 3;
     if (last) {
       const since = now - last.askedAt;
       const urgencyUp =
@@ -198,8 +198,21 @@ export function arbitrate(
       // A safety question that was already asked (whatever the answer: dismiss,
       // "take me there", or a timeout) comes back only if things got worse or
       // after the long gap, and then stays a safety question.
-      if (safety && last.urgency === 3 && !escalated(cand, last)) {
-        if (since < DISMISSED_SAFETY_GAP_MS) continue;
+      // Checked against the last urgency-3 record of the kind, not just the last
+      // record: a threshold flap (urgency 2 in between) must not bypass the gap.
+      if (safety) {
+        const lastSafety = sameKind.reduce<AskRecord | null>(
+          (m, r) =>
+            r.urgency === 3 && (m === null || r.askedAt > m.askedAt) ? r : m,
+          null,
+        );
+        if (
+          lastSafety &&
+          !escalated(cand, lastSafety) &&
+          now - lastSafety.askedAt < DISMISSED_SAFETY_GAP_MS
+        ) {
+          continue;
+        }
       }
     }
     if (!safety) {

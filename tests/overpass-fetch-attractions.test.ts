@@ -79,6 +79,25 @@ describe("fetchAttractions endpoint failover", () => {
     expect(secondInit.method).toBe("GET");
   });
 
+  it("starts the next attempt without waiting out a hung one, and the first answer wins", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi
+        .fn()
+        .mockImplementationOnce(() => new Promise(() => {})) // hangs, never settles
+        .mockResolvedValueOnce(ok({ elements: [] }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const pending = fetchAttractions(CENTER, 1500);
+      await vi.advanceTimersByTimeAsync(2_600);
+
+      await expect(pending).resolves.toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("moves to the next mirror once both methods on the first one fail", async () => {
     const fetchMock = stubOverpass(
       httpError(500, "Server Error"),

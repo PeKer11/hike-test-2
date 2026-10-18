@@ -7,6 +7,8 @@ import {
   DEFAULT_WALK_SETTINGS,
   toCalloutLevel,
   toDeviationResponseMode,
+  toLearningConsent,
+  toUiLanguageSetting,
   toPaceResponseMode,
   type WalkSettings,
 } from "@/lib/types/walk-settings";
@@ -23,6 +25,7 @@ const WALK_SETTINGS_STORAGE_KEY = "walk-settings";
 function sanitizeSettings(
   candidate: (Partial<WalkSettings> & { paceCheckEnabled?: unknown }) | null | undefined,
 ): WalkSettings {
+  const learningConsent = toLearningConsent(candidate?.learningConsent);
   return {
     fastPaceMode: toPaceResponseMode(
       candidate?.fastPaceMode,
@@ -52,10 +55,12 @@ function sanitizeSettings(
         ? candidate.paceCheckIntervalMs
         : DEFAULT_WALK_SETTINGS.paceCheckIntervalMs,
     ),
+    // Learning needs an explicit yes: blobs from before the consent screen
+    // (flag true, consent missing) come back off and get asked.
+    learningConsent,
     preferenceLearningEnabled:
-      typeof candidate?.preferenceLearningEnabled === "boolean"
-        ? candidate.preferenceLearningEnabled
-        : DEFAULT_WALK_SETTINGS.preferenceLearningEnabled,
+      learningConsent === "granted" && candidate?.preferenceLearningEnabled !== false,
+    uiLanguage: toUiLanguageSetting(candidate?.uiLanguage),
     // A blob written before this flag existed predates persisted history
     // altogether, so there is nothing stored that a missing field could be an
     // opt-out from — it fills in as the default like a brand-new walker's.
@@ -65,6 +70,8 @@ function sanitizeSettings(
         : DEFAULT_WALK_SETTINGS.historyPersistenceEnabled,
     // Older blobs have no level: they get the default, "normal".
     calloutLevel: toCalloutLevel(candidate?.calloutLevel),
+    // Only an explicit true opts in; a missing or odd value is off.
+    socialSharingEnabled: candidate?.socialSharingEnabled === true,
   };
 }
 
@@ -82,7 +89,16 @@ function readStoredSettings(): WalkSettings {
     const parsed = JSON.parse(raw) as Partial<WalkSettings> & {
       paceCheckEnabled?: unknown;
     };
-    return sanitizeSettings(parsed);
+    // A blob from before the consent screen that explicitly switched learning off
+    // already said no: that is "declined" (do not re-ask). true / missing is
+    // unset. Only for stored blobs: in live state `false` + unset is just the
+    // default and must stay unset.
+    const migrated =
+      toLearningConsent(parsed?.learningConsent) === "unset" &&
+      parsed?.preferenceLearningEnabled === false
+        ? { ...parsed, learningConsent: "declined" as const }
+        : parsed;
+    return sanitizeSettings(migrated);
   } catch {
     return DEFAULT_WALK_SETTINGS;
   }
@@ -91,7 +107,10 @@ function readStoredSettings(): WalkSettings {
 export function useWalkSettings(): {
   settings: WalkSettings;
   setSettings: (partial: Partial<WalkSettings>) => void;
+  /** False until the stored blob has been read (first client render). */
+  loaded: boolean;
 } {
+  const [loaded, setLoaded] = useState(false);
   // The server has no localStorage, so it can only ever render the defaults.
   // Reading the stored blob during the first client render would therefore make
   // hydration disagree with the server-rendered markup — and the settings panel
@@ -109,6 +128,7 @@ export function useWalkSettings(): {
       // don't stomp it with what was on disk at mount.
       current === DEFAULT_WALK_SETTINGS ? stored : current,
     );
+    setLoaded(true);
   }, []);
 
   const setSettings = useCallback((partial: Partial<WalkSettings>) => {
@@ -119,15 +139,21 @@ export function useWalkSettings(): {
       });
 
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(
-          WALK_SETTINGS_STORAGE_KEY,
-          JSON.stringify(next),
-        );
+        // Blocked or full storage must not stop the new value from taking effect
+        // in memory (the consent screen would otherwise never close).
+        try {
+          window.localStorage.setItem(
+            WALK_SETTINGS_STORAGE_KEY,
+            JSON.stringify(next),
+          );
+        } catch {
+          // keep the in-memory setting
+        }
       }
 
       return next;
     });
   }, []);
 
-  return { settings, setSettings };
+  return { settings, setSettings, loaded };
 }

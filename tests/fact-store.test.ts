@@ -21,6 +21,7 @@ type Row = Record<string, unknown>;
 type Client = Parameters<typeof getStandingFacts>[0];
 
 const NOW = new Date("2026-08-12T09:00:00.000Z");
+const CTX = { userId: "user-1", ip: "1.1.1.1" };
 
 let nextId = 0;
 
@@ -302,7 +303,7 @@ describe("learnFactsFromText", () => {
     mockExtractStandingFacts.mockResolvedValue([extracted()]);
     const { client, rows } = fakeFactsTable([]);
 
-    const result = await learnFactsFromText(client, "user-1", "I walk my dog", NOW);
+    const result = await learnFactsFromText(client, "user-1", "I walk my dog", CTX, NOW);
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -325,7 +326,7 @@ describe("learnFactsFromText", () => {
     ]);
     const { client, rows } = fakeFactsTable([]);
 
-    await learnFactsFromText(client, "user-1", "…", NOW);
+    await learnFactsFromText(client, "user-1", "…", CTX, NOW);
 
     expect(rows[0].fact_text).toBe("Always walks with a Dog!");
     expect(rows[0].fact_key).toBe("always walks with a dog");
@@ -337,8 +338,8 @@ describe("learnFactsFromText", () => {
       .mockResolvedValueOnce([extracted({ text: "always walks with a dog" })]);
     const { client, rows } = fakeFactsTable([]);
 
-    await learnFactsFromText(client, "user-1", "…", NOW);
-    await learnFactsFromText(client, "user-1", "…", NOW);
+    await learnFactsFromText(client, "user-1", "…", CTX, NOW);
+    await learnFactsFromText(client, "user-1", "…", CTX, NOW);
 
     expect(rows).toHaveLength(1);
     expect(rows[0].occurrence_count).toBe(2);
@@ -352,7 +353,7 @@ describe("learnFactsFromText", () => {
     ]);
     const { client, rows } = fakeFactsTable([storedRow({ occurrence_count: 2 })]);
 
-    await learnFactsFromText(client, "user-1", "no meat for me", NOW);
+    await learnFactsFromText(client, "user-1", "no meat for me", CTX, NOW);
 
     expect(rows).toHaveLength(1);
     expect(rows[0].occurrence_count).toBe(3);
@@ -367,7 +368,7 @@ describe("learnFactsFromText", () => {
     ]);
     const { client, rows } = fakeFactsTable([storedRow()]);
 
-    await learnFactsFromText(client, "user-1", "no meat for me", NOW);
+    await learnFactsFromText(client, "user-1", "no meat for me", CTX, NOW);
 
     expect(rows[0].fact_text).toBe("does not eat meat");
   });
@@ -385,7 +386,7 @@ describe("learnFactsFromText", () => {
       }),
     ]);
 
-    await learnFactsFromText(client, "user-1", "my dog needs the walk", NOW);
+    await learnFactsFromText(client, "user-1", "my dog needs the walk", CTX, NOW);
 
     expect(rows[0].importance).toBe(3);
   });
@@ -396,7 +397,7 @@ describe("learnFactsFromText", () => {
     ]);
     const { client, rows } = fakeFactsTable([storedRow({ importance: 3 })]);
 
-    await learnFactsFromText(client, "user-1", "no meat", NOW);
+    await learnFactsFromText(client, "user-1", "no meat", CTX, NOW);
 
     expect(rows[0].importance).toBe(3);
   });
@@ -404,7 +405,7 @@ describe("learnFactsFromText", () => {
   it("hands the model what the walker is already on record as saying", async () => {
     const { client } = fakeFactsTable([storedRow()]);
 
-    await learnFactsFromText(client, "user-1", "a walk in Jaffa", NOW);
+    await learnFactsFromText(client, "user-1", "a walk in Jaffa", CTX, NOW);
 
     const [, known] = mockExtractStandingFacts.mock.calls[0];
     expect(known).toEqual([
@@ -416,7 +417,7 @@ describe("learnFactsFromText", () => {
     mockExtractStandingFacts.mockResolvedValue([]);
     const { client, rows } = fakeFactsTable([]);
 
-    const result = await learnFactsFromText(client, "user-1", "2 hours in Jaffa", NOW);
+    const result = await learnFactsFromText(client, "user-1", "2 hours in Jaffa", CTX, NOW);
 
     expect(rows).toEqual([]);
     expect(result.contradictions).toEqual([]);
@@ -425,7 +426,7 @@ describe("learnFactsFromText", () => {
   it("reads nothing out of empty text without calling the model", async () => {
     const { client } = fakeFactsTable([]);
 
-    await learnFactsFromText(client, "user-1", "   ", NOW);
+    await learnFactsFromText(client, "user-1", "   ", CTX, NOW);
 
     expect(mockExtractStandingFacts).not.toHaveBeenCalled();
   });
@@ -439,7 +440,7 @@ describe("learnFactsFromText", () => {
     const { client } = fakeFactsTable([]);
 
     await expect(
-      learnFactsFromText(client, "user-1", "I walk my dog", NOW),
+      learnFactsFromText(client, "user-1", "I walk my dog", CTX, NOW),
     ).resolves.toEqual({ facts: [], contradictions: [] });
   });
 
@@ -450,7 +451,7 @@ describe("learnFactsFromText", () => {
     ]);
     const { client, rows } = fakeFactsTable([], { insert: true });
 
-    const result = await learnFactsFromText(client, "user-1", "…", NOW);
+    const result = await learnFactsFromText(client, "user-1", "…", CTX, NOW);
 
     expect(rows).toEqual([]);
     expect(result.facts).toEqual([]);
@@ -466,7 +467,7 @@ describe("learnFactsFromText — contradictions", () => {
     ]);
     const { client, rows } = fakeFactsTable([storedRow()]);
 
-    const result = await learnFactsFromText(client, "user-1", "I eat meat again", NOW);
+    const result = await learnFactsFromText(client, "user-1", "I eat meat again", CTX, NOW);
 
     const retired = rows.find((row) => row.id === "fact-meat");
     expect(retired?.superseded_at).toBe(NOW.toISOString());
@@ -479,7 +480,7 @@ describe("learnFactsFromText — contradictions", () => {
     ]);
     const { client } = fakeFactsTable([storedRow()]);
 
-    const result = await learnFactsFromText(client, "user-1", "I eat meat again", NOW);
+    const result = await learnFactsFromText(client, "user-1", "I eat meat again", CTX, NOW);
 
     expect(result.contradictions).toEqual([
       {
@@ -499,7 +500,7 @@ describe("learnFactsFromText — contradictions", () => {
     ]);
     const { client } = fakeFactsTable([storedRow()]);
 
-    const result = await learnFactsFromText(client, "user-1", "I eat meat again", NOW);
+    const result = await learnFactsFromText(client, "user-1", "I eat meat again", CTX, NOW);
 
     expect(result.facts.map((fact) => fact.text)).toEqual(["eats meat"]);
   });
@@ -510,7 +511,7 @@ describe("learnFactsFromText — contradictions", () => {
     ]);
     const { client, rows } = fakeFactsTable([storedRow()]);
 
-    const result = await learnFactsFromText(client, "user-1", "…", NOW);
+    const result = await learnFactsFromText(client, "user-1", "…", CTX, NOW);
 
     expect(active(rows)).toHaveLength(2);
     expect(result.contradictions).toEqual([]);
@@ -520,7 +521,7 @@ describe("learnFactsFromText — contradictions", () => {
     mockExtractStandingFacts.mockResolvedValue([extracted()]);
     const { client, rows } = fakeFactsTable([storedRow()]);
 
-    const result = await learnFactsFromText(client, "user-1", "…", NOW);
+    const result = await learnFactsFromText(client, "user-1", "…", CTX, NOW);
 
     expect(rows.every((row) => row.superseded_at === null)).toBe(true);
     expect(result.contradictions).toEqual([]);
@@ -535,7 +536,7 @@ describe("learnFactsFromText — contradictions", () => {
     ]);
     const { client } = fakeFactsTable([]);
 
-    const result = await learnFactsFromText(client, "user-1", "…", NOW);
+    const result = await learnFactsFromText(client, "user-1", "…", CTX, NOW);
 
     expect(result.contradictions).toEqual([]);
     expect(result.facts).toHaveLength(2);
@@ -547,7 +548,7 @@ describe("learnFactsFromText — contradictions", () => {
     ]);
     const { client } = fakeFactsTable([storedRow()], { update: true });
 
-    const result = await learnFactsFromText(client, "user-1", "…", NOW);
+    const result = await learnFactsFromText(client, "user-1", "…", CTX, NOW);
 
     expect(result.contradictions).toEqual([]);
   });
@@ -564,7 +565,7 @@ describe("learnFactsFromText — contradictions", () => {
     mockExtractStandingFacts.mockResolvedValueOnce([
       extracted({ text: "eats meat", importance: 3, replaces: "does not eat meat" }),
     ]);
-    await learnFactsFromText(client, "user-1", "I eat meat again", NOW);
+    await learnFactsFromText(client, "user-1", "I eat meat again", CTX, NOW);
 
     const later = new Date(NOW.getTime() + 60_000);
     mockExtractStandingFacts.mockResolvedValueOnce([
@@ -574,6 +575,7 @@ describe("learnFactsFromText — contradictions", () => {
       client,
       "user-1",
       "actually I don't eat meat",
+      CTX,
       later,
     );
 
@@ -610,7 +612,7 @@ describe("learnFactsFromText — the cap", () => {
     ]);
     const { client, rows } = fakeFactsTable(existing);
 
-    const result = await learnFactsFromText(client, "user-1", "…", NOW);
+    const result = await learnFactsFromText(client, "user-1", "…", CTX, NOW);
 
     expect(active(rows)).toHaveLength(MAX_STANDING_FACTS);
     expect(rows.some((row) => row.id === weakestId)).toBe(false);
@@ -623,7 +625,7 @@ describe("learnFactsFromText — the cap", () => {
     mockExtractStandingFacts.mockResolvedValue([extracted()]);
     const { client, rows } = fakeFactsTable(manyFacts(3));
 
-    await learnFactsFromText(client, "user-1", "…", NOW);
+    await learnFactsFromText(client, "user-1", "…", CTX, NOW);
 
     expect(rows).toHaveLength(4);
   });

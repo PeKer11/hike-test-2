@@ -9,6 +9,14 @@ export interface WalkAlert {
   /** Changes when the card is about something new, so React re-mounts it. */
   id: string;
   tone: "alert" | "info";
+  /**
+   * "question": a companion question with answer buttons. Announced politely
+   * (not as an alert), answers stack when there are three, and `footnote`
+   * carries a data credit.
+   */
+  variant?: "question";
+  /** Small credit line under a question (e.g. weather data attribution). */
+  footnote?: string;
   icon?: string;
   title: string;
   /** A place name (user-edited map data): shown with dir="auto" under the title. */
@@ -28,10 +36,13 @@ export interface WalkAlert {
 export function WalkAlertCard({ alert }: { alert: WalkAlert }) {
   const accent =
     alert.tone === "alert" ? "border-red-500/70" : "border-forest/25";
+  const isQuestion = alert.variant === "question";
 
   return (
     <div
-      role="alert"
+      role={isQuestion ? "group" : "alert"}
+      aria-live={isQuestion ? "polite" : undefined}
+      data-variant={isQuestion ? "question" : undefined}
       className={`pointer-events-auto rounded-2xl border-s-4 ${accent} bg-cream/95 p-3 text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur`}
     >
       <div className="flex items-start gap-2">
@@ -60,7 +71,13 @@ export function WalkAlertCard({ alert }: { alert: WalkAlert }) {
         </div>
       </div>
       {alert.actions.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div
+          className={
+            isQuestion && alert.actions.length > 2
+              ? "mt-2 flex flex-col gap-2"
+              : "mt-2 flex flex-wrap gap-2"
+          }
+        >
           {alert.actions.map((action) => (
             <button
               key={action.label}
@@ -76,6 +93,11 @@ export function WalkAlertCard({ alert }: { alert: WalkAlert }) {
             </button>
           ))}
         </div>
+      ) : null}
+      {alert.footnote ? (
+        <p className="mt-1.5 text-[10px] leading-tight text-charcoal/50">
+          {alert.footnote}
+        </p>
       ) : null}
     </div>
   );

@@ -1,11 +1,20 @@
 import { beforeEach } from "vitest";
 
+// Keep tests hermetic: a developer's real provider keys / LLM_* routing must not
+// change which model a test resolves (zero-config OpenAI routing keys off them).
+for (const key of Object.keys(process.env)) {
+  if (/^LLM_(PROVIDER|MODEL)/.test(key) || key === "OPENAI_API_KEY") delete process.env[key];
+}
+
 import { resetAllCircuitBreakers } from "@/lib/api/circuit-breaker";
 import {
+  chatRateLimiter,
   geminiRateLimiter,
+  learningRateLimiter,
   nominatimRateLimiter,
   orsRateLimiter,
   overpassRateLimiter,
+  socialRateLimiter,
 } from "@/lib/api/rate-limit";
 
 /**
@@ -24,9 +33,12 @@ import {
  * the limiter drives it within a single case, which this leaves untouched.
  */
 beforeEach(() => {
+  chatRateLimiter.reset();
   geminiRateLimiter.reset();
+  learningRateLimiter.reset();
   orsRateLimiter.reset();
   nominatimRateLimiter.reset();
   overpassRateLimiter.reset();
+  socialRateLimiter.reset();
   resetAllCircuitBreakers();
 });

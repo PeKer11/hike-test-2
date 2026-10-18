@@ -34,6 +34,7 @@ const VALID_BODY = {
   prompt: "A walk in Zichron Yaakov",
   responseSummary: "Found 2 stops",
   persistHistory: true,
+  learningConsent: "granted",
 };
 
 const SIGNED_IN = { data: { user: { id: "user-1" } } };
@@ -70,6 +71,8 @@ describe("POST /api/prompt-history", () => {
 
   it.each([
     ["persistence turned off", { persistHistory: false }],
+    ["learning consent not granted", { learningConsent: "declined" }],
+    ["no learning consent sent", { learningConsent: undefined }],
     ["no persistence setting sent", { persistHistory: undefined }],
     ["a turn the enum does not have", { turn: "shout" }],
   ])("stores nothing when there is %s", async (_label, overrides) => {

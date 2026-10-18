@@ -39,6 +39,8 @@ export interface BuildWalkOptions {
   keepAttractions?: Attraction[];
   pinnedIds?: string[];
   fillRemainingTime?: boolean;
+  /** Walker's compass bearing; discovery then looks only ahead of it. */
+  heading?: number;
 }
 
 /**
@@ -84,10 +86,16 @@ export interface PaceRebuildState<TInput extends RebuildInput> {
 export function buildPaceRebuildRequest<TInput extends RebuildInput>(
   reason: ReplanReason,
   state: PaceRebuildState<TInput>,
+  heading?: number,
 ): { input: TInput; options: BuildWalkOptions } {
-  return buildMidWalkRebuildRequest(state, {
-    fillRemainingTime: replanPaceDirection(reason) === "fast",
+  const fast = replanPaceDirection(reason) === "fast";
+  const request = buildMidWalkRebuildRequest(state, {
+    fillRemainingTime: fast,
   });
+  // "Add a stop" must look ahead, not behind: only a fast walker discovers.
+  return fast && heading !== undefined
+    ? { ...request, options: { ...request.options, heading } }
+    : request;
 }
 
 /**

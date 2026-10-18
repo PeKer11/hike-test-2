@@ -82,6 +82,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     radiusMeters?: unknown;
     ringRadiusMeters?: unknown;
     signals?: unknown;
+    lang?: unknown;
   };
   try {
     payload = (await request.json()) as typeof payload;
@@ -137,7 +138,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       : Math.min(RING_RADIUS_M, Math.max(radius, Math.round(payload.ringRadiusMeters as number)));
   const signals = payload.signals === true && ring !== null;
 
-  const key = cacheKey(kind, radius, ring, signals, points);
+  const lang = payload.lang === "he" ? "he" : "en";
+  const key = `${cacheKey(kind, radius, ring, signals, points)}|${lang}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
     return NextResponse.json(hit.body);
@@ -153,6 +155,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         radius,
         ring,
         signals,
+        { lang },
       );
       body = { ...scan };
     } else {

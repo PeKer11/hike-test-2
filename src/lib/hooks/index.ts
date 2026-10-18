@@ -8,3 +8,5 @@ export * from "./useTrailIntelligence";
 export * from "./useWalkSettings";
 export * from "./useWaypoints";
 export * from "./useWalkTicker";
+
+export { useWalkCompanion } from "./useWalkCompanion";

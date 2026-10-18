@@ -1,4 +1,11 @@
+import { amenityKindOfTags } from "@/lib/attractions/amenity-tags";
+import { isDaytime } from "@/lib/places/detected-classifier";
 import { simplifyPath } from "@/lib/places/path";
+import {
+  interactionSuppression,
+  type InteractionRow,
+} from "@/lib/preferences/companion-memory";
+import { poiIdentityKeys } from "@/lib/preferences/poi-key";
 import type {
   Attraction,
   AttractionCategory,
@@ -11,6 +18,7 @@ import type {
   DiscoveryItem,
   DiscoveryState,
   DiscoveryTier,
+  RouteFrame,
   WalkEnvironment,
 } from "@/lib/types/discovery";
 import { haversineDistance } from "@/lib/utils/geo";
@@ -18,6 +26,7 @@ import {
   COVER_RING_MARGIN_M,
   COVER_SAMPLE_M,
   LEVELS,
+  pointScanDistanceM,
   RING_RADIUS_M,
 } from "./discovery-cadence";
 import {
@@ -37,7 +46,7 @@ import {
   scoreItem,
 } from "./discovery-collection";
 import type { Relation } from "./poi-relation";
-import { classifyEnvironment } from "./route-frame";
+import { classifyEnvironment, routeFrame } from "./route-frame";
 import { distanceToPolylineM, samplePath } from "./route-overlap";
 import {
   NEARBY_CORRIDOR_RADIUS_M,
@@ -64,6 +73,34 @@ interface ScanResponse {
   ring?: NearbyPlace[];
   wikipedia?: DiscoveryItem[];
   commons?: DiscoveryItem[];
+  /** Imagery finds; only present when the server's flag is on. */
+  detected?: DiscoveryItem[];
+}
+
+/** The client half of the detected-tier flag (inlined at build; default OFF). */
+export function detectedTierEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_DETECTED_TIER === "1";
+}
+
+/**
+ * Detected finds the client will keep: only with the flag on, only items that
+ * really are detected-tier, and not after dark at the find (the server already
+ * checked, but the response may have been cached for hours).
+ */
+export function acceptDetected(
+  items: DiscoveryItem[] | undefined,
+  nowMs: number,
+  enabled: boolean = detectedTierEnabled(),
+): DiscoveryItem[] {
+  if (!enabled || !Array.isArray(items)) return [];
+  const when = new Date(nowMs);
+  return items.filter(
+    (i) =>
+      i.tier === "detected" &&
+      Number.isFinite(i.attraction?.coordinates?.lat) &&
+      Number.isFinite(i.attraction?.coordinates?.lng) &&
+      isDaytime(when, i.attraction.coordinates),
+  );
 }
 
 const TIER_OF: Record<NearbyPlace["verification"], DiscoveryTier> = {
@@ -114,7 +151,9 @@ export function itemToPlace(item: DiscoveryItem): NearbyPlace {
     ? "osm"
     : item.sources.includes("commons")
       ? "commons"
-      : "wikipedia";
+      : item.sources.includes("worldcover")
+        ? "worldcover"
+        : "wikipedia";
   return {
     ...item.attraction,
     source,
@@ -168,6 +207,11 @@ export class DiscoveryLoader {
   private readonly cellFetchedAt = new Map<string, number>();
   private lastPointScanAt = Number.NEGATIVE_INFINITY;
   private pointScanInFlight = false;
+  /** Water / toilets near the route: for the companion, never announced. */
+  private amenityPlaces = new Map<string, NearbyPlace>();
+  /** Standing memory: poi keys this walker already visited / dismissed (see `interactionSuppression`). */
+  private memory: { rows: InteractionRow[]; session: number } | null = null;
+  private lang: "en" | "he" = "en";
   /** Bumped by `reset` so a scan still in flight cannot refill a finished walk. */
   private generation = 0;
 
@@ -183,6 +227,33 @@ export class DiscoveryLoader {
 
   get environment(): WalkEnvironment {
     return this.env;
+  }
+
+  /** Language of server-made names (detected patches). */
+  setLang(lang: "en" | "he"): void {
+    this.lang = lang;
+  }
+
+  /**
+   * Seed memory (`interactionSuppression`): places this walker already visited
+   * or dismissed start dismissed, so they are not announced again. Applied to
+   * what is collected and to every later scan.
+   */
+  setMemory(rows: InteractionRow[], session: number): void {
+    this.memory = { rows, session };
+    this.applySuppression();
+  }
+
+  /** Enough declined detours on file that no detour is offered right now. */
+  get detourOffersBlocked(): boolean {
+    return this.memory
+      ? interactionSuppression(this.memory.rows, this.memory.session).detourOffersBlocked
+      : false;
+  }
+
+  /** Amenities (water, toilets) collected so far. */
+  amenities(): NearbyPlace[] {
+    return [...this.amenityPlaces.values()];
   }
 
   /** A new route is in force: every item gets a new frame, detour and score. */
@@ -234,9 +305,14 @@ export class DiscoveryLoader {
   }
 
   /** Scan around the walker when they are well outside everything scanned. */
-  async maybeScanAround(position: Coordinates, nowFixMs: number): Promise<void> {
+  async maybeScanAround(
+    position: Coordinates,
+    nowFixMs: number,
+    speedMps?: number,
+  ): Promise<void> {
     if (this.pointScanInFlight) return;
-    const reach = this.col.ringRadiusM - COVER_RING_MARGIN_M;
+    // 450 m on foot; a runner or cyclist is "outside" only after ~5 min of travel.
+    const reach = pointScanDistanceM(speedMps ?? Number.NaN);
     const outside = this.col.coverage.every(
       (line) => distanceToPolylineM(position, line) > reach,
     );
@@ -270,6 +346,11 @@ export class DiscoveryLoader {
     if (this.geometry.length < 2) return 0;
     const i = Math.min(Math.max(segmentIndex, 0), this.geometry.length - 2);
     return this.cumDist[i] + haversineDistance(this.geometry[i], point);
+  }
+
+  /** Where a point sits against the current route (null when no route or far past its ends). */
+  frameOf(point: Coordinates): RouteFrame | null {
+    return routeFrame(point, this.geometry, this.cumDist);
   }
 
   isNearTurn(alongM: number): boolean {
@@ -371,11 +452,39 @@ export class DiscoveryLoader {
     this.history = [];
     this.offered.clear();
     this.cellFetchedAt.clear();
+    this.amenityPlaces.clear();
     this.lastPointScanAt = Number.NEGATIVE_INFINITY;
     this.pointScanInFlight = false;
   }
 
   // --- internals -----------------------------------------------------------
+
+  private applySuppression(): void {
+    if (!this.memory || this.memory.rows.length === 0) return;
+    const keysOf = (item: DiscoveryItem): string[] => {
+      const { id, name, coordinates } = item.attraction;
+      return poiIdentityKeys({
+        osmId: id.startsWith("osm-") ? id : null,
+        name,
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+      }).filter((k) => k !== "");
+    };
+    const items = [...this.col.items.values()];
+    // A notable place may be announced again even if visited long ago.
+    const notableKeys = new Set(items.filter((i) => i.notable).flatMap(keysOf));
+    const { suppressedKeys } = interactionSuppression(
+      this.memory.rows,
+      this.memory.session,
+      notableKeys,
+    );
+    for (const item of items) {
+      if (item.state !== "new" || item.tier === "detected") continue;
+      if (keysOf(item).some((k) => suppressedKeys.has(k))) {
+        this.col = markState(this.col, item.id, "dismissed");
+      }
+    }
+  }
 
   private apply(routeVersion: number): void {
     if (this.geometry.length < 2) return;
@@ -419,7 +528,12 @@ export class DiscoveryLoader {
       const res = await this.doFetch("/api/nearby", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, ringRadiusMeters: RING_RADIUS_M, signals: true }),
+        body: JSON.stringify({
+          ...body,
+          ringRadiusMeters: RING_RADIUS_M,
+          signals: true,
+          lang: this.lang,
+        }),
       });
       if (!res.ok) {
         forget();
@@ -427,13 +541,19 @@ export class DiscoveryLoader {
       }
       const data = (await res.json()) as ScanResponse;
       if (generation !== this.generation) return;
+      const mapped = [...(data.places ?? []), ...(data.ring ?? [])];
+      // Amenities are for the companion; they never become callout candidates.
+      for (const p of mapped) {
+        if (amenityKindOfTags(p.tags ?? {})) this.amenityPlaces.set(p.id, p);
+      }
       const incoming: DiscoveryItem[] = [
-        ...(data.places ?? []).map(placeToItem),
-        ...(data.ring ?? []).map(placeToItem),
+        ...mapped.filter((p) => !amenityKindOfTags(p.tags ?? {})).map(placeToItem),
         ...(data.wikipedia ?? []),
         ...(data.commons ?? []),
+        ...acceptDetected(data.detected, nowFixMs),
       ];
       this.col = mergeItems(this.col, incoming);
+      this.applySuppression();
       this.apply(this.col.routeVersion);
     } catch {
       // Discovery is an extra; a failed scan must never touch the walk.

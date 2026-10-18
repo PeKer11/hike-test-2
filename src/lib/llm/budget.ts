@@ -8,6 +8,17 @@ import { LlmBudgetExceededError, type LlmCallContext } from "./types";
 /** Calls per UTC day by caller class (NEXT_PHASE_PLAN §3.5). */
 export const DAILY_CALL_CAPS = { anonymous: 15, free: 60, paid: 300 } as const;
 
+/**
+ * Dollar cap per caller per UTC day, in micro-dollars (1e-6 USD). The call cap
+ * alone is not a money cap: 300 tier-3 calls cost far more than 300 tier-1
+ * calls. Override with LLM_CAP_USD_ANONYMOUS / _FREE / _PAID.
+ */
+export const DAILY_COST_CAPS_MICROS = {
+  anonymous: 50_000,
+  free: 250_000,
+  paid: 1_500_000,
+} as const;
+
 export interface UsageTotals {
   callerCalls: number;
   callerCostMicros: number;
@@ -54,6 +65,18 @@ export function capFor(ctx: LlmCallContext): number {
   return DAILY_CALL_CAPS[plan];
 }
 
+/** Per-caller daily dollar cap in micros, honouring the LLM_CAP_USD_* overrides. */
+export function costCapMicrosFor(
+  ctx: LlmCallContext,
+  env: Record<string, string | undefined> = process.env,
+): number {
+  const plan = ctx.plan ?? (ctx.userId ? "free" : "anonymous");
+  const override = Number(env[`LLM_CAP_USD_${plan.toUpperCase()}`]);
+  return Number.isFinite(override) && override > 0
+    ? Math.round(override * 1_000_000)
+    : DAILY_COST_CAPS_MICROS[plan];
+}
+
 /** Service-role Supabase store, or null when the server has no service key configured. */
 export function createSupabaseUsageStore(): UsageStore | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -91,18 +114,26 @@ export interface BudgetGuard {
 }
 
 /**
- * Per-caller daily call cap plus a global daily dollar cap. Reserving counts
+ * Per-caller daily call cap and dollar cap plus a global daily dollar cap. Reserving counts
  * the call first (atomically) and only then checks the caps, so concurrent
- * requests cannot all slip under. If the store itself is down the guard fails
- * OPEN with a warning: availability beats a hard stop for a few-cent-per-walk
- * feature, and the provider-side spend limit is the backstop.
+ * requests cannot all slip under. If the store itself is missing or down the
+ * guard fails CLOSED in production (the global cap would otherwise be
+ * unenforced) and OPEN elsewhere; `LLM_BUDGET_FAIL_OPEN=1` opts production out.
  */
 export function createBudgetGuard(
   store: UsageStore | null,
-  options: { dailyBudgetUsd?: number; now?: () => Date } = {},
+  options: {
+    dailyBudgetUsd?: number;
+    now?: () => Date;
+    /** Refuse calls when the usage store is missing or failing. Defaults to on in production. */
+    failClosed?: boolean;
+  } = {},
 ): BudgetGuard {
   const budgetMicros = (options.dailyBudgetUsd ?? DEFAULT_DAILY_BUDGET_USD) * 1_000_000;
   const now = options.now ?? (() => new Date());
+  const failClosed =
+    options.failClosed ??
+    (process.env.NODE_ENV === "production" && process.env.LLM_BUDGET_FAIL_OPEN !== "1");
   let warnedNoStore = false;
 
   return {
@@ -111,19 +142,24 @@ export function createBudgetGuard(
         if (!warnedNoStore) {
           warnedNoStore = true;
           console.warn(
-            "LLM budget guard is inactive: no usage store (SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_URL missing). Calls are not capped.",
+            `LLM budget guard is inactive: no usage store (SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_URL missing). ${failClosed ? "Calls are refused." : "Calls are not capped."}`,
           );
         }
+        if (failClosed) throw new LlmBudgetExceededError("global");
         return;
       }
       let totals: UsageTotals;
       try {
         totals = await store.bump(callerKeyFor(ctx), utcDay(now()), 1, 0);
       } catch (error) {
-        console.warn("LLM budget store unavailable; allowing the call.", error);
+        console.warn(`LLM budget store unavailable; ${failClosed ? "refusing" : "allowing"} the call.`, error);
+        if (failClosed) throw new LlmBudgetExceededError("global");
         return;
       }
       if (totals.callerCalls > capFor(ctx)) throw new LlmBudgetExceededError("user");
+      // Settled cost lags the call, so a burst of in-flight calls can overshoot
+      // this by their own cost; the call cap above bounds how many there are.
+      if (totals.callerCostMicros >= costCapMicrosFor(ctx)) throw new LlmBudgetExceededError("user");
       if (totals.globalCostMicros >= budgetMicros) throw new LlmBudgetExceededError("global");
     },
     async settle(ctx, costMicros) {

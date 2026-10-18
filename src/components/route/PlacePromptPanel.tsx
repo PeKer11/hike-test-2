@@ -40,6 +40,46 @@ interface ExtractPlacesResponse {
   error?: string;
 }
 
+/** A model call plus geocoding can be slow; past this the walker gets told, not left waiting. */
+export const EXTRACT_TIMEOUT_MS = 120_000;
+const EXTRACT_TIMEOUT_MESSAGE =
+  "That took too long. Try naming fewer places, or try again.";
+const EXTRACT_RATE_LIMIT_MESSAGE = "Too many requests. Try again in a moment.";
+
+/**
+ * POST to /api/extract-places with a deadline. Always resolves to a parsed
+ * body or throws an Error whose message is fit to show: a gateway's HTML 502
+ * must never surface as "Unexpected token <".
+ */
+async function postExtractPlaces(
+  body: unknown,
+  fallbackMessage: string,
+): Promise<ExtractPlacesResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), EXTRACT_TIMEOUT_MS);
+  try {
+    const res = await fetch("/api/extract-places", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const data = (await res.json().catch(() => ({}))) as ExtractPlacesResponse;
+    if (!res.ok || data.error) {
+      throw new Error(
+        data.error ??
+          (res.status === 429 ? EXTRACT_RATE_LIMIT_MESSAGE : fallbackMessage),
+      );
+    }
+    return data;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error(EXTRACT_TIMEOUT_MESSAGE);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Chip labels. The stored category names are a scoring vocabulary, not the
 // words anyone would answer "what kind of walk?" with.
 const CATEGORY_LABELS: Record<AttractionCategory, string> = {
@@ -133,6 +173,19 @@ function followUpQuestion(missing: MissingField[]): string {
   return missing[0] === "duration"
     ? "How much time do you have?"
     : "How far from where you start do you want to end up?";
+}
+
+/** One plain sentence saying what the follow-up answer set, and what to press next. */
+function describeFollowUp(known: KnownSoFar, stopCount: number): string {
+  const parts: string[] = [];
+  if (known.durationMinutes !== null) parts.push(`${known.durationMinutes} min`);
+  if (known.maxEndDistanceKm !== null) {
+    parts.push(`finish within ${known.maxEndDistanceKm} km`);
+  }
+  const got = parts.length > 0 ? `Got it: ${parts.join(", ")}.` : "Got it.";
+  return stopCount > 0
+    ? `${got} Press Build My Walk below.`
+    : `${got} Press Build My Walk below and it will pick the places.`;
 }
 
 interface PlacePromptPanelProps {
@@ -263,6 +316,9 @@ export function PlacePromptPanel({
     null,
   );
   const [followUpText, setFollowUpText] = useState("");
+  // What the app understood from the follow-up answer. Shown right under the
+  // box, because the log above is collapsed and the answer used to vanish.
+  const [followUpReply, setFollowUpReply] = useState<string | null>(null);
   // Extraction is fuzzy — the user drops the ones we got wrong before accepting.
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [unresolvedNames, setUnresolvedNames] = useState<string[]>([]);
@@ -379,6 +435,8 @@ export function PlacePromptPanel({
         prompt: promptText,
         responseSummary,
         persistHistory: true,
+        // The panel only persists for a walker who granted learning consent.
+        learningConsent: "granted",
       }),
     }).catch(() => {
       // The local entry is already on screen; a lost mirror is not worth
@@ -466,6 +524,7 @@ export function PlacePromptPanel({
 
     setIsLoading(true);
     setError(null);
+    setFollowUpReply(null);
     setHasResult(false);
     setClarificationCategories([]);
     setSelectedCategories([]);
@@ -474,21 +533,15 @@ export function PlacePromptPanel({
     // old candidates sitting on the map.
     onFoundPlacesChange([]);
     try {
-      const res = await fetch("/api/extract-places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await postExtractPlaces(
+        {
           prompt: trimmed,
           nearLocation: nearLocation ?? undefined,
           learnPreferences,
           categoryNeeds,
-        }),
-      });
-      const data = (await res.json()) as ExtractPlacesResponse;
-
-      if (!res.ok || data.error) {
-        throw new Error(data.error ?? "Failed to extract places.");
-      }
+        },
+        "Failed to extract places.",
+      );
 
       logExchange(turn, loggedPrompt, summarizeExtraction(data));
 
@@ -598,24 +651,19 @@ export function PlacePromptPanel({
 
     setIsLoading(true);
     setError(null);
+    setFollowUpReply(null);
     try {
-      const res = await fetch("/api/extract-places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await postExtractPlaces(
+        {
           prompt: trimmed,
           nearLocation: nearLocation ?? undefined,
           followUp: true,
           categoryNeeds: known.categoryNeeds,
           knownDurationMinutes: known.durationMinutes,
           knownMaxEndDistanceKm: known.maxEndDistanceKm,
-        }),
-      });
-      const data = (await res.json()) as ExtractPlacesResponse;
-
-      if (!res.ok || data.error) {
-        throw new Error(data.error ?? "Failed to read that.");
-      }
+        },
+        "Failed to read that.",
+      );
 
       const merged: KnownSoFar = {
         categoryNeeds: data.categoryNeeds ?? known.categoryNeeds,
@@ -631,6 +679,7 @@ export function PlacePromptPanel({
       setKnown(merged);
       setFollowUpMissing(null);
       setFollowUpText("");
+      setFollowUpReply(describeFollowUp(merged, selectedAttractions.length));
 
       logExchange(
         "follow_up",
@@ -772,7 +821,10 @@ export function PlacePromptPanel({
 
       <textarea
         value={prompt}
-        onChange={(event) => setPrompt(event.target.value)}
+        onChange={(event) => {
+          setPrompt(event.target.value);
+          setFollowUpReply(null);
+        }}
         rows={3}
         placeholder="I want to see Habima Square, the Jaffa port, and a good market"
         className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
@@ -868,9 +920,15 @@ export function PlacePromptPanel({
             disabled={isLoading || followUpText.trim().length === 0}
             onClick={() => void submitFollowUp()}
           >
-            Build my walk
+            Use these answers
           </Button>
         </div>
+      )}
+
+      {followUpReply && (
+        <p role="status" className="rounded-md bg-cream/70 p-2 text-xs text-charcoal/80">
+          {followUpReply}
+        </p>
       )}
 
       {hasResult && selectedAttractions.length > 0 && (

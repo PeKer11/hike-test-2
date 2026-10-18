@@ -106,6 +106,7 @@ import {
   buildHeadingContinuedRebuildRequest,
   buildExtendedTimeRebuildRequest,
   buildOptionRebuildRequest,
+  buildDropStopsRebuildRequest,
   buildPaceRebuildRequest,
   MIN_REBUILD_MINUTES,
   buildRecallRebuildRequest,
@@ -116,7 +117,46 @@ import {
   type LostStop,
   type SimulatedPaceDrift,
 } from "@/lib/walk/planner-actions";
+import { ConsentGate } from "@/components/onboarding/ConsentGate";
 import { DroppedStopsPanel } from "@/components/walk/DroppedStopsPanel";
+import { useWalkCompanion, type CompanionSnapshot } from "@/lib/hooks/useWalkCompanion";
+import { useShortcutOffer } from "@/lib/hooks/useShortcutOffer";
+import type { AmenityItem } from "@/lib/walk/companion/amenity-detour";
+import { useWalkChat } from "@/lib/hooks/useWalkChat";
+import { chatAmenityItems } from "@/lib/walk/chat/amenities";
+import { WalkChatBox } from "@/components/walk/WalkChatBox";
+import { shortcutCopy } from "@/lib/walk/shortcut";
+import { useCommunityBadges, useSocialOptInSync } from "@/lib/hooks/useCommunityBadges";
+import { cleanOsmPoiKeys, whitelistWalkEnd } from "@/lib/llm/walk-end-whitelist";
+import { FORGOTTEN_EVENT } from "@/lib/preferences/forget-client";
+import { parseMemoryWire, type CompanionMemoryWire } from "@/lib/preferences/companion-memory-wire";
+import { planAmenityDetour } from "@/lib/walk/companion/amenity-route";
+import {
+  amenityForAnswer,
+  amenityItemsFromPlaces,
+  detectUiLang,
+  pickAddPlace,
+  pickGreenTarget,
+  TowardGreenTracker,
+} from "@/lib/walk/companion/companion-glue";
+import type { AnsweredQuestion } from "@/lib/walk/companion/companion-engine";
+import type { AmenityKind } from "@/lib/walk/companion/companion-types";
+import { buildWalkEndInput, persistWalkEndFromBrowser } from "@/lib/walk/companion/walk-end";
+import {
+  buildHabitWalkEnd,
+  FoodDwellTracker,
+  resolveTimeZone,
+} from "@/lib/walk/companion/habit-walk-end";
+import { HabitHintChip } from "@/components/planner/HabitHintChip";
+import type { HabitHint } from "@/lib/preferences/habit-hints";
+import { foodAmenityItems } from "@/lib/walk/companion/habit-ticker";
+import { companionText } from "@/lib/walk/companion-copy";
+import {
+  planDirectionOptions,
+  routeDirectionOptions,
+  type OfferTheme,
+} from "@/lib/walk/options-request";
+import { readTtsOptIn, ttsSupported, writeTtsOptIn } from "@/lib/walk/tts";
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -186,6 +226,14 @@ const MANUAL_RESUME_MESSAGE =
 // this is a foreground action the walker is watching, so failing early on a
 // request that was about to succeed costs far more than waiting.
 const WALK_PLAN_TIMEOUT_MS = 120_000;
+
+// A rebuild the walker did not ask for, while they are standing on a route that
+// already works. Far shorter than the foreground deadline above: the old route
+// is a safe place to fall back to, so there is no reason to keep them waiting
+// two minutes for the new one.
+const MIDWALK_REBUILD_TIMEOUT_MS = 45_000;
+
+const REPLAN_CANCELLED_MESSAGE = "Kept your current route.";
 
 // When a build stops looking normal and starts looking stuck. Well past a
 // typical build, well short of the deadline — the walker is told it is still
@@ -258,11 +306,17 @@ export function WalkPlannerApp({
   const { isSearching, error: hikeSearchError, findHike, cancelSearch } =
     useHikeSearch();
   const [walkPlan, setWalkPlan] = useState<WalkPlan | null>(null);
+  // Plan-time routine chip from /api/walk-plan (fixed EN/HE text, consent-gated server side).
+  const [habitHints, setHabitHints] = useState<HabitHint[]>([]);
   const [walkPlanError, setWalkPlanError] = useState<string | null>(null);
   const [isWalkPlanLoading, setIsWalkPlanLoading] = useState(false);
   // A build that is past `WALK_PLAN_SLOW_AFTER_MS` and still running.
   const [isWalkPlanSlow, setIsWalkPlanSlow] = useState(false);
-  const { settings: walkSettings, setSettings: setWalkSettings } = useWalkSettings();
+  const {
+    settings: walkSettings,
+    setSettings: setWalkSettings,
+    loaded: walkSettingsLoaded,
+  } = useWalkSettings();
   const isSignedIn = useIsSignedIn();
   // Set when a walk ends: the stops that walk was made of, each of which the
   // walker can rate on its own. Null means "don't ask".
@@ -357,6 +411,9 @@ export function WalkPlannerApp({
   // may say the walker is still astray when they have long since rejoined.
   const isOffRouteRef = useRef(false);
   const buildWalkRequestIdRef = useRef(0);
+  // Aborts the build in flight, if any: the overlay's "Keep my current route"
+  // and End walk both go through it.
+  const cancelBuildRef = useRef<(() => void) | null>(null);
   // Bumped whenever an in-flight hike search must be abandoned (clear / mode switch / unmount)
   const hikeSearchTokenRef = useRef(0);
   const lastGpsUpdateRef = useRef<number>(0);
@@ -482,7 +539,8 @@ export function WalkPlannerApp({
         input.availableMinutes - elapsedMin,
       ),
       speedMpm: 1000 / input.walkingPaceMinPerKm,
-      items: discovery.items(),
+      // A satellite find is never a destination the app proposes.
+      items: discovery.items().filter((i) => i.tier !== "detected"),
       excludeIds: new Set([...visited, ...discovery.offeredTwice()]),
       abandonedPlan: matched
         ? remainingRoute(walkGeometryRef.current, matched.segmentIndex, matched.point)
@@ -502,6 +560,54 @@ export function WalkPlannerApp({
       if (walkSettingsRef.current.deviationMode === "auto") runDeviationTriggeredRebuild();
     },
   });
+
+  // Splice a new route in without re-planning (same steps as runLocalRejoin).
+  const applySplicedRoute = (spliced: Coordinates[], atMs: number) => {
+    if (walkTrackerRef.current === null) return;
+    lastLocalRejoinAtRef.current = atMs;
+    walkGeometryRef.current = spliced;
+    lastSegmentIndexRef.current = null;
+    matchedRef.current = { segmentIndex: 0, point: spliced[0] };
+    setRemainingGeometry(spliced);
+    walkTrackerRef.current.updateGeometry(spliced);
+    discoveryRef.current?.setRoute(
+      spliced,
+      1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? 15),
+      walkInputRef.current?.preferredCategories ?? [],
+    );
+    void discoveryRef.current?.ensureCovered(spliced, atMs);
+  };
+  const shortcut = useShortcutOffer({
+    getContext: () => {
+      const fix = latestPaceUpdateRef.current;
+      const matched = matchedRef.current;
+      const input = walkInputRef.current;
+      if (walkTrackerRef.current === null || !fix || !matched || !input) return null;
+      const geometry = walkGeometryRef.current;
+      const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+      return {
+        geometry,
+        segmentIndex: matched.segmentIndex,
+        matchedPoint: matched.point,
+        position: fix.currentPosition,
+        atMs: fix.timestamp,
+        walkedM: progressAlong(geometry, matched.segmentIndex, matched.point).walkedM,
+        stops: (walkPlanRef.current?.orderedAttractions ?? [])
+          .filter((a) => !visited.has(a.id))
+          .map((a) => ({ id: a.id, point: a.coordinates, label: a.name })),
+        speedMps: 1000 / (60 * input.walkingPaceMinPerKm),
+        blocked:
+          isOffRouteRef.current ||
+          rejoinInFlightRef.current ||
+          collapseFlow.isCollapsed() ||
+          deviationConfirmationRef.current ||
+          (cardVisibleRef.current && !shortcutOfferRef.current),
+      };
+    },
+    onApply: applySplicedRoute,
+  });
+  const shortcutOfferRef = useRef(shortcut.offer);
+  shortcutOfferRef.current = shortcut.offer;
 
   // Take the standing mid-walk question down, and disarm the timer that would
   // have answered it. Called on every walk teardown as well as on an answer:
@@ -599,12 +705,15 @@ export function WalkPlannerApp({
       const after = announcer.expire(now);
       if (after.length !== before.length) setCallouts(after);
     }
+    // Low-accuracy or missing fixes never reach feed(): the offer's TTL rides the clock.
+    shortcut.expire();
     refreshWalkStats();
   };
   useWalkTicker(walkMode, handleWalkTick);
   useWakeLock(walkMode);
 
   const stopWalkTracking = () => {
+    shortcut.clear();
     speedEstimatorRef.current = null;
     paceAdvisorRef.current = null;
     firstFixAtRef.current = null;
@@ -663,9 +772,13 @@ export function WalkPlannerApp({
       }
     }
 
+    finishCompanionWalk();
+    walkChat.reset();
+
     // Invalidate any in-flight (mid-walk) rebuild: its success and failure
     // paths both check the id before restarting tracking, and its `finally`
     // skips the loading flags once superseded.
+    cancelBuildRef.current?.();
     buildWalkRequestIdRef.current += 1;
     setIsWalkPlanLoading(false);
     setIsWalkPlanSlow(false);
@@ -683,6 +796,7 @@ export function WalkPlannerApp({
     announcerRef.current = null;
     discoveryRef.current?.reset();
     collapseFlow.endWalk();
+    shortcut.endWalk();
     walkedTrackRef.current = [];
     walkStartPointRef.current = null;
   };
@@ -772,6 +886,7 @@ export function WalkPlannerApp({
       keepAttractions?: Attraction[];
       pinnedIds?: string[];
       fillRemainingTime?: boolean;
+      heading?: number;
     },
   ) => {
     // Snapshot what the walker is on now, so an automatic re-plan can be undone —
@@ -815,6 +930,8 @@ export function WalkPlannerApp({
       announcerRef.current = null;
       discoveryRef.current?.reset();
       collapseFlow.endWalk();
+      shortcut.endWalk();
+      walkChat.reset();
       walkedTrackRef.current = [];
       walkStartPointRef.current = input.origin;
     }
@@ -841,10 +958,15 @@ export function WalkPlannerApp({
     setIsWalkPlanLoading(true);
     setIsWalkPlanSlow(false);
 
+    let cancelled = false;
     const controller = new AbortController();
+    cancelBuildRef.current = () => {
+      cancelled = true;
+      controller.abort();
+    };
     const deadline = window.setTimeout(
       () => controller.abort(),
-      WALK_PLAN_TIMEOUT_MS,
+      snapshot ? MIDWALK_REBUILD_TIMEOUT_MS : WALK_PLAN_TIMEOUT_MS,
     );
     const slowNotice = window.setTimeout(() => {
       if (requestId === buildWalkRequestIdRef.current) {
@@ -869,11 +991,14 @@ export function WalkPlannerApp({
           explicitAttractions: keepAttractions,
           pinnedAttractionIds: activePinnedIds,
           fillRemainingTime: options?.fillRemainingTime ?? false,
+          heading: options?.heading,
           stopCount: promptStopCount ?? undefined,
           notableOnly: promptNotableOnly,
+          learnPreferences: walkSettings.preferenceLearningEnabled,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
-      const data = (await res.json()) as WalkPlan & { error?: string };
+      const data = (await res.json()) as WalkPlan & { error?: string; habitHints?: HabitHint[] };
 
       // Bail if a newer request has superseded this one
       if (requestId !== buildWalkRequestIdRef.current) return;
@@ -890,6 +1015,8 @@ export function WalkPlannerApp({
         }
       } else {
         showPlan(data, data.geometry ?? [], options?.autoResume === true);
+        applyCompanionMemory((data as { companionMemory?: unknown }).companionMemory);
+        setHabitHints(Array.isArray(data.habitHints) ? data.habitHints : []);
 
         // What this rebuild cost. Only on the automatic path — a snapshot is
         // exactly "there was a walk under way that this replaced", and a build
@@ -946,7 +1073,9 @@ export function WalkPlannerApp({
       if (requestId !== buildWalkRequestIdRef.current) return;
       if (snapshot) {
         revertToSnapshot(snapshot);
-        setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
+        setWalkTrackingMessage(
+          cancelled ? REPLAN_CANCELLED_MESSAGE : REPLAN_FAILED_MESSAGE,
+        );
       } else {
         // Our own deadline firing and the network dropping are different
         // things, and telling them apart is the difference between "try again"
@@ -961,6 +1090,7 @@ export function WalkPlannerApp({
       window.clearTimeout(deadline);
       window.clearTimeout(slowNotice);
       if (requestId === buildWalkRequestIdRef.current) {
+        cancelBuildRef.current = null;
         setIsWalkPlanLoading(false);
         setIsWalkPlanSlow(false);
         setRebuildingMidWalk(false);
@@ -1007,7 +1137,11 @@ export function WalkPlannerApp({
   const runPaceTriggeredRebuild = (reason: ReplanReason) => {
     const state = midWalkRebuildState();
     if (!state) return;
-    const { input, options } = buildPaceRebuildRequest(reason, state);
+    const lastFix = latestPaceUpdateRef.current;
+    const heading = lastFix
+      ? headingMonitorRef.current?.recentHeading(lastFix.timestamp) ?? undefined
+      : undefined;
+    const { input, options } = buildPaceRebuildRequest(reason, state, heading);
     void handleBuildWalk(input, options);
   };
 
@@ -1018,6 +1152,368 @@ export function WalkPlannerApp({
     if (!state) return;
     const { input, options } = buildExtendedTimeRebuildRequest(state);
     void handleBuildWalk(input, options);
+  };
+
+  // --- Walk companion --------------------------------------------------------
+  // One question slot for the whole walk: `useWalkCompanion` ticks, the arbiter
+  // picks, `handleCompanionAnswer` runs the operator. The decisions are in
+  // `lib/walk/companion/*`; this is only the wiring to the screen's refs.
+  // The layout's lang as first rendered, before this component writes its own
+  // answer to <html lang>; used only when the browser reports no language.
+  const layoutLangRef = useRef<string | null>(
+    typeof document !== "undefined" ? document.documentElement.lang : null,
+  );
+  const uiLang =
+    walkSettings.uiLanguage !== "auto"
+      ? walkSettings.uiLanguage
+      : detectUiLang(
+          layoutLangRef.current,
+          typeof navigator !== "undefined" ? navigator.language : null,
+        );
+  useEffect(() => {
+    document.documentElement.lang = uiLang;
+    document.documentElement.dir = uiLang === "he" ? "rtl" : "ltr";
+  }, [uiLang]);
+  // Social layer: all no-ops unless NEXT_PUBLIC_SOCIAL=1 and the walker opted in.
+  useSocialOptInSync(isSignedIn, walkSettingsLoaded, (optedIn) => {
+    if (optedIn !== walkSettings.socialSharingEnabled) setWalkSettings({ socialSharingEnabled: optedIn });
+  });
+  const communityAggregates = useCommunityBadges(
+    (walkPlan?.orderedAttractions ?? []).map((a) => a.id),
+    walkSettings.socialSharingEnabled,
+    isSignedIn,
+  );
+  const companionMemoryRef = useRef<CompanionMemoryWire | null>(null);
+  const companionQuestionUpRef = useRef(false);
+  const greenTrackerRef = useRef(new TowardGreenTracker());
+  // Food/cafe dwells for the routine-habit model (kept in memory, only with consent).
+  const foodDwellRef = useRef(new FoodDwellTracker());
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  useEffect(() => {
+    setVoiceOn(readTtsOptIn());
+    setVoiceSupported(ttsSupported());
+  }, []);
+
+  // Water / toilets near the route as the companion needs them, and the walker's place along it.
+  const companionRouteState = () => {
+    const discovery = discoveryRef.current;
+    const matched = matchedRef.current;
+    if (!discovery) return null;
+    return {
+      discovery,
+      matched,
+      walkerAlongM: matched ? discovery.alongM(matched.segmentIndex, matched.point) : null,
+    };
+  };
+
+  const getCompanionSnapshot = (): CompanionSnapshot | null => {
+    const fix = latestPaceUpdateRef.current;
+    const input = walkInputRef.current;
+    const route = companionRouteState();
+    if (!fix || !input || !route || walkTrackerRef.current === null) return null;
+    const { discovery, walkerAlongM } = route;
+    const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    const remainingStops = (walkPlanRef.current?.orderedAttractions ?? [])
+      .filter((a) => !visited.has(a.id))
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        pinned: pinnedAttractionIdsRef.current.includes(a.id),
+      }));
+    const speedMpm = 1000 / input.walkingPaceMinPerKm;
+    const remainingWalkMin =
+      walkStats?.timeToFinishMin ??
+      Math.max(0, input.availableMinutes - (walkStats?.elapsedMin ?? 0));
+    const environment = discovery.environment;
+    const items = discovery.items();
+    const pace =
+      paceAdvisory && fix.paceMinPerKm
+        ? {
+            advice: paceAdvisory.kind,
+            currentPaceMinPerKm: fix.paceMinPerKm,
+            plannedPaceMinPerKm: input.walkingPaceMinPerKm,
+          }
+        : null;
+    const heading = headingMonitorRef.current?.recentHeading(fix.timestamp) ?? null;
+    const target = pickGreenTarget(items, fix.currentPosition, heading);
+    const headingTowardM = greenTrackerRef.current.update(
+      target ? { id: target.item.id, distanceM: target.distanceM } : null,
+    );
+    const blocked =
+      (walkAlert !== null &&
+        !walkAlert.id.startsWith("companion-") &&
+        !/^pace-(slow|fast)$/.test(walkAlert.id)) ||
+      collapseFlow.offer !== null ||
+      collapseFlow.isCollapsed();
+    const habitOn = walkSettingsRef.current.learningConsent === "granted";
+    return {
+      tick: {
+        nowMs: fix.timestamp,
+        position: fix.currentPosition,
+        environment,
+        speedMpm,
+        remainingWalkMin,
+        remainingStops,
+        pace,
+        addPlace:
+          paceAdvisory?.kind === "fast"
+            ? pickAddPlace(items, { speedMpm, remainingWalkMin, environment })
+            : null,
+        amenities: [
+          ...amenityItemsFromPlaces(discovery.amenities(), (p) => discovery.frameOf(p)),
+          // Food/cafe places (routine questions and their "take me" answer), consent only.
+          ...(habitOn ? foodAmenityItems(items) : []),
+        ],
+        habit: habitOn
+          ? {
+              habits: companionMemoryRef.current?.habits ?? [],
+              timeZone: resolveTimeZone(
+                fix.currentPosition,
+                Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
+              ),
+              foodEvents: foodDwellRef.current.events,
+              items,
+            }
+          : null,
+        walkerAlongM,
+        green: target
+          ? { parkName: target.item.attraction.name, score: target.item.score, headingTowardM }
+          : null,
+      },
+      ctx: {
+        level: walkSettingsRef.current.calloutLevel,
+        nearTurn: walkerAlongM !== null && discovery.isNearTurn(walkerAlongM),
+        otherCardUp: blocked,
+      },
+    };
+  };
+
+  // Each rebuild takes its cap as an argument: a cap is one answer's, never state.
+  const runCappedPaceRebuild = (reason: ReplanReason, capMin?: number) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const { input, options } = buildPaceRebuildRequest(
+      reason,
+      capMin !== undefined ? { ...state, capMin } : state,
+    );
+    void handleBuildWalk(input, options);
+  };
+
+  const runDropStopsRebuild = (dropStopIds: string[], capMin?: number) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const { input, options } = buildDropStopsRebuildRequest(state, dropStopIds, capMin);
+    void handleBuildWalk(input, options);
+  };
+
+  // A direction the walker did not pick from the sheet: only used for "head
+  // back" and "loop from here" answers, which name the theme themselves.
+  const applyOfferedOption = (option: OfferedOption) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    collapseFlow.resolve();
+    if (option.stops.length === 0) {
+      startFromOptionRoute(option);
+      return;
+    }
+    const { input, options } = buildOptionRebuildRequest(
+      state,
+      option.stops.map((s) => s.attraction),
+    );
+    void handleBuildWalk(input, options);
+  };
+
+  // Falls back to the full options sheet when the theme cannot be routed.
+  const runThemedOption = async (theme: OfferTheme) => {
+    const ctx = getOptionsContext();
+    if (!ctx) return;
+    let pick: OfferedOption | undefined;
+    try {
+      const built = planDirectionOptions(ctx).filter((o) => o.theme === theme);
+      if (built.length > 0) {
+        pick = (await routeDirectionOptions(ctx, built)).find((o) => o.theme === theme);
+      }
+    } catch {
+      pick = undefined;
+    }
+    if (walkTrackerRef.current === null) return;
+    if (!pick) {
+      collapseFlow.offerDifferent();
+      return;
+    }
+    discoveryRef.current?.markOffered(pick.stops.map((s) => s.id));
+    applyOfferedOption(pick);
+  };
+
+  const runAmenityDetour = async (
+    kind: AmenityKind,
+    snap: CompanionSnapshot | null,
+    preset?: AmenityItem,
+  ) => {
+    const fix = latestPaceUpdateRef.current;
+    const matched = matchedRef.current;
+    const discovery = discoveryRef.current;
+    if (!snap || !fix || !matched || !discovery || walkTrackerRef.current === null) return;
+    const pick = preset ? { item: preset } : amenityForAnswer(snap.tick, kind);
+    const requestGeometry = walkGeometryRef.current;
+    const spliced = pick
+      ? await planAmenityDetour({
+          geometry: requestGeometry,
+          segmentIndex: matched.segmentIndex,
+          position: fix.currentPosition,
+          amenity: pick.item.coordinates,
+          amenityAlongM: pick.item.alongM ?? null,
+          walkerAlongM: snap.tick.walkerAlongM ?? 0,
+        })
+      : null;
+    // The walk may have ended, or been re-planned, while this was in flight.
+    if (walkTrackerRef.current === null || walkGeometryRef.current !== requestGeometry) return;
+    if (!spliced) {
+      setWalkTrackingMessage(companionText(uiLang, "notice.amenityFailed"));
+      return;
+    }
+    walkGeometryRef.current = spliced;
+    lastSegmentIndexRef.current = null;
+    matchedRef.current = { segmentIndex: 0, point: spliced[0] };
+    setRemainingGeometry(spliced);
+    walkTrackerRef.current.updateGeometry(spliced);
+    discovery.setRoute(
+      spliced,
+      1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? 15),
+      walkInputRef.current?.preferredCategories ?? [],
+    );
+    void discovery.ensureCovered(spliced, fix.timestamp);
+  };
+
+  const handleCompanionAnswer = (answered: AnsweredQuestion, snap: CompanionSnapshot | null) => {
+    const action = answered.action;
+    switch (action.run) {
+      case "none":
+        return;
+      case "pace-rebuild":
+        runCappedPaceRebuild(action.reason, action.capMin);
+        return;
+      case "drop-stops":
+        runDropStopsRebuild(action.dropStopIds, action.capMin);
+        return;
+      case "extended-time-rebuild":
+        runExtendedTimeRebuild();
+        return;
+      case "walk-options-roundtrip":
+        void runThemedOption(action.theme);
+        return;
+      case "amenity-detour":
+        void runAmenityDetour(action.kind, snap);
+        return;
+      case "head-back":
+        void runThemedOption("short");
+        return;
+      default: {
+        const never: never = action;
+        return never;
+      }
+    }
+  };
+
+  const companion = useWalkCompanion({
+    active: walkPhase === "walking",
+    lang: uiLang,
+    voice: voiceOn,
+    getSnapshot: getCompanionSnapshot,
+    // A pace question asked here replaces the older pace card, not joins it.
+    onShown: (cand) => {
+      if (cand.kind === "pace-slow" || cand.kind === "pace-fast") setPaceAdvisory(null);
+    },
+    onAnswered: handleCompanionAnswer,
+  });
+
+  // "Forget everything" succeeded on the server: drop the in-memory copy too, so
+  // the next walk end cannot write the old memory back.
+  useEffect(() => {
+    const onForgotten = () => {
+      companionMemoryRef.current = null;
+      companion.setPriors({});
+      discoveryRef.current?.setMemory([], 0);
+    };
+    window.addEventListener(FORGOTTEN_EVENT, onForgotten);
+    return () => window.removeEventListener(FORGOTTEN_EVENT, onForgotten);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const applyCompanionMemory = (raw: unknown) => {
+    const wire = parseMemoryWire(raw);
+    if (!wire) return;
+    companionMemoryRef.current = wire;
+    companion.setPriors(wire.priors);
+    discoveryRef.current?.setMemory(wire.interactions, wire.sessionCount);
+  };
+
+  // At walk end: write the summary (consent-gated, needs a loaded memory so the
+  // session clock and the pace history are real), then forget the walk.
+  const finishCompanionWalk = () => {
+    const memory = companionMemoryRef.current;
+    const discovery = discoveryRef.current;
+    const input = walkInputRef.current;
+    if (
+      walkMode &&
+      isSignedIn &&
+      walkSettings.preferenceLearningEnabled &&
+      memory &&
+      discovery &&
+      input &&
+      (walkStats?.elapsedMin ?? 0) >= 1
+    ) {
+      const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+      const stops = walkPlanRef.current?.orderedAttractions ?? [];
+      const walkEndInput = buildWalkEndInput({
+          learnPreferences: true,
+          startedAtMs: walkStartTimeRef.current,
+          plannedMin: input.availableMinutes,
+          actualMin: walkStats?.elapsedMin ?? 0,
+          distanceM: walkStats?.walkedM ?? 0,
+          environment: discovery.environment,
+          stopsPlanned: stops.length,
+          stopsVisited: stops.filter((a) => visited.has(a.id)).length,
+          records: companion.records(),
+          collapseCount: 0,
+          items: discovery.items(),
+          paceMinPerKm: latestPaceUpdateRef.current?.paceMinPerKm ?? null,
+          // Routine habits: local-time bins only, and only with the granted consent.
+          habits:
+            walkSettings.learningConsent === "granted"
+              ? buildHabitWalkEnd({
+                  startedAtMs: walkStartTimeRef.current,
+                  actualMin: walkStats?.elapsedMin ?? 0,
+                  timeZone: resolveTimeZone(
+                    latestPaceUpdateRef.current?.currentPosition ?? null,
+                    Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
+                  ),
+                  records: companion.records(),
+                  foodEvents: foodDwellRef.current.events,
+                })
+              : null,
+        });
+      void persistWalkEndFromBrowser(walkEndInput, memory.sessionCount, memory.paceByEnv);
+      // LLM-written note for next time. Only with the consent from the first-run
+      // screen; walk facts are numbers and enums, never coordinates or names.
+      void fetch("/api/session-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          learnPreferences: walkSettings.learningConsent === "granted",
+          routine: walkSettings.learningConsent === "granted",
+          uiLang,
+          walkEnd: whitelistWalkEnd(walkEndInput as unknown as Record<string, unknown>),
+          // Only real OSM ids leave the device; local memory keeps every key.
+          poiKeys: cleanOsmPoiKeys((walkEndInput.interactions ?? []).map((i) => i.poiKey)),
+        }),
+      }).catch(() => undefined);
+    }
+    companion.reset();
+    foodDwellRef.current.reset();
+    companionMemoryRef.current = null;
+    greenTrackerRef.current = new TowardGreenTracker();
   };
 
   // The rebuild an off-route trigger asks for: the same walk, redrawn to start
@@ -1291,6 +1787,9 @@ export function WalkPlannerApp({
     // route: a re-plan restarts this function but must not re-announce places.
     const discovery = discoveryRef.current ?? new DiscoveryLoader();
     discoveryRef.current = discovery;
+    discovery.setLang(uiLang);
+    const memory = companionMemoryRef.current;
+    if (memory) discovery.setMemory(memory.interactions, memory.sessionCount);
     const announcer =
       announcerRef.current ??
       new PoiAnnouncer(walkInputRef.current?.preferredCategories ?? []);
@@ -1366,6 +1865,12 @@ export function WalkPlannerApp({
       if (newlyVisited.length > 0) {
         for (const id of newlyVisited) discovery.setState(id, "visited");
         setVisitedAttractionIds([...visits.visitedIds]);
+      }
+      if (walkSettings.learningConsent === "granted") {
+        foodDwellRef.current.update(update.currentPosition, update.timestamp, [
+          ...attractions,
+          ...discovery.items().map((i) => i.attraction),
+        ]);
       }
 
       // Throttle setState calls to at most once per second (LOW-2)
@@ -1447,7 +1952,13 @@ export function WalkPlannerApp({
       // On the route, side and distance come from the cross-track frame and the
       // level's gates (`eligibleForCallout`); a GPS heading never decides left or
       // right there. Off the route the walker's own recent heading does.
-      void discovery.maybeScanAround(update.currentPosition, update.timestamp);
+      // A cyclist is "outside the scan" only after ~5 min of travel, not 450 m.
+      const scanKmh = speedEstimatorRef.current?.current(update.timestamp)?.kmh;
+      void discovery.maybeScanAround(
+        update.currentPosition,
+        update.timestamp,
+        scanKmh != null ? scanKmh / 3.6 : undefined,
+      );
       const level = walkSettingsRef.current.calloutLevel;
       const heading = headingMonitorRef.current?.recentHeading(update.timestamp) ?? null;
       const unvisitedStops = attractions.filter((a) => !visits.visitedIds.has(a.id));
@@ -1460,7 +1971,7 @@ export function WalkPlannerApp({
           offRoute,
           cardVisible: cardVisibleRef.current,
           offRouteDismissed: offRouteDismissedRef.current,
-          askUp: deviationConfirmationRef.current,
+          askUp: deviationConfirmationRef.current || companionQuestionUpRef.current,
         })
       ) {
         // Direction options are pending or on screen, or the off-route card is
@@ -1557,6 +2068,7 @@ export function WalkPlannerApp({
         deviation.closestPointOnRoute,
       );
       setRemainingGeometry(remaining);
+      void shortcut.feed();
     };
 
     const onGpsError = (error: { isTimeout: boolean; message: string }) => {
@@ -1945,7 +2457,23 @@ export function WalkPlannerApp({
   const turnBody = offRouteHint ? walkCopy.turn.toGetBack(offRouteHint) : undefined;
   let walkAlert: WalkAlert | null = null;
   if (walkMode) {
-    if (selectedCallout) {
+    if (rebuildingMidWalk && isWalkPlanLoading) {
+      // Tracking is down while this runs; say so, and let the walker bail out
+      // to the route they were already on instead of waiting it out.
+      walkAlert = {
+        id: "rebuilding",
+        tone: "info",
+        title: "Updating your route…",
+        body: isWalkPlanSlow ? "Still working, this one is slow." : undefined,
+        actions: [
+          {
+            label: "Keep my current route",
+            primary: true,
+            onClick: () => cancelBuildRef.current?.(),
+          },
+        ],
+      };
+    } else if (selectedCallout) {
       // The walker asked about this place: it outranks everything but itself.
       const placePaceMin = walkInputRef.current?.walkingPaceMinPerKm ?? 15;
       const calloutPlace = selectedCallout.place;
@@ -2096,6 +2624,39 @@ export function WalkPlannerApp({
             : []),
         ],
       };
+    } else if (companion.card) {
+      const q = companion.card;
+      walkAlert = {
+        id: q.id,
+        tone: "info",
+        variant: "question",
+        icon: q.kind === "rain" ? "🌧" : q.kind === "heat-water" ? "💧" : q.kind === "sunset" ? "🌇" : "🧭",
+        title: q.title,
+        // Weather is Open-Meteo data: credit it on the questions it drives.
+        footnote:
+          (q.kind === "heat-water" || q.kind === "rain") && companion.attribution
+            ? companion.attribution
+            : undefined,
+        actions: q.answers.map((a, i) => ({
+          label: a.label,
+          primary: i === 0,
+          onClick: () => companion.answer(a.id),
+        })),
+      };
+    } else if (shortcut.offer) {
+      const o = shortcut.offer;
+      const sc = shortcutCopy[uiLang];
+      walkAlert = {
+        id: o.id,
+        tone: "info",
+        icon: "↪",
+        title: sc.title(o.stopName),
+        body: sc.body(o.savingMin, Math.round(o.savingM)),
+        actions: [
+          { label: sc.accept, primary: true, onClick: () => void shortcut.accept() },
+          { label: sc.keep, onClick: shortcut.dismiss },
+        ],
+      };
     } else if (paceAdvisory) {
       const slow = paceAdvisory.kind === "slow";
       walkAlert = {
@@ -2131,10 +2692,41 @@ export function WalkPlannerApp({
     }
   }
 
+  const walkChat = useWalkChat({
+    lang: uiLang === "he" ? "he" : "en",
+    isSignedIn,
+    getContext: () => {
+      const snap = getCompanionSnapshot();
+      if (!snap) return null;
+      // The lookup is on-device, so it is not gated on habit consent like the companion's.
+      const route = companionRouteState();
+      if (!route) return null;
+      return {
+        stops: snap.tick.remainingStops.map((st) => ({ ...st, pinned: st.pinned === true })),
+        amenities: chatAmenityItems(route.discovery),
+        position: snap.tick.position,
+      };
+    },
+    onAction: (action) => {
+      if (action.kind === "detour") {
+        void runAmenityDetour(action.item.kind, getCompanionSnapshot(), action.item);
+      } else if (action.kind === "drop") {
+        runDropStopsRebuild([action.stopId]);
+      } else if (action.kind === "add-stop") {
+        runPaceTriggeredRebuild("sustained-fast-pace");
+      } else {
+        void runThemedOption("short");
+      }
+    },
+  });
+
   // For the per-fix callout gate (a closure): is any card, or the options sheet, up?
   const optionsOffer = walkMode ? collapseFlow.offer : null;
   useEffect(() => {
     cardVisibleRef.current = walkAlert !== null || optionsOffer !== null;
+    // WalkHud shows the options sheet over the alert, so a card under the sheet is not shown yet.
+    if (walkAlert && optionsOffer === null && shortcut.offer && walkAlert.id === shortcut.offer.id) shortcut.markShown();
+    companionQuestionUpRef.current = companion.card !== null;
   });
   const directionSheet = optionsOffer ? (
     <DirectionOptionsSheet
@@ -2157,6 +2749,18 @@ export function WalkPlannerApp({
        The flex row lives on the child, not here — an element can't match its
        own container query, so `@4xl:flex-row` would silently never fire. */
     <div className="@container relative h-full w-full overflow-hidden bg-cream font-brand text-charcoal">
+      {walkSettingsLoaded && walkSettings.learningConsent === "unset" ? (
+        <ConsentGate
+          lang={uiLang}
+          onLanguage={(uiLanguage) => setWalkSettings({ uiLanguage })}
+          onAnswer={(granted) =>
+            setWalkSettings({
+              learningConsent: granted ? "granted" : "declined",
+              preferenceLearningEnabled: granted,
+            })
+          }
+        />
+      ) : null}
       <div className="flex h-full w-full flex-col @4xl:flex-row">
       {/* The aside stays mounted through a walk (form state survives). On a
           narrow frame it is hidden until "Details" lifts it as a bottom sheet;
@@ -2351,7 +2955,10 @@ export function WalkPlannerApp({
                   onNotableOnlyDetected={setPromptNotableOnly}
                   onOriginDetected={setPromptOrigin}
                   learnPreferences={walkSettings.preferenceLearningEnabled}
-                  persistHistory={walkSettings.historyPersistenceEnabled}
+                  persistHistory={
+                    walkSettings.historyPersistenceEnabled &&
+                    walkSettings.learningConsent === "granted"
+                  }
                   isSignedIn={isSignedIn}
                   fillRemainingTime={fillPromptWalk}
                   onFillRemainingTimeChange={setFillPromptWalk}
@@ -2377,7 +2984,13 @@ export function WalkPlannerApp({
                 <Button
                   variant="secondary"
                   fullWidth
-                  disabled={collapseFlow.loading}
+                  // Also off while a collapse is pending or its options are up:
+                  // a second request would replace the sheet the walker is reading.
+                  disabled={
+                    collapseFlow.loading ||
+                    collapseFlow.offer !== null ||
+                    collapseFlow.isCollapsed()
+                  }
                   onClick={() => {
                     setIsDetailsOpen(false);
                     collapseFlow.offerDifferent();
@@ -2386,6 +2999,18 @@ export function WalkPlannerApp({
                   {collapseFlow.loading
                     ? walkCopy.discovery.text("en", "options.loading")
                     : walkCopy.discovery.text("en", "options.different")}
+                </Button>
+              )}
+              {walkPhase === "walking" && voiceSupported && (
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  onClick={() => {
+                    writeTtsOptIn(!voiceOn);
+                    setVoiceOn(!voiceOn);
+                  }}
+                >
+                  {companionText(uiLang, voiceOn ? "ui.voiceOn" : "ui.voiceOff")}
                 </Button>
               )}
               {walkPhase === "walking" && (
@@ -2537,9 +3162,20 @@ export function WalkPlannerApp({
                   </Card>
                 )
               )}
+              {walkPhase !== "walking" && !isWalkPlanLoading && walkPlan && (
+                <HabitHintChip
+                  hints={habitHints}
+                  lang={uiLang}
+                  onDismiss={(habit) =>
+                    setHabitHints((prev) => prev.filter((h) => h.habit !== habit))
+                  }
+                />
+              )}
               <WalkPlanResults
                 plan={walkPlan}
                 error={walkPlanError}
+                community={communityAggregates}
+                lang={uiLang}
               />
               {walkPhase !== "walking" && (
                 <label className="flex cursor-pointer items-center gap-2 rounded-[10px] border border-dashed border-charcoal/20 bg-white px-3 py-2 text-xs text-charcoal/70">
@@ -2804,6 +3440,7 @@ export function WalkPlannerApp({
           // hand-drawn waypoints whose ids no pin means anything against.
           onTogglePin={walkPlan ? toggleAttractionPin : undefined}
           hudInset={walkMode}
+          extraAttribution={walkMode && companion.attribution ? [companion.attribution] : undefined}
           callouts={walkMode ? callouts : undefined}
           onCalloutSelect={walkMode ? setSelectedCallout : undefined}
           previewRoutes={optionsOffer?.options.map((o, i) => ({
@@ -2815,6 +3452,7 @@ export function WalkPlannerApp({
         {walkMode && (
           <WalkHud
             alert={walkAlert}
+            chat={<WalkChatBox chat={walkChat} lang={uiLang === "he" ? "he" : "en"} />}
             sheet={directionSheet}
             stats={walkStats}
             onDetails={() => setIsDetailsOpen(true)}

@@ -4,13 +4,18 @@ import { Card } from "@/components/ui";
 import type { WalkPlan } from "@/lib/types";
 import { formatDistance } from "@/lib/utils/geo";
 import { CATEGORY_EMOJI } from "@/lib/constants/categories";
+import { CommunityBadge } from "@/components/walk/CommunityBadge";
+import type { CommunityAggregates, SocialLang } from "@/lib/social/aggregates";
 
 interface WalkPlanResultsProps {
   plan: WalkPlan | null;
   error: string | null;
+  /** Social layer (NEXT_PUBLIC_SOCIAL=1 + opt-in); absent => nothing extra renders. */
+  community?: CommunityAggregates;
+  lang?: SocialLang;
 }
 
-export function WalkPlanResults({ plan, error }: WalkPlanResultsProps) {
+export function WalkPlanResults({ plan, error, community, lang = "en" }: WalkPlanResultsProps) {
   if (error) {
     return (
       <Card>
@@ -76,6 +81,9 @@ export function WalkPlanResults({ plan, error }: WalkPlanResultsProps) {
                     ? ` · ${Math.round(segment.walkingMinutes)} min walk · ${formatDistance(segment.distanceMeters)}`
                     : ""}
                 </p>
+                {community ? (
+                  <CommunityBadge poiKey={attraction.id} data={community} lang={lang} />
+                ) : null}
               </div>
             </li>
           );

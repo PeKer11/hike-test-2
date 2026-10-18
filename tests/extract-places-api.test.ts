@@ -347,7 +347,7 @@ describe("POST /api/extract-places", () => {
     const body = await response.json();
     const contextBias = { lat: 32.5736, lng: 34.9522 };
 
-    expect(mockResolveCanonicalName).toHaveBeenCalledWith("מדרחוב", "זכרון יעקב");
+    expect(mockResolveCanonicalName).toHaveBeenCalledWith("מדרחוב", "זכרון יעקב", expect.objectContaining({ ip: expect.any(String) }));
     // The retry reuses the same bias as the attempt it replaces.
     expect(mockSearchPlaces).toHaveBeenNthCalledWith(3, "המייסדים", 1, contextBias);
     expect(body.unresolvedNames).toEqual([]);
@@ -424,6 +424,7 @@ describe("POST /api/extract-places", () => {
       expect.anything(),
       "user-1",
       prompt,
+      { userId: "user-1", ip: expect.any(String) },
     );
   });
 
@@ -1163,6 +1164,7 @@ describe("POST /api/extract-places — standing facts", () => {
       expect.anything(),
       "user-1",
       "I don't eat meat",
+      { userId: "user-1", ip: expect.any(String) },
     );
     expect(mockLearnPreferencesFromText).toHaveBeenCalled();
   });

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { extractStandingFacts } from "@/lib/api/gemini-client";
+import type { LlmCallContext } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
 
 import {
@@ -233,6 +234,7 @@ export async function learnFactsFromText(
   supabase: ServerClient,
   userId: string,
   text: string,
+  ctx: LlmCallContext,
   now: Date = new Date(),
 ): Promise<FactLearningResult> {
   const trimmed = text.trim().slice(0, MAX_LEARNING_TEXT_LENGTH);
@@ -242,7 +244,7 @@ export async function learnFactsFromText(
 
   try {
     const existing = await getStandingFacts(supabase, userId);
-    const detected = await extractStandingFacts(trimmed, existing);
+    const detected = await extractStandingFacts(trimmed, existing, ctx);
     if (detected.length === 0) {
       return { facts: existing, contradictions: [] };
     }

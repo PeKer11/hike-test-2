@@ -82,6 +82,14 @@ export interface WalkSettings {
   // flag rides along in the request body and the server obeys it.
   preferenceLearningEnabled: boolean;
   /**
+   * The walker's answer to the up-front consent screen (shown once, before the
+   * first walk or purchase). `preferenceLearningEnabled` can only be true when
+   * this is "granted": an unanswered screen is never an implicit yes.
+   */
+  learningConsent: LearningConsent;
+  /** App language. "auto" follows the browser; "he"/"en" is the walker's choice. */
+  uiLanguage: UiLanguageSetting;
+  /**
    * Whether the "Recent requests" log survives the browser session — the
    * prompts the walker typed and the one line each of them came back with,
    * stored against their account.
@@ -104,6 +112,25 @@ export interface WalkSettings {
    * in `LEVELS` (`discovery-cadence.ts`).
    */
   calloutLevel: CalloutLevel;
+  /**
+   * Opt in to contributing anonymously to community recommendations and seeing
+   * them (NEXT_PUBLIC_SOCIAL=1 only). A different purpose from
+   * `preferenceLearningEnabled` ("personalize MY walks"), so it is its own flag,
+   * default off, never implied by learning consent and never part of the
+   * consent screen's yes/no.
+   */
+  socialSharingEnabled: boolean;
+}
+
+export type LearningConsent = "unset" | "granted" | "declined";
+export type UiLanguageSetting = "auto" | "he" | "en";
+
+export function toLearningConsent(value: unknown): LearningConsent {
+  return value === "granted" || value === "declined" ? value : "unset";
+}
+
+export function toUiLanguageSetting(value: unknown): UiLanguageSetting {
+  return value === "he" || value === "en" ? value : "auto";
 }
 
 export const CALLOUT_LEVELS: readonly CalloutLevel[] = ["quiet", "normal", "chatty"];
@@ -127,19 +154,23 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   // walker already had.
   fastPaceMode: "off",
   slowPaceMode: "off",
-  deviationMode: "ask",
+  deviationMode: "auto",
   // Off: this is a rebuild taken on silence, not on a yes.
   continueHeadingOnSilence: false,
   // Also the old behaviour: before this flag existed, a pace rebuild always
   // resumed tracking on its own.
   autoResumeAfterRebuild: true,
   paceCheckIntervalMs: 60_000,
-  preferenceLearningEnabled: true,
+  // Off until the walker answers the consent screen.
+  preferenceLearningEnabled: false,
+  learningConsent: "unset",
+  uiLanguage: "auto",
   // On by default, and honestly so: this one is visible in the panel it
   // persists and has a "Clear history" button next to it, which is what makes
   // defaulting it on defensible where a silent memory would not be.
   historyPersistenceEnabled: true,
   calloutLevel: "normal",
+  socialSharingEnabled: false,
 };
 
 /**

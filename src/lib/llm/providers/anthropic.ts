@@ -4,6 +4,22 @@ import { postJson, requireEnv } from "./http";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const TOOL_NAME = "answer";
 
+/**
+ * Thinking-capable models can spend a small output budget on reasoning and
+ * never reach the tool call, so the budget has a floor.
+ */
+export const ANTHROPIC_MIN_MAX_TOKENS = 1024;
+
+/**
+ * Output effort sent with every call: structured extraction needs none of the
+ * deep reasoning. `ANTHROPIC_EFFORT=off` omits it, for a model that rejects the
+ * parameter (not every Claude model supports `output_config.effort`).
+ */
+export function anthropicEffort(env: Record<string, string | undefined> = process.env): string | null {
+  const raw = (env.ANTHROPIC_EFFORT ?? "low").trim().toLowerCase();
+  return raw === "" || raw === "off" ? null : raw;
+}
+
 interface AnthropicResponse {
   content?: Array<{ type: string; input?: unknown; text?: string }>;
   usage?: { input_tokens?: number; output_tokens?: number };
@@ -26,7 +42,8 @@ export const callAnthropic: ProviderCall = async (req) => {
     },
     {
       model: req.model,
-      max_tokens: req.maxOutputTokens,
+      max_tokens: Math.max(req.maxOutputTokens, ANTHROPIC_MIN_MAX_TOKENS),
+      ...(anthropicEffort() ? { output_config: { effort: anthropicEffort() } } : {}),
       system: `${req.system}\n\nYou must answer by calling the "${TOOL_NAME}" tool exactly once; do not reply with plain text.`,
       messages: [{ role: "user", content: req.user }],
       tools: [

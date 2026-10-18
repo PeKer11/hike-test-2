@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 describe("providers over mocked fetch", () => {
-  it("anthropic: forced tool call, key in header, tool input becomes the answer text", async () => {
+  it("anthropic: tool call (auto choice), key in header, tool input becomes the answer text", async () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "ak");
     const f = stubFetch({ content: [{ type: "tool_use", input: { a: 1 } }], usage: { input_tokens: 4, output_tokens: 2 } });
     const r = await callAnthropic(req);
@@ -43,9 +43,21 @@ describe("providers over mocked fetch", () => {
     expect(body.tool_choice).toEqual({ type: "auto" });
     expect(body.system).toContain("SYS");
     expect(body.system).toContain('"answer" tool');
-    expect(body.max_tokens).toBe(77);
+    // A small budget is raised to the floor so thinking cannot eat the tool call.
+    expect(body.max_tokens).toBe(1024);
+    expect(body.output_config).toEqual({ effort: "low" });
     expect(JSON.parse(r.text)).toEqual({ a: 1 });
     expect(r.inTok).toBe(4);
+  });
+
+  it("anthropic: a larger budget is kept, and ANTHROPIC_EFFORT=off omits the effort parameter", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "ak");
+    vi.stubEnv("ANTHROPIC_EFFORT", "off");
+    const f = stubFetch({ content: [{ type: "tool_use", input: { a: 1 } }] });
+    await callAnthropic({ ...req, maxOutputTokens: 4000 });
+    const body = JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.max_tokens).toBe(4000);
+    expect(body.output_config).toBeUndefined();
   });
 
   it("anthropic: a reply with only text (no tool_use) is empty text, never trusted as the answer", async () => {
@@ -79,13 +91,13 @@ describe("providers over mocked fetch", () => {
   });
 
   it("reasoning_effort goes to openai only, never to openai-compatible", async () => {
-    vi.stubEnv("LLM_REASONING_EFFORT", "low");
     vi.stubEnv("OPENAI_API_KEY", "ok");
     vi.stubEnv("LLM_BASE_URL", "https://api.example.test/v1");
     vi.stubEnv("LLM_API_KEY", "k");
     const f = stubFetch({ choices: [{ message: { content: "{}" } }] });
-    await callOpenAi(req);
-    await callOpenAiCompatible(req);
+    const withEffort = { ...req, reasoningEffort: "low" as const };
+    await callOpenAi(withEffort);
+    await callOpenAiCompatible(withEffort);
     const bodies = f.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string));
     expect(bodies[0].reasoning_effort).toBe("low");
     expect(bodies[1]).not.toHaveProperty("reasoning_effort");

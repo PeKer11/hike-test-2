@@ -217,7 +217,7 @@ export function buildExtractPlacesTask(
 export async function extractPlaceNames(
   prompt: string,
   facts: StoredFact[] = [],
-  ctx?: LlmCallContext,
+  ctx: LlmCallContext,
 ): Promise<PlaceExtraction> {
   const { data } = await runLlm(buildExtractPlacesTask(prompt, facts), ctx);
   return data;
@@ -232,7 +232,7 @@ export async function extractPlaceNames(
 export async function resolveCanonicalName(
   name: string,
   contextLocation: string | null,
-  ctx?: LlmCallContext,
+  ctx: LlmCallContext,
 ): Promise<string | null> {
   const { data } = await runLlm(
     {
@@ -263,7 +263,7 @@ export async function resolveCanonicalName(
  */
 export async function extractCategoryPreferences(
   text: string,
-  ctx?: LlmCallContext,
+  ctx: LlmCallContext,
 ): Promise<CategoryPreference[]> {
   const { data } = await runLlm(
     {
@@ -319,7 +319,7 @@ export function buildFactsTask(
 export async function extractStandingFacts(
   text: string,
   knownFacts: StoredFact[] = [],
-  ctx?: LlmCallContext,
+  ctx: LlmCallContext,
 ): Promise<ExtractedFact[]> {
   const { data } = await runLlm(buildFactsTask(text, knownFacts), ctx);
   return data;

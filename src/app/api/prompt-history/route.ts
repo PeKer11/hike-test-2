@@ -26,6 +26,8 @@ interface AppendExchangeRequest {
   responseSummary?: unknown;
   /** Client-side "Remember what I typed" setting. Absent means off. */
   persistHistory?: unknown;
+  /** Must be "granted": history is saved only with learning consent. */
+  learningConsent?: unknown;
 }
 
 /** The signed-in walker's id, or null for every reason there is not one. */
@@ -59,7 +61,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     return new NextResponse(null, { status: 204 });
   }
 
-  if (body.persistHistory !== true || !isExchangeTurn(body.turn)) {
+  if (
+    body.persistHistory !== true ||
+    body.learningConsent !== "granted" ||
+    !isExchangeTurn(body.turn)) {
     return new NextResponse(null, { status: 204 });
   }
 

@@ -61,27 +61,41 @@ function getApiKey(): string {
   return key;
 }
 
+// A hung ORS call must not hold a whole walk build open: Overpass already has
+// its own per-mirror timeouts, ORS had none.
+export const ORS_TIMEOUT_MS = 15_000;
+
 async function fetchOrs<T>(
   url: string,
   body: unknown,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: getApiKey(),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    ...init,
-  });
+  // AbortController + setTimeout rather than AbortSignal.timeout: fake timers
+  // can drive this one.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ORS_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(parseOrsError(errorText, response.status));
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: getApiKey(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      ...init,
+      signal: init?.signal ?? controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(parseOrsError(errorText, response.status));
+    }
+
+    return (await response.json()) as T;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return (await response.json()) as T;
 }
 
 export async function getDirections(

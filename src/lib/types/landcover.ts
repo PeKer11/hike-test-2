@@ -51,3 +51,6 @@ export interface OsmFeature {
 export interface HazardContext {
   features: OsmFeature[];
 }
+
+/** Credit shown whenever a satellite (detected) find is on the map. */
+export const WORLDCOVER_ATTRIBUTION = "ESA WorldCover 2021 (CC BY 4.0)";

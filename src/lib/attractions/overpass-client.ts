@@ -1,3 +1,4 @@
+import { amenityKindOfTags } from "@/lib/attractions/amenity-tags";
 import { createCircuitBreaker, parseRetryAfterMs } from "@/lib/api/circuit-breaker";
 import { appUserAgent } from "@/lib/api/http-identity";
 import type { Attraction, AttractionCategory } from "@/lib/types";
@@ -231,10 +232,71 @@ function elementToAttraction(el: OverpassElement): Attraction | null {
   };
 }
 
+// A public mirror that has not answered in this long is treated as down; the
+// old 20s per attempt let one dead mirror eat the whole request.
+const ATTEMPT_TIMEOUT_MS = 8_000;
+// A slow (not failed) attempt does not block the next one: after this long the
+// next mirror is started alongside it and the first good answer wins.
+const HEDGE_DELAY_MS = 2_500;
+
+/** One request to one mirror. Throws on any failure; keeps the breaker current. */
+async function overpassAttempt(
+  attempt: EndpointAttempt,
+  query: string,
+  body: string,
+  cancel: AbortSignal,
+): Promise<OverpassElement[]> {
+  const signal = AbortSignal.any([cancel, AbortSignal.timeout(ATTEMPT_TIMEOUT_MS)]);
+  try {
+    const response =
+      attempt.method === "POST"
+        ? await fetch(attempt.endpoint, {
+            method: "POST",
+            headers: {
+              ...requestHeaders(),
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body,
+            signal,
+          })
+        : await fetch(`${attempt.endpoint}?data=${encodeURIComponent(query)}`, {
+            method: "GET",
+            headers: requestHeaders(),
+            signal,
+          });
+
+    if (!response.ok) {
+      if (response.status === 429 || response.status >= 500) {
+        overpassBreaker.recordFailure(
+          attempt.endpoint,
+          parseRetryAfterMs(response.headers?.get?.("Retry-After")),
+        );
+      }
+      const errorText = await response.text().catch(() => "");
+      const detail = errorText.trim().slice(0, 160);
+      throw new Error(
+        `Overpass API error: ${response.status} ${response.statusText}${detail ? ` - ${detail}` : ""}`,
+      );
+    }
+
+    const data = (await response.json()) as OverpassResponse;
+    overpassBreaker.recordSuccess(attempt.endpoint);
+    return data.elements;
+  } catch (err) {
+    // Cancelled because another mirror already won: not this mirror's fault.
+    if (!cancel.aborted && !(err instanceof Error && err.message.startsWith("Overpass API error"))) {
+      overpassBreaker.recordFailure(attempt.endpoint);
+    }
+    throw err instanceof Error ? err : new Error("Overpass request failed.");
+  }
+}
+
 /**
- * Run one Overpass query against the endpoint list (POST then GET on each, next
- * mirror on failure) and return its elements. Shared by the attraction search
- * and the along-the-walk lookups so they fail over identically.
+ * Run one Overpass query against the endpoint list (POST then GET on each) and
+ * return its elements. Attempts start in order: the next one starts as soon as
+ * the previous fails, or after HEDGE_DELAY_MS if it is merely slow, and the
+ * first good answer wins. Shared by the attraction search and the
+ * along-the-walk lookups so they fail over identically.
  */
 export async function runOverpassQuery(query: string): Promise<OverpassElement[]> {
   const body = `data=${encodeURIComponent(query)}`;
@@ -243,68 +305,63 @@ export async function runOverpassQuery(query: string): Promise<OverpassElement[]
     { endpoint, method: "GET" as const },
   ]);
 
-  let lastError: Error = new Error("Overpass API unavailable.");
+  const cancel = new AbortController();
 
-  for (const attempt of attempts) {
-    if (overpassBreaker.isOpen(attempt.endpoint)) continue;
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20_000);
-      const response =
-        attempt.method === "POST"
-          ? await fetch(attempt.endpoint, {
-              method: "POST",
-              headers: {
-                ...requestHeaders(),
-                "Content-Type": "application/x-www-form-urlencoded",
-              },
-              body,
-              signal: controller.signal,
-            })
-          : await fetch(`${attempt.endpoint}?data=${encodeURIComponent(query)}`, {
-              method: "GET",
-              headers: requestHeaders(),
-              signal: controller.signal,
-            });
+  return new Promise<OverpassElement[]>((resolve, reject) => {
+    let next = 0;
+    let pending = 0;
+    let settled = false;
+    let lastError: Error = new Error("Overpass API unavailable.");
+    let hedgeTimer: ReturnType<typeof setTimeout> | undefined;
 
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        if (response.status === 429 || response.status >= 500) {
-          overpassBreaker.recordFailure(
-            attempt.endpoint,
-            parseRetryAfterMs(response.headers?.get?.("Retry-After")),
-          );
-        }
-        const errorText = await response.text().catch(() => "");
-        const detail = errorText.trim().slice(0, 160);
-        lastError = new Error(
-          `Overpass API error: ${response.status} ${response.statusText}${detail ? ` - ${detail}` : ""}`,
+    const fail = () => {
+      settled = true;
+      if (
+        lastError.message.includes("403") ||
+        lastError.message.toLowerCase().includes("forbidden")
+      ) {
+        reject(
+          new Error(
+            "Public map data service temporarily rejected the walk request. Please try again in a moment or adjust the area slightly.",
+          ),
         );
-        continue; // try next mirror
+        return;
       }
+      reject(lastError);
+    };
 
-      const data = (await response.json()) as OverpassResponse;
-      overpassBreaker.recordSuccess(attempt.endpoint);
-      return data.elements;
-    } catch (err) {
-      overpassBreaker.recordFailure(attempt.endpoint);
-      lastError =
-        err instanceof Error ? err : new Error("Overpass request failed.");
-      // try next mirror
-    }
-  }
+    const launch = () => {
+      if (settled) return;
+      clearTimeout(hedgeTimer);
+      while (next < attempts.length && overpassBreaker.isOpen(attempts[next].endpoint)) {
+        next += 1;
+      }
+      if (next >= attempts.length) {
+        if (pending === 0) fail();
+        return;
+      }
+      const attempt = attempts[next];
+      next += 1;
+      pending += 1;
+      hedgeTimer = setTimeout(launch, HEDGE_DELAY_MS);
+      overpassAttempt(attempt, query, body, cancel.signal).then(
+        (elements) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(hedgeTimer);
+          cancel.abort();
+          resolve(elements);
+        },
+        (err: Error) => {
+          pending -= 1;
+          lastError = err;
+          launch();
+        },
+      );
+    };
 
-  if (
-    lastError.message.includes("403") ||
-    lastError.message.toLowerCase().includes("forbidden")
-  ) {
-    throw new Error(
-      "Public map data service temporarily rejected the walk request. Please try again in a moment or adjust the area slightly.",
-    );
-  }
-
-  throw lastError;
+    launch();
+  });
 }
 
 export async function fetchAttractions(
@@ -350,7 +407,8 @@ function corridorStatements(a: string): string {
   way["historic"]${a};
   way["leisure"~"park|garden|nature_reserve|miniature_golf|water_park|amusement_arcade|escape_game|bowling_alley"]${a};
   way["landuse"="forest"]${a};
-  way["natural"~"wood|water|beach"]${a};`;
+  way["natural"~"wood|water|beach"]${a};
+  node["amenity"~"drinking_water|toilets"]${a};`;
 }
 
 // The ring: only what is worth a detour. Viewpoints, attractions, museums,
@@ -393,6 +451,20 @@ out center ${MAX_SCAN_ELEMENTS};
 `.trim();
 }
 
+/**
+ * Mirrors `ringStatements`: what is worth a detour from the ring. Used to
+ * thin tile-cache results (which hold the whole corridor set) to a plain scan's ring.
+ */
+export function isRingNotable(tags: Record<string, string>): boolean {
+  return Boolean(
+    /^(viewpoint|attraction|museum)$/.test(tags.tourism ?? "") ||
+      tags.historic ||
+      (/^(park|nature_reserve|garden)$/.test(tags.leisure ?? "") && tags.name) ||
+      /^(peak|water|beach|wood)$/.test(tags.natural ?? "") ||
+      tags.wikidata,
+  );
+}
+
 function sceneryLabel(tags: Record<string, string>): string {
   if (tags.landuse === "forest" || tags.natural === "wood") return walkCopy.scenery.wood;
   if (tags.natural === "water") return walkCopy.scenery.water;
@@ -414,6 +486,23 @@ function elementToNearbyPlace(el: OverpassElement): NearbyPlace | null {
   const lat = el.lat ?? el.center?.lat;
   const lng = el.lon ?? el.center?.lon;
   if (lat === undefined || lng === undefined) return null;
+
+  // Practical amenities (water, toilets): never callouts. The discovery loader
+  // splits them off by `tags.amenity` and keeps them for the companion.
+  const amenity = amenityKindOfTags(tags);
+  if (amenity) {
+    return {
+      id: `osm-${el.type}-${el.id}`,
+      name: tags.name ?? (amenity === "toilets" ? "Toilets" : "Drinking water"),
+      coordinates: { lat, lng },
+      category: "other",
+      avgVisitMinutes: 0,
+      tags,
+      source: "osm",
+      verification: "mapped-unnamed",
+      kind: "scenery",
+    };
+  }
 
   const named = elementToAttraction(el);
   const isScenery =
@@ -479,6 +568,37 @@ export function fetchPlacesScan(
   ringRadiusMeters: number,
 ): Promise<NearbyPlace[]> {
   return fetchNearby(radiusMeters, points, ringRadiusMeters);
+}
+
+/** Most elements one tile-union request may return (many tiles, one request). */
+const MAX_TILE_ELEMENTS = 1500;
+
+/**
+ * The same corridor + ring statements over a union of bounding boxes: what the
+ * shared tile cache fetches for the tiles it is missing. Everything in the
+ * boxes comes back; the caller filters to its corridor in memory.
+ */
+export async function fetchPlacesInBboxes(
+  bboxes: Array<{ south: number; west: number; north: number; east: number }>,
+): Promise<NearbyPlace[]> {
+  const body = bboxes
+    .map((b) => {
+      const box = `(${b.south.toFixed(5)},${b.west.toFixed(5)},${b.north.toFixed(5)},${b.east.toFixed(5)})`;
+      return `${corridorStatements(box)}\n${ringStatements(box)}`;
+    })
+    .join("\n");
+  const elements = await runOverpassQuery(
+    `[out:json][timeout:25];\n(\n${body}\n);\nout center ${MAX_TILE_ELEMENTS};`,
+  );
+  const places: NearbyPlace[] = [];
+  const seen = new Set<string>();
+  for (const el of elements) {
+    const place = elementToNearbyPlace(el);
+    if (!place || seen.has(place.id)) continue;
+    seen.add(place.id);
+    places.push(place);
+  }
+  return places;
 }
 
 /** Places within `radiusMeters` of one point. */

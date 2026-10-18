@@ -16,8 +16,15 @@ import {
   getUpvotedCategories,
   recordWalkSession,
 } from "@/lib/preferences/preference-store";
+import { loadMemoryWire } from "@/lib/preferences/companion-memory-wire";
+import { planTimeHabitHints } from "@/lib/preferences/habit-hints";
 import { createClient } from "@/lib/supabase/server";
-import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
+import {
+  angleDifference,
+  bearingBetween,
+  haversineDistance,
+  toOrsCoord,
+} from "@/lib/utils/geo";
 import { decodePolyline } from "@/lib/utils/polyline";
 import type {
   Attraction,
@@ -28,6 +35,10 @@ import type {
 } from "@/lib/types";
 
 interface WalkPlanApiRequest {
+  /** The walker's "Remember my preferences" setting: gates the companion memory in the reply. */
+  learnPreferences?: boolean;
+  /** The device's IANA zone, for plan-time routine hints only (used outside Israel). */
+  timeZone?: string;
   lat: number;
   lng: number;
   availableMinutes: number;
@@ -58,7 +69,15 @@ interface WalkPlanApiRequest {
   // not the whole walk — top up the leftover time with discovered POIs. Off by
   // default so the pace-triggered rebuild keeps meaning "only these".
   fillRemainingTime?: boolean;
+  /**
+   * Compass bearing the walker is moving along, set by a mid-walk "add a stop"
+   * rebuild. Discovered stops behind it (more than 90 degrees off) are left out,
+   * so a new stop is never one the walker has already walked past.
+   */
+  heading?: number;
 }
+
+const FORWARD_CONE_DEG = 90;
 
 // A discovered POI this close to a named place is the same place under another
 // OSM id — keep it out of the filler so the stop isn't listed twice.
@@ -378,6 +397,21 @@ export async function POST(request: Request): Promise<NextResponse> {
         : undefined;
 
     const notableOnly = body.notableOnly === true;
+    const heading =
+      typeof body.heading === "number" && Number.isFinite(body.heading)
+        ? body.heading
+        : undefined;
+    const aheadOnly = <T extends { coordinates: Coordinates }>(
+      list: T[],
+      from: Coordinates,
+    ): T[] =>
+      heading === undefined
+        ? list
+        : list.filter(
+            (c) =>
+              angleDifference(bearingBetween(from, c.coordinates), heading) <=
+              FORWARD_CONE_DEG,
+          );
 
     // Raw Overpass results keyed by the radius they were fetched at, so a retry
     // that only loosens the end-distance constraint costs no second POI fetch.
@@ -447,7 +481,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           });
 
           const explicitIds = new Set(explicitAttractions.map((a) => a.id));
-          const filler = ranked.filter(
+          const filler = aheadOnly(ranked, origin).filter(
             (candidate) =>
               !explicitIds.has(candidate.id) &&
               !explicitAttractions.some(
@@ -503,7 +537,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         });
 
         selected = selectFeasibleAttractions(
-          ranked,
+          aheadOnly(ranked, origin),
           availableMinutes,
           walkingPaceMinPerKm,
           // On top of the time budget, not instead of it: three stops that do
@@ -537,11 +571,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     // with nothing to relax: no POIs are discovered, so a wider radius changes
     // nothing, and dropping the end-distance limit there would override a
     // constraint on a walk the user is already partway through. Single pass.
-    const canRetry = !(
-      explicitAttractions &&
-      explicitAttractions.length > 0 &&
-      body.fillRemainingTime !== true
-    );
+    //
+    // The forward-only "add a stop" (the only caller that sends `heading`) is
+    // also single pass: it runs while the walker is waiting mid-walk, and each
+    // extra pass is another full Overpass discovery.
+    const canRetry =
+      !(
+        explicitAttractions &&
+        explicitAttractions.length > 0 &&
+        body.fillRemainingTime !== true
+      ) && heading === undefined;
 
     const warnings: string[] = [];
 
@@ -646,18 +685,45 @@ export async function POST(request: Request): Promise<NextResponse> {
     // age anything, and awaited rather than left dangling because a serverless
     // invocation ends at the response. Best effort: an uncounted session costs
     // one step of decay, and nothing about that is worth a failed walk.
+    let companionMemory: Awaited<ReturnType<typeof loadMemoryWire>> = null;
     if (profilePromise) {
       const { userId } = await profilePromise;
       if (userId) {
         try {
-          await recordWalkSession(await createClient());
+          const supabase = await createClient();
+          // Counting sessions is a learning write: consent only.
+          if (body.learnPreferences === true) await recordWalkSession(supabase);
+          // Companion memory rides along on the same session, with consent only.
+          if (body.learnPreferences === true) {
+            companionMemory = await loadMemoryWire(supabase, userId, true);
+          }
         } catch {
           // Never let counting a walk cost the walk.
         }
       }
     }
 
-    return NextResponse.json({ ...plan, geometry, warnings });
+    // Plan-time routine chip: fixed EN/HE text from the walker's own stored
+    // habits, only when their memory was loaded (signed in + consent). No LLM.
+    const habitHints = companionMemory
+      ? planTimeHabitHints({
+          habits: companionMemory.habits,
+          nowMs: Date.now(),
+          availableMinutes,
+          origin,
+          clientTimeZone: body.timeZone,
+          requestedCategories: body.preferredCategories,
+          planned: plan.orderedAttractions,
+        })
+      : [];
+
+    return NextResponse.json({
+      ...plan,
+      geometry,
+      warnings,
+      ...(companionMemory ? { companionMemory } : {}),
+      ...(habitHints.length > 0 ? { habitHints } : {}),
+    });
   } catch (error) {
     const message =
       error instanceof Error

@@ -3,6 +3,8 @@ import type { z } from "zod";
 
 export type LlmTier = 1 | 2 | 3;
 
+export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high";
+
 export type LlmTaskName =
   | "extract-places"
   | "canonical-name"
@@ -10,6 +12,8 @@ export type LlmTaskName =
   | "facts"
   | "answer-intent"
   | "narrate"
+  | "plan"
+  | "session-summary"
   | "eval";
 
 export type LlmProviderName = "gemini" | "anthropic" | "openai" | "openai-compatible";
@@ -18,6 +22,8 @@ export type LlmProviderName = "gemini" | "anthropic" | "openai" | "openai-compat
 export interface UntrustedBlock {
   source: string;
   text: string;
+  /** Larger cap for structured JSON the caller already sized (default `UNTRUSTED_MAX_CHARS`, never above `UNTRUSTED_HARD_MAX_CHARS`). */
+  maxChars?: number;
 }
 
 export interface LlmTask<T> {
@@ -43,6 +49,14 @@ export interface LlmCallContext {
   plan?: "anonymous" | "free" | "paid";
 }
 
+/**
+ * The only way to call `runLlm` without a caller identity: offline eval runs
+ * and unit tests. Production code must pass a real `LlmCallContext`; leaving
+ * it out is a type error and a runtime error, so a new call site cannot be
+ * silently uncapped.
+ */
+export const UNMETERED = Symbol("llm-unmetered");
+
 export interface LlmResult<T> {
   data: T;
   provider: string;
@@ -63,6 +77,8 @@ export interface ProviderRequest {
   signal: AbortSignal;
   timeoutMs: number;
   taskName: LlmTaskName;
+  /** Already validated and clamped for `model` (see resolveReasoningEffort). */
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface ProviderResponse {

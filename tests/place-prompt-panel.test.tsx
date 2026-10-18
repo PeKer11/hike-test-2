@@ -799,7 +799,7 @@ describe("PlacePromptPanel — the session scrollback", () => {
       "How much time do you have, and how far do you want to end up?",
     );
     fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
-    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use these answers" }));
 
     await screen.findByRole("button", { name: "Recent requests (3)" });
     await openLog();
@@ -1098,7 +1098,7 @@ describe("PlacePromptPanel — the follow-up turn", () => {
       "How much time do you have, and how far do you want to end up?",
     );
     fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
-    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use these answers" }));
 
     await waitFor(() => expect(onDurationDetected).toHaveBeenCalledWith(180));
     expect(onMaxEndDistanceDetected).toHaveBeenCalledWith(1);
@@ -1124,7 +1124,7 @@ describe("PlacePromptPanel — the follow-up turn", () => {
       "How much time do you have, and how far do you want to end up?",
     );
     fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
-    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use these answers" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     const body = JSON.parse((fetchMock.mock.calls[2][1] as { body: string }).body);
@@ -1151,7 +1151,7 @@ describe("PlacePromptPanel — the follow-up turn", () => {
       "How far from where you start do you want to end up?",
     );
     fireEvent.change(input, { target: { value: "up to 1km" } });
-    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use these answers" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     const body = JSON.parse((fetchMock.mock.calls[2][1] as { body: string }).body);
@@ -1180,7 +1180,7 @@ describe("PlacePromptPanel — the follow-up turn", () => {
       "How much time do you have, and how far do you want to end up?",
     );
     fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
-    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use these answers" }));
 
     await waitFor(() =>
       expect(onAcceptAttractions).toHaveBeenCalledWith(FOUND),
@@ -1211,7 +1211,7 @@ describe("PlacePromptPanel — the follow-up turn", () => {
       "How much time do you have, and how far do you want to end up?",
     );
     fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
-    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use these answers" }));
 
     await waitFor(() =>
       expect(onAcceptAttractions).toHaveBeenCalledWith([FOUND[0], FOUND[1]]),
@@ -1236,7 +1236,7 @@ describe("PlacePromptPanel — the follow-up turn", () => {
       "How much time do you have, and how far do you want to end up?",
     );
     fireEvent.change(input, { target: { value: "3 hours, up to 1km" } });
-    fireEvent.click(screen.getByRole("button", { name: "Build my walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use these answers" }));
 
     await waitFor(() =>
       expect(screen.queryByText(/How much time do you have/)).toBeNull(),
@@ -1260,7 +1260,7 @@ describe("PlacePromptPanel — the follow-up turn", () => {
       "How much time do you have, and how far do you want to end up?",
     );
     expect(
-      (screen.getByRole("button", { name: "Build my walk" }) as HTMLButtonElement)
+      (screen.getByRole("button", { name: "Use these answers" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
   });
@@ -1440,6 +1440,7 @@ describe("PlacePromptPanel — persisted history", () => {
       prompt: "מדרחוב בזכרון יעקב",
       responseSummary: "Found 3 stops",
       persistHistory: true,
+      learningConsent: "granted",
     });
   });
 
