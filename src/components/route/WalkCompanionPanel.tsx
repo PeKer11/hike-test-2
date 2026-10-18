@@ -349,8 +349,9 @@ export function WalkCompanionPanel({
 
     const parsedLat = parseFloat(latText);
     const parsedLng = parseFloat(lngText);
-    const parsedMinutes = parseInt(availableMinutes, 10);
-    const parsedRadiusKm = parseFloat(radiusKm);
+    // Blank means "no limit": use the largest value the planner accepts.
+    const parsedMinutes = availableMinutes.trim() === "" ? 480 : parseInt(availableMinutes, 10);
+    const parsedRadiusKm = radiusKm.trim() === "" ? 10 : parseFloat(radiusKm);
 
     if (!Number.isFinite(parsedLat) || parsedLat < -90 || parsedLat > 90) {
       setFormError("Enter a valid latitude (-90 to 90).");
@@ -441,6 +442,7 @@ export function WalkCompanionPanel({
           type="number"
           min={15}
           max={480}
+          placeholder="No limit"
           value={availableMinutes}
           onChange={(e) => setAvailableMinutes(e.target.value)}
           className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
@@ -457,6 +459,7 @@ export function WalkCompanionPanel({
           min={0.5}
           max={10}
           step={0.5}
+          placeholder="No limit"
           value={radiusKm}
           onChange={(e) => setRadiusKm(e.target.value)}
           className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
