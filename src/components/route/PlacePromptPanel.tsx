@@ -223,7 +223,7 @@ function describeFollowUp(known: KnownSoFar, stopCount: number): string {
   const parts: string[] = [];
   if (known.durationMinutes !== null) parts.push(`${known.durationMinutes} min`);
   if (known.maxEndDistanceKm !== null) {
-    parts.push(`finish within ${known.maxEndDistanceKm} km`);
+    parts.push(known.maxEndDistanceKm === 0 ? "return to start" : `finish within ${known.maxEndDistanceKm} km`);
   }
   const got = parts.length > 0 ? `Got it: ${parts.join(", ")}.` : "Got it.";
   return stopCount > 0

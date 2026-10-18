@@ -170,6 +170,7 @@ export const PLACE_EXTRACTION_SYSTEM_PROMPT = [
   "Never guess a finish distance that was not stated. null is the normal answer.",
   "Examples:",
   '"תן לי טיול של שעתיים שמסתיים עד 500 מטר ממה שאני נמצא" -> durationMinutes 120, maxEndDistanceKm 0.5.',
+  '"ובסוף לחזור לאותה נקודה" / "return to where I started" / "round trip back to the start" -> maxEndDistanceKm 0 (the walk must end back at the start).',
   '"find me attractions within 2km" -> maxEndDistanceKm null — that is how far to search, not where to finish.',
   "",
   "`searchRadiusKm`: how far from where the walker is or starts to LOOK for places to stop at, in kilometres.",
@@ -463,7 +464,9 @@ export function parseMaxEndDistanceKm(input: unknown): number | null {
     return null;
   }
 
-  if (raw <= 0) return null;
+  if (raw < 0) return null;
+  // 0 is meaningful: "end where you started".
+  if (raw === 0) return 0;
 
   return Math.min(Math.max(raw, MIN_END_DISTANCE_KM), MAX_END_DISTANCE_KM);
 }

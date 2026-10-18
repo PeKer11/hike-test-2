@@ -363,6 +363,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     // usable positive number is treated as absent rather than as zero — a zero
     // limit would silently empty every walk.
     const requestedEndDistance = body.maxEndDistanceFromOriginMeters;
+    // Exactly 0 is "come back to where I started": the route gets a final leg
+    // back to the origin, and no limit that would strip stops.
+    const returnToStart = requestedEndDistance === 0;
     const maxEndDistanceFromOriginMeters =
       typeof requestedEndDistance === "number" &&
       Number.isFinite(requestedEndDistance) &&
@@ -652,6 +655,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           const waypoints: Coordinates[] = [
             origin,
             ...plan.orderedAttractions.map((a) => a.coordinates),
+            ...(returnToStart ? [origin] : []),
           ];
           const orsRes = await getDirections({
             coordinates: waypoints.map(toOrsCoord),

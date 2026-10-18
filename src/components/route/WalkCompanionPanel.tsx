@@ -374,9 +374,9 @@ export function WalkCompanionPanel({
       trimmedEndDistance === "" ? null : parseFloat(trimmedEndDistance);
     if (
       parsedEndDistanceKm !== null &&
-      (!Number.isFinite(parsedEndDistanceKm) || parsedEndDistanceKm <= 0)
+      (!Number.isFinite(parsedEndDistanceKm) || parsedEndDistanceKm < 0)
     ) {
-      setFormError("Enter a valid finish distance (km > 0), or leave it blank.");
+      setFormError("Enter a valid finish distance (km ≥ 0), or leave it blank.");
       return;
     }
 
@@ -470,7 +470,7 @@ export function WalkCompanionPanel({
         </label>
         <input
           type="number"
-          min={0.1}
+          min={0}
           max={50}
           step={0.5}
           placeholder="Any"
@@ -479,7 +479,7 @@ export function WalkCompanionPanel({
           className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
         />
         <p className="text-[11px] text-charcoal/50">
-          Leave blank to finish anywhere. Set it to come back near your car or hotel.
+          Leave blank to finish anywhere. 0 = come back to where you started.
         </p>
       </div>
 

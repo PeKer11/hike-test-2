@@ -424,7 +424,7 @@ describe("finish-distance extraction", () => {
     expect(parseMaxEndDistanceKm({ maxEndDistanceKm: null })).toBeNull();
     expect(parseMaxEndDistanceKm({ places: [] })).toBeNull();
     expect(parseMaxEndDistanceKm({ maxEndDistanceKm: "1km" })).toBeNull();
-    expect(parseMaxEndDistanceKm({ maxEndDistanceKm: 0 })).toBeNull();
+    expect(parseMaxEndDistanceKm({ maxEndDistanceKm: 0 })).toBe(0);
     expect(parseMaxEndDistanceKm({ maxEndDistanceKm: -2 })).toBeNull();
   });
 
