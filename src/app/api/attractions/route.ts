@@ -5,7 +5,7 @@ import {
   overpassRateLimiter,
   rateLimitedResponse,
 } from "@/lib/api/rate-limit";
-import { fetchAttractions } from "@/lib/attractions/overpass-client";
+import { fetchAttractionsResilient as fetchAttractions } from "@/lib/attractions/resilient-attractions";
 import {
   rankAttractions,
   selectFeasibleAttractions,

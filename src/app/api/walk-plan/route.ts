@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { fetchAttractions } from "@/lib/attractions/overpass-client";
+import { fetchAttractionsResilient as fetchAttractions } from "@/lib/attractions/resilient-attractions";
 import {
   MAX_WALK_STOPS,
   rankAttractions,
