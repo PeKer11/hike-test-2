@@ -98,12 +98,141 @@ async function fetchOrs<T>(
   }
 }
 
+const OSRM_FOOT_URL = "https://routing.openstreetmap.de/routed-foot/route/v1/foot";
+const OSRM_TIMEOUT_MS = 8_000;
+// ORS has been seen hanging for the full ORS_TIMEOUT_MS; start the OSRM backup
+// after this long (or as soon as ORS fails) and let the first good answer win.
+const OSRM_HEDGE_DELAY_MS = 4_000;
+
+interface OsrmStep {
+  distance: number;
+  duration: number;
+  name?: string;
+  maneuver?: { type?: string; modifier?: string };
+}
+
+interface OsrmResponse {
+  code?: string;
+  routes?: Array<{
+    geometry: string;
+    distance: number;
+    duration: number;
+    legs: Array<{ distance: number; duration: number; steps: OsrmStep[] }>;
+  }>;
+  waypoints?: Array<{ location: [number, number] }>;
+}
+
+// Encoded-polyline (precision 5) decoder; returns [lng, lat] pairs.
+function decodePolyline(encoded: string): Array<[number, number]> {
+  const points: Array<[number, number]> = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  const readValue = (): number => {
+    let result = 0;
+    let shift = 0;
+    let byte: number;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index < encoded.length);
+    return result & 1 ? ~(result >> 1) : result >> 1;
+  };
+
+  while (index < encoded.length) {
+    lat += readValue();
+    lng += readValue();
+    points.push([lng / 1e5, lat / 1e5]);
+  }
+  return points;
+}
+
+function describeOsrmStep(step: OsrmStep): string {
+  const type = step.maneuver?.type ?? "continue";
+  const modifier = step.maneuver?.modifier;
+  const onto = step.name ? ` onto ${step.name}` : "";
+
+  if (type === "depart") return `Head ${modifier ?? "out"}${onto}`;
+  if (type === "arrive") return "Arrive at your destination";
+  if (modifier) return `Turn ${modifier}${onto}`;
+  return `Continue${onto}`;
+}
+
+async function getOsrmFootDirections(
+  coordinates: OrsDirectionsRequest["coordinates"],
+): Promise<OrsDirectionsResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OSRM_TIMEOUT_MS);
+
+  try {
+    const path = coordinates.map(([lng, lat]) => `${lng},${lat}`).join(";");
+    const response = await fetch(
+      `${OSRM_FOOT_URL}/${path}?overview=full&geometries=polyline&steps=true`,
+      { cache: "no-store", signal: controller.signal },
+    );
+    if (!response.ok) {
+      throw new Error("Fallback routing service error.");
+    }
+
+    const data = (await response.json()) as OsrmResponse;
+    const route = data.routes?.[0];
+    if (data.code !== "Ok" || !route) {
+      throw new Error("Fallback routing found no route.");
+    }
+
+    // ORS way_points are indices into the decoded geometry; OSRM gives snapped
+    // waypoint locations, so map each to the nearest geometry point at or after
+    // the previous one.
+    const line = decodePolyline(route.geometry);
+    const wayPoints: number[] = [];
+    let from = 0;
+    for (const waypoint of data.waypoints ?? []) {
+      let best = from;
+      let bestDist = Infinity;
+      for (let i = from; i < line.length; i++) {
+        const d =
+          (line[i][0] - waypoint.location[0]) ** 2 +
+          (line[i][1] - waypoint.location[1]) ** 2;
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
+      }
+      wayPoints.push(best);
+      from = best;
+    }
+
+    return {
+      routes: [
+        {
+          geometry: route.geometry,
+          summary: { distance: route.distance, duration: route.duration },
+          segments: route.legs.map((leg) => ({
+            distance: leg.distance,
+            duration: leg.duration,
+            steps: leg.steps.map((step) => ({
+              distance: step.distance,
+              duration: step.duration,
+              instruction: describeOsrmStep(step),
+            })),
+          })),
+          way_points: wayPoints,
+        },
+      ],
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function getDirections(
   request: OrsDirectionsRequest,
 ): Promise<OrsDirectionsResponse> {
   const profile = request.profile ?? "foot-walking";
 
-  return fetchOrs<OrsDirectionsResponse>(
+  const ors = fetchOrs<OrsDirectionsResponse>(
     `${ORS_BASE_URL}/v2/directions/${profile}/json`,
     {
       coordinates: request.coordinates,
@@ -112,6 +241,49 @@ export async function getDirections(
     },
     { cache: "no-store" },
   );
+
+  // OSRM can't do round trips, and only has a foot profile.
+  const canFallBack =
+    !request.options?.round_trip &&
+    (profile === "foot-walking" || profile === "foot-hiking");
+  if (!canFallBack) return ors;
+
+  return new Promise<OrsDirectionsResponse>((resolve, reject) => {
+    let settled = false;
+    let orsError: unknown;
+    let osrmStarted = false;
+    let osrmFailed = false;
+    let orsFailed = false;
+
+    const finish = (value: OrsDirectionsResponse) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(hedgeTimer);
+      resolve(value);
+    };
+    const maybeReject = () => {
+      if (!settled && orsFailed && osrmFailed) {
+        settled = true;
+        reject(orsError);
+      }
+    };
+    const startOsrm = () => {
+      if (osrmStarted || settled) return;
+      osrmStarted = true;
+      getOsrmFootDirections(request.coordinates).then(finish, () => {
+        osrmFailed = true;
+        maybeReject();
+      });
+    };
+
+    const hedgeTimer = setTimeout(startOsrm, OSRM_HEDGE_DELAY_MS);
+    ors.then(finish, (error) => {
+      orsError = error;
+      orsFailed = true;
+      startOsrm();
+      maybeReject();
+    });
+  });
 }
 
 // All-pairs walking-network distances in one request. ORS caps a foot profile at

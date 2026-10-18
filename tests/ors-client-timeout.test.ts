@@ -36,10 +36,62 @@ describe("ORS requests", () => {
       () => "rejected",
     );
 
-    await vi.advanceTimersByTimeAsync(ORS_TIMEOUT_MS - 1);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(ORS_TIMEOUT_MS);
 
     expect(await result).toBe("rejected");
+  });
+
+  it("answers from the OSRM foot fallback when ORS hangs", async () => {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url.includes("routing.openstreetmap.de")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            code: "Ok",
+            routes: [
+              {
+                geometry: "_p~iF~ps|U_ulLnnqC_mqNvxq`@",
+                distance: 100,
+                duration: 80,
+                legs: [
+                  {
+                    distance: 100,
+                    duration: 80,
+                    steps: [
+                      { distance: 100, duration: 80, name: "Main St", maneuver: { type: "depart", modifier: "north" } },
+                    ],
+                  },
+                ],
+              },
+            ],
+            waypoints: [
+              { location: [-120.2, 38.5] },
+              { location: [-126.453, 43.252] },
+            ],
+          }),
+        });
+      }
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("aborted", "AbortError")),
+        );
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = getDirections({
+      coordinates: [
+        [-120.2, 38.5],
+        [-126.453, 43.252],
+      ],
+    });
+    await vi.advanceTimersByTimeAsync(4_000);
+    const response = await result;
+
+    expect(response.routes[0].summary.distance).toBe(100);
+    expect(response.routes[0].way_points).toEqual([0, 2]);
+    expect(response.routes[0].segments[0].steps[0].instruction).toBe(
+      "Head north onto Main St",
+    );
   });
 });
