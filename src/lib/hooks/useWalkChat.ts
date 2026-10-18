@@ -16,6 +16,8 @@ export const MAX_CHAT_LLM_PER_WALK = 15;
 export const CHAT_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_MESSAGES = 6;
 const MAX_TEXT = 200;
+// "take me to X" is a command, not a question: a single detour offer runs without another tap.
+const GO_WORDS = /take (me|us)|bring (me|us)|go to|lead (me|us)|קח|תיקח|קחו|תקח|נלך|לך |סע |תוביל|הובל/i;
 
 export interface ChatMessage {
   id: number;
@@ -77,6 +79,13 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, text, actions } : m)));
   }, []);
 
+  const autoRun = (id: number, text: string, actions: ChatAction[]) => {
+    if (actions.length !== 1 || actions[0].kind !== "detour" || !GO_WORDS.test(text)) return;
+    usedIds.current.add(id);
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, used: true } : m)));
+    depsRef.current.onAction(actions[0]);
+  };
+
   const send = useCallback(
     (raw: string) => {
       const text = raw.trim().slice(0, MAX_TEXT);
@@ -93,7 +102,8 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
       const parsed = parseIntent(text, ctx.stops);
       if (parsed.intent !== "unknown") {
         const reply = resolveChat(parsed, ctx, lang);
-        push("app", reply.text, reply.actions);
+        const id = push("app", reply.text, reply.actions);
+        autoRun(id, text, reply.actions);
         return;
       }
       if (!isSignedIn) {
@@ -148,6 +158,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           const fresh = getContext() ?? ctx;
           const reply = resolveChat(intent, fresh, lang);
           replace(thinkingId, reply.text, reply.actions);
+          autoRun(thinkingId, text, reply.actions);
         } catch {
           fail(controller.signal.aborted ? copy.timeout : copy.network);
         } finally {

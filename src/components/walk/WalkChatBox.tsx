@@ -41,7 +41,13 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
       className="pointer-events-auto space-y-2 rounded-2xl border border-forest/15 bg-cream/95 p-3 shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur"
     >
       {chat.messages.length > 0 && (
-        <ul className="max-h-40 space-y-1.5 overflow-y-auto" aria-live="polite">
+        <ul
+          ref={(el) => {
+            if (el) el.scrollTop = el.scrollHeight;
+          }}
+          className="max-h-40 space-y-1.5 overflow-y-auto"
+          aria-live="polite"
+        >
           {chat.messages.slice(-SHOWN_MESSAGES).map((m) => (
             <li key={m.id} dir="auto" className={m.role === "user" ? "text-end" : "text-start"}>
               <p
