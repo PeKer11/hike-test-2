@@ -24,6 +24,12 @@ describe("resolveReasoningEffort", () => {
     expect(resolveReasoningEffort(1, "gpt-6-luna", env)).toBe("none");
     expect(resolveReasoningEffort(3, "gpt-6-luna", env)).toBe("low");
   });
+  it("turns reasoning off for luna by default, and leaves other models alone", () => {
+    expect(resolveReasoningEffort(1, "gpt-6-luna", {})).toBe("none");
+    expect(resolveReasoningEffort(2, "gpt-6-luna", {})).toBe("none");
+    expect(resolveReasoningEffort(1, "gpt-5-nano", {})).toBeUndefined();
+    expect(resolveReasoningEffort(3, "gpt-6.1-sol", {})).toBe("low");
+  });
   it("drops garbage and raises none to low for sol (which cannot disable reasoning)", () => {
     expect(resolveReasoningEffort(1, "m", { LLM_REASONING_EFFORT: "turbo" })).toBeUndefined();
     expect(resolveReasoningEffort(3, "gpt-6.1-sol", { LLM_REASONING_EFFORT_T3: "none" })).toBe("low");

@@ -103,7 +103,13 @@ export function resolveReasoningEffort(
 ): ReasoningEffort | undefined {
   const raw = tierVar(env, "LLM_REASONING_EFFORT", tier)?.toLowerCase();
   const effort = EFFORTS.find((e) => e === raw);
-  if (!effort) return /-(sol|astra)\b/.test(model) ? "low" : undefined;
+  if (!effort) {
+    if (/-(sol|astra)\b/.test(model)) return "low";
+    // Luna reasons by default: 120-300 hidden tokens, 2.4-4.3s on a short
+    // extraction, which blows the 6s tier-1 timeout on a real prompt. Extraction
+    // does not need it; "none" answers the same request in ~1.5s.
+    return /-luna\b/.test(model) ? "none" : undefined;
+  }
   if (/-(sol|astra)\b/.test(model) && (effort === "none" || effort === "minimal")) return "low";
   return effort;
 }
