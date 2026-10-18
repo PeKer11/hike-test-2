@@ -1,7 +1,7 @@
 "use client";
 
 import L from "leaflet";
-import { Marker, Popup } from "react-leaflet";
+import { Marker, Popup, Tooltip } from "react-leaflet";
 
 import type { Waypoint } from "@/lib/types";
 
@@ -95,6 +95,12 @@ export function MapMarkers({
                 : undefined
             }
           >
+            {/* Always-on label beside the marker: "E – <place name>". */}
+            <Tooltip permanent direction="right" offset={[14, 0]} opacity={0.95}>
+              <span dir="auto" className="text-xs font-semibold">
+                {label} – {waypoint.name}
+              </span>
+            </Tooltip>
             <Popup>
               <div className="space-y-1">
                 <div className="text-sm font-semibold">{waypoint.name}</div>

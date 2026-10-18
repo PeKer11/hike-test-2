@@ -28,6 +28,7 @@ vi.mock("react-leaflet", () => ({
     </button>
   ),
   Popup: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Tooltip: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
 }));
 
 const { MapMarkers, markerIconHtml, PIN_RING_COLOR } = await import(
