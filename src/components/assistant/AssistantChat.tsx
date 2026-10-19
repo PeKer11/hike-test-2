@@ -41,12 +41,41 @@ interface AssistantChatProps {
   /** Places the chat has found, shown as pins on the map. */
   onPlacesChange: (places: Attraction[]) => void;
   onBuild: (build: AssistantBuild) => void;
+  /** A place name in the chat was tapped: bring it into view on the map. */
+  onFocusPlace: (coordinates: Coordinates) => void;
 }
 
 // Unstated limits mean "no limit": the planner's largest accepted values.
 const NO_LIMIT_MINUTES = 480;
 const NO_LIMIT_RADIUS_KM = 10;
 const DEFAULT_PACE = 15;
+
+/** Message text with markdown asterisks removed and known place names turned into tappable links. */
+function renderMessage(
+  content: string,
+  places: Candidate[],
+  onFocusPlace: (coordinates: Coordinates) => void,
+) {
+  const text = content.replace(/\*\*/g, "");
+  const names = [...new Set(places.map((c) => c.name))].sort((a, b) => b.length - a.length);
+  if (names.length === 0) return text;
+  const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const parts = text.split(new RegExp(`(${escaped.join("|")})`));
+  return parts.map((part, i) => {
+    const place = places.find((c) => c.name === part);
+    if (!place) return part;
+    return (
+      <button
+        key={i}
+        type="button"
+        className="font-semibold text-terra underline decoration-dotted underline-offset-2"
+        onClick={() => onFocusPlace(place.coordinates)}
+      >
+        {part}
+      </button>
+    );
+  });
+}
 
 function toAttraction(c: Candidate): Attraction {
   return {
@@ -59,11 +88,12 @@ function toAttraction(c: Candidate): Attraction {
   };
 }
 
-export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild }: AssistantChatProps) {
+export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onFocusPlace }: AssistantChatProps) {
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [showChats, setShowChats] = useState(false);
+  const [places, setPlaces] = useState<Candidate[]>([]);
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +130,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild }: A
     setChatId(id);
     setMessages((rows ?? []) as Message[]);
     const candidates = ((chat?.state as Partial<AssistantState> | null)?.candidates ?? []) as Candidate[];
+    setPlaces(candidates);
     onPlacesChange(candidates.map(toAttraction));
     setShowChats(false);
     setError(null);
@@ -108,6 +139,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild }: A
   const newChat = () => {
     setChatId(null);
     setMessages([]);
+    setPlaces([]);
     onPlacesChange([]);
     setShowChats(false);
     setError(null);
@@ -140,6 +172,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild }: A
       }
       setChatId(data.chatId);
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
+      setPlaces(data.state.candidates);
       onPlacesChange(data.state.candidates.map(toAttraction));
       if (data.action) {
         const { params, stops } = data.action;
@@ -216,7 +249,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild }: A
               m.role === "user" ? "ms-8 bg-charcoal/10" : "me-8 bg-white"
             }`}
           >
-            {m.content}
+            {m.role === "assistant" ? renderMessage(m.content, places, onFocusPlace) : m.content}
           </div>
         ))}
         {pending && <p className="text-xs text-charcoal/50">Thinking…</p>}

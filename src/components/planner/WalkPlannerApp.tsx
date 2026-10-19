@@ -2951,6 +2951,7 @@ export function WalkPlannerApp({
                   origin={currentPosition ?? mapClickedCoords ?? null}
                   isBuilding={isWalkPlanLoading}
                   onPlacesChange={setPreviewPlaces}
+                  onFocusPlace={(coordinates) => focusOn(coordinates, 17)}
                   onBuild={(build: AssistantBuild) => {
                     setCurrentPosition(build.origin);
                     focusOn(build.origin, 14);
