@@ -121,6 +121,20 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "remember",
+      description:
+        "Save ONE lasting fact about the walker for all future chats: a diet, a mobility limit, who they walk with, a strong like or dislike, a habit. Short phrase in the walker's language, e.g. 'does not eat meat', 'walks with a stroller'. Only things that stay true beyond this walk; never a one-off request, a place, or a limit for this walk.",
+      parameters: {
+        type: "object",
+        properties: { fact: { type: "string" } },
+        required: ["fact"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "estimate_walk",
       description:
         "Estimate walking distance, walking minutes, visiting minutes and total time for visiting these stops from the start (real street distances, average pace). Use it to check the stops fit the walker's limits before build_walk.",
@@ -155,6 +169,8 @@ export interface ToolRun {
   action?: BuildAction;
   askLimits?: boolean;
   choices?: string[];
+  /** A lasting fact Sol asked to save; the route stores it. */
+  remember?: string;
 }
 
 interface Estimate {
@@ -331,6 +347,12 @@ export async function runTool(
         : [];
       if (options.length < 2) return { output: JSON.stringify({ error: "need 2-6 options" }), state };
       return { output: JSON.stringify({ ok: true, shown: true }), state, choices: options };
+    }
+
+    if (name === "remember") {
+      const fact = typeof args.fact === "string" ? args.fact.trim().slice(0, 120) : "";
+      if (fact.length < 3) return { output: JSON.stringify({ error: "fact too short" }), state };
+      return { output: JSON.stringify({ ok: true, saved: fact }), state, remember: fact };
     }
 
     if (name === "estimate_walk" || name === "build_walk") {

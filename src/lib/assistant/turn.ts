@@ -25,6 +25,8 @@ export interface TurnResult {
   action?: BuildAction;
   askLimits?: boolean;
   choices?: string[];
+  /** Lasting facts Sol decided to save this turn. */
+  remembered?: string[];
   billedMicros: number;
 }
 
@@ -41,6 +43,8 @@ export async function runAssistantTurn(
     summary: string | null;
     /** Taste guidance for open-ended requests (see defaults.ts). */
     tasteNote?: string;
+    /** What is already remembered about the walker (see route.ts). */
+    memoryNote?: string;
     history: TurnMessage[];
     state: AssistantState;
     choice: ProviderChoice;
@@ -53,6 +57,7 @@ export async function runAssistantTurn(
   let action: BuildAction | undefined;
   let askLimits = false;
   let choices: string[] | undefined;
+  const remembered: string[] = [];
   let billedMicros = 0;
 
   const known = state.candidates.length
@@ -68,6 +73,7 @@ export async function runAssistantTurn(
         ASSISTANT_SYSTEM +
         facts +
         (input.tasteNote ?? "") +
+        (input.memoryNote ?? "") +
         known +
         (input.summary ? `\n\nSummary of the earlier conversation:\n${input.summary}` : ""),
     },
@@ -87,7 +93,7 @@ export async function runAssistantTurn(
     billedMicros += estimateCostMicros(input.choice.model, response.inTok, response.outTok);
 
     if (response.toolCalls.length === 0) {
-      return { reply: (response.content ?? "").trim(), state, action, billedMicros };
+      return { reply: (response.content ?? "").trim(), state, action, remembered, billedMicros };
     }
     messages.push({ role: "assistant", content: response.content, tool_calls: response.toolCalls });
     for (const tc of response.toolCalls) {
@@ -96,6 +102,7 @@ export async function runAssistantTurn(
       if (run.action) action = run.action;
       if (run.askLimits) askLimits = true;
       if (run.choices) choices = run.choices;
+      if (run.remember) remembered.push(run.remember);
       messages.push({ role: "tool", tool_call_id: tc.id, content: run.output });
     }
     // A build ends the turn: the client now runs the planner.
@@ -109,13 +116,14 @@ export async function runAssistantTurn(
         reasoningEffort: input.effort,
       }).catch(() => null);
       if (final) billedMicros += estimateCostMicros(input.choice.model, final.inTok, final.outTok);
-      return { reply: (final?.content ?? "").trim(), state, action, askLimits, choices, billedMicros };
+      return { reply: (final?.content ?? "").trim(), state, action, askLimits, choices, remembered, billedMicros };
     }
   }
   return {
     reply: "I got tangled up — could you say that another way?",
     state,
     action,
+    remembered,
     billedMicros,
   };
 }

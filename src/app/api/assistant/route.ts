@@ -10,6 +10,8 @@ import { defaultParams, parseDefaults, tasteNote } from "@/lib/assistant/default
 import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
 import { getPreferredCategoryWeights, getProfileDefaults } from "@/lib/preferences/preference-store";
 import { runAssistantTurn, type TurnMessage } from "@/lib/assistant/turn";
+import { selectFactsForPrompt } from "@/lib/preferences/fact-extractor";
+import { getStandingFacts, learnFactsFromText } from "@/lib/preferences/fact-store";
 import { runMeteredTurn } from "@/lib/llm/llm-client";
 import { LlmBudgetExceededError } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
@@ -138,6 +140,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     state = { ...state, params: { ...state.params, paceMinPerKm: profile.walkingPaceMinPerKm } };
   }
   const taste = tasteNote(defaults, learned);
+  const facts = selectFactsForPrompt(await getStandingFacts(supabase, user.id), new Date());
+  const memoryNote = facts.length
+    ? `\nWhat you already remember about this walker (use it, do not ask again): ${facts.map((f) => f.text).join("; ")}.`
+    : "";
   const origin = parseOrigin(body.origin);
   if (origin && !state.origin) state = { ...state, origin };
   // Answers from the tap-to-choose limits boxes: null / missing = no limit.
@@ -164,7 +170,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste });
+        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste, memoryNote });
         let billed = turn.billedMicros;
         let newSummary = summary;
         let newSummarized = summarizedCount;
@@ -186,6 +192,12 @@ export async function POST(request: Request): Promise<NextResponse> {
         return { value: { turn, newSummary, newSummarized }, billedMicros: billed };
       },
     );
+
+    // Lasting facts Sol chose to keep go through the same store as the
+    // prompt-learned ones (dedupe, contradiction, cap, "forget everything").
+    for (const fact of (result.turn.remembered ?? []).slice(0, 3)) {
+      await learnFactsFromText(supabase, user.id, fact, { userId: user.id, ip: callerKey(request) }).catch(() => null);
+    }
 
     const reply = result.turn.reply || "…";
     await supabase.from("assistant_messages").insert([
