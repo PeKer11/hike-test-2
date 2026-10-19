@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { callerKey, chatRateLimiter, rateLimitedResponse } from "@/lib/api/rate-limit";
 import { runWalkTurn } from "@/lib/assistant/walk-turn";
+import { selectFactsForPrompt } from "@/lib/preferences/fact-extractor";
+import { getStandingFacts, learnFactsFromText } from "@/lib/preferences/fact-store";
 import { runMeteredTurn } from "@/lib/llm/llm-client";
 import { LlmBudgetExceededError } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
@@ -42,11 +44,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   const owners = (process.env.LLM_OWNER_USER_IDS ?? "").split(",").map((s) => s.trim());
   if (!owners.includes(user.id)) return NextResponse.json({ code: "notowner" }, { status: 403 });
 
+  const facts = selectFactsForPrompt(await getStandingFacts(supabase, user.id).catch(() => []), new Date());
+  const memoryNote = facts.length
+    ? `\nWhat you already know about this walker (use it, do not ask again): ${facts.map((f) => f.text).join("; ")}.`
+    : "";
+
   try {
     const result = await runMeteredTurn({ userId: user.id, ip: callerKey(request) }, 3, async (choice, effort) => {
-      const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, choice, effort });
+      const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, memoryNote, choice, effort });
       return { value: turn, billedMicros: turn.billedMicros };
     });
+    for (const fact of (result.remembered ?? []).slice(0, 3)) {
+      await learnFactsFromText(supabase, user.id, fact, { userId: user.id, ip: callerKey(request) }).catch(() => null);
+    }
     return NextResponse.json({ reply: result.reply, actions: result.actions });
   } catch (error) {
     if (error instanceof LlmBudgetExceededError) {

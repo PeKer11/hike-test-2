@@ -1145,6 +1145,14 @@ export function WalkPlannerApp({
     };
   };
 
+  // "Add a stop" buttons hand the choice to the chat model (owner only for now; the chat
+  // falls back to the plain rebuild for everyone else). TODO: paid tier.
+  const askForStopRef = useRef<(() => void) | null>(null);
+  const addStopViaChat = (reason: ReplanReason) => {
+    if (askForStopRef.current) askForStopRef.current();
+    else runPaceTriggeredRebuild(reason);
+  };
+
   const runPaceTriggeredRebuild = (reason: ReplanReason) => {
     const state = midWalkRebuildState();
     if (!state) return;
@@ -2649,7 +2657,8 @@ export function WalkPlannerApp({
             onClick: () => {
               const reason = paceConfirmation;
               clearPaceConfirmation();
-              runPaceTriggeredRebuild(reason);
+              if (!slow) addStopViaChat(reason);
+              else runPaceTriggeredRebuild(reason);
             },
           },
           {
@@ -2715,9 +2724,8 @@ export function WalkPlannerApp({
             primary: true,
             onClick: () => {
               setPaceAdvisory(null);
-              runPaceTriggeredRebuild(
-                slow ? "sustained-slow-pace" : "sustained-fast-pace",
-              );
+              if (!slow) addStopViaChat("sustained-fast-pace");
+              else runPaceTriggeredRebuild("sustained-slow-pace");
             },
           },
           ...(slow
@@ -2767,6 +2775,9 @@ export function WalkPlannerApp({
       }
     },
   });
+
+  askForStopRef.current = () =>
+    walkChat.openWith(uiLang === "he" ? "תוסיף עצירה — תבחר אחת בשבילי" : "Add a stop — pick the best one for me");
 
   // For the per-fix callout gate (a closure): is any card, or the options sheet, up?
   const optionsOffer = walkMode ? collapseFlow.offer : null;
