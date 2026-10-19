@@ -78,7 +78,7 @@ export function MapMarkers({
           : waypoint.isEnd
             ? "#16a34a"
             : "#2563eb";
-        const label = waypoint.isStart ? "S" : waypoint.isEnd ? "E" : String(index + 1);
+        const label = String(index + 1); // order of visit; colour still marks start (red) and end (green)
         const isPinned = pinnedIds.includes(waypoint.id);
 
         return (
