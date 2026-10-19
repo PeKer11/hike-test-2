@@ -339,6 +339,8 @@ export function WalkPlannerApp({
   const [lostStops, setLostStops] = useState<LostStop[]>([]);
   const walkTrackerRef = useRef<WalkTracker | SimulatedWalkTracker | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  // Set by the chat's start buttons; the effect below starts the walk once `isSimulating` has settled.
+  const [startRequested, setStartRequested] = useState(false);
   // Whether the simulated walker is currently off the planned line. Mirrors the
   // tracker's own flag, which is a ref and so cannot re-label the button.
   const [isSimulatedStray, setIsSimulatedStray] = useState(false);
@@ -758,6 +760,14 @@ export function WalkPlannerApp({
   // session: `stopWalkTracking` alone leaves the revert snapshot armed, so the
   // "back to previous route" button would still be sitting there afterwards and
   // would restart tracking on a walk the user had already ended.
+  useEffect(() => {
+    if (!startRequested) return;
+    setStartRequested(false);
+    handleStartWalk();
+    // handleStartWalk is rebuilt every render; this fires once per request, after isSimulating settled.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startRequested]);
+
   const handleEndWalk = () => {
     // Ask only about a walk that was actually walked, and only when there is
     // somewhere to put the answer: signed in, with preference learning on.
@@ -2952,6 +2962,11 @@ export function WalkPlannerApp({
                   isBuilding={isWalkPlanLoading}
                   onPlacesChange={setPreviewPlaces}
                   onFocusPlace={(coordinates) => focusOn(coordinates, 17)}
+                  walkReady={walkPhase === "planned"}
+                  onStart={(simulate) => {
+                    setIsSimulating(simulate);
+                    setStartRequested(true);
+                  }}
                   onBuild={(build: AssistantBuild) => {
                     setCurrentPosition(build.origin);
                     focusOn(build.origin, 14);

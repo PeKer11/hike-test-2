@@ -53,6 +53,9 @@ interface AssistantChatProps {
   onBuild: (build: AssistantBuild) => void;
   /** A place name in the chat was tapped: bring it into view on the map. */
   onFocusPlace: (coordinates: Coordinates) => void;
+  /** A walk has been built and can be started. */
+  walkReady: boolean;
+  onStart: (simulate: boolean) => void;
 }
 
 // Unstated limits mean "no limit": the planner's largest accepted values.
@@ -211,7 +214,7 @@ function toAttraction(c: Candidate): Attraction {
   };
 }
 
-export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onFocusPlace }: AssistantChatProps) {
+export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onFocusPlace, walkReady, onStart }: AssistantChatProps) {
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
@@ -419,6 +422,14 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
                 {c}
               </button>
             ))}
+          </div>
+        )}
+        {walkReady && !pending && !isBuilding && (
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={() => onStart(false)}>Start walk</Button>
+            <Button variant="secondary" onClick={() => onStart(true)}>
+              Simulate (10×)
+            </Button>
           </div>
         )}
         {pending && <p className="text-xs text-charcoal/50">Thinking…</p>}
