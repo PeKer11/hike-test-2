@@ -336,3 +336,4 @@ Verdict (clarified by Ariel 2026-10-19): **Google Places (New) is the primary so
 - [ ] Geoapify as Overpass fallback (category + radius search)
 - [ ] Cost guardrails: per-user caps on Places calls, review against the freemium pricing plan
 - [ ] **Research in depth: Foursquare** (Places API terms on caching/display, pricing since 2026-06-01, and the open FSQ OS Places / Overture dataset as a Supabase POI cache) — decide whether it adds anything over Google + OSM + Geoapify
+- [ ] **Israel Nature and Parks Authority (רשות הטבע והגנים)** as a supplementary source for nature/trails: check for an open data feed or API (parks, reserves, trails, opening hours, entry fees, closures, fire/flood warnings), its licence/ToS for use and caching, and how it merges under Google's results (Google wins on duplicates). Related to the existing trail-intelligence and GovMap items.
