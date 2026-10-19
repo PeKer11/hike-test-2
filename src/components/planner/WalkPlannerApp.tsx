@@ -3046,6 +3046,8 @@ export function WalkPlannerApp({
                   onDismiss={() => setLostStops([])}
                 />
               )}
+              {/* Signed-in users build through the assistant chat only; the form returns once a plan exists. */}
+              {(!isSignedIn || walkPhase !== "idle") && (
               <WalkCompanionPanel
                 isSignedIn={isSignedIn}
                 isLoading={isWalkPlanLoading}
@@ -3077,6 +3079,7 @@ export function WalkPlannerApp({
                 canRevertPlan={previousPlan !== null}
                 isWalking={walkPhase === "walking"}
               />
+              )}
               {/* Pinned stop no longer fits the remaining time — ask, don't drop it */}
               {pinnedTimeWarning && (
                 <Card className="space-y-2 border-amber-300 bg-amber-50">
