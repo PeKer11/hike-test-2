@@ -2596,6 +2596,21 @@ export function WalkPlannerApp({
               setOffRouteDismissed(true);
             },
           },
+          ...(isSignedIn
+            ? [
+                {
+                  label: walkCopy.offRoute.talk,
+                  onClick: () => {
+                    // Keep the question up: the walker may still tap an answer after talking.
+                    walkChat.openWith(
+                      uiLang === "he"
+                        ? "סטיתי מהמסלול. מה האפשרויות שלי? אפשר לתקן, לבנות מחדש מכאן או להמשיך בדרך שלי."
+                        : "I've gone off the planned route. What are my options? I could rejoin, redraw from here, or carry on my own way.",
+                    );
+                  },
+                },
+              ]
+            : []),
         ],
       };
     } else if (isOffRoute && !offRouteDismissed) {

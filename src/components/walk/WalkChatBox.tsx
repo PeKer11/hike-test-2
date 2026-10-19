@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import type { WalkChat } from "@/lib/hooks/useWalkChat";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
@@ -13,6 +13,9 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
   const copy = CHAT_COPY[lang];
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  useEffect(() => {
+    if (chat.openTick > 0) setOpen(true);
+  }, [chat.openTick]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();

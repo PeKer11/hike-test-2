@@ -66,6 +66,7 @@ export const walkCopy = {
     showWayBack: "Show way back",
     replan: "Redraw from here",
     dismiss: "I know where I'm going",
+    talk: "Ask the assistant",
     findingWay: "Finding the way back…",
     wayBackFailed: "Couldn't find a way back just now. Re-plan from here?",
   },

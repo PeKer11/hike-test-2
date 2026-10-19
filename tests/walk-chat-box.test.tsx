@@ -8,7 +8,7 @@ import type { WalkChat } from "@/lib/hooks/useWalkChat";
 afterEach(cleanup);
 
 function chatWith(over: Partial<WalkChat> = {}): WalkChat {
-  return { messages: [], pending: false, llmUsed: 0, send: vi.fn(), runAction: vi.fn(), reset: vi.fn(), ...over };
+  return { messages: [], pending: false, llmUsed: 0, send: vi.fn(), openTick: 0, openWith: vi.fn(), runAction: vi.fn(), reset: vi.fn(), ...over };
 }
 
 describe("WalkChatBox", () => {

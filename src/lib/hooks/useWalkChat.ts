@@ -47,6 +47,10 @@ export interface WalkChat {
   pending: boolean;
   llmUsed: number;
   send: (text: string) => void;
+  /** Bumps each time something outside asks for the chat box to open. */
+  openTick: number;
+  /** Open the chat box and send `text` as the walker's first words. */
+  openWith: (text: string) => void;
   runAction: (messageId: number, actionIndex: number) => void;
   /** Clear the conversation and the per-walk question count (call when a walk ends). */
   reset: () => void;
@@ -71,6 +75,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
   const llmUsedRef = useRef(0);
   const nextId = useRef(1);
   const freeChatOff = useRef(false);
+  const [openTick, setOpenTick] = useState(0);
   const requestId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -251,6 +256,14 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     [push, replace],
   );
 
+  const openWith = useCallback(
+    (text: string) => {
+      setOpenTick((n) => n + 1);
+      send(text);
+    },
+    [send],
+  );
+
   const runAction = useCallback((messageId: number, actionIndex: number) => {
     const message = messagesRef.current.find((m) => m.id === messageId);
     const action = message?.actions[actionIndex];
@@ -273,5 +286,5 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  return { messages, pending, llmUsed, send, runAction, reset };
+  return { messages, pending, llmUsed, send, openTick, openWith, runAction, reset };
 }
