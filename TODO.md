@@ -327,13 +327,13 @@
 
 ## POI data architecture — decided 2026-10-19 (Ariel)
 
-Verdict (clarified by Ariel 2026-10-19): **Google Places (New) is the primary source for everything** — it is the most reliable. Other sources only *add* what Google lacks, merged under Google's results: **OSM** for trails and nature (paths, springs, viewpoints, water, toilets, benches; ODbL attribution), **Geoapify** as the stability fallback when Google/Overpass is down. Google data: server-side, store only `place_id` + user preferences, show on a Google Map. On a duplicate, Google wins.
+Verdict (updated by Ariel 2026-10-19): **Now: Google Places (New) is the central source; OSM is an add-on** for what Google lacks (paths, springs, viewpoints, water, toilets, benches; ODbL attribution). If OSM/Overpass fails, that is acceptable — the walk is built from Google data alone. **Geoapify is deferred to a TODO** (not part of the current build). Google data: server-side, store only `place_id` + user preferences, show on a Google Map. On a duplicate, Google wins.
 
 - [ ] Server-side spike: Places (New) Nearby Search for Tel Aviv vs current Overpass results (no prod change)
 - [ ] Replace Leaflet with Google Maps JS (markers, route line, walked-path line, labels, preview lines, callouts)
 - [ ] Verify Google ToS: may Places content be passed to an external LLM (Sol)? If not, rank in code only
 - [ ] Persist preferences by `place_id` (liked cafe at time X) — no Google content stored
-- [ ] Geoapify as Overpass fallback (category + radius search)
+- [ ] (Deferred, not now) Geoapify as an Overpass/Google fallback (category + radius search)
 - [ ] Cost guardrails: per-user caps on Places calls, review against the freemium pricing plan
 - [ ] **Research in depth: Foursquare** (Places API terms on caching/display, pricing since 2026-06-01, and the open FSQ OS Places / Overture dataset as a Supabase POI cache) — decide whether it adds anything over Google + OSM + Geoapify
 - [ ] **Israel Nature and Parks Authority (רשות הטבע והגנים)** as a supplementary source for nature/trails: check for an open data feed or API (parks, reserves, trails, opening hours, entry fees, closures, fire/flood warnings), its licence/ToS for use and caching, and how it merges under Google's results (Google wins on duplicates). Related to the existing trail-intelligence and GovMap items.
