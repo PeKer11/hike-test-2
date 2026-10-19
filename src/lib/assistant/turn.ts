@@ -23,6 +23,7 @@ export interface TurnResult {
   reply: string;
   state: AssistantState;
   action?: BuildAction;
+  askLimits?: boolean;
   billedMicros: number;
 }
 
@@ -47,6 +48,7 @@ export async function runAssistantTurn(
   const call = deps.call ?? callOpenAiTools;
   let state = input.state;
   let action: BuildAction | undefined;
+  let askLimits = false;
   let billedMicros = 0;
 
   const known = state.candidates.length
@@ -54,7 +56,7 @@ export async function runAssistantTurn(
         state.candidates.map((c) => ({ id: c.id, name: c.name, kind: c.category })),
       )}`
     : "";
-  const facts = `\nStart point set: ${state.origin ? "yes" : "no"}. Limits stated so far: ${JSON.stringify(state.params)}.`;
+  const facts = `\nStart point set: ${state.origin ? "yes" : "no"}. Limits settled: ${state.limitsSettled ? "yes" : "no"}. Limits so far: ${JSON.stringify(state.params)} (a missing field means no limit).`;
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -87,10 +89,11 @@ export async function runAssistantTurn(
       const run = await runTool(tc.function.name, tc.function.arguments, state);
       state = run.state;
       if (run.action) action = run.action;
+      if (run.askLimits) askLimits = true;
       messages.push({ role: "tool", tool_call_id: tc.id, content: run.output });
     }
     // A build ends the turn: the client now runs the planner.
-    if (action) {
+    if (action || askLimits) {
       const final = await call({
         model: input.choice.model,
         messages,
@@ -100,7 +103,7 @@ export async function runAssistantTurn(
         reasoningEffort: input.effort,
       }).catch(() => null);
       if (final) billedMicros += estimateCostMicros(input.choice.model, final.inTok, final.outTok);
-      return { reply: (final?.content ?? "").trim(), state, action, billedMicros };
+      return { reply: (final?.content ?? "").trim(), state, action, askLimits, billedMicros };
     }
   }
   return {

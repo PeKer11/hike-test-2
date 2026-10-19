@@ -20,6 +20,7 @@ interface AssistantRequest {
   message?: unknown;
   /** Where the walker is now (GPS or map pin); only used while no start is set. */
   origin?: unknown;
+  limits?: unknown;
 }
 
 function parseOrigin(value: unknown): { lat: number; lng: number } | null {
@@ -37,6 +38,7 @@ function asState(raw: unknown): AssistantState {
     params: s.params ?? {},
     candidates: Array.isArray(s.candidates) ? s.candidates : [],
     chosen: Array.isArray(s.chosen) ? s.chosen : [],
+    limitsSettled: s.limitsSettled === true,
   };
 }
 
@@ -109,6 +111,22 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const origin = parseOrigin(body.origin);
   if (origin && !state.origin) state = { ...state, origin };
+  // Answers from the tap-to-choose limits boxes: null / missing = no limit.
+  if (typeof body.limits === "object" && body.limits !== null) {
+    const l = body.limits as Record<string, unknown>;
+    const pick = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 && v < 10000 ? v : undefined);
+    state = {
+      ...state,
+      limitsSettled: true,
+      params: {
+        ...state.params,
+        timeMinutes: pick(l.timeMinutes),
+        radiusKm: pick(l.radiusKm),
+        endDistanceKm: pick(l.endDistanceKm),
+        maxWalkKm: pick(l.maxWalkKm),
+      },
+    };
+  }
   history = [...history, { role: "user", content: message }];
 
   try {
@@ -160,6 +178,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       reply,
       state: result.turn.state,
       action: result.turn.action ?? null,
+      askLimits: result.turn.askLimits ?? false,
     });
   } catch (error) {
     if (error instanceof LlmBudgetExceededError) {

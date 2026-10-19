@@ -5,7 +5,17 @@ export interface WalkParams {
   timeMinutes?: number;
   radiusKm?: number;
   endDistanceKm?: number;
+  /** Cap on the total distance walked (the whole route, not the distance from the start). */
+  maxWalkKm?: number;
   paceMinPerKm?: number;
+}
+
+/** Average adult walking pace (~4.8 km/h) until we have learned the walker's own. */
+export const DEFAULT_PACE_MIN_PER_KM = 12.5;
+
+/** Minutes spent at a stop, by kind of place. */
+export function visitMinutes(category: string): number {
+  return category === "food" ? 45 : category === "museum" ? 60 : category === "park" || category === "nature" ? 25 : 30;
 }
 
 /** A real place Sol has seen. Sol only ever refers to it by `id`. */
@@ -28,6 +38,8 @@ export interface AssistantState {
   candidates: Candidate[];
   /** Candidate ids the walker has agreed to. */
   chosen: string[];
+  /** The walker has answered (or waived) time / radius / distance limits. */
+  limitsSettled?: boolean;
 }
 
 export const EMPTY_STATE: AssistantState = {

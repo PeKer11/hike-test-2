@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/api/ors-client", () => ({
+  getMatrix: vi.fn(async () => {
+    throw new Error("no network in tests");
+  }),
+}));
 vi.mock("@/lib/api/google-places-client", () => ({
   searchTextPlaces: vi.fn(),
   searchNearbyPlaces: vi.fn(),
@@ -47,7 +52,10 @@ describe("assistant tools", () => {
       ...EMPTY_STATE,
       origin: { lat: 32, lng: 34 },
     });
-    const run = await runTool("build_walk", JSON.stringify({ stop_ids: ["c1", "zzz"] }), found.state);
+    const run = await runTool("build_walk", JSON.stringify({ stop_ids: ["c1", "zzz"] }), {
+      ...found.state,
+      limitsSettled: true,
+    });
     expect(run.action?.stops).toHaveLength(1);
     expect(run.action?.origin).toEqual({ lat: 32, lng: 34 });
   });
@@ -95,6 +103,7 @@ describe("runAssistantTurn", () => {
   it("stops after a build and returns the action", async () => {
     const state = {
       ...EMPTY_STATE,
+      limitsSettled: true,
       origin: { lat: 1, lng: 1 },
       candidates: [{ id: "c1", name: "A", coordinates: { lat: 1, lng: 1 }, category: "food" as const, placeId: "p" }],
     };

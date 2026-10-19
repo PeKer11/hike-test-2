@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { Button, Card } from "@/components/ui";
-import type { AssistantState, BuildAction, Candidate } from "@/lib/assistant/state";
+import {
+  DEFAULT_PACE_MIN_PER_KM,
+  type AssistantState,
+  type BuildAction,
+  type Candidate,
+} from "@/lib/assistant/state";
 import { createClient } from "@/lib/supabase/client";
 import type { Attraction, Coordinates } from "@/lib/types";
 
@@ -22,6 +27,7 @@ interface AssistantReply {
   reply: string;
   state: AssistantState;
   action: BuildAction | null;
+  askLimits?: boolean;
   error?: string;
 }
 
@@ -48,7 +54,7 @@ interface AssistantChatProps {
 // Unstated limits mean "no limit": the planner's largest accepted values.
 const NO_LIMIT_MINUTES = 480;
 const NO_LIMIT_RADIUS_KM = 10;
-const DEFAULT_PACE = 15;
+const DEFAULT_PACE = DEFAULT_PACE_MIN_PER_KM;
 
 /** Message text with markdown asterisks removed and known place names turned into tappable links. */
 function renderMessage(
@@ -77,6 +83,76 @@ function renderMessage(
   });
 }
 
+type LimitKey = "timeMinutes" | "radiusKm" | "endDistanceKm" | "maxWalkKm";
+type Limits = Record<LimitKey, number | null>;
+
+const LIMIT_ROWS: Array<{ key: LimitKey; label: string; unit: string; options: number[] }> = [
+  { key: "timeMinutes", label: "Time available", unit: "min", options: [30, 60, 90, 120, 180] },
+  { key: "radiusKm", label: "Search radius from you", unit: "km", options: [1, 2, 5, 10] },
+  { key: "endDistanceKm", label: "End at most this far from the start", unit: "km", options: [1, 2, 5] },
+  { key: "maxWalkKm", label: "Max walking distance", unit: "km", options: [3, 5, 8, 12] },
+];
+
+const NO_LIMITS: Limits = { timeMinutes: null, radiusKm: null, endDistanceKm: null, maxWalkKm: null };
+
+function describeLimits(l: Limits): string {
+  return (
+    "Limits: " +
+    LIMIT_ROWS.map((r) => `${r.label.toLowerCase()}: ${l[r.key] === null ? "no limit" : `${l[r.key]} ${r.unit}`}`).join("; ")
+  );
+}
+
+function LimitsBox({ onConfirm, disabled }: { onConfirm: (l: Limits) => void; disabled: boolean }) {
+  const [limits, setLimits] = useState<Limits>(NO_LIMITS);
+  return (
+    <div className="space-y-2 rounded-xl border border-charcoal/10 bg-white p-3">
+      {LIMIT_ROWS.map((row) => (
+        <div key={row.key} className="space-y-1">
+          <p className="text-xs font-medium text-charcoal/70">{row.label}</p>
+          <div className="flex flex-wrap items-center gap-1">
+            {row.options.map((o) => (
+              <button
+                key={o}
+                type="button"
+                onClick={() => setLimits((l) => ({ ...l, [row.key]: o }))}
+                className={`rounded-full border px-2 py-1 text-xs ${
+                  limits[row.key] === o ? "border-terra bg-terra text-white" : "border-charcoal/15"
+                }`}
+              >
+                {o} {row.unit}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setLimits((l) => ({ ...l, [row.key]: null }))}
+              className={`rounded-full border px-2 py-1 text-xs ${
+                limits[row.key] === null ? "border-terra bg-terra text-white" : "border-charcoal/15"
+              }`}
+            >
+              No limit
+            </button>
+            <input
+              type="number"
+              min={1}
+              inputMode="decimal"
+              placeholder="other"
+              aria-label={`${row.label} (${row.unit})`}
+              className="w-16 rounded-full border border-charcoal/15 px-2 py-1 text-xs"
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                setLimits((l) => ({ ...l, [row.key]: n > 0 ? n : null }));
+              }}
+            />
+          </div>
+        </div>
+      ))}
+      <Button fullWidth disabled={disabled} onClick={() => onConfirm(limits)}>
+        Confirm
+      </Button>
+    </div>
+  );
+}
+
 function toAttraction(c: Candidate): Attraction {
   return {
     id: c.id,
@@ -95,6 +171,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
   const [showChats, setShowChats] = useState(false);
   const [places, setPlaces] = useState<Candidate[]>([]);
   const [text, setText] = useState("");
+  const [limitsOpen, setLimitsOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -151,11 +228,12 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
     void refreshChats();
   };
 
-  const send = async (event: FormEvent) => {
-    event.preventDefault();
-    const message = text.trim();
+  const send = async (event: FormEvent | null, override?: { message: string; limits: Limits }) => {
+    event?.preventDefault();
+    const message = override?.message ?? text.trim();
     if (!message || pending) return;
-    setText("");
+    setLimitsOpen(false);
+    if (!override) setText("");
     setError(null);
     setMessages((m) => [...m, { role: "user", content: message }]);
     setPending(true);
@@ -163,7 +241,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, message, origin }),
+        body: JSON.stringify({ chatId, message, origin, ...(override ? { limits: override.limits } : {}) }),
       });
       const data = (await response.json()) as AssistantReply;
       if (!response.ok) {
@@ -174,6 +252,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
       setPlaces(data.state.candidates);
       onPlacesChange(data.state.candidates.map(toAttraction));
+      setLimitsOpen(data.askLimits === true);
       if (data.action) {
         const { params, stops } = data.action;
         onBuild({
@@ -252,12 +331,18 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
             {m.role === "assistant" ? renderMessage(m.content, places, onFocusPlace) : m.content}
           </div>
         ))}
+        {limitsOpen && !pending && (
+          <LimitsBox
+            disabled={pending}
+            onConfirm={(l) => void send(null, { message: describeLimits(l), limits: l })}
+          />
+        )}
         {pending && <p className="text-xs text-charcoal/50">Thinking…</p>}
       </div>
 
       {error && <p className="text-xs text-red-700">{error}</p>}
 
-      <form onSubmit={send} className="space-y-2">
+      <form onSubmit={(e) => void send(e)} className="space-y-2">
         <textarea
           dir="auto"
           value={text}
