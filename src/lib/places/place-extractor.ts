@@ -715,6 +715,12 @@ const AREA_PLACE_KINDS = new Set([
   "suburb",
   "town",
   "village",
+  // Google Places names for the same things.
+  "neighborhood",
+  "sublocality",
+  "administrative_area_level_1",
+  "administrative_area_level_2",
+  "administrative_area_level_3",
 ]);
 
 /**

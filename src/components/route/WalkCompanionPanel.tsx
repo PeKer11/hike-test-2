@@ -467,9 +467,22 @@ export function WalkCompanionPanel({
 
       {/* Search radius */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-charcoal/80">
-          Search radius (km)
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium text-charcoal/80">
+            Search radius (km)
+          </label>
+          <button
+            type="button"
+            onClick={() => setRadiusKm(radiusKm === "" ? "2" : "")}
+            className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
+              radiusKm === ""
+                ? "border-terra bg-terra/10 text-terra"
+                : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
+            }`}
+          >
+            No radius limit
+          </button>
+        </div>
         <input
           type="number"
           min={0.5}
@@ -484,9 +497,22 @@ export function WalkCompanionPanel({
 
       {/* Finish distance from the start */}
       <div className="space-y-1">
-        <label className="text-xs font-medium text-charcoal/80">
-          Max distance from start at end (km)
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium text-charcoal/80">
+            Max distance from start at end (km)
+          </label>
+          <button
+            type="button"
+            onClick={() => setEndDistanceKm(endDistanceKm === "" ? "2" : "")}
+            className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
+              endDistanceKm === ""
+                ? "border-terra bg-terra/10 text-terra"
+                : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
+            }`}
+          >
+            No limit
+          </button>
+        </div>
         <input
           type="number"
           min={0}

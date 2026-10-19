@@ -4,6 +4,11 @@ import {
   extractPlaceNames,
   resolveCanonicalName,
 } from "@/lib/api/gemini-client";
+import {
+  googlePlacesAvailable,
+  searchNearbyPlaces,
+  searchTextPlaces,
+} from "@/lib/api/google-places-client";
 import { searchPlaces } from "@/lib/api/nominatim-client";
 import {
   callerKey,
@@ -153,6 +158,27 @@ async function geocode(
   name: string,
   bias: Coordinates | undefined,
 ): Promise<GeocodeMatch | null> {
+  // Google finds a named place anywhere ("Habima, Tel Aviv") and only prefers
+  // the bias; any failure just falls through to Nominatim as before.
+  if (googlePlacesAvailable()) {
+    try {
+      const [place] = await searchTextPlaces(name, bias);
+      if (place) {
+        return {
+          coordinates: place.coordinates,
+          // A town comes back with no primaryType, only `types: ["locality", ...]`.
+          kind:
+            place.primaryType ??
+            place.types.find((t) => /^(locality|sublocality|neighborhood|administrative_area)/.test(t)) ??
+            place.types[0] ??
+            null,
+          displayName: place.name,
+        };
+      }
+    } catch {
+      // Fall through to Nominatim.
+    }
+  }
   try {
     const [match] = await searchPlaces(name, 1, bias);
     const lat = Number(match?.lat);
@@ -218,6 +244,12 @@ async function findNeedAttractions(
   }
 
   let picked: Attraction[] = [];
+  if (googlePlacesAvailable()) {
+    picked = await findNeedsViaGoogle(categories, origin, excludeNames, count);
+    if (picked.length >= Math.max(count ?? 0, categories.length)) {
+      return count ? picked.slice(0, Math.max(count, categories.length)) : picked;
+    }
+  }
   try {
     // The public Overpass mirrors are often down or hung; a walker should not
     // wait out every retry for a stop, so give them a fixed budget.
@@ -233,7 +265,11 @@ async function findNeedAttractions(
       availableMinutes: durationMinutes ?? FALLBACK_WALK_MINUTES,
       walkingPaceMinPerKm: NEED_RANKING_PACE_MIN_PER_KM,
     });
-    picked = pickNeedAttractions(ranked, categories, count);
+    const have = new Set(picked.map((a) => a.category));
+    const osmPicked = pickNeedAttractions(ranked, categories, count).filter(
+      (a) => !have.has(a.category) || (count ?? 0) > picked.length,
+    );
+    picked = [...picked, ...osmPicked.filter((a) => !picked.some((p) => p.name === a.name))];
   } catch {
     // Fall through: whatever is still missing is looked up on Nominatim below.
   }
@@ -248,6 +284,61 @@ async function findNeedAttractions(
   const extra = await findNeedsViaNominatim(nominatimKinds, origin, new Set([...excludeNames, ...picked.map((a) => a.name)]), perKind);
   const all = [...picked, ...extra];
   return count ? all.slice(0, Math.max(count, picked.length)) : all;
+}
+
+/**
+ * One stop per requested kind from Google, nearest first, then topped up
+ * round-robin from the same kinds until `count` is reached. Any failure just
+ * contributes fewer stops; the caller falls back to OSM for the rest.
+ */
+async function findNeedsViaGoogle(
+  categories: AttractionCategory[],
+  origin: Coordinates,
+  excludeNames: Set<string>,
+  count?: number | null,
+): Promise<Attraction[]> {
+  const pools = new Map<AttractionCategory, Attraction[]>();
+  await Promise.all(
+    categories.map(async (category) => {
+      try {
+        const places = await searchNearbyPlaces(category, origin, NEED_SEARCH_RADIUS_METERS);
+        pools.set(
+          category,
+          places
+            .filter((p) => !excludeNames.has(p.name))
+            .map((p) => ({
+              id: `gp-${p.placeId}`,
+              name: p.name,
+              coordinates: p.coordinates,
+              category,
+              avgVisitMinutes: category === "food" ? 45 : 30,
+              tags: { source: "prompt-need", needCategory: category, via: "google", placeId: p.placeId },
+              distanceFromOriginMeters: Math.round(haversineDistance(origin, p.coordinates)),
+            }))
+            .sort((a, b) => (a.distanceFromOriginMeters ?? 0) - (b.distanceFromOriginMeters ?? 0)),
+        );
+      } catch {
+        // No Google stops for this kind.
+      }
+    }),
+  );
+  const target = Math.max(count ?? 0, categories.length);
+  const picked: Attraction[] = [];
+  const used = new Set<string>();
+  let progressed = true;
+  while (picked.length < target && progressed) {
+    progressed = false;
+    for (const category of categories) {
+      if (picked.length >= target) break;
+      const next = pools.get(category)?.find((a) => !used.has(a.id) && !picked.some((p) => p.name === a.name));
+      if (next) {
+        used.add(next.id);
+        picked.push(next);
+        progressed = true;
+      }
+    }
+  }
+  return picked;
 }
 
 /** Nominatim search word per kind of stop, for when Overpass has nothing. */
