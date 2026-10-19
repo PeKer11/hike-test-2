@@ -3050,6 +3050,7 @@ export function WalkPlannerApp({
               {/* Signed-in users build through the assistant chat only; the form returns once a plan exists. */}
               {(!isSignedIn || walkPhase !== "idle") && (
               <WalkCompanionPanel
+                chatOnly={isSignedIn}
                 isSignedIn={isSignedIn}
                 isLoading={isWalkPlanLoading}
                 onBuildWalk={(input) => {

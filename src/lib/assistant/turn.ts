@@ -24,6 +24,7 @@ export interface TurnResult {
   state: AssistantState;
   action?: BuildAction;
   askLimits?: boolean;
+  choices?: string[];
   billedMicros: number;
 }
 
@@ -38,6 +39,8 @@ export interface TurnDeps {
 export async function runAssistantTurn(
   input: {
     summary: string | null;
+    /** Taste guidance for open-ended requests (see defaults.ts). */
+    tasteNote?: string;
     history: TurnMessage[];
     state: AssistantState;
     choice: ProviderChoice;
@@ -49,6 +52,7 @@ export async function runAssistantTurn(
   let state = input.state;
   let action: BuildAction | undefined;
   let askLimits = false;
+  let choices: string[] | undefined;
   let billedMicros = 0;
 
   const known = state.candidates.length
@@ -63,6 +67,7 @@ export async function runAssistantTurn(
       content:
         ASSISTANT_SYSTEM +
         facts +
+        (input.tasteNote ?? "") +
         known +
         (input.summary ? `\n\nSummary of the earlier conversation:\n${input.summary}` : ""),
     },
@@ -90,10 +95,11 @@ export async function runAssistantTurn(
       state = run.state;
       if (run.action) action = run.action;
       if (run.askLimits) askLimits = true;
+      if (run.choices) choices = run.choices;
       messages.push({ role: "tool", tool_call_id: tc.id, content: run.output });
     }
     // A build ends the turn: the client now runs the planner.
-    if (action || askLimits) {
+    if (action || askLimits || choices) {
       const final = await call({
         model: input.choice.model,
         messages,
@@ -103,7 +109,7 @@ export async function runAssistantTurn(
         reasoningEffort: input.effort,
       }).catch(() => null);
       if (final) billedMicros += estimateCostMicros(input.choice.model, final.inTok, final.outTok);
-      return { reply: (final?.content ?? "").trim(), state, action, askLimits, billedMicros };
+      return { reply: (final?.content ?? "").trim(), state, action, askLimits, choices, billedMicros };
     }
   }
   return {

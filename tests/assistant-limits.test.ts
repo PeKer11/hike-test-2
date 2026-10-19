@@ -54,3 +54,24 @@ describe("assistant limits", () => {
     expect(run.action?.stops).toHaveLength(2);
   });
 });
+
+import { defaultParams, parseDefaults, tasteNote } from "@/lib/assistant/defaults";
+
+describe("assistant defaults", () => {
+  it("keeps only sane values and known kinds", () => {
+    const d = parseDefaults({ timeMinutes: 90, radiusKm: -1, paceMinPerKm: 15, tastes: { park: "more", bogus: "more", food: "x" } });
+    expect(defaultParams(d)).toEqual({ timeMinutes: 90, paceMinPerKm: 15 });
+    expect(d.tastes).toEqual({ park: "more" });
+  });
+
+  it("tells the model when history is dominated by one kind", () => {
+    const note = tasteNote({}, new Map([["museum", 9], ["park", 1]]));
+    expect(note).toContain("dominated");
+    expect(note).toContain("museum 90%");
+  });
+
+  it("offer_choices needs at least two options", async () => {
+    expect((await runTool("offer_choices", JSON.stringify({ options: ["a"] }), base)).choices).toBeUndefined();
+    expect((await runTool("offer_choices", JSON.stringify({ options: ["a", "b"] }), base)).choices).toEqual(["a", "b"]);
+  });
+});

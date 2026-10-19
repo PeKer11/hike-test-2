@@ -10,6 +10,8 @@ import {
   type Candidate,
 } from "@/lib/assistant/state";
 import { createClient } from "@/lib/supabase/client";
+import type { AssistantDefaults } from "@/lib/assistant/defaults";
+import { AssistantSettings, PACE_PRESETS, useAssistantDefaults } from "./AssistantSettings";
 import type { Attraction, Coordinates } from "@/lib/types";
 
 interface Message {
@@ -28,6 +30,8 @@ interface AssistantReply {
   state: AssistantState;
   action: BuildAction | null;
   askLimits?: boolean;
+  choices?: string[] | null;
+  paceKnown?: boolean;
   error?: string;
 }
 
@@ -91,7 +95,7 @@ function renderMessage(
 }
 
 type LimitKey = "timeMinutes" | "radiusKm" | "endDistanceKm" | "maxWalkKm";
-type Limits = Record<LimitKey, number | null>;
+type Limits = Record<LimitKey, number | null> & { paceMinPerKm?: number };
 
 const LIMIT_ROWS: Array<{ key: LimitKey; label: string; unit: string; options: number[] }> = [
   { key: "timeMinutes", label: "Time available", unit: "min", options: [30, 60, 90, 120, 180] },
@@ -105,12 +109,29 @@ const NO_LIMITS: Limits = { timeMinutes: null, radiusKm: null, endDistanceKm: nu
 function describeLimits(l: Limits): string {
   return (
     "Limits: " +
-    LIMIT_ROWS.map((r) => `${r.label.toLowerCase()}: ${l[r.key] === null ? "no limit" : `${l[r.key]} ${r.unit}`}`).join("; ")
+    LIMIT_ROWS.map((r) => `${r.label.toLowerCase()}: ${l[r.key] === null ? "no limit" : `${l[r.key]} ${r.unit}`}`).join("; ") +
+    (l.paceMinPerKm ? `; walking pace: ${l.paceMinPerKm} min/km` : "")
   );
 }
 
-function LimitsBox({ onConfirm, disabled }: { onConfirm: (l: Limits) => void; disabled: boolean }) {
-  const [limits, setLimits] = useState<Limits>(NO_LIMITS);
+function LimitsBox({
+  onConfirm,
+  disabled,
+  defaults,
+  askPace,
+}: {
+  onConfirm: (l: Limits) => void;
+  disabled: boolean;
+  defaults: AssistantDefaults;
+  askPace: boolean;
+}) {
+  // Starts from the walker's saved defaults (the gear menu); anything unset is "no limit".
+  const [limits, setLimits] = useState<Limits>({
+    timeMinutes: defaults.timeMinutes ?? null,
+    radiusKm: defaults.radiusKm ?? null,
+    endDistanceKm: defaults.endDistanceKm ?? null,
+    maxWalkKm: defaults.maxWalkKm ?? null,
+  });
   return (
     <div className="space-y-2 rounded-xl border border-charcoal/10 bg-white p-3">
       {LIMIT_ROWS.map((row) => (
@@ -153,6 +174,25 @@ function LimitsBox({ onConfirm, disabled }: { onConfirm: (l: Limits) => void; di
           </div>
         </div>
       ))}
+      {askPace && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-charcoal/70">How fast do you usually walk? (once)</p>
+          <div className="flex flex-wrap gap-1">
+            {PACE_PRESETS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => setLimits((l) => ({ ...l, paceMinPerKm: p.value }))}
+                className={`rounded-full border px-2 py-1 text-xs ${
+                  limits.paceMinPerKm === p.value ? "border-terra bg-terra text-white" : "border-charcoal/15"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <Button fullWidth disabled={disabled} onClick={() => onConfirm(limits)}>
         Confirm
       </Button>
@@ -179,6 +219,10 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
   const [places, setPlaces] = useState<Candidate[]>([]);
   const [text, setText] = useState("");
   const [limitsOpen, setLimitsOpen] = useState(false);
+  const [askPace, setAskPace] = useState(false);
+  const [choices, setChoices] = useState<string[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { defaults, setDefaults } = useAssistantDefaults();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -235,11 +279,12 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
     void refreshChats();
   };
 
-  const send = async (event: FormEvent | null, override?: { message: string; limits: Limits }) => {
+  const send = async (event: FormEvent | null, override?: { message: string; limits?: Limits }) => {
     event?.preventDefault();
     const message = override?.message ?? text.trim();
     if (!message || pending) return;
     setLimitsOpen(false);
+    setChoices([]);
     if (!override) setText("");
     setError(null);
     setMessages((m) => [...m, { role: "user", content: message }]);
@@ -248,7 +293,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, message, origin, ...(override ? { limits: override.limits } : {}) }),
+        body: JSON.stringify({ chatId, message, origin, defaults, ...(override?.limits ? { limits: override.limits } : {}) }),
       });
       const data = (await response.json()) as AssistantReply;
       if (!response.ok) {
@@ -260,6 +305,8 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
       setPlaces(data.state.candidates);
       onPlacesChange(data.state.candidates.map(toAttraction));
       setLimitsOpen(data.askLimits === true);
+      setAskPace(data.paceKnown === false && defaults.paceMinPerKm === undefined);
+      setChoices(data.choices ?? []);
       if (data.action) {
         const { params, stops } = data.action;
         onBuild({
@@ -291,8 +338,19 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
           <button type="button" className="underline text-charcoal/70" onClick={newChat}>
             New chat
           </button>
+          <button
+            type="button"
+            aria-label="Assistant settings"
+            title="Settings"
+            className={`text-base leading-none ${settingsOpen ? "text-terra" : "text-charcoal/70"}`}
+            onClick={() => setSettingsOpen((v) => !v)}
+          >
+            ⚙
+          </button>
         </div>
       </div>
+
+      {settingsOpen && <AssistantSettings defaults={defaults} onChange={setDefaults} />}
 
       {showChats && (
         <ul className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-charcoal/10 bg-white p-1">
@@ -341,8 +399,27 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
         {limitsOpen && !pending && (
           <LimitsBox
             disabled={pending}
-            onConfirm={(l) => void send(null, { message: describeLimits(l), limits: l })}
+            defaults={defaults}
+            askPace={askPace}
+            onConfirm={(l) => {
+              if (l.paceMinPerKm) setDefaults({ paceMinPerKm: l.paceMinPerKm });
+              void send(null, { message: describeLimits(l), limits: l });
+            }}
           />
+        )}
+        {choices.length > 0 && !pending && (
+          <div className="flex flex-wrap gap-1">
+            {choices.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className="rounded-full border border-terra px-3 py-1 text-sm text-terra"
+                onClick={() => void send(null, { message: c })}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
         )}
         {pending && <p className="text-xs text-charcoal/50">Thinking…</p>}
       </div>

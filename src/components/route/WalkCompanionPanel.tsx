@@ -85,6 +85,8 @@ interface WalkCompanionPanelProps {
   onRevertPlan?: () => void;
   canRevertPlan?: boolean;
   walkPlanReady?: boolean;
+  /** Signed-in walkers build through the chat: hide the form fields and Build button. */
+  chatOnly?: boolean;
   isWalking?: boolean;
 }
 
@@ -142,6 +144,7 @@ export function WalkCompanionPanel({
   onRevertPlan,
   canRevertPlan = false,
   walkPlanReady = false,
+  chatOnly = false,
   isWalking = false,
 }: WalkCompanionPanelProps) {
   const [lat, setLat] = useState("");
@@ -405,6 +408,8 @@ export function WalkCompanionPanel({
         </p>
       </div>
 
+      {!chatOnly && (
+      <>
       {/* Location */}
       <div className="space-y-2">
         <Button
@@ -588,6 +593,9 @@ export function WalkCompanionPanel({
         </div>
       </div>
 
+      </>
+      )}
+
       {/* Walk settings */}
       <WalkSettingsPanel settings={walkSettings} onChange={onWalkSettingsChange} />
 
@@ -605,6 +613,7 @@ export function WalkCompanionPanel({
         </p>
       )}
 
+      {!chatOnly && (
       <Button onClick={submit} disabled={isLoading} fullWidth>
         {isLoading ? (
           <span className="inline-flex items-center gap-2">
@@ -615,6 +624,7 @@ export function WalkCompanionPanel({
           "Build My Walk"
         )}
       </Button>
+      )}
       {canRevertPlan && (
         <Button
           onClick={() => onRevertPlan?.()}

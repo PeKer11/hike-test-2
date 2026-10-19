@@ -6,7 +6,9 @@ import {
   SUMMARIZE_AFTER,
   summarizeConversation,
 } from "@/lib/assistant/summary";
+import { defaultParams, parseDefaults, tasteNote } from "@/lib/assistant/defaults";
 import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
+import { getPreferredCategoryWeights, getProfileDefaults } from "@/lib/preferences/preference-store";
 import { runAssistantTurn, type TurnMessage } from "@/lib/assistant/turn";
 import { runMeteredTurn } from "@/lib/llm/llm-client";
 import { LlmBudgetExceededError } from "@/lib/llm/types";
@@ -21,6 +23,7 @@ interface AssistantRequest {
   /** Where the walker is now (GPS or map pin); only used while no start is set. */
   origin?: unknown;
   limits?: unknown;
+  defaults?: unknown;
 }
 
 function parseOrigin(value: unknown): { lat: number; lng: number } | null {
@@ -109,6 +112,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     chatId = created.id as string;
   }
 
+  // The gear-menu defaults seed a NEW chat's limits; the learned pace backs them up.
+  const defaults = parseDefaults(body.defaults);
+  if (!body.chatId) {
+    state = { ...state, params: { ...defaultParams(defaults), ...state.params } };
+  }
+  const [learned, profile] = await Promise.all([
+    getPreferredCategoryWeights(supabase, user.id).catch(() => new Map()),
+    getProfileDefaults(supabase, user.id).catch(() => null),
+  ]);
+  if (!state.params.paceMinPerKm && profile?.walkingPaceMinPerKm) {
+    state = { ...state, params: { ...state.params, paceMinPerKm: profile.walkingPaceMinPerKm } };
+  }
+  const taste = tasteNote(defaults, learned);
   const origin = parseOrigin(body.origin);
   if (origin && !state.origin) state = { ...state, origin };
   // Answers from the tap-to-choose limits boxes: null / missing = no limit.
@@ -124,6 +140,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         radiusKm: pick(l.radiusKm),
         endDistanceKm: pick(l.endDistanceKm),
         maxWalkKm: pick(l.maxWalkKm),
+        ...(pick(l.paceMinPerKm) ? { paceMinPerKm: pick(l.paceMinPerKm) } : {}),
       },
     };
   }
@@ -134,7 +151,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runAssistantTurn({ summary, history, state, choice, effort });
+        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste });
         let billed = turn.billedMicros;
         let newSummary = summary;
         let newSummarized = summarizedCount;
@@ -179,6 +196,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       state: result.turn.state,
       action: result.turn.action ?? null,
       askLimits: result.turn.askLimits ?? false,
+      choices: result.turn.choices ?? null,
+      paceKnown: Boolean(result.turn.state.params.paceMinPerKm),
     });
   } catch (error) {
     if (error instanceof LlmBudgetExceededError) {

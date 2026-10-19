@@ -107,6 +107,20 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "offer_choices",
+      description:
+        "Show 2-6 tap-to-choose options (short labels in the walker's language) under your next sentence. Use it when you need the walker to pick between kinds of places or alternatives, instead of asking in free text.",
+      parameters: {
+        type: "object",
+        properties: { options: { type: "array", items: { type: "string" } } },
+        required: ["options"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "estimate_walk",
       description:
         "Estimate walking distance, walking minutes, visiting minutes and total time for visiting these stops from the start (real street distances, average pace). Use it to check the stops fit the walker's limits before build_walk.",
@@ -140,6 +154,7 @@ export interface ToolRun {
   state: AssistantState;
   action?: BuildAction;
   askLimits?: boolean;
+  choices?: string[];
 }
 
 interface Estimate {
@@ -308,6 +323,14 @@ export async function runTool(
 
     if (name === "ask_limits") {
       return { output: JSON.stringify({ ok: true, shown: true }), state, askLimits: true };
+    }
+
+    if (name === "offer_choices") {
+      const options = Array.isArray(args.options)
+        ? args.options.filter((o): o is string => typeof o === "string" && o.trim().length > 0).map((o) => o.trim().slice(0, 40)).slice(0, 6)
+        : [];
+      if (options.length < 2) return { output: JSON.stringify({ error: "need 2-6 options" }), state };
+      return { output: JSON.stringify({ ok: true, shown: true }), state, choices: options };
     }
 
     if (name === "estimate_walk" || name === "build_walk") {
