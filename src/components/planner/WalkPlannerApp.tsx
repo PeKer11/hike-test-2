@@ -514,7 +514,7 @@ export function WalkPlannerApp({
     isLoading: isTrailBriefingLoading,
     error: trailBriefingError,
   } = useTrailIntelligence(route, routeAnchor);
-  const { center, zoom, clickMode, setClickMode, focusOn } = useMapInteraction();
+  const { center, zoom, clickMode, setClickMode, focusOn, focusTick } = useMapInteraction();
 
   // A walker who has gone clearly a different way is offered directions, never
   // an automatic re-plan. The machine runs on fix timestamps; `getOptionsContext`
@@ -3447,6 +3447,7 @@ export function WalkPlannerApp({
             walkPhase === "walking" ? remainingGeometry : (route?.geometry ?? [])
           }
           center={center}
+          focusTick={focusTick}
           zoom={zoom}
           onMapClick={handleMapClick}
           walkedGeometry={walkPhase === "walking" ? [...walkedTrackRef.current] : undefined}

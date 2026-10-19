@@ -26,6 +26,7 @@ interface MapViewProps {
   /** The path already walked, drawn in a muted colour under the remaining route. */
   walkedGeometry?: Coordinates[];
   center: Coordinates;
+  focusTick?: number;
   zoom: number;
   onMapClick: (coordinates: Coordinates) => void;
   currentPosition?: Coordinates;
@@ -47,12 +48,12 @@ interface MapViewProps {
   extraAttribution?: string[];
 }
 
-function MapViewport({ center, zoom }: { center: Coordinates; zoom: number }) {
+function MapViewport({ center, zoom, focusTick = 0 }: { center: Coordinates; zoom: number; focusTick?: number }) {
   const map = useMap();
 
   useEffect(() => {
     map.setView([center.lat, center.lng], zoom);
-  }, [map, center.lat, center.lng, zoom]);
+  }, [map, center.lat, center.lng, zoom, focusTick]);
 
   return null;
 }
@@ -118,6 +119,7 @@ export default function MapView({
   routeGeometry,
   walkedGeometry,
   center,
+  focusTick,
   zoom,
   onMapClick,
   currentPosition,
@@ -151,7 +153,7 @@ export default function MapView({
         url={getTileUrl()}
       />
       <ExtraAttribution texts={credits} />
-      <MapViewport center={center} zoom={zoom} />
+      <MapViewport center={center} zoom={zoom} focusTick={focusTick} />
       <MapSizeInvalidator />
       <PositionFollower
         currentPosition={currentPosition}

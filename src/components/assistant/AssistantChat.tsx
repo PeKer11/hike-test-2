@@ -63,12 +63,19 @@ function renderMessage(
   onFocusPlace: (coordinates: Coordinates) => void,
 ) {
   const text = content.replace(/\*\*/g, "");
-  const names = [...new Set(places.map((c) => c.name))].sort((a, b) => b.length - a.length);
+  // The model often shortens a name ("אתגר בטבע" for "אתגר בטבע - סולמות וחבלים"), so each
+  // place answers to its full name and to the part before a dash, comma or bracket.
+  const byName = new Map<string, Candidate>();
+  for (const c of places) {
+    const short = c.name.split(/\s[-–—]\s|,|\(/)[0].trim();
+    for (const n of [c.name, short]) if (n.length >= 3 && !byName.has(n)) byName.set(n, c);
+  }
+  const names = [...byName.keys()].sort((x, y) => y.length - x.length);
   if (names.length === 0) return text;
   const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const parts = text.split(new RegExp(`(${escaped.join("|")})`));
   return parts.map((part, i) => {
-    const place = places.find((c) => c.name === part);
+    const place = byName.get(part);
     if (!place) return part;
     return (
       <button

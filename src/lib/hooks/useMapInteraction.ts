@@ -16,9 +16,13 @@ export function useMapInteraction() {
   const [zoom, setZoom] = useState(12);
   const [clickMode, setClickMode] = useState<MapClickMode>("add-waypoint");
 
+  const [focusTick, setFocusTick] = useState(0);
+
   const focusOn = (coordinates: Coordinates, nextZoom = zoom) => {
     setCenter(coordinates);
     setZoom(nextZoom);
+    // Re-centre even when the target equals the stored centre (the walker may have panned away).
+    setFocusTick((t) => t + 1);
   };
 
   return {
@@ -29,5 +33,6 @@ export function useMapInteraction() {
     setZoom,
     setClickMode,
     focusOn,
+    focusTick,
   };
 }
