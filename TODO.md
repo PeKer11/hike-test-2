@@ -327,7 +327,7 @@
 
 ## POI data architecture — decided 2026-10-19 (Ariel)
 
-Verdict: **Google for businesses** (cafes, restaurants, museums, shops — Places API (New), server-side, store only `place_id` + user preferences, results shown on a Google Map), **OSM for trails and nature** (paths, springs, viewpoints, water, toilets, benches; ODbL attribution), **Geoapify for stability** (fallback when Overpass/Google is down).
+Verdict (clarified by Ariel 2026-10-19): **Google Places (New) is the primary source for everything** — it is the most reliable. Other sources only *add* what Google lacks, merged under Google's results: **OSM** for trails and nature (paths, springs, viewpoints, water, toilets, benches; ODbL attribution), **Geoapify** as the stability fallback when Google/Overpass is down. Google data: server-side, store only `place_id` + user preferences, show on a Google Map. On a duplicate, Google wins.
 
 - [ ] Server-side spike: Places (New) Nearby Search for Tel Aviv vs current Overpass results (no prod change)
 - [ ] Replace Leaflet with Google Maps JS (markers, route line, walked-path line, labels, preview lines, callouts)
