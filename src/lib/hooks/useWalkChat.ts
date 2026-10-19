@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { Coordinates } from "@/lib/types";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
 import { parseIntent, type ParsedIntent } from "@/lib/walk/chat/intent";
 import {
@@ -14,6 +15,7 @@ import {
 
 export const MAX_CHAT_LLM_PER_WALK = 15;
 export const CHAT_REQUEST_TIMEOUT_MS = 10_000;
+const FREE_CHAT_TIMEOUT_MS = 30_000;
 const MAX_MESSAGES = 6;
 const MAX_TEXT = 200;
 // "take me to X" is a command, not a question: a single detour offer runs without another tap.
@@ -35,6 +37,8 @@ export interface WalkChatDeps {
   getContext: () => ChatContext | null;
   /** Runs a tapped action (the planner owns what each one does). */
   onAction: (action: ChatAction) => void;
+  /** Try the free-form model chat first (the server decides who may); falls back to keywords. */
+  freeChat?: boolean;
   doFetch?: typeof fetch;
 }
 
@@ -66,6 +70,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
   const [llmUsed, setLlmUsed] = useState(0);
   const llmUsedRef = useRef(0);
   const nextId = useRef(1);
+  const freeChatOff = useRef(false);
   const requestId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -90,7 +95,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     (raw: string) => {
       const text = raw.trim().slice(0, MAX_TEXT);
       if (!text) return;
-      const { lang, isSignedIn, getContext, doFetch } = depsRef.current;
+      const { lang, isSignedIn, getContext, doFetch, freeChat } = depsRef.current;
       const copy = CHAT_COPY[lang];
       push("user", text);
 
@@ -99,6 +104,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
         push("app", copy.noWalk);
         return;
       }
+      const legacy = () => {
       const parsed = parseIntent(text, ctx.stops);
       if (parsed.intent !== "unknown") {
         const reply = resolveChat(parsed, ctx, lang);
@@ -166,6 +172,78 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           if (!stale()) {
             abortRef.current = null;
             setPending(false);
+          }
+        }
+      })();
+      };
+
+      if (!isSignedIn || !freeChat || freeChatOff.current) return legacy();
+      // Free-form model chat first (owner only for now); anything else falls back to the keyword chat.
+      const myRequest = ++requestId.current;
+      const thinkingId = push("app", copy.thinking);
+      setPending(true);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const timer = setTimeout(() => controller.abort(), FREE_CHAT_TIMEOUT_MS);
+      const stale = () => myRequest !== requestId.current;
+      const history = messagesRef.current
+        .filter((m) => m.id !== thinkingId && m.text !== copy.thinking)
+        .slice(-6)
+        .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
+      if (history[history.length - 1]?.content !== text) history.push({ role: "user", content: text });
+      void (async () => {
+        let fellBack = false;
+        try {
+          const res = await (doFetch ?? fetch)("/api/walk-assistant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ history, position: ctx.position, stops: ctx.stops.map((s) => s.name) }),
+            signal: controller.signal,
+          });
+          if (stale()) return;
+          if (res.status === 403) {
+            freeChatOff.current = true;
+            fellBack = true;
+            return;
+          }
+          const data = (await res.json().catch(() => ({}))) as {
+            reply?: string;
+            actions?: Array<{ kind: string; name?: string; coordinates?: Coordinates; stopIndex?: number }>;
+            code?: string;
+          };
+          if (res.status === 429) {
+            replace(thinkingId, data.code === "budget" ? copy.budget : copy.tooFast);
+            return;
+          }
+          if (!res.ok || typeof data.reply !== "string") {
+            fellBack = true;
+            return;
+          }
+          const fresh = getContext() ?? ctx;
+          const actions: ChatAction[] = [];
+          for (const a of data.actions ?? []) {
+            if (a.kind === "add-place" && a.name && a.coordinates) {
+              actions.push({ kind: "add-place", name: a.name, coordinates: a.coordinates, label: lang === "he" ? `להוסיף את ${a.name}` : `Add ${a.name}` });
+            } else if (a.kind === "skip-stop" && typeof a.stopIndex === "number" && fresh.stops[a.stopIndex]) {
+              const st = fresh.stops[a.stopIndex];
+              actions.push({ kind: "drop", stopId: st.id, label: lang === "he" ? `לדלג על ${st.name}` : `Skip ${st.name}` });
+            } else if (a.kind === "head-back") {
+              actions.push({ kind: "head-back", label: lang === "he" ? "חזרה" : "Head back" });
+            }
+          }
+          replace(thinkingId, data.reply || (lang === "he" ? "לא הצלחתי לענות, נסו שוב." : "I couldn't answer, try again."), actions);
+        } catch {
+          if (controller.signal.aborted) replace(thinkingId, copy.timeout);
+          else fellBack = true;
+        } finally {
+          clearTimeout(timer);
+          if (!stale()) {
+            abortRef.current = null;
+            setPending(false);
+          }
+          if (fellBack && !stale()) {
+            setMessages((prev) => prev.filter((m) => m.id !== thinkingId));
+            legacy();
           }
         }
       })();

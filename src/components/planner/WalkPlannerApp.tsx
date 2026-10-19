@@ -1165,6 +1165,21 @@ export function WalkPlannerApp({
     void handleBuildWalk(input, options);
   };
 
+  // The assistant found a place and the walker tapped "Add": keep every stop,
+  // pin the new one, and buy the time to reach all of them.
+  const runAddPlaceRebuild = (name: string, coordinates: { lat: number; lng: number }) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const id = `chat-${Math.round(coordinates.lat * 1e5)}-${Math.round(coordinates.lng * 1e5)}`;
+    const added = { id, name, coordinates, category: "other" as const, avgVisitMinutes: 20, tags: { name } };
+    const { input, options } = buildExtendedTimeRebuildRequest({
+      ...state,
+      currentAttractions: [...(state.currentAttractions ?? []), added],
+      pinnedIds: [...state.pinnedIds, id],
+    });
+    void handleBuildWalk(input, options);
+  };
+
   // --- Walk companion --------------------------------------------------------
   // One question slot for the whole walk: `useWalkCompanion` ticks, the arbiter
   // picks, `handleCompanionAnswer` runs the operator. The decisions are in
@@ -2710,6 +2725,7 @@ export function WalkPlannerApp({
   const walkChat = useWalkChat({
     lang: uiLang === "he" ? "he" : "en",
     isSignedIn,
+    freeChat: true,
     getContext: () => {
       const snap = getCompanionSnapshot();
       if (!snap) return null;
@@ -2729,6 +2745,8 @@ export function WalkPlannerApp({
         runDropStopsRebuild([action.stopId]);
       } else if (action.kind === "add-stop") {
         runPaceTriggeredRebuild("sustained-fast-pace");
+      } else if (action.kind === "add-place") {
+        runAddPlaceRebuild(action.name, action.coordinates);
       } else {
         void runThemedOption("short");
       }

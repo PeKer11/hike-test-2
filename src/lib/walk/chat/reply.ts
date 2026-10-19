@@ -12,6 +12,7 @@ export type ChatAction =
   | { kind: "detour"; item: AmenityItem; label: string }
   | { kind: "drop"; stopId: string; label: string }
   | { kind: "add-stop"; label: string }
+  | { kind: "add-place"; name: string; coordinates: Coordinates; label: string }
   | { kind: "head-back"; label: string };
 
 export interface ChatReply {
