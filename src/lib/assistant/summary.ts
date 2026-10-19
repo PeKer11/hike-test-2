@@ -9,7 +9,7 @@ export const KEEP_RECENT = 4;
 /** Fold into the summary once this many messages are not yet summarised. */
 export const SUMMARIZE_AFTER = 12;
 
-const SYSTEM = `You compress a chat between a walker and a walking assistant into a short memory for later turns. Write at most 120 words, in the language of the chat. Keep only: where the walker is or starts, places discussed or chosen, what was rejected, stated limits (time, radius, pace), and open questions. No greetings, no tool output.`;
+const SYSTEM = `You compress a chat between a walker and a walking assistant into a short memory for later turns. Write at most 160 words, in the language of the chat. Keep only: where the walker is or starts, places discussed or chosen, what was rejected, stated limits (time, radius, pace), personal preferences and constraints the walker mentioned (diet, mobility, kids, dislikes, likes) and open questions. Never drop an earlier preference unless the walker took it back. No greetings, no tool output.`;
 
 export async function summarizeConversation(
   prior: string | null,

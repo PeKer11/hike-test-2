@@ -15,6 +15,8 @@ import { LlmBudgetExceededError } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
 
 const MAX_MESSAGE_CHARS = 1000;
+/** Chats kept per walker; the oldest is deleted when a new one starts. */
+const MAX_CHATS = 5;
 const MAX_STORED_MESSAGES = 400;
 
 interface AssistantRequest {
@@ -110,6 +112,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "Could not start the chat." }, { status: 500 });
     }
     chatId = created.id as string;
+    // Only the newest MAX_CHATS chats are kept; older ones (and their messages,
+    // by cascade) are deleted. TODO: a paid tier with a higher limit.
+    const { data: stale } = await supabase
+      .from("assistant_chats")
+      .select("id")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false })
+      .range(MAX_CHATS, MAX_CHATS + 50);
+    if (stale && stale.length > 0) {
+      await supabase.from("assistant_chats").delete().in("id", stale.map((c) => c.id as string));
+    }
   }
 
   // The gear-menu defaults seed a NEW chat's limits; the learned pace backs them up.
