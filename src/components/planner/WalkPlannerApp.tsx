@@ -20,6 +20,7 @@ import { detectedNote, mayAddToWalk } from "@/lib/walk/detected-note";
 import type { WalkAlert } from "@/components/walk/WalkAlertCard";
 import type { WalkStatsData } from "@/components/walk/WalkStatsBar";
 import { WalkFeedbackCard } from "@/components/walk/WalkFeedbackCard";
+import { AssistantChat, type AssistantBuild } from "@/components/assistant/AssistantChat";
 import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
 import type {
   Attraction,
@@ -2945,7 +2946,28 @@ export function WalkPlannerApp({
             </>
           ) : !isAdvancedOpen || plannerMode === "walk-companion" ? (
             <>
-              {walkPhase !== "walking" && (
+              {walkPhase !== "walking" && isSignedIn && (
+                <AssistantChat
+                  origin={currentPosition ?? mapClickedCoords ?? null}
+                  isBuilding={isWalkPlanLoading}
+                  onPlacesChange={setPreviewPlaces}
+                  onBuild={(build: AssistantBuild) => {
+                    setCurrentPosition(build.origin);
+                    focusOn(build.origin, 14);
+                    void handleBuildWalk(
+                      {
+                        origin: build.origin,
+                        availableMinutes: build.availableMinutes,
+                        walkingPaceMinPerKm: build.walkingPaceMinPerKm,
+                        radiusMeters: build.radiusMeters,
+                        maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
+                      },
+                      { keepAttractions: build.stops, fillRemainingTime: false },
+                    );
+                  }}
+                />
+              )}
+              {walkPhase !== "walking" && !isSignedIn && (
                 <PlacePromptPanel
                   nearLocation={currentPosition ?? mapClickedCoords}
                   acceptedAttractions={promptAttractions}

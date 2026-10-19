@@ -212,3 +212,29 @@ export async function runLlm<T>(
   }
   return { ...result, usedFallback };
 }
+
+/**
+ * Meters a multi-call conversation turn (a tool-calling loop) as ONE reserved
+ * call, then settles the real cost of everything it billed. `fn` returns the
+ * micro-dollars it spent so the per-caller and global dollar caps still hold.
+ */
+export async function runMeteredTurn<T>(
+  ctx: LlmCallContext,
+  tier: LlmTier,
+  fn: (choice: ProviderChoice, effort: ReturnType<typeof resolveReasoningEffort>) => Promise<{ value: T; billedMicros: number }>,
+  deps: LlmDeps = {},
+): Promise<T> {
+  const env = deps.env ?? process.env;
+  const config = resolveLlmConfig(tier, env, "plan");
+  const budget = deps.budget ?? defaultBudget(config.dailyBudgetUsd);
+  await budget.reserve(ctx);
+  let billed = 0;
+  try {
+    const choice = deps.choice ?? config.primary;
+    const { value, billedMicros } = await fn(choice, resolveReasoningEffort(tier, choice.model, env));
+    billed = billedMicros;
+    return value;
+  } finally {
+    await budget.settle(ctx, billed);
+  }
+}
