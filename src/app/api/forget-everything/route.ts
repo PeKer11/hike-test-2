@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 /** Everything Traike has learned about a walker. Each table has an own-row delete policy. */
 export const MEMORY_TABLES = [
   "session_summaries",
+  "assistant_chats",
+  "assistant_messages",
   "walk_summaries",
   "place_interactions",
   "standing_facts",
