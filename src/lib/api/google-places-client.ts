@@ -147,3 +147,36 @@ export function searchNearbyPlaces(
     },
   });
 }
+
+/** Every kind a walker might be told about, in one nearby request (Google caps it at 20). */
+const ALL_KINDS_TYPES = Array.from(
+  new Set(Object.values(CATEGORY_TYPES).flat()),
+).slice(0, 50);
+
+/** Up to 20 places of any walk-worthy kind within `radiusMeters` of `center`. */
+export function searchNearbyAnyPlaces(
+  center: Coordinates,
+  radiusMeters: number,
+  maxResults = 20,
+): Promise<GooglePlace[]> {
+  return post(SEARCH_NEARBY_URL, {
+    includedTypes: ALL_KINDS_TYPES,
+    maxResultCount: maxResults,
+    languageCode: "he",
+    locationRestriction: {
+      circle: {
+        center: { latitude: center.lat, longitude: center.lng },
+        radius: Math.min(50000, Math.max(100, radiusMeters)),
+      },
+    },
+  });
+}
+
+/** Which of our kinds a Google place is, from its types (first match wins). */
+export function categoryOfGooglePlace(place: GooglePlace): AttractionCategory {
+  const types = new Set([place.primaryType, ...place.types]);
+  for (const [category, list] of Object.entries(CATEGORY_TYPES) as Array<[AttractionCategory, string[]]>) {
+    if (category !== "other" && list.some((t) => types.has(t))) return category;
+  }
+  return "other";
+}
