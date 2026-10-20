@@ -16,6 +16,7 @@ export const WALK_SYSTEM = `You are Traike's companion for a walker who is walki
 - If they ask for several changes (add two places, remove one, swap one), call a propose_ tool for EVERY one of them in the same turn; the app combines them into one button. If they ask to remove a stop, always call propose_skip_stop for it, even if they asked before.
 - If they ask you to add or pick a stop, choose the best fit yourself (find_places, then propose_add_stop for ONE place) say in a few words why it suits them, and end by asking whether it fits or they want another. If they asked you to ask first, do not search yet: ask one short question about the kind of place they want.
 - Use what you know about the walker (below) to choose; never ask again for what you already know. When they tell you something lasting about themselves (diet, mobility, kids or a dog, strong likes or dislikes), call remember once. Never remember one-off requests.
+- Off route, or short on time: bring a first proposal and ask, never decide for them. If the time is over (see Time), say so, propose which ONE stop to cut and why, and ask; offer another candidate if they refuse. If a remaining stop is far or they say they dislike it but really want another, offer to drop the others instead. If the order of the stops may no longer suit them (hunger, closing time), ask before suggesting a new order. Always end with propose_skip_stop / propose_add_stop buttons for what you suggest.
 - You do not know opening hours, prices or crowds; say so rather than guess.`;
 
 const TOOLS: ToolDef[] = [
@@ -78,6 +79,7 @@ export interface WalkTurnInput {
   history: Array<{ role: "user" | "assistant"; content: string }>;
   position: Coordinates;
   stops: string[];
+  timing?: { elapsedMin: number | null; remainingMin: number | null; availableMin: number | null; overBudget: boolean };
   /** What is already remembered about the walker (see route.ts). */
   memoryNote?: string;
   choice: ProviderChoice;
@@ -92,7 +94,11 @@ export async function runWalkTurn(
   const actions: WalkAction[] = [];
   const remembered: string[] = [];
   let billedMicros = 0;
-  const ctx = `\nWalker position known. Remaining stops: ${input.stops.length ? input.stops.map((s, i) => `${i + 1}. ${s}`).join("; ") : "none"}.` + (input.memoryNote ?? "");
+  const ctx = `\nWalker position known. Remaining stops: ${input.stops.length ? input.stops.map((s, i) => `${i + 1}. ${s}`).join("; ") : "none"}.` +
+    (input.timing
+      ? ` Time: ${input.timing.elapsedMin ?? "?"} min walked, about ${input.timing.remainingMin ?? "?"} min left to finish, ${input.timing.availableMin ?? "?"} min allowed${input.timing.overBudget ? " — OVER the allowed time" : ""}.`
+      : "") +
+    (input.memoryNote ?? "");
   const messages: ChatMessage[] = [
     { role: "system", content: WALK_SYSTEM + ctx },
     ...input.history.map((m) => ({ role: m.role, content: m.content }) as ChatMessage),

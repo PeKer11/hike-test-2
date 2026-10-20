@@ -28,6 +28,8 @@ export interface ChatContext {
   amenities: AmenityItem[];
   /** Where the walker is now. Stays on the device. */
   position: Coordinates;
+  /** Time picture of the walk, sent to the model so it can talk about shortening. */
+  timing?: { elapsedMin: number; remainingMin: number | null; availableMin: number; overBudget: boolean };
 }
 
 export const CHAT_AMENITY_RADIUS_M = 600;

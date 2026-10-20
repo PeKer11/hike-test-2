@@ -202,7 +202,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           const res = await (doFetch ?? fetch)("/api/walk-assistant", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ history, position: ctx.position, stops: ctx.stops.map((s) => s.name) }),
+            body: JSON.stringify({ history, position: ctx.position, stops: ctx.stops.map((s) => s.name), timing: ctx.timing }),
             signal: controller.signal,
           });
           if (stale()) return;

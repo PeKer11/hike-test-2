@@ -905,6 +905,8 @@ export function WalkPlannerApp({
        */
       resumeTracking?: boolean;
       keepAttractions?: Attraction[];
+      /** Visit `keepAttractions` exactly in the given order instead of optimizing it. */
+      fixedOrder?: boolean;
       pinnedIds?: string[];
       fillRemainingTime?: boolean;
       heading?: number;
@@ -1010,6 +1012,7 @@ export function WalkPlannerApp({
           endAnchor: input.endAnchor,
           preferredCategories: input.preferredCategories,
           explicitAttractions: keepAttractions,
+          fixedOrder: options?.fixedOrder === true ? true : undefined,
           pinnedAttractionIds: activePinnedIds,
           fillRemainingTime: options?.fillRemainingTime ?? false,
           heading: options?.heading,
@@ -2708,6 +2711,19 @@ export function WalkPlannerApp({
                 },
               ]
             : []),
+          ...(slow && isSignedIn
+            ? [
+                {
+                  label: walkCopy.offRoute.talk,
+                  onClick: () =>
+                    walkChat.openWith(
+                      uiLang === "he"
+                        ? "אני לא מספיק בזמן. מה כדאי לקצר? תציע לי ותשאל אותי."
+                        : "I'm running short on time. What should we cut? Suggest something and ask me.",
+                    ),
+                },
+              ]
+            : []),
         ],
       };
     } else if (companion.card) {
@@ -2791,6 +2807,14 @@ export function WalkPlannerApp({
         stops: snap.tick.remainingStops.map((st) => ({ ...st, pinned: st.pinned === true })),
         amenities: chatAmenityItems(route.discovery),
         position: snap.tick.position,
+        timing: walkStats
+          ? {
+              elapsedMin: Math.round(walkStats.elapsedMin),
+              remainingMin: walkStats.timeToFinishMin === null ? null : Math.round(walkStats.timeToFinishMin),
+              availableMin: walkInputRef.current?.availableMinutes ?? 0,
+              overBudget: walkStats.overBudget,
+            }
+          : undefined,
       };
     },
     onAction: (action) => {
@@ -3064,7 +3088,7 @@ export function WalkPlannerApp({
                         radiusMeters: build.radiusMeters,
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
-                      { keepAttractions: build.stops, fillRemainingTime: false },
+                      { keepAttractions: build.stops, fixedOrder: build.fixedOrder, fillRemainingTime: false },
                     );
                   }}
                 />

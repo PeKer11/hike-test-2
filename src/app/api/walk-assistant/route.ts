@@ -36,6 +36,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     ? body.stops.filter((s): s is string => typeof s === "string").map((s) => s.slice(0, 80)).slice(0, 12)
     : [];
 
+  const t = body.timing as Record<string, unknown> | undefined;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null);
+  const timing = t
+    ? { elapsedMin: num(t.elapsedMin), remainingMin: num(t.remainingMin), availableMin: num(t.availableMin), overBudget: t.overBudget === true }
+    : undefined;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -51,7 +57,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     const result = await runMeteredTurn({ userId: user.id, ip: callerKey(request) }, 3, async (choice, effort) => {
-      const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, memoryNote, choice, effort });
+      const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, timing, memoryNote, choice, effort });
       return { value: turn, billedMicros: turn.billedMicros };
     });
     for (const fact of (result.remembered ?? []).slice(0, 3)) {
