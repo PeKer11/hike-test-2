@@ -236,6 +236,17 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
               actions.push({ kind: "head-back", label: lang === "he" ? "חזרה" : "Head back" });
             }
           }
+          // Several proposals in one reply: one extra button that applies them all in a single rebuild.
+          const adds = actions.flatMap((a) => (a.kind === "add-place" ? [{ name: a.name, coordinates: a.coordinates }] : []));
+          const dropStopIds = actions.flatMap((a) => (a.kind === "drop" ? [a.stopId] : []));
+          if (adds.length + dropStopIds.length > 1) {
+            actions.unshift({
+              kind: "apply-changes",
+              adds,
+              dropStopIds,
+              label: lang === "he" ? `לבצע הכול (${adds.length} הוספות, ${dropStopIds.length} דילוגים)` : `Apply all (+${adds.length}, −${dropStopIds.length})`,
+            });
+          }
           replace(thinkingId, data.reply || (lang === "he" ? "לא הצלחתי לענות, נסו שוב." : "I couldn't answer, try again."), actions);
         } catch {
           if (controller.signal.aborted) replace(thinkingId, copy.timeout);

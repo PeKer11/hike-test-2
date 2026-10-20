@@ -1188,6 +1188,28 @@ export function WalkPlannerApp({
     void handleBuildWalk(input, options);
   };
 
+  // Several chat proposals at once: drop the skipped stops, pin the new ones, one rebuild.
+  const runApplyChangesRebuild = (adds: Array<{ name: string; coordinates: { lat: number; lng: number } }>, dropStopIds: string[]) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const drop = new Set(dropStopIds);
+    const added = adds.map(({ name, coordinates }) => ({
+      id: `chat-${Math.round(coordinates.lat * 1e5)}-${Math.round(coordinates.lng * 1e5)}`,
+      name,
+      coordinates,
+      category: "other" as const,
+      avgVisitMinutes: 20,
+      tags: { name },
+    }));
+    const kept = (state.currentAttractions ?? []).filter((a) => !drop.has(a.id));
+    const { input, options } = buildExtendedTimeRebuildRequest({
+      ...state,
+      currentAttractions: [...kept, ...added],
+      pinnedIds: [...state.pinnedIds.filter((id) => !drop.has(id)), ...added.map((a) => a.id)],
+    });
+    void handleBuildWalk(input, options);
+  };
+
   // --- Walk companion --------------------------------------------------------
   // One question slot for the whole walk: `useWalkCompanion` ticks, the arbiter
   // picks, `handleCompanionAnswer` runs the operator. The decisions are in
@@ -2768,6 +2790,8 @@ export function WalkPlannerApp({
         runDropStopsRebuild([action.stopId]);
       } else if (action.kind === "add-stop") {
         runPaceTriggeredRebuild("sustained-fast-pace");
+      } else if (action.kind === "apply-changes") {
+        runApplyChangesRebuild(action.adds, action.dropStopIds);
       } else if (action.kind === "add-place") {
         runAddPlaceRebuild(action.name, action.coordinates);
       } else {

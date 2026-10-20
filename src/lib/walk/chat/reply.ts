@@ -13,6 +13,7 @@ export type ChatAction =
   | { kind: "drop"; stopId: string; label: string }
   | { kind: "add-stop"; label: string }
   | { kind: "add-place"; name: string; coordinates: Coordinates; label: string }
+  | { kind: "apply-changes"; adds: Array<{ name: string; coordinates: Coordinates }>; dropStopIds: string[]; label: string }
   | { kind: "head-back"; label: string };
 
 export interface ChatReply {
