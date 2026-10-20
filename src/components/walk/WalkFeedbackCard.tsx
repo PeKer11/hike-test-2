@@ -93,7 +93,7 @@ export function WalkFeedbackCard({
             How were the stops?
           </h2>
           <p className="text-xs text-charcoal/60">
-            Rate any of them — one tap each, skip the rest.
+            Thanks for your feedback — it helps us learn what you like, so your next hikes are even better. One tap each, skip the rest.
           </p>
         </div>
         <button

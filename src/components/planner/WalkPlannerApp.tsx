@@ -19,6 +19,7 @@ import { WalkHud } from "@/components/walk/WalkHud";
 import { detectedNote, mayAddToWalk } from "@/lib/walk/detected-note";
 import type { WalkAlert } from "@/components/walk/WalkAlertCard";
 import type { WalkStatsData } from "@/components/walk/WalkStatsBar";
+import { WalkFinishCard, type WalkFinishData } from "@/components/walk/WalkFinishCard";
 import { WalkFeedbackCard } from "@/components/walk/WalkFeedbackCard";
 import { AssistantChat, type AssistantBuild } from "@/components/assistant/AssistantChat";
 import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
@@ -324,6 +325,7 @@ export function WalkPlannerApp({
   const [feedbackAttractions, setFeedbackAttractions] = useState<
     Attraction[] | null
   >(null);
+  const [finishData, setFinishData] = useState<WalkFinishData | null>(null);
   const walkInputRef = useRef<WalkCompanionInput | null>(null);
   const walkStartTimeRef = useRef<number>(0);
   const latestPaceUpdateRef = useRef<PaceUpdate | null>(null);
@@ -769,6 +771,13 @@ export function WalkPlannerApp({
   }, [startRequested]);
 
   const handleEndWalk = () => {
+    if (walkMode) {
+      setFinishData({
+        stops: walkPlanRef.current?.orderedAttractions.length ?? 0,
+        elapsedMin: walkStats?.elapsedMin ?? 0,
+        walkedKm: (walkStats?.walkedM ?? 0) / 1000,
+      });
+    }
     // Ask only about a walk that was actually walked, and only when there is
     // somewhere to put the answer: signed in, with preference learning on.
     // Asked before the teardown below, while the plan is still readable.
@@ -3081,6 +3090,9 @@ export function WalkPlannerApp({
                   fillRemainingTime={fillPromptWalk}
                   onFillRemainingTimeChange={setFillPromptWalk}
                 />
+              )}
+              {finishData && (
+                <WalkFinishCard data={finishData} lang={uiLang === "he" ? "he" : "en"} onClose={() => setFinishData(null)} />
               )}
               {feedbackAttractions && (
                 <WalkFeedbackCard
