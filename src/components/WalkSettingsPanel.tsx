@@ -213,6 +213,22 @@ export function WalkSettingsPanel({
             </label>
           </SettingsSection>
 
+          <SettingsSection title="When I add a stop">
+            <label className={ROW_CLASS}>
+              <span>Assistant should</span>
+              <select
+                value={settings.stopSuggestionMode}
+                onChange={(event) =>
+                  onChange({ stopSuggestionMode: event.target.value === "ask" ? "ask" : "propose" })
+                }
+                className={SELECT_CLASS}
+              >
+                <option value="propose">Suggest a place, then ask if it fits</option>
+                <option value="ask">Ask what kind of place first</option>
+              </select>
+            </label>
+          </SettingsSection>
+
           {/* Its own group rather than a fourth row under "If my pace drifts",
               where it has sat since it was built alongside the pace work.
               `buildDeviationRebuildRequest` reads the same flag through the

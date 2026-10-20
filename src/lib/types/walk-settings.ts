@@ -24,6 +24,8 @@ export const PACE_RESPONSE_MODES: readonly PaceResponseMode[] = [
  */
 export type DeviationResponseMode = PaceResponseMode;
 
+export type StopSuggestionMode = "propose" | "ask";
+
 export interface WalkSettings {
   /**
    * Walking faster than planned and walking slower than planned are separate
@@ -113,6 +115,11 @@ export interface WalkSettings {
    */
   calloutLevel: CalloutLevel;
   /**
+   * When the walker taps "Add a stop" / "Extend the hike": `propose` — the assistant
+   * picks one place and asks if it fits; `ask` — it first asks what kind of place they want.
+   */
+  stopSuggestionMode: StopSuggestionMode;
+  /**
    * Opt in to contributing anonymously to community recommendations and seeing
    * them (NEXT_PUBLIC_SOCIAL=1 only). A different purpose from
    * `preferenceLearningEnabled` ("personalize MY walks"), so it is its own flag,
@@ -171,6 +178,7 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   historyPersistenceEnabled: true,
   calloutLevel: "normal",
   socialSharingEnabled: false,
+  stopSuggestionMode: "propose",
 };
 
 /**

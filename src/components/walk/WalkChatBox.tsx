@@ -43,6 +43,16 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
       data-testid="walk-chat"
       className="pointer-events-auto space-y-2 rounded-2xl border border-forest/15 bg-cream/95 p-3 shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur"
     >
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Minimize"
+          className="rounded-full px-2 text-sm font-semibold leading-none text-forest/70 hover:bg-forest/10"
+        >
+          ⌄
+        </button>
+      </div>
       {chat.messages.length > 0 && (
         <ul
           ref={(el) => {

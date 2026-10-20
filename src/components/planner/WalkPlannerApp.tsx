@@ -2801,7 +2801,15 @@ export function WalkPlannerApp({
   });
 
   askForStopRef.current = () =>
-    walkChat.openWith(uiLang === "he" ? "תוסיף עצירה — תבחר אחת בשבילי" : "Add a stop — pick the best one for me");
+    walkChat.openWith(
+      walkSettingsRef.current.stopSuggestionMode === "ask"
+        ? uiLang === "he"
+          ? "תוסיף עצירה — קודם תשאל אותי איזה סוג מקום בא לי"
+          : "Add a stop — first ask me what kind of place I want"
+        : uiLang === "he"
+          ? "תוסיף עצירה — תבחר אחת בשבילי ותשאל אותי אם זה מתאים"
+          : "Add a stop — pick the best one for me and ask if it fits",
+    );
 
   // For the per-fix callout gate (a closure): is any card, or the options sheet, up?
   const optionsOffer = walkMode ? collapseFlow.offer : null;
