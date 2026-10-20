@@ -43,6 +43,8 @@ describe("AttractionDistancesPanel progress", () => {
     renderPanel({ visitedIds: ["a2"] });
 
     expect(screen.getByText("2 of 3 stops")).toBeTruthy();
+    expect(screen.queryByText("Stop a2")).toBeNull();
+    fireEvent.click(screen.getByText(/Show 2 done stops/));
     expect(screen.getByText("Stop a2").className).toContain("line-through");
   });
 });

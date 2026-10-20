@@ -325,6 +325,7 @@ export function WalkPlannerApp({
   const [feedbackAttractions, setFeedbackAttractions] = useState<
     Attraction[] | null
   >(null);
+  const [showWalkedPath, setShowWalkedPath] = useState(false);
   const [finishData, setFinishData] = useState<WalkFinishData | null>(null);
   const walkInputRef = useRef<WalkCompanionInput | null>(null);
   const walkStartTimeRef = useRef<number>(0);
@@ -3240,6 +3241,11 @@ export function WalkPlannerApp({
                   if (points.length > 0) downloadCsv(points, walkPlan?.orderedAttractions ?? [], "My Walk");
                 }}
               />
+              {walkPhase === "walking" && (
+                <Button variant="secondary" fullWidth onClick={() => setShowWalkedPath((v) => !v)}>
+                  {showWalkedPath ? "Hide the path I walked" : "Show the path I walked (gray)"}
+                </Button>
+              )}
               {walkPhase === "walking" && walkPlan && (
                 <AttractionDistancesPanel
                   attractions={walkPlan.orderedAttractions}
@@ -3554,7 +3560,7 @@ export function WalkPlannerApp({
           focusTick={focusTick}
           zoom={zoom}
           onMapClick={handleMapClick}
-          walkedGeometry={walkPhase === "walking" ? [...walkedTrackRef.current] : undefined}
+          walkedGeometry={walkPhase === "walking" && showWalkedPath ? [...walkedTrackRef.current] : undefined}
           currentPosition={currentPosition ?? undefined}
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}

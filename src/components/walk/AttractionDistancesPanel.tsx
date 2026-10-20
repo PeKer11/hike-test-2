@@ -28,6 +28,8 @@ export function AttractionDistancesPanel({
   // A pinned stop was explicitly marked "definitely include this", so skipping it
   // costs a second click on the same button rather than a modal.
   const [pendingSkipId, setPendingSkipId] = useState<string | null>(null);
+  // Done stops stay folded away (they are also what a rebuild leaves behind) until asked for.
+  const [showDone, setShowDone] = useState(false);
 
   if (attractions.length === 0) return null;
 
@@ -82,8 +84,18 @@ export function AttractionDistancesPanel({
           />
         </div>
       </div>
+      {doneCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowDone((v) => !v)}
+          className="w-full border-b border-charcoal/10 px-3 py-1.5 text-start text-xs font-medium text-charcoal/50 hover:bg-charcoal/5"
+        >
+          {showDone ? "Hide" : "Show"} {doneCount} done {doneCount === 1 ? "stop" : "stops"}
+        </button>
+      )}
       <ul className="divide-y divide-charcoal/10">
         {items.map(({ attraction, meters, passed }, idx) => {
+          if (passed && !showDone) return null;
           const isNext = idx === nextIndex;
           const emoji = CATEGORY_EMOJI[attraction.category] ?? "📍";
           const isPinned = pinnedIds.includes(attraction.id);
