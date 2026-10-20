@@ -122,18 +122,21 @@ function LimitsBox({
   disabled,
   defaults,
   askPace,
+  initial,
 }: {
   onConfirm: (l: Limits) => void;
   disabled: boolean;
   defaults: AssistantDefaults;
   askPace: boolean;
+  /** Limits the walker already stated in chat; they win over the saved defaults. */
+  initial?: Partial<Limits>;
 }) {
   // Starts from the walker's saved defaults (the gear menu); anything unset is "no limit".
   const [limits, setLimits] = useState<Limits>({
-    timeMinutes: defaults.timeMinutes ?? null,
-    radiusKm: defaults.radiusKm ?? null,
-    endDistanceKm: defaults.endDistanceKm ?? null,
-    maxWalkKm: defaults.maxWalkKm ?? null,
+    timeMinutes: initial?.timeMinutes ?? defaults.timeMinutes ?? null,
+    radiusKm: initial?.radiusKm ?? defaults.radiusKm ?? null,
+    endDistanceKm: initial?.endDistanceKm ?? defaults.endDistanceKm ?? null,
+    maxWalkKm: initial?.maxWalkKm ?? defaults.maxWalkKm ?? null,
   });
   return (
     <div className="space-y-2 rounded-xl border border-charcoal/10 bg-white p-3">
@@ -169,6 +172,7 @@ function LimitsBox({
               placeholder="other"
               aria-label={`${row.label} (${row.unit})`}
               className="w-16 rounded-full border border-charcoal/15 px-2 py-1 text-xs"
+              value={limits[row.key] !== null && !row.options.includes(limits[row.key] as number) ? (limits[row.key] as number) : ""}
               onChange={(e) => {
                 const n = Number(e.target.value);
                 setLimits((l) => ({ ...l, [row.key]: n > 0 ? n : null }));
@@ -220,6 +224,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [showChats, setShowChats] = useState(false);
   const [places, setPlaces] = useState<Candidate[]>([]);
+  const [statedLimits, setStatedLimits] = useState<Partial<Limits>>({});
   const [text, setText] = useState("");
   const [limitsOpen, setLimitsOpen] = useState(false);
   const [askPace, setAskPace] = useState(false);
@@ -307,6 +312,12 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
       setPlaces(data.state.candidates);
       onPlacesChange(data.state.candidates.map(toAttraction));
+      setStatedLimits({
+        timeMinutes: data.state.params.timeMinutes ?? null,
+        radiusKm: data.state.params.radiusKm ?? null,
+        endDistanceKm: data.state.params.endDistanceKm ?? null,
+        maxWalkKm: data.state.params.maxWalkKm ?? null,
+      });
       setLimitsOpen(data.askLimits === true);
       setAskPace(data.paceKnown === false && defaults.paceMinPerKm === undefined);
       setChoices(data.choices ?? []);
@@ -404,6 +415,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
             disabled={pending}
             defaults={defaults}
             askPace={askPace}
+            initial={statedLimits}
             onConfirm={(l) => {
               if (l.paceMinPerKm) setDefaults({ paceMinPerKm: l.paceMinPerKm });
               void send(null, { message: describeLimits(l), limits: l });
