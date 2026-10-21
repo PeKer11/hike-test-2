@@ -604,7 +604,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
           <button
             type="submit"
             disabled={pending || isBuilding || !text.trim()}
-            className="block h-[37px] w-full rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-white transition-colors hover:bg-[#c2643c] disabled:opacity-60"
+            className="block h-[37px] w-full rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-white transition-colors hover:bg-[#c2643c] disabled:cursor-not-allowed"
           >
             {isBuilding ? "Building your walk…" : "Send"}
           </button>
