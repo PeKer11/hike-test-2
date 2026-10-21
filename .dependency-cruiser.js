@@ -33,6 +33,22 @@ module.exports = {
       to: {},
     },
     {
+      name: 'lib-not-to-ui',
+      comment:
+        'Domain logic in src/lib must not depend on React components or Next routes. ' +
+        'Dependencies point downward: app -> components -> lib.',
+      severity: 'error',
+      from: { path: '^src/lib' },
+      to: { path: '^src/(components|app)/' }
+    },
+    {
+      name: 'components-not-to-app',
+      comment: 'Components must not import from route files under src/app.',
+      severity: 'error',
+      from: { path: '^src/components' },
+      to: { path: '^src/app/' }
+    },
+    {
       name: 'no-deprecated-core',
       comment:
         'A module depends on a node core module that has been deprecated. Find an alternative - these are ' +

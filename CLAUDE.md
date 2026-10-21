@@ -123,6 +123,19 @@ walk-plan route changes.
 - **Codex** = reviews after Claude builds anything touching the walk engine, profile system, or deviation logic (correctness-critical)
 - **Gemini** = use when you need to analyze something large: full ORS API docs, a competitor's open-source repo, or a long conversation history
 
+## Architecture Maintenance Rules
+
+Layering: `app -> components -> lib` (never upward). Enforced by `npm run deps:check` (dependency-cruiser, also a CI step).
+
+1. **Before a feature:** inspect the relevant existing modules and reuse them. No duplicated logic, speculative abstractions, or new dependencies without need.
+2. **After a feature:** run the relevant tests, `npx tsc --noEmit`, `npm run lint`, `npm run deps:check`.
+3. **Refactor only the code the feature touches.** Unrelated modules need approval.
+4. **Check-in cadence:** at the end of a feature, run `git log --oneline arch-review..HEAD | wc -l`. If ~15+ commits or 3-5 substantial features have landed, *suggest* (don't force) a focused review of recently changed code, only if complexity actually grew. After a review, move the tag: `git tag -f arch-review`.
+5. **Full audit** (`improve-codebase-architecture`, `npm run knip`, `npm run deps:check`) only on real signals: circular deps, duplicated responsibilities, high coupling, or one change spreading across unrelated modules. Not on a calendar.
+6. **Never** start a broad rewrite, DB migration, deploy, or knip-driven deletion without explicit approval. Knip results are leads (dynamic/Next-entry code can look unused), not a delete list.
+7. Preserve behavior, API contracts, permissions and security. Report important coverage gaps and add tests for them.
+8. **Every Traike change** ends with a GitHub commit+push and a zip in `~/Downloads`.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.

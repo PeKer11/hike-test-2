@@ -38,6 +38,12 @@ jobs:
         # this from walking node_modules/.next/coverage.
         run: npm run lint
 
+      - name: Architecture boundaries
+        # Fails on rule errors only (layering, unresolvable imports); circular
+        # and orphan findings are warnings. Knip is deliberately not a gate --
+        # it reports unused code, which needs a human decision, not a red build.
+        run: npm run deps:check
+
       - name: Unit tests
         run: npm test
 

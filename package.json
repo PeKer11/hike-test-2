@@ -12,7 +12,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "deps:check": "depcruise src --config .dependency-cruiser.js",
+    "knip": "knip"
   },
   "dependencies": {
     "@google/genai": "^2.13.0",
