@@ -37,11 +37,17 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.0",
+    "dependency-cruiser": "18.5.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.7",
+    "eslint-plugin-boundaries": "7.2.0",
     "jsdom": "^29.0.0",
+    "knip": "6.40.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.0"
+  },
+  "overrides": {
+    "handlebars": "4.7.10"
   }
 }
