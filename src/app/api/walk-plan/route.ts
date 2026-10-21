@@ -6,7 +6,6 @@ import {
   rankAttractions,
   selectFeasibleAttractions,
 } from "@/lib/attractions/attraction-ranker";
-import { getDirections } from "@/lib/api/ors-client";
 import { buildWalkPlan } from "@/lib/optimization/tsp-planner";
 import {
   getDownvotedCategories,
@@ -23,9 +22,11 @@ import {
   angleDifference,
   bearingBetween,
   haversineDistance,
-  toOrsCoord,
 } from "@/lib/utils/geo";
-import { decodePolyline } from "@/lib/utils/polyline";
+import { buildCleanRoute } from "@/lib/walk/clean-route";
+import { orsRoute } from "@/lib/walk/ors-route";
+import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
+import type { RouteQuality } from "@/lib/walk/route-quality";
 import type {
   Attraction,
   AttractionCategory,
@@ -55,6 +56,13 @@ interface WalkPlanApiRequest {
   // Set by the automatic pace-triggered rebuild: re-time the walk the user is
   // already on instead of discovering a whole new set of POIs.
   explicitAttractions?: Attraction[];
+  fixedOrder?: boolean;
+  /** Never walk the same street twice: the route is re-planned around repeats. */
+  noRepeat?: boolean;
+  /** Streets the walker does not want to walk along, by name. */
+  avoidStreets?: string[];
+  /** Also avoid roads OSM marks as unsafe on foot (fast, or no sidewalk). */
+  avoidDangerous?: boolean;
   pinnedAttractionIds?: string[];
   /**
    * How many stops the walker asked for in words ("bring me 3 famous places").
@@ -559,7 +567,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         endAnchor,
         preferredCategories,
         explicitAttractions,
+        fixedOrder: body.fixedOrder === true && explicitAttractions !== undefined ? true : undefined,
         pinnedAttractionIds,
+        // An end-distance of 0 means "back where I started" (a fresh build only).
+        returnToStart: params.maxEndDistanceFromOriginMeters === 0 && !endAnchor ? true : undefined,
       };
 
       return { plan: await buildWalkPlan(planRequest, selected), planRequest };
@@ -644,6 +655,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // 4. Fetch ORS geometry for the ordered route (origin → attraction 1 → 2 → ...)
     let geometry: Coordinates[] | undefined;
+    let routeQuality: Pick<RouteQuality, "endGapM" | "closesLoop" | "repeatedKm" | "forbiddenKm"> | undefined;
 
     if (plan.orderedAttractions.length > 0) {
       if (!process.env.ORS_API_KEY) {
@@ -657,14 +669,35 @@ export async function POST(request: Request): Promise<NextResponse> {
             ...plan.orderedAttractions.map((a) => a.coordinates),
             ...(returnToStart ? [origin] : []),
           ];
-          const orsRes = await getDirections({
-            coordinates: waypoints.map(toOrsCoord),
-            profile: "foot-walking",
-            instructions: false,
+          const avoidStreets = Array.isArray(body.avoidStreets)
+            ? body.avoidStreets.filter((x): x is string => typeof x === "string").slice(0, 10)
+            : [];
+          const avoidDangerous = body.avoidDangerous === true;
+          const forbidden =
+            avoidStreets.length || avoidDangerous
+              ? await fetchForbiddenWays(origin, Math.max(radiusMeters * 1.5, 2000), {
+                  streets: avoidStreets,
+                  dangerous: avoidDangerous,
+                })
+              : [];
+          const clean = await buildCleanRoute({
+            waypoints,
+            noRepeat: body.noRepeat === true,
+            forbiddenWays: forbidden.map((w) => w.path),
+            route: orsRoute,
           });
-          const encoded = orsRes.routes[0]?.geometry;
-          if (encoded) {
-            geometry = decodePolyline(encoded);
+          geometry = clean.geometry;
+          const { endGapM, closesLoop, repeatedKm, forbiddenKm } = clean.quality;
+          const summary = { endGapM, closesLoop, repeatedKm, forbiddenKm };
+          routeQuality = summary;
+          if (body.noRepeat && summary.repeatedKm > 0.1) {
+            warnings.push(`Could not avoid walking ${summary.repeatedKm} km of street twice.`);
+          }
+          if (summary.forbiddenKm > 0.1) {
+            warnings.push(`${summary.forbiddenKm} km of the route runs along streets you wanted to avoid.`);
+          }
+          if (returnToStart && !summary.closesLoop) {
+            warnings.push("The route does not end back at the start.");
           }
         } catch {
           // Geometry is optional — don't fail the whole plan if ORS is unavailable
@@ -725,6 +758,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       ...plan,
       geometry,
       warnings,
+      ...(routeQuality ? { routeQuality } : {}),
       ...(companionMemory ? { companionMemory } : {}),
       ...(habitHints.length > 0 ? { habitHints } : {}),
     });

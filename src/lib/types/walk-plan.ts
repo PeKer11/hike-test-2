@@ -34,6 +34,10 @@ export interface WalkPlanRequest {
   radiusMeters: number;
   preferredCategories?: AttractionCategory[];
   explicitAttractions?: Attraction[];
+  /** Visit `explicitAttractions` in exactly the given order; the planner does not reorder them. */
+  fixedOrder?: boolean;
+  /** The walk ends back at the origin, so the way home counts in order and budget. */
+  returnToStart?: boolean;
   // Attractions the user pinned as "must keep". Never dropped by the planner,
   // even when they push the plan over the time budget (`feasible` goes false instead).
   pinnedAttractionIds?: string[];

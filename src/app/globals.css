@@ -19,6 +19,21 @@
   --color-skysoft: #8fb8c9;
   --color-cream: #fbf8f4;
   --color-charcoal: #231f1c;
+  --color-tk-card: #fcf7f0;
+  --color-tk-ink: #072a1f;
+  --color-tk-wordmark: #b5512b;
+  --color-tk-body: #2e3040;
+  --color-tk-lede: #1a120b;
+  --color-tk-send: #cc6f46;
+  --color-tk-check: #b4501f;
+  --color-tk-bubble: #fffcf7;
+  --color-tk-well: #faf4ed;
+  --color-tk-line: #efe7dc;
+  --color-tk-field: #d9d2cb;
+  --color-tk-sage: #5f6f5d;
+  --shadow-tk-card: 0 3px 12px rgba(50, 32, 16, 0.28), 0 1px 2px rgba(50, 32, 16, 0.1);
+  --shadow-tk-soft: 0 2px 8px rgba(50, 32, 16, 0.16);
+  --radius-tk-card: 14px;
 }
 
 body {

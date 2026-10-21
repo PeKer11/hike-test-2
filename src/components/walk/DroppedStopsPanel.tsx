@@ -32,7 +32,7 @@ export function DroppedStopsPanel({ stops, onRecall, onDismiss }: Props) {
   if (stops.length === 0) return null;
 
   return (
-    <Card className="space-y-2 border-amber-300 bg-amber-50">
+    <Card className="space-y-2 border-amber-300! bg-amber-50!">
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-semibold text-amber-800">
           Dropped from your walk

@@ -157,7 +157,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         ...state.params,
         timeMinutes: pick(l.timeMinutes),
         radiusKm: pick(l.radiusKm),
-        endDistanceKm: pick(l.endDistanceKm),
+        // 0 = "back to start", a real answer, so it must survive the pick.
+        endDistanceKm: l.endDistanceKm === 0 ? 0 : pick(l.endDistanceKm),
         maxWalkKm: pick(l.maxWalkKm),
         ...(pick(l.paceMinPerKm) ? { paceMinPerKm: pick(l.paceMinPerKm) } : {}),
       },
@@ -231,6 +232,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 429 },
       );
     }
+    console.error("[assistant] turn failed:", error);
     return NextResponse.json({ error: "The assistant could not answer. Try again." }, { status: 502 });
   }
 }

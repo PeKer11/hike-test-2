@@ -3,6 +3,9 @@ import type { ToolDef } from "@/lib/llm/providers/openai-tools";
 import type { AttractionCategory } from "@/lib/types";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
+import { buildCleanRoute } from "@/lib/walk/clean-route";
+import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
+import { orsRoute } from "@/lib/walk/ors-route";
 
 import {
   DEFAULT_PACE_MIN_PER_KM,
@@ -10,6 +13,7 @@ import {
   type AssistantState,
   type BuildAction,
   type Candidate,
+  type WalkParams,
 } from "./state";
 
 const CATEGORIES: AttractionCategory[] = [
@@ -90,6 +94,9 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
           end_distance_km: { type: "number" },
           max_walk_km: { type: "number", description: "cap on the total distance walked" },
           pace_min_per_km: { type: "number" },
+          no_repeat: { type: "boolean", description: "true when the walker said never to walk the same street twice" },
+          avoid_streets: { type: "array", items: { type: "string" }, description: "street names the walker does not want to walk along, exactly as they wrote them" },
+          avoid_dangerous: { type: "boolean", description: "true when the walker wants to avoid dangerous roads; the server finds them from OpenStreetMap (fast roads, no sidewalk)" },
         },
         additionalProperties: false,
       },
@@ -140,7 +147,10 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
         "Estimate walking distance, walking minutes, visiting minutes and total time for visiting these stops from the start (real street distances, average pace). Use it to check the stops fit the walker's limits before build_walk.",
       parameters: {
         type: "object",
-        properties: { stop_ids: { type: "array", items: { type: "string" } } },
+        properties: { stop_ids: { type: "array", items: { type: "string" } }, ordered: {
+              type: "boolean",
+              description: "true when the walker stated an order for the stops (\"first the beach, then pizza\"); stop_ids must then be in exactly that order",
+            }, },
         required: ["stop_ids"],
         additionalProperties: false,
       },
@@ -154,7 +164,10 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
         "Build and show the walk. Call only after the walker confirmed the stops. `stop_ids` are candidate ids in the order proposed.",
       parameters: {
         type: "object",
-        properties: { stop_ids: { type: "array", items: { type: "string" } } },
+        properties: { stop_ids: { type: "array", items: { type: "string" } }, ordered: {
+              type: "boolean",
+              description: "true when the walker stated an order for the stops (\"first the beach, then pizza\"); stop_ids must then be in exactly that order",
+            }, },
         required: ["stop_ids"],
         additionalProperties: false,
       },
@@ -179,10 +192,59 @@ interface Estimate {
   visitMin: number;
   totalMin: number;
   legs: Array<{ to: string; km: number; min: number }>;
+  /** The stops in the order they are walked (not shown to the model). */
+  order: Candidate[];
 }
 
-/** Nearest-neighbour order from the start, street distances from ORS (straight line x1.3 if ORS fails). */
-async function estimateWalk(origin: Candidate["coordinates"], stops: Candidate[], pace: number): Promise<Estimate> {
+/** What a real walking route through the stops looks like against the walker's rules. */
+interface RouteCheck {
+  /** Only meaningful when the walker wants to end where they started. */
+  endsAtStart?: boolean;
+  repeatedKm: number;
+  forbiddenKm: number;
+  /** Roads treated as unsafe or named, so the walker can correct the list. */
+  avoidedStreets: string[];
+  /** Plain-language note when a rule could not be met. */
+  problems: string[];
+}
+
+/** Routes the stops for real and measures repeats, loop closure and avoided streets; null when no rule needs checking. */
+async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], params: WalkParams): Promise<RouteCheck | null> {
+  const loop = params.endDistanceKm === 0;
+  const streets = params.avoidStreets ?? [];
+  if (!loop && !params.noRepeat && !params.avoidDangerous && streets.length === 0) return null;
+  const forbidden =
+    streets.length || params.avoidDangerous
+      ? await fetchForbiddenWays(origin, Math.max((params.radiusKm ?? 3) * 1500, 2000), { streets, dangerous: params.avoidDangerous })
+      : [];
+  const waypoints = [origin, ...order.map((s) => s.coordinates), ...(loop ? [origin] : [])];
+  const clean = await buildCleanRoute({
+    waypoints,
+    route: orsRoute,
+    noRepeat: params.noRepeat === true,
+    forbiddenWays: forbidden.map((w) => w.path),
+  });
+  const { repeatedKm, forbiddenKm, closesLoop } = clean.quality;
+  const problems: string[] = [];
+  if (params.noRepeat && repeatedKm > 0.1) problems.push(`${repeatedKm} km of street are walked twice even after re-routing`);
+  if (forbiddenKm > 0.1) problems.push(`${forbiddenKm} km run along streets they wanted to avoid`);
+  if (loop && !closesLoop) problems.push("the route does not end back at the start");
+  return {
+    ...(loop ? { endsAtStart: closesLoop } : {}),
+    repeatedKm,
+    forbiddenKm,
+    avoidedStreets: [...new Set(forbidden.map((w) => w.name))].slice(0, 8),
+    problems,
+  };
+}
+
+/** Nearest-neighbour order from the start (or the given order when `ordered`), street distances from ORS (straight line x1.3 if ORS fails). */
+async function estimateWalk(
+  origin: Candidate["coordinates"],
+  stops: Candidate[],
+  pace: number,
+  ordered = false,
+): Promise<Estimate> {
   const points = [origin, ...stops.map((s) => s.coordinates)];
   let dist: number[][];
   try {
@@ -195,12 +257,14 @@ async function estimateWalk(origin: Candidate["coordinates"], stops: Candidate[]
   const left = new Set(stops.map((_, i) => i + 1));
   let at = 0;
   const legs: Estimate["legs"] = [];
+  const visited: Candidate[] = [];
   let meters = 0;
   while (left.size) {
     let best = -1;
-    for (const j of left) if (best < 0 || (dist[at][j] ?? Infinity) < (dist[at][best] ?? Infinity)) best = j;
+    for (const j of ordered ? [Math.min(...left)] : left) if (best < 0 || (dist[at][j] ?? Infinity) < (dist[at][best] ?? Infinity)) best = j;
     const d = dist[at][best] ?? 0;
     meters += d;
+    visited.push(stops[best - 1]);
     legs.push({ to: stops[best - 1].name, km: Math.round(d / 100) / 10, min: Math.round((d / 1000) * pace) });
     left.delete(best);
     at = best;
@@ -208,7 +272,7 @@ async function estimateWalk(origin: Candidate["coordinates"], stops: Candidate[]
   const walkKm = Math.round(meters / 100) / 10;
   const walkMin = Math.round((meters / 1000) * pace);
   const visitMin = stops.reduce((sum, s) => sum + visitMinutes(s.category), 0);
-  return { walkKm, walkMin, visitMin, totalMin: walkMin + visitMin, legs };
+  return { walkKm, walkMin, visitMin, totalMin: walkMin + visitMin, legs, order: visited };
 }
 
 function num(value: unknown): number | undefined {
@@ -334,6 +398,12 @@ export async function runTool(
       if (r) state.params.radiusKm = r;
       if (e !== undefined) state.params.endDistanceKm = e;
       if (p) state.params.paceMinPerKm = p;
+      if (typeof args.no_repeat === "boolean") state.params.noRepeat = args.no_repeat;
+      if (typeof args.avoid_dangerous === "boolean") state.params.avoidDangerous = args.avoid_dangerous;
+      if (Array.isArray(args.avoid_streets)) {
+        const streets = args.avoid_streets.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim().slice(0, 60));
+        state.params.avoidStreets = [...new Set([...(state.params.avoidStreets ?? []), ...streets])].slice(0, 10);
+      }
       return { output: JSON.stringify({ ok: true, params: state.params }), state };
     }
 
@@ -362,13 +432,21 @@ export async function runTool(
         .filter((c): c is Candidate => Boolean(c));
       if (picked.length === 0) return { output: JSON.stringify({ error: "no valid stop ids" }), state };
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
-      const est = await estimateWalk(state.origin, picked, state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM);
+      const ordered = args.ordered === true;
+      const est = await estimateWalk(state.origin, picked, state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM, ordered);
       const { timeMinutes, maxWalkKm } = state.params;
       const problems: string[] = [];
       if (timeMinutes && est.totalMin > timeMinutes) problems.push(`needs ${est.totalMin} min, they have ${timeMinutes}`);
       if (maxWalkKm && est.walkKm > maxWalkKm * 1.1) problems.push(`walks ${est.walkKm} km, their cap is ${maxWalkKm}`);
       if (name === "estimate_walk") {
-        return { output: JSON.stringify({ ...est, fits: problems.length === 0, problems }), state };
+        const { order, ...shown } = est;
+        let route: RouteCheck | null = null;
+        try {
+          route = await checkRoute(state.origin, order, state.params);
+        } catch {
+          route = null; // routing is down: say nothing rather than guess
+        }
+        return { output: JSON.stringify({ ...shown, fits: problems.length === 0, problems, ...(route ? { route } : {}) }), state };
       }
       if (!state.limitsSettled) {
         return { output: JSON.stringify({ error: "limits not asked yet: call ask_limits first" }), state };
@@ -390,7 +468,7 @@ export async function runTool(
       return {
         output: JSON.stringify({ ok: true, building: stops.map((s) => s.name) }),
         state,
-        action: { type: "build", origin, params: state.params, stops },
+        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}) },
       };
     }
   } catch {

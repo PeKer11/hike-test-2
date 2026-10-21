@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -890,6 +889,11 @@ export function WalkPlannerApp({
   // `keepAttractions` pins the rebuild to the POIs the walker is already heading to
   // instead of re-running discovery — again, automatic path only. `fillRemainingTime`
   // relaxes that to "keep these, then discover more" for user-named stops.
+  // Route rules (no repeats, streets to avoid) the assistant gave this walk; the
+  // automatic rebuilds that pin `keepAttractions` reuse them, a fresh manual
+  // build drops them.
+  const routeRulesRef = useRef<AssistantBuild["routeRules"]>(undefined);
+
   const handleBuildWalk = async (
     input: WalkCompanionInput,
     options?: {
@@ -907,11 +911,15 @@ export function WalkPlannerApp({
       keepAttractions?: Attraction[];
       /** Visit `keepAttractions` exactly in the given order instead of optimizing it. */
       fixedOrder?: boolean;
+      /** Route rules from the assistant; remembered so automatic rebuilds keep them. */
+      routeRules?: AssistantBuild["routeRules"];
       pinnedIds?: string[];
       fillRemainingTime?: boolean;
       heading?: number;
     },
   ) => {
+    if (options?.routeRules !== undefined) routeRulesRef.current = options.routeRules;
+    else if (options?.keepAttractions === undefined) routeRulesRef.current = undefined;
     // Snapshot what the walker is on now, so an automatic re-plan can be undone —
     // and so a failed re-plan can put them back instead of stranding them.
     const snapshot: PlanSnapshot | null =
@@ -1013,6 +1021,7 @@ export function WalkPlannerApp({
           preferredCategories: input.preferredCategories,
           explicitAttractions: keepAttractions,
           fixedOrder: options?.fixedOrder === true ? true : undefined,
+          ...routeRulesRef.current,
           pinnedAttractionIds: activePinnedIds,
           fillRemainingTime: options?.fillRemainingTime ?? false,
           heading: options?.heading,
@@ -2891,13 +2900,21 @@ export function WalkPlannerApp({
           narrow frame it is hidden until "Details" lifts it as a bottom sheet;
           from @4xl up it is simply the sidebar it always was. */}
       <aside
-        className={`isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 bg-cream @4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
+        className={`isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 @4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
           walkMode && !isDetailsOpen ? "hidden @4xl:block" : ""
         } ${
           walkMode && isDetailsOpen
             ? "absolute inset-x-0 bottom-0 z-[700] max-h-[70%] flex-none rounded-t-2xl shadow-[0_-4px_20px_rgba(30,61,47,0.18)] @4xl:static @4xl:max-h-none @4xl:flex-1 @4xl:rounded-none @4xl:shadow-none"
             : "relative"
-        } ${compact ? "p-3 pb-6" : "p-4 pb-8 @4xl:pb-4"}`}
+        } p-[14px] pb-[26px] @4xl:p-[12px] @4xl:pb-[20px] @6xl:p-[14px] @6xl:pb-[26px]`}
+        style={{
+          backgroundColor: "#d9b98a",
+          backgroundImage: "url(/images/traike/sidebar-bg.jpg)",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "max(100%, 460px) auto",
+          backgroundPosition: "right top",
+          backgroundAttachment: "local",
+        }}
       >
         {walkMode && isDetailsOpen && (
           <button
@@ -2908,55 +2925,35 @@ export function WalkPlannerApp({
             {walkCopy.hud.closeDetails}
           </button>
         )}
-        {/* Ambient studio-sweep wash behind the panel. Same blurred-photo +
-            gradient-scrim technique as /login, but dialled far down: the
-            planner is a working surface, so the image only survives as a warm
-            terracotta glow under a near-opaque cream scrim. Lives on the
-            <aside> itself, so the simple and Advanced views get it identically,
-            and it never reaches the map section. */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-          <Image
-            src="/images/studio-gradient-terra.png"
-            alt=""
-            fill
-            sizes="400px"
-            className="scale-125 object-cover object-center opacity-70 blur-2xl"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-cream/70 via-cream/88 to-cream/[0.97]" />
-        </div>
-        <div
-          className={`relative z-10 flex items-start justify-between gap-3 ${
-            compact ? "mb-3" : "mb-5"
-          }`}
-        >
-          <div className="min-w-0 space-y-1">
-            {/* The wordmark is the frame's job when embedded — the hub page
-                already says Traike right above the planner. */}
-            {!compact && (
-              <Link
-                href="/"
-                className="font-display text-sm font-bold tracking-wide text-terra"
-              >
-                Traike
-              </Link>
-            )}
-            <h1
-              className={`font-display font-bold leading-tight text-forest ${
-                compact ? "text-lg" : "text-2xl"
-              }`}
-            >
-              {isAdvancedOpen ? "Advanced planning" : "Your walk, right now"}
-            </h1>
-            <p
-              className={`leading-relaxed text-charcoal/70 ${
-                compact ? "text-xs" : "text-sm"
-              }`}
-            >
-              {isAdvancedOpen
-                ? "Place your own stops, set the rules, or search for a marked hike."
-                : "Tell us where you are and how long you have — we’ll build the walk."}
-            </p>
-          </div>
+        <div className="relative z-10 mx-auto mb-[17px] max-w-[440px] ps-[7px] pt-[7px] @4xl:mb-[14px] @4xl:pt-[5px] @6xl:mb-[17px] @6xl:pt-[7px]">
+          {!compact && (
+            <>
+          {/* Dotted route + pin that trail off the wordmark. */}
+          <svg
+            aria-hidden
+            viewBox="0 0 250 56"
+            className="pointer-events-none absolute start-[117px] top-[28px] h-[25px] w-[111px] rtl:-scale-x-100 @4xl:start-[100px] @4xl:top-[22px] @4xl:h-[19px] @4xl:w-[84px] @6xl:start-[117px] @6xl:top-[28px] @6xl:h-[25px] @6xl:w-[111px]"
+          >
+            <path d="M6 4C30 14 50 34 80 35S125 10 145 13 195 40 222 50" stroke="#c9663f" strokeWidth="3" strokeDasharray="5 7" strokeLinecap="round" fill="none" />
+            <path d="M237 18c-7 0-12 5-12 11.5 0 8 12 22.5 12 22.5s12-14.5 12-22.5C249 23 244 18 237 18Z" fill="#c4633b" />
+            <circle cx="237" cy="29.5" r="4" fill="#fcf6ee" />
+          </svg>
+          <Link
+            href="/"
+            className="relative block w-fit ms-[31px] font-display text-[24.7px] font-bold leading-none tracking-[0.01em] text-tk-wordmark @4xl:ms-[24px] @4xl:text-[21px] @6xl:ms-[31px] @6xl:text-[24.7px]"
+          >
+            Traike
+          </Link>
+            </>
+          )}
+          <h1 className="relative mt-[16px] font-display text-[28.6px] font-[650] leading-none tracking-[-0.02em] text-tk-ink @4xl:mt-[12px] @4xl:text-[24px] @6xl:mt-[16px] @6xl:text-[28.6px]">
+            {isAdvancedOpen ? "Advanced planning" : "Your walk, right now"}
+          </h1>
+          <p className="relative mt-[6px] max-w-[285px] text-[15.9px] leading-[22.2px] text-tk-lede @4xl:mt-[5px] @4xl:max-w-[250px] @4xl:text-[14px] @4xl:leading-[19.5px] @6xl:mt-[6px] @6xl:max-w-[285px] @6xl:text-[15.9px] @6xl:leading-[22.2px]">
+            {isAdvancedOpen
+              ? "Place your own stops, set the rules, or search for a marked hike."
+              : "Tell us where you are and how long you have — we’ll build the walk."}
+          </p>
           <button
             type="button"
             onClick={() => (isAdvancedOpen ? closeAdvanced() : setIsAdvancedOpen(true))}
@@ -2966,18 +2963,18 @@ export function WalkPlannerApp({
                 ? "Back to the simple walk builder"
                 : "Open the full planner: your own stops, route rules and hike search"
             }
-            className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-forest/20 bg-white px-2.5 py-1.5 text-xs font-semibold text-forest transition-colors hover:bg-forest/10"
+            className="absolute -top-[10px] end-0 inline-flex h-[31px] items-center gap-[9px] rounded-full border border-[#a9b7b0] bg-[#fefcf8] ps-[14px] pe-[15px] text-[12.75px] font-semibold leading-none text-tk-ink shadow-tk-soft transition-colors hover:bg-white @4xl:h-[28px] @4xl:gap-[7px] @4xl:ps-[11px] @4xl:pe-[12px] @4xl:text-[11.5px] @6xl:h-[31px] @6xl:gap-[9px] @6xl:ps-[14px] @6xl:pe-[15px] @6xl:text-[12.75px]"
           >
             {isAdvancedOpen ? (
-              <IconCollapse className="h-4 w-4" />
+              <IconCollapse className="h-[14px] w-[14px]" />
             ) : (
-              <IconExpand className="h-4 w-4" />
+              <IconExpand className="h-[14px] w-[14px]" />
             )}
             {isAdvancedOpen ? "Simple view" : "Advanced"}
           </button>
         </div>
 
-        <div className={`relative z-10 ${compact ? "space-y-3" : "space-y-4"}`}>
+        <div className="relative z-10 mx-auto max-w-[440px] space-y-[15px]">
           {isAdvancedOpen && (
             <Card className="space-y-2">
               <div className="text-sm font-semibold text-forest">Planning mode</div>
@@ -3088,7 +3085,7 @@ export function WalkPlannerApp({
                         radiusMeters: build.radiusMeters,
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
-                      { keepAttractions: build.stops, fixedOrder: build.fixedOrder, fillRemainingTime: false },
+                      { keepAttractions: build.stops, fixedOrder: build.fixedOrder, fillRemainingTime: false, routeRules: build.routeRules },
                     );
                   }}
                 />
@@ -3212,7 +3209,7 @@ export function WalkPlannerApp({
               )}
               {/* Pinned stop no longer fits the remaining time — ask, don't drop it */}
               {pinnedTimeWarning && (
-                <Card className="space-y-2 border-amber-300 bg-amber-50">
+                <Card className="space-y-2 border-amber-300! bg-amber-50!">
                   <p className="text-sm text-amber-800">📌 {pinnedTimeWarning}</p>
                   <div className="grid grid-cols-2 gap-2">
                     <Button
@@ -3342,14 +3339,19 @@ export function WalkPlannerApp({
                 lang={uiLang}
               />
               {walkPhase !== "walking" && (
-                <label className="flex cursor-pointer items-center gap-2 rounded-[10px] border border-dashed border-charcoal/20 bg-white px-3 py-2 text-xs text-charcoal/70">
+                <label className="@container relative flex h-[36px] cursor-pointer items-center gap-[9px] overflow-hidden rounded-[10px] border border-dashed border-[#dccdb9] bg-tk-card ps-[14px] pe-[12px] text-[13px] leading-none text-[#1d1712] shadow-tk-card">
                   <input
                     type="checkbox"
                     checked={isSimulating}
                     onChange={(e) => setIsSimulating(e.target.checked)}
-                    className="h-4 w-4 rounded border-charcoal/30 accent-terra"
+                    className="h-[18px] w-[18px] shrink-0 accent-tk-check"
                   />
                   Simulate this walk (10× speed)
+                  <svg aria-hidden viewBox="0 0 186 34" className="pointer-events-none absolute end-[55px] top-[calc(50%+2px)] hidden h-[15px] w-[83px] -translate-y-1/2 rtl:-scale-x-100 @min-[346px]:block">
+                    <path d="M3 27C40 33 62 8 100 13S150 30 183 6" fill="none" stroke="#d4b499" strokeWidth={3} strokeDasharray="7 7" strokeLinecap="round" />
+                  </svg>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/traike/footprints.svg" alt="" aria-hidden className="pointer-events-none absolute end-[30px] top-1/2 h-[17px] w-auto -translate-y-1/2 -rotate-[62deg]" />
                 </label>
               )}
               {/* The off-route chain has no other way to be seen working: real
@@ -3545,9 +3547,17 @@ export function WalkPlannerApp({
               </Button>
             </Card>
           ) : (
-            <Button variant="ghost" fullWidth onClick={handleClearAll}>
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="mx-auto flex items-center gap-[8px] py-2 text-[12.75px] font-semibold leading-[20px] text-[#34261c]"
+            >
+              <svg aria-hidden viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 12a8 8 0 1 1-2.5-5.8" />
+                <path d="M20 4v5h-5" />
+              </svg>
               Start over
-            </Button>
+            </button>
           )}
 
           {isAdvancedOpen ? (

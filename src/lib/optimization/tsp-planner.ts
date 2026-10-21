@@ -157,6 +157,43 @@ function twoOpt(tour: number[], matrix: number[][], originIndex: number): number
   return best;
 }
 
+/** Closed-tour length: origin -> stops in order -> origin. */
+function loopLength(tour: number[], matrix: number[][]): number {
+  let total = 0;
+  let prev = 0;
+  for (const i of tour) {
+    total += matrix[prev][i];
+    prev = i;
+  }
+  return total + matrix[prev][0];
+}
+
+/**
+ * Best order for a walk that comes back to the start. Nearest neighbour ends at
+ * the farthest stop and the way home then retraces the way out, so a small set
+ * of stops is searched exhaustively instead (7! = 5040 orders at most).
+ */
+function bestLoopOrder(tour: number[], matrix: number[][]): number[] {
+  if (tour.length < 2 || tour.length > 7) return tour;
+  let best = tour;
+  let bestLen = loopLength(tour, matrix);
+  const permute = (rest: number[], acc: number[]) => {
+    if (rest.length === 0) {
+      const len = loopLength(acc, matrix);
+      if (len < bestLen - 0.1) {
+        best = [...acc];
+        bestLen = len;
+      }
+      return;
+    }
+    for (let k = 0; k < rest.length; k++) {
+      permute([...rest.slice(0, k), ...rest.slice(k + 1)], [...acc, rest[k]]);
+    }
+  };
+  permute(tour, []);
+  return best;
+}
+
 // ---------------------------------------------------------------------------
 // End-distance-from-origin constraint
 // ---------------------------------------------------------------------------
@@ -420,11 +457,21 @@ export async function planWalkOrder(
   const n = matrix.length; // 1 (origin) + usable.length
   const dist = matrixDistance(matrix, [originPoint, ...usable]);
 
-  // Get initial order via Nearest Neighbor
-  let tourIndices = nearestNeighbor(matrix, n);
+  // A walker-stated order is kept as given; otherwise Nearest Neighbor + 2-opt.
+  let tourIndices: number[];
+  if (request.fixedOrder) {
+    tourIndices = usable.map((_, i) => i + 1);
+  } else {
+    tourIndices = nearestNeighbor(matrix, n);
+    tourIndices = twoOpt(tourIndices, matrix, 0);
+    if (request.returnToStart) tourIndices = bestLoopOrder(tourIndices, matrix);
+  }
 
-  // Improve with 2-opt
-  tourIndices = twoOpt(tourIndices, matrix, 0);
+  // Minutes to walk from the last stop of `list` back to the origin (loops only).
+  const homeMinutes = (list: Attraction[]): number =>
+    request.returnToStart && list.length > 0
+      ? (dist(list[list.length - 1], originPoint) / 1000) * walkingPaceMinPerKm
+      : 0;
 
   // tourIndices are 1-based indices into [origin, ...usable]
   const ordered = tourIndices.map((i) => usable[i - 1]);
@@ -458,7 +505,10 @@ export async function planWalkOrder(
         return s + (dist(from, feasibleAttractions[idx]) / 1000) * walkingPaceMinPerKm;
       }, 0);
       const usedVisit = feasibleAttractions.reduce((s, a) => s + a.avgVisitMinutes, 0);
-      return usedWalk + usedVisit + walkMin + attraction.avgVisitMinutes <= availableMinutes;
+      return (
+        usedWalk + usedVisit + walkMin + attraction.avgVisitMinutes + homeMinutes([...feasibleAttractions, attraction]) <=
+        availableMinutes
+      );
     })();
 
     if (appendFits) {
@@ -468,7 +518,8 @@ export async function planWalkOrder(
 
     // Attempt reinsertion at each earlier position (MEDIUM-3)
     let inserted = false;
-    for (let pos = 0; pos < feasibleAttractions.length; pos++) {
+    // (skipped for a stated order: inserting earlier would reorder the walk)
+    for (let pos = 0; pos < (request.fixedOrder ? 0 : feasibleAttractions.length); pos++) {
       // Build a trial list with attraction inserted at `pos`
       const trial = [
         ...feasibleAttractions.slice(0, pos),
@@ -484,7 +535,7 @@ export async function planWalkOrder(
         trialVisit += a.avgVisitMinutes;
         prev = a;
       }
-      if (trialWalk + trialVisit <= availableMinutes) {
+      if (trialWalk + trialVisit + homeMinutes(trial) <= availableMinutes) {
         feasibleAttractions.splice(pos, 0, attraction);
         inserted = true;
         break;
@@ -498,13 +549,10 @@ export async function planWalkOrder(
 
   // Only now, once the budget pass has settled which stops are actually on the
   // walk, is there a final stop whose distance from the origin means anything.
-  const endConstrained = enforceEndDistance(
-    feasibleAttractions,
-    request,
-    originPoint,
-    dist,
-    pinnedIds,
-  );
+  // A stated order wins over the end-distance limit, which would reorder or drop stops.
+  const endConstrained = request.fixedOrder
+    ? { ordered: feasibleAttractions, dropped: [] as Attraction[] }
+    : enforceEndDistance(feasibleAttractions, request, originPoint, dist, pinnedIds);
   const finalAttractions = endConstrained.ordered;
   droppedAttractions.push(...endConstrained.dropped);
 
@@ -546,7 +594,7 @@ export async function planWalkOrder(
     // no longer fits the remaining time, or strands the walker at the end.
     feasible:
       finalAttractions.length > 0 &&
-      totalWalkingMinutes + totalVisitMinutes <= availableMinutes + 1e-6 &&
+      totalWalkingMinutes + totalVisitMinutes + homeMinutes(finalAttractions) <= availableMinutes + 1e-6 &&
       endsWithinConstraint(finalAttractions, request),
     droppedAttractions,
   };

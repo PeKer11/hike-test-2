@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
-import { Button, Card } from "@/components/ui";
+import { Button } from "@/components/ui";
 import {
   DEFAULT_PACE_MIN_PER_KM,
   type AssistantState,
@@ -42,6 +42,10 @@ export interface AssistantBuild {
   radiusMeters: number;
   maxEndDistanceFromOriginMeters?: number;
   stops: Attraction[];
+  /** The walker stated an order: visit the stops exactly as listed. */
+  fixedOrder?: boolean;
+  /** Route rules the walker stated; sent with every (re)build of this walk. */
+  routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean };
 }
 
 interface AssistantChatProps {
@@ -97,13 +101,22 @@ function renderMessage(
   });
 }
 
+/** Candidates the reply talks about (by full or shortened name); all of them when it names none. */
+function mentionedPlaces(reply: string, places: Candidate[]): Candidate[] {
+  const hits = places.filter((c) => {
+    const short = c.name.split(/\s[-–—]\s|,|\(/)[0].trim();
+    return reply.includes(c.name) || (short.length >= 3 && reply.includes(short));
+  });
+  return hits.length > 0 ? hits : places;
+}
+
 type LimitKey = "timeMinutes" | "radiusKm" | "endDistanceKm" | "maxWalkKm";
 type Limits = Record<LimitKey, number | null> & { paceMinPerKm?: number };
 
 const LIMIT_ROWS: Array<{ key: LimitKey; label: string; unit: string; options: number[] }> = [
   { key: "timeMinutes", label: "Time available", unit: "min", options: [30, 60, 90, 120, 180] },
   { key: "radiusKm", label: "Search radius from you", unit: "km", options: [1, 2, 5, 10] },
-  { key: "endDistanceKm", label: "End at most this far from the start", unit: "km", options: [1, 2, 5] },
+  { key: "endDistanceKm", label: "End at most this far from the start", unit: "km", options: [0, 1, 2, 5] },
   { key: "maxWalkKm", label: "Max walking distance", unit: "km", options: [3, 5, 8, 12] },
 ];
 
@@ -153,7 +166,7 @@ function LimitsBox({
                   limits[row.key] === o ? "border-terra bg-terra text-white" : "border-charcoal/15"
                 }`}
               >
-                {o} {row.unit}
+                {o === 0 ? "Back to start" : `${o} ${row.unit}`}
               </button>
             ))}
             <button
@@ -207,6 +220,36 @@ function LimitsBox({
   );
 }
 
+function GuideFigure() {
+  const [fallback, setFallback] = useState(false);
+  // guide.png is dropped in later; until then the old crop shows, softly faded.
+  // The ref callback also catches a load error that fired before hydration.
+  const check = (el: HTMLImageElement | null) => {
+    if (el?.complete && el.naturalWidth === 0) setFallback(true);
+  };
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      ref={check}
+      data-mock="guide"
+      alt=""
+      aria-hidden
+      onError={() => setFallback(true)}
+      src={fallback ? "/images/assistant/guide.jpg" : "/images/assistant/guide.png"}
+      data-fallback={fallback || undefined}
+      className="pointer-events-none absolute bottom-0 left-0 z-10 h-[149px] w-[54%] object-contain object-left-bottom data-[fallback]:w-[100px] data-[fallback]:object-cover data-[fallback]:object-top data-[fallback]:[mask-image:radial-gradient(ellipse_70%_75%_at_50%_42%,#000_62%,transparent_100%)]"
+    />
+  );
+}
+
+const THEMES = [
+  { label: "Must-see Places", message: "Show me the must-see places", image: "/images/assistant/must-see.jpg" },
+  { label: "Food & Markets", message: "I want good food and markets", image: "/images/assistant/food.jpg" },
+  { label: "Viewpoints & Scenery", message: "I want viewpoints and scenery", image: "/images/assistant/viewpoints.jpg" },
+  { label: "Nature & Parks", message: "I want nature and parks", image: "/images/assistant/nature.jpg" },
+  { label: "Hidden Gems", message: "Show me hidden gems", image: "/images/assistant/hidden.jpg" },
+];
+
 function toAttraction(c: Candidate): Attraction {
   return {
     id: c.id,
@@ -234,6 +277,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const refreshChats = useCallback(async () => {
     const { data } = await createClient()
@@ -267,7 +311,8 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
     setMessages((rows ?? []) as Message[]);
     const candidates = ((chat?.state as Partial<AssistantState> | null)?.candidates ?? []) as Candidate[];
     setPlaces(candidates);
-    onPlacesChange(candidates.map(toAttraction));
+    const lastReply = [...((rows ?? []) as Message[])].reverse().find((m) => m.role === "assistant")?.content ?? "";
+    onPlacesChange(mentionedPlaces(lastReply, candidates).map(toAttraction));
     setShowChats(false);
     setError(null);
   };
@@ -311,7 +356,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
       setChatId(data.chatId);
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
       setPlaces(data.state.candidates);
-      onPlacesChange(data.state.candidates.map(toAttraction));
+      onPlacesChange(mentionedPlaces(data.reply, data.state.candidates).map(toAttraction));
       setStatedLimits({
         timeMinutes: data.state.params.timeMinutes ?? null,
         radiusKm: data.state.params.radiusKm ?? null,
@@ -331,6 +376,12 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
           maxEndDistanceFromOriginMeters:
             params.endDistanceKm === undefined ? undefined : params.endDistanceKm * 1000,
           stops: stops.map(toAttraction),
+          fixedOrder: data.action.ordered === true,
+          routeRules: {
+            noRepeat: params.noRepeat,
+            avoidStreets: params.avoidStreets,
+            avoidDangerous: params.avoidDangerous,
+          },
         });
       }
       void refreshChats();
@@ -342,132 +393,224 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
   };
 
   return (
-    <Card className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-lg text-forest">Plan with Traike</h2>
-        <div className="flex gap-2 text-xs">
-          <button type="button" className="underline text-charcoal/70" onClick={() => setShowChats((v) => !v)}>
+    <div className="@container relative overflow-hidden rounded-tk-card bg-tk-card font-brand shadow-tk-card">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pl-[20px] pr-[14px] pt-[13px] @max-[340px]:pl-[14px] @max-[340px]:pr-[10px]">
+        <span className="whitespace-nowrap font-display text-[22.2px] font-[650] leading-none tracking-[-0.01em] text-tk-ink @max-[340px]:text-[19px]">
+          Plan with Traike
+        </span>
+        <div className="flex items-baseline gap-[12px] whitespace-nowrap text-[12.5px] leading-none text-[#2f3340] @max-[340px]:gap-[9px] @max-[340px]:text-[11.5px]">
+          <button type="button" className="underline decoration-1 underline-offset-[2px] hover:text-tk-ink" onClick={() => setShowChats((v) => !v)}>
             Chats ({chats.length})
           </button>
-          <button type="button" className="underline text-charcoal/70" onClick={newChat}>
+          <button type="button" className="underline decoration-1 underline-offset-[2px] hover:text-tk-ink" onClick={newChat}>
             New chat
           </button>
           <button
             type="button"
             aria-label="Assistant settings"
             title="Settings"
-            className={`text-base leading-none ${settingsOpen ? "text-terra" : "text-charcoal/70"}`}
+            className={`relative top-[2px] flex h-[16px] w-[16px] items-center justify-center ${
+              settingsOpen ? "text-tk-send" : "text-[#2b2d3a]"
+            }`}
             onClick={() => setSettingsOpen((v) => !v)}
           >
-            ⚙
+            <svg viewBox="0 0 24 24" className="h-[13px] w-[13px]" fill="currentColor" fillRule="evenodd" aria-hidden>
+              <path d="M20.43 10.29 L22.91 10.57 L22.91 13.43 L20.43 13.71 L19.17 16.75 L20.72 18.70 L18.70 20.72 L16.75 19.17 L13.71 20.43 L13.43 22.91 L10.57 22.91 L10.29 20.43 L7.25 19.17 L5.30 20.72 L3.28 18.70 L4.83 16.75 L3.57 13.71 L1.09 13.43 L1.09 10.57 L3.57 10.29 L4.83 7.25 L3.28 5.30 L5.30 3.28 L7.25 4.83 L10.29 3.57 L10.57 1.09 L13.43 1.09 L13.71 3.57 L16.75 4.83 L18.70 3.28 L20.72 5.30 L19.17 7.25Z M12 8.4a3.6 3.6 0 1 0 0 7.2a3.6 3.6 0 1 0 0-7.2Z" />
+            </svg>
           </button>
         </div>
       </div>
 
-      {settingsOpen && <AssistantSettings defaults={defaults} onChange={setDefaults} />}
-
-      {showChats && (
-        <ul className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-charcoal/10 bg-white p-1">
-          {chats.length === 0 && <li className="px-2 py-1 text-xs text-charcoal/50">No chats yet.</li>}
-          {chats.map((c) => (
-            <li key={c.id} className="flex items-center justify-between gap-2 rounded px-2 py-1 hover:bg-cream/70">
-              <button
-                type="button"
-                dir="auto"
-                className={`flex-1 truncate text-start text-sm ${c.id === chatId ? "font-semibold text-terra" : ""}`}
-                onClick={() => void openChat(c.id)}
-              >
-                {c.title}
-              </button>
-              <button
-                type="button"
-                aria-label="Delete chat"
-                className="text-xs text-charcoal/50 hover:text-red-600"
-                onClick={() => void deleteChat(c.id)}
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div ref={listRef} className="max-h-72 space-y-2 overflow-y-auto">
-        {messages.length === 0 && (
-          <p className="text-sm text-charcoal/60">
-            Tell me where you are and what you feel like — places, food, nature. I will find them and plan the walk
-            with you.
-          </p>
-        )}
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            dir="auto"
-            className={`whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
-              m.role === "user" ? "ms-8 bg-charcoal/10" : "me-8 bg-white"
-            }`}
-          >
-            {m.role === "assistant" ? renderMessage(m.content, places, onFocusPlace) : m.content}
+      <div className="pb-[13px]">
+        {settingsOpen && (
+          <div className="mx-[17px] mt-[8px]">
+            <AssistantSettings defaults={defaults} onChange={setDefaults} />
           </div>
-        ))}
-        {limitsOpen && !pending && (
-          <LimitsBox
-            disabled={pending}
-            defaults={defaults}
-            askPace={askPace}
-            initial={statedLimits}
-            onConfirm={(l) => {
-              if (l.paceMinPerKm) setDefaults({ paceMinPerKm: l.paceMinPerKm });
-              void send(null, { message: describeLimits(l), limits: l });
-            }}
-          />
         )}
-        {choices.length > 0 && !pending && (
-          <div className="flex flex-wrap gap-1">
-            {choices.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className="rounded-full border border-terra px-3 py-1 text-sm text-terra"
-                onClick={() => void send(null, { message: c })}
-              >
-                {c}
-              </button>
+
+        {showChats && (
+          <ul className="mx-[17px] mt-[8px] max-h-40 space-y-1 overflow-y-auto rounded-[10px] border border-tk-line bg-[#fffdf9] p-1">
+            {chats.length === 0 && <li className="px-2 py-1 text-xs text-charcoal/50">No chats yet.</li>}
+            {chats.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-2 rounded-xl px-2 py-1 hover:bg-cream/70">
+                <button
+                  type="button"
+                  dir="auto"
+                  className={`flex-1 truncate text-start text-sm ${c.id === chatId ? "font-semibold text-terra" : ""}`}
+                  onClick={() => void openChat(c.id)}
+                >
+                  {c.title}
+                </button>
+                <button
+                  type="button"
+                  aria-label="Delete chat"
+                  className="text-xs text-charcoal/50 hover:text-red-600"
+                  onClick={() => void deleteChat(c.id)}
+                >
+                  ✕
+                </button>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-        {walkReady && !pending && !isBuilding && (
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => onStart(false)}>Start walk</Button>
-            <Button variant="secondary" onClick={() => onStart(true)}>
-              Simulate (10×)
-            </Button>
-          </div>
+
+        {messages.length === 0 && (
+          <>
+            <div data-mock="scene" className="relative mt-[2px] min-h-[152px] pb-[57px] pt-[22px]">
+              <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(247,236,220,0)_0%,#f7ecdc_45%,#f3e2c9_100%)]" />
+              {/* eslint-disable @next/next/no-img-element */}
+              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute -left-[4px] top-[7px] z-0 w-[56px]" />
+              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute left-[25%] top-[78px] z-0 w-[46px] -scale-x-100 opacity-90" />
+              <GuideFigure />
+              <svg aria-hidden viewBox="0 0 67 50" className="pointer-events-none absolute left-[27.6%] top-[55px] z-10 h-[22px] w-[30px]" fill="none" stroke="#c9653a" strokeWidth={6} strokeLinecap="round">
+                <path d="M5 20 13 42M36 4 29 41M63 28 44 49" />
+              </svg>
+              <img src="/images/traike/route-trail.svg" alt="" aria-hidden className="pointer-events-none absolute right-[22px] top-[106px] z-10 w-[116px]" />
+              <div data-mock="bubble" className="relative z-20 ml-[36.8%] mr-[3.4%] drop-shadow-[0_2px_5px_rgba(110,80,50,0.16)]">
+                <svg aria-hidden viewBox="0 0 54 41" className="absolute -left-[13px] bottom-0 h-[18px] w-[24px]">
+                  <path d="M29 3C29 15 22 22 10 27 24 31 38 37 54 41H29Z" fill="#fffcf7" />
+                </svg>
+                <p className="relative rounded-[13px] bg-tk-bubble pb-[11px] pl-[16px] pr-[8px] pt-[10px] text-[12.7px] leading-[17.5px] text-tk-body">
+                  Tell me where you are and what you feel like — places, food, nature. I will find them and plan the
+                  walk with you.
+                </p>
+              </div>
+              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute -right-[2px] top-[119px] z-20 w-[34px] -scale-x-100 rotate-[25deg]" />
+              {/* eslint-enable @next/next/no-img-element */}
+            </div>
+          </>
         )}
-        {pending && <p className="text-xs text-charcoal/50">Thinking…</p>}
+
+        <div ref={listRef} className={`mx-[17px] mt-[10px] empty:hidden ${messages.length > 0 ? "max-h-72 space-y-2 overflow-y-auto" : "space-y-2"}`}>
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              dir="auto"
+              className={`whitespace-pre-wrap px-[14px] py-[9px] text-[13px] leading-[1.4] ${
+                m.role === "user"
+                  ? "ms-8 rounded-[13px] rounded-br-[4px] bg-tk-ink text-tk-card"
+                  : "me-8 rounded-[13px] rounded-bl-[4px] bg-tk-bubble text-tk-body shadow-[0_2px_6px_rgba(110,80,50,0.12)]"
+              }`}
+            >
+              {m.role === "assistant" ? renderMessage(m.content, places, onFocusPlace) : m.content}
+            </div>
+          ))}
+          {limitsOpen && !pending && (
+            <LimitsBox
+              disabled={pending}
+              defaults={defaults}
+              askPace={askPace}
+              initial={statedLimits}
+              onConfirm={(l) => {
+                if (l.paceMinPerKm) setDefaults({ paceMinPerKm: l.paceMinPerKm });
+                void send(null, { message: describeLimits(l), limits: l });
+              }}
+            />
+          )}
+          {choices.length > 0 && !pending && (
+            <div className="flex flex-wrap gap-1">
+              {choices.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className="rounded-full border border-tk-send bg-white px-[10px] py-[4px] text-[12px] text-tk-wordmark"
+                  onClick={() => void send(null, { message: c })}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+          {walkReady && !pending && !isBuilding && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => onStart(false)}>Start walk</Button>
+              <Button variant="secondary" onClick={() => onStart(true)}>
+                Simulate (10×)
+              </Button>
+            </div>
+          )}
+          {pending && <p className="text-xs text-charcoal/50">Thinking…</p>}
+        </div>
+
+        {error && <p className="mx-[17px] mt-2 text-[12px] text-red-700">{error}</p>}
+
+        <form onSubmit={(e) => void send(e)} className="relative z-0 mt-[12px] space-y-[11px] px-[17px]">
+          <textarea
+            ref={inputRef}
+            dir="auto"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }}
+            rows={2}
+            placeholder="I want to see Habima Square, the Jaffa port, and a good market"
+            className="block w-full resize-y rounded-[6px] border border-tk-field bg-white px-[13px] py-[5px] text-[13.3px] leading-[19.5px] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
+          />
+          {!pending && !isBuilding && (
+            // Theme shortcuts: one scrollable row between the input and Send; typing still works.
+            <div
+              onWheel={(e) => {
+                if (e.deltaY) e.currentTarget.scrollLeft += e.deltaY;
+              }}
+              onMouseDown={(e) => {
+                // Click-and-drag scrolling; a drag must not fire the pill under the cursor.
+                const row = e.currentTarget;
+                const startX = e.clientX;
+                const startLeft = row.scrollLeft;
+                let moved = false;
+                const onMove = (ev: MouseEvent) => {
+                  if (Math.abs(ev.clientX - startX) > 4) moved = true;
+                  row.scrollLeft = startLeft - (ev.clientX - startX);
+                };
+                const onUp = () => {
+                  window.removeEventListener("mousemove", onMove);
+                  window.removeEventListener("mouseup", onUp);
+                  if (moved) {
+                    const block = (ev: MouseEvent) => ev.stopPropagation();
+                    row.addEventListener("click", block, { capture: true, once: true });
+                    setTimeout(() => row.removeEventListener("click", block, true), 0);
+                  }
+                };
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              }}
+              className="-mx-[17px] flex cursor-grab select-none gap-[7px] active:cursor-grabbing overflow-x-auto px-[17px] pb-[6px] [&::-webkit-scrollbar]:h-[6px] [&::-webkit-scrollbar-track]:mx-[17px] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-white [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-tk-send"
+            >
+              {THEMES.map((t) => (
+                <button
+                  key={t.label}
+                  type="button"
+                  onClick={() => void send(null, { message: t.message })}
+                  className="flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border border-[#eadfce] bg-[#fffdf9] py-[4px] pe-[12px] ps-[4px] font-brand text-[12.5px] font-semibold tracking-[0.005em] text-tk-ink shadow-[0_1px_3px_rgba(50,32,16,0.12)] transition-colors hover:border-tk-send hover:bg-white"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={t.image} alt="" aria-hidden className="h-[22px] w-[22px] rounded-full object-cover" />
+                  {t.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => inputRef.current?.focus()}
+                className="flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border border-dashed border-tk-send/60 bg-transparent py-[4px] pe-[12px] ps-[8px] font-brand text-[12.5px] font-semibold text-tk-wordmark transition-colors hover:bg-white"
+              >
+                <span aria-hidden>📍</span>Custom Walk
+              </button>
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={pending || isBuilding || !text.trim()}
+            className="block h-[37px] w-full rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-white transition-colors hover:bg-[#c2643c] disabled:opacity-60"
+          >
+            {isBuilding ? "Building your walk…" : "Send"}
+          </button>
+        </form>
+
       </div>
-
-      {error && <p className="text-xs text-red-700">{error}</p>}
-
-      <form onSubmit={(e) => void send(e)} className="space-y-2">
-        <textarea
-          dir="auto"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              e.currentTarget.form?.requestSubmit();
-            }
-          }}
-          rows={2}
-          placeholder="I want to see Habima Square, the Jaffa port, and a good market"
-          className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
-        />
-        <Button type="submit" fullWidth disabled={pending || isBuilding || !text.trim()}>
-          {isBuilding ? "Building your walk…" : "Send"}
-        </Button>
-      </form>
-    </Card>
+    </div>
   );
 }

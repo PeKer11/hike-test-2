@@ -8,6 +8,12 @@ export interface WalkParams {
   /** Cap on the total distance walked (the whole route, not the distance from the start). */
   maxWalkKm?: number;
   paceMinPerKm?: number;
+  /** Never walk the same street twice. */
+  noRepeat?: boolean;
+  /** Street names the walker does not want to walk along. */
+  avoidStreets?: string[];
+  /** Avoid roads OSM marks as unsafe on foot. */
+  avoidDangerous?: boolean;
 }
 
 /** Average adult walking pace (~4.8 km/h) until we have learned the walker's own. */
@@ -55,4 +61,6 @@ export interface BuildAction {
   origin: Coordinates;
   params: WalkParams;
   stops: Candidate[];
+  /** The walker stated an order for the stops; the walk must visit them exactly in that order. */
+  ordered?: boolean;
 }
