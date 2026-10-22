@@ -3,12 +3,12 @@ import type { ToolDef } from "@/lib/llm/providers/openai-tools";
 import type { AttractionCategory } from "@/lib/types";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
-import { buildCleanRoute } from "@/lib/walk/clean-route";
+import { ACCEPTABLE_BAD_KM, buildCleanRoute } from "@/lib/walk/clean-route";
 import { bestOrder, insideBoundary, outsideKm, pickSpread, type Boundary } from "@/lib/walk/loop-search";
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
 import { searchPlaces } from "@/lib/api/nominatim-client";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
-import { orsRoute } from "@/lib/walk/ors-route";
+import { namedStreetPaths, orsRoute } from "@/lib/walk/ors-route";
 
 import {
   DEFAULT_PACE_MIN_PER_KM,
@@ -235,6 +235,8 @@ interface RouteCheck {
   problems: string[];
   /** Checks that could not run (map data service down): tell the walker they were NOT verified. */
   unchecked?: string[];
+  /** What the walker can give up when no route meets every rule: ask which one. */
+  relaxOptions?: string[];
   /** Only with stay_in_area: kilometres of the route outside the town. */
   outsideKm?: number;
   /** Set when a rule fails: the stop whose removal fixes it, and what each removal would leave. */
@@ -249,6 +251,19 @@ function badKm(repeatedKm: number, forbiddenKm: number, outside: number, params:
   return (params.noRepeat ? repeatedKm : 0) + forbiddenKm + outside;
 }
 
+/** Rules the walker could give up, named from what is actually set, for the "no route meets everything" answer. */
+function relaxOptionsFor(params: WalkParams): string[] {
+  return [
+    ...(params.noRepeat ? ["allow a short stretch of street to be walked twice"] : []),
+    ...(params.stayInArea ? [`allow the route to step slightly outside ${params.stayInArea}`] : []),
+    ...(params.avoidStreets?.length ? [`allow the route to pass along ${params.avoidStreets.join(", ")}`] : []),
+    ...(params.avoidDangerous ? ["allow roads marked unsafe on foot"] : []),
+    ...(params.viaStreets?.length ? [`skip the stop on ${params.viaStreets.join(", ")}`] : []),
+    "fewer stops",
+    ...(params.timeMinutes || params.maxWalkKm ? ["a longer time or distance limit"] : []),
+  ];
+}
+
 /** Routes the stops for real and measures repeats, loop closure and avoided streets; null when no rule needs checking. */
 async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], params: WalkParams, alternatives: Candidate[] = []): Promise<RouteCheck | null> {
   const loop = params.endDistanceKm === 0;
@@ -261,7 +276,20 @@ async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], 
       ? await fetchForbiddenWays(origin, Math.max((params.radiusKm ?? 3) * 1500, 2000), { streets, dangerous: params.avoidDangerous, onError: () => (lookupFailed = true) })
       : [];
   const waypoints = [origin, ...order.map((s) => s.coordinates), ...(loop ? [origin] : [])];
-  const forbiddenPaths = forbidden.map((w) => w.path);
+  let forbiddenPaths = forbidden.map((w) => w.path);
+  let namedFromSteps = false;
+  if (lookupFailed && streets.length) {
+    // Overpass is down: read the named streets off the walking router's own step names instead.
+    try {
+      const found = await namedStreetPaths(waypoints, streets);
+      if (found.named) {
+        forbiddenPaths = found.paths;
+        namedFromSteps = true;
+      }
+    } catch {
+      // stays unchecked
+    }
+  }
   const clean = await buildCleanRoute({
     waypoints,
     route: orsRoute,
@@ -271,21 +299,22 @@ async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], 
   const { repeatedKm, forbiddenKm, closesLoop } = clean.quality;
   const outside = boundary ? outsideKm(clean.geometry, boundary) : 0;
   const problems: string[] = [];
-  if (boundary && outside > 0.1) problems.push(`${outside} km of the route run outside ${params.stayInArea}`);
-  if (params.noRepeat && repeatedKm > 0.1) problems.push(`${repeatedKm} km of street are walked twice even after re-routing`);
-  if (forbiddenKm > 0.1) problems.push(`${forbiddenKm} km run along streets they wanted to avoid`);
+  if (boundary && outside > ACCEPTABLE_BAD_KM) problems.push(`${outside} km of the route run outside ${params.stayInArea}`);
+  if (params.noRepeat && repeatedKm > ACCEPTABLE_BAD_KM) problems.push(`${repeatedKm} km of street are walked twice even after re-routing`);
+  if (forbiddenKm > ACCEPTABLE_BAD_KM) problems.push(`${forbiddenKm} km run along streets they wanted to avoid`);
   if (loop && !closesLoop) problems.push("the route does not end back at the start");
   const check: RouteCheck = {
     ...(loop ? { endsAtStart: closesLoop } : {}),
     repeatedKm,
     forbiddenKm,
     ...(boundary ? { outsideKm: outside } : {}),
-    ...(lookupFailed ? { unchecked: [params.avoidDangerous ? "dangerous roads" : "", streets.length ? "avoided streets" : ""].filter(Boolean) } : {}),
+    ...(lookupFailed ? { unchecked: [params.avoidDangerous ? "dangerous roads" : "", streets.length && !namedFromSteps ? "avoided streets" : "", namedFromSteps && clean.attempts > 1 ? "avoided streets (re-routed route only partly re-read)" : ""].filter(Boolean) } : {}),
     ...(params.stayInArea && !boundary ? { unchecked: [...(lookupFailed ? ["dangerous roads / avoided streets"] : []), `town boundary of ${params.stayInArea}`] } : {}),
     avoidedStreets: [...new Set(forbidden.map((w) => w.name))].slice(0, 8),
     problems,
+    ...(problems.length ? { relaxOptions: relaxOptionsFor(params) } : {}),
   };
-  if (problems.length && order.length > 1 && badKm(repeatedKm, forbiddenKm, outside, params) > 0.1) {
+  if (problems.length && order.length > 1 && badKm(repeatedKm, forbiddenKm, outside, params) > ACCEPTABLE_BAD_KM) {
     // Route again without each stop (one routing call each) to find which stop forces the problem.
     const relaxations: NonNullable<RouteCheck["relaxations"]> = [];
     for (let k = 0; k < order.length; k++) {
@@ -310,7 +339,7 @@ async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], 
     const left = (r: (typeof relaxations)[number]) => badKm(r.repeatedKm, 0, r.outsideKm ?? 0, params);
     relaxations.sort((a, b) => left(a) - left(b));
     check.relaxations = relaxations.slice(0, 3);
-    if (relaxations[0] && left(relaxations[0]) <= 0.1) {
+    if (relaxations[0] && left(relaxations[0]) <= ACCEPTABLE_BAD_KM) {
       check.forcingStop = relaxations[0].drop;
       // Try other places already found (same kind, not in the walk) in the forcing stop's place.
       const k = order.findIndex((s) => s.name === check.forcingStop);
@@ -327,7 +356,7 @@ async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], 
             maxAttempts: 1,
           });
           const out = boundary ? outsideKm(r.geometry, boundary) : 0;
-          if (badKm(r.quality.repeatedKm, r.quality.forbiddenKm, out, params) <= 0.1) {
+          if (badKm(r.quality.repeatedKm, r.quality.forbiddenKm, out, params) <= ACCEPTABLE_BAD_KM) {
             swaps.push({ replace: order[k].name, with: alt.name, repeatedKm: r.quality.repeatedKm, ...(boundary ? { outsideKm: out } : {}) });
           }
         } catch {
@@ -640,13 +669,13 @@ export async function runTool(
           const bad = badKm(r.quality.repeatedKm, r.quality.forbiddenKm, out, state.params);
           const walkKm = Math.round(r.geometry.reduce((a, p, i) => a + (i ? haversineDistance(r.geometry[i - 1], p) : 0), 0) / 100) / 10;
           if (!best || bad < badKm(best.repeatedKm, best.forbiddenKm, best.outsideKm, state.params)) best = { stops, repeatedKm: r.quality.repeatedKm, outsideKm: out, forbiddenKm: r.quality.forbiddenKm, walkKm };
-          if (bad <= 0.1) break;
+          if (bad <= ACCEPTABLE_BAD_KM) break;
         } catch {
           // routing failed for this set: try the next one
         }
       }
       if (!best) return { output: JSON.stringify({ error: "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
-      const clean = badKm(best.repeatedKm, best.forbiddenKm, best.outsideKm, state.params) <= 0.1;
+      const clean = badKm(best.repeatedKm, best.forbiddenKm, best.outsideKm, state.params) <= ACCEPTABLE_BAD_KM;
       return {
         output: JSON.stringify({
           found: clean,
@@ -660,7 +689,7 @@ export async function runTool(
           ...(forbiddenFailed ? { unchecked: ["dangerous roads / avoided streets: the map data service did not answer"] } : {}),
           ...(state.params.stayInArea && !boundary ? { unchecked_boundary: state.params.stayInArea } : {}),
           sets_checked: routed,
-          ...(clean ? {} : { note: "no set met every rule; this is the closest of those checked" }),
+          ...(clean ? {} : { note: "no set met every rule; this is the closest of those checked", relaxOptions: relaxOptionsFor(state.params) }),
         }),
         state,
       };

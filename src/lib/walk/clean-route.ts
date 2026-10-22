@@ -5,7 +5,7 @@ import { analyzeRoute, type RouteQuality } from "./route-quality";
 export type AvoidPolygons = { type: "MultiPolygon"; coordinates: number[][][][] };
 
 /** Repeats / forbidden stretches at or below this are junction noise. */
-const ACCEPTABLE_BAD_KM = 0.1;
+export const ACCEPTABLE_BAD_KM = 0.05;
 
 export interface CleanRouteResult {
   geometry: Coordinates[];

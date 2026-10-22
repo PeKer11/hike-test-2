@@ -12,6 +12,9 @@ export interface OrsDirectionsStep {
   distance: number;
   duration: number;
   instruction: string;
+  /** Street name (ORS only; "-" when unnamed) and the geometry indices the step spans. */
+  name?: string;
+  way_points?: [number, number];
 }
 
 export interface OrsDirectionsSegment {
