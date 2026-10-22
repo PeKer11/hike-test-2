@@ -2,7 +2,10 @@ import "server-only";
 
 import { nominatimBreaker } from "@/lib/api/nominatim-client";
 import { appUserAgent } from "@/lib/api/http-identity";
-import type { Boundary } from "./loop-search";
+import { clampBoundary, type Boundary } from "./loop-search";
+
+/** The walkable town: municipal outlines are cut back to this radius around the town centre. */
+const TOWN_RADIUS_M = 1500;
 
 // The public instance allows ~1 request/s; caching per name keeps us far below it.
 const cache = new Map<string, Boundary | null>();
@@ -20,10 +23,12 @@ export async function fetchTownBoundary(name: string): Promise<Boundary | null> 
       cache: "no-store",
     });
     if (!res.ok) return null;
-    const geo = ((await res.json()) as Array<{ geojson?: { type: string; coordinates: number[][][] | number[][][][] } }>)[0]?.geojson;
+    const hit = ((await res.json()) as Array<{ lat?: string; lon?: string; geojson?: { type: string; coordinates: number[][][] | number[][][][] } }>)[0];
+    const geo = hit?.geojson;
     let boundary: Boundary | null = null;
     if (geo?.type === "Polygon") boundary = [(geo.coordinates as number[][][])[0]];
     else if (geo?.type === "MultiPolygon") boundary = (geo.coordinates as number[][][][]).map((p) => p[0]);
+    if (boundary && hit?.lat && hit?.lon) boundary = clampBoundary(boundary, { lat: Number(hit.lat), lng: Number(hit.lon) }, TOWN_RADIUS_M);
     cache.set(key, boundary);
     return boundary;
   } catch {

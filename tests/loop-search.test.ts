@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bestOrder, insideBoundary, outsideKm, pickSpread } from "@/lib/walk/loop-search";
+import { bestOrder, clampBoundary, insideBoundary, outsideKm, pickSpread } from "@/lib/walk/loop-search";
 
 describe("bestOrder", () => {
   // start 0; stops on a line at 1, 2, 3 (distance = |i - j|), listed out of order
@@ -35,5 +35,16 @@ describe("boundary", () => {
   it("measures the stretch outside", () => {
     const km = outsideKm([{ lat: 0.5, lng: 0.9 }, { lat: 0.5, lng: 1.5 }], square);
     expect(km).toBeGreaterThan(5);
+  });
+});
+
+describe("clampBoundary", () => {
+  const big = [[[34.9, 32.4], [35.1, 32.4], [35.1, 32.6], [34.9, 32.6], [34.9, 32.4]]];
+  const centre = { lat: 32.5, lng: 35.0 };
+  it("cuts a municipality back to the town around its centre", () => {
+    const town = clampBoundary(big, centre, 1500);
+    expect(insideBoundary(centre, town, 0)).toBe(true);
+    expect(insideBoundary({ lat: 32.5, lng: 35.05 }, big, 0)).toBe(true);
+    expect(insideBoundary({ lat: 32.5, lng: 35.05 }, town, 0)).toBe(false);
   });
 });

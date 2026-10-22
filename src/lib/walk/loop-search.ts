@@ -74,6 +74,22 @@ export function pickSpread<T extends { coordinates: Coordinates }>(items: T[], k
 /** A town outline: polygons made of rings of [lng, lat] points (first ring of each polygon is the outer one; holes are ignored). */
 export type Boundary = number[][][];
 
+/** A municipality outline is far bigger than the town (Binyamina's includes the Carmel foothills): pull every vertex further than `radiusM` from `center` back onto that circle. */
+export function clampBoundary(boundary: Boundary, center: Coordinates, radiusM: number): Boundary {
+  const mx = 111320 * Math.cos((center.lat * Math.PI) / 180);
+  const my = 110540;
+  return boundary.map((ring) =>
+    ring.map(([lng, lat]) => {
+      const dx = (lng - center.lng) * mx;
+      const dy = (lat - center.lat) * my;
+      const d = Math.hypot(dx, dy);
+      if (d <= radiusM) return [lng, lat];
+      const k = radiusM / d;
+      return [center.lng + (dx * k) / mx, center.lat + (dy * k) / my];
+    }),
+  );
+}
+
 function inRing(p: Coordinates, ring: number[][]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
