@@ -32,7 +32,7 @@ interface AssistantRequest {
   images?: unknown;
 }
 
-const MAX_IMAGES = 3;
+const MAX_IMAGES = 5;
 const MAX_IMAGE_CHARS = 1_500_000;
 const IMAGE_URL = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
 

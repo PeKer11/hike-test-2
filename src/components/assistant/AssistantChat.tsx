@@ -65,7 +65,7 @@ interface AssistantChatProps {
   onSetOrigin: (coordinates: Coordinates) => void;
 }
 
-const MAX_IMAGES = 3;
+const MAX_IMAGES = 5;
 
 /** Shrinks an attached image to at most 1280px on its long side, as a JPEG data URL. */
 async function toSmallDataUrl(file: File): Promise<string | null> {
