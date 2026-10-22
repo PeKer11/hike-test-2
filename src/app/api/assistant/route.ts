@@ -28,6 +28,19 @@ interface AssistantRequest {
   origin?: unknown;
   limits?: unknown;
   defaults?: unknown;
+  /** Screenshots/photos the walker attached, as data URLs. Seen by the model only, never stored. */
+  images?: unknown;
+}
+
+const MAX_IMAGES = 3;
+const MAX_IMAGE_CHARS = 1_500_000;
+const IMAGE_URL = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+
+function parseImages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((v): v is string => typeof v === "string" && v.length <= MAX_IMAGE_CHARS && IMAGE_URL.test(v))
+    .slice(0, MAX_IMAGES);
 }
 
 function parseOrigin(value: unknown): { lat: number; lng: number } | null {
@@ -64,7 +77,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
-  const message = typeof body.message === "string" ? body.message.trim() : "";
+  const images = parseImages(body.images);
+  const typed = typeof body.message === "string" ? body.message.trim() : "";
+  const message = typed || (images.length ? "(attached image)" : "");
   if (message.length < 1 || message.length > MAX_MESSAGE_CHARS) {
     return NextResponse.json({ error: "message must be 1-1000 characters." }, { status: 400 });
   }
@@ -164,7 +179,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
     };
   }
-  history = [...history, { role: "user", content: message }];
+  history = [...history, { role: "user", content: message, ...(images.length ? { images } : {}) }];
 
   try {
     const result = await runMeteredTurn(

@@ -9,7 +9,7 @@ export interface ToolCall {
 }
 
 export type ChatMessage =
-  | { role: "system" | "user"; content: string }
+  | { role: "system" | "user"; content: string; /** Data-URL images the walker attached to this message. */ images?: string[] }
   | { role: "assistant"; content: string | null; tool_calls?: ToolCall[] }
   | { role: "tool"; tool_call_id: string; content: string };
 
@@ -57,6 +57,14 @@ function toInput(messages: ChatMessage[]): InputItem[] {
       for (const c of m.tool_calls ?? []) {
         items.push({ type: "function_call", call_id: c.id, name: c.function.name, arguments: c.function.arguments });
       }
+    } else if (m.images?.length) {
+      items.push({
+        role: m.role,
+        content: [
+          { type: "input_text", text: m.content },
+          ...m.images.map((url) => ({ type: "input_image", image_url: url })),
+        ],
+      });
     } else {
       items.push({ role: m.role, content: m.content });
     }

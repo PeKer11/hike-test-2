@@ -17,6 +17,8 @@ const TURN_TIMEOUT_MS = 45_000;
 export interface TurnMessage {
   role: "user" | "assistant";
   content: string;
+  /** Data-URL images attached to this message (the model sees them; they are not stored). */
+  images?: string[];
 }
 
 export interface TurnResult {
@@ -77,7 +79,7 @@ export async function runAssistantTurn(
         known +
         (input.summary ? `\n\nSummary of the earlier conversation:\n${input.summary}` : ""),
     },
-    ...input.history.map((m) => ({ role: m.role, content: m.content }) as ChatMessage),
+    ...input.history.map((m) => ({ role: m.role, content: m.content, ...(m.images?.length ? { images: m.images } : {}) }) as ChatMessage),
   ];
 
   const signal = AbortSignal.timeout(TURN_TIMEOUT_MS);

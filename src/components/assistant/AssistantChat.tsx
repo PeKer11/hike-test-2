@@ -65,6 +65,24 @@ interface AssistantChatProps {
   onSetOrigin: (coordinates: Coordinates) => void;
 }
 
+const MAX_IMAGES = 3;
+
+/** Shrinks an attached image to at most 1280px on its long side, as a JPEG data URL. */
+async function toSmallDataUrl(file: File): Promise<string | null> {
+  if (!file.type.startsWith("image/")) return null;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.8);
+  } catch {
+    return null;
+  }
+}
+
 // Unstated limits mean "no limit": the planner's largest accepted values.
 const NO_LIMIT_MINUTES = 480;
 const NO_LIMIT_RADIUS_KM = 10;
@@ -272,6 +290,8 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
   const [places, setPlaces] = useState<Candidate[]>([]);
   const [statedLimits, setStatedLimits] = useState<Partial<Limits>>({});
   const [text, setText] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [limitsOpen, setLimitsOpen] = useState(false);
   const [askPace, setAskPace] = useState(false);
   const [choices, setChoices] = useState<string[]>([]);
@@ -335,21 +355,31 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
     void refreshChats();
   };
 
+  const addImages = async (files: File[]) => {
+    const urls = (await Promise.all(files.map(toSmallDataUrl))).filter((u): u is string => !!u);
+    if (urls.length) setImages((cur) => [...cur, ...urls].slice(0, MAX_IMAGES));
+  };
+
   const send = async (event: FormEvent | null, override?: { message: string; limits?: Limits }) => {
     event?.preventDefault();
-    const message = override?.message ?? text.trim();
+    const typed = override?.message ?? text.trim();
+    const sentImages = override ? [] : images;
+    const message = typed || (sentImages.length ? "🖼" : "");
     if (!message || pending) return;
     setLimitsOpen(false);
     setChoices([]);
-    if (!override) setText("");
+    if (!override) {
+      setText("");
+      setImages([]);
+    }
     setError(null);
-    setMessages((m) => [...m, { role: "user", content: message }]);
+    setMessages((m) => [...m, { role: "user", content: sentImages.length ? `${message} 🖼×${sentImages.length}` : message }]);
     setPending(true);
     try {
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, message, origin, defaults, ...(override?.limits ? { limits: override.limits } : {}) }),
+        body: JSON.stringify({ chatId, message: typed, origin, defaults, ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) }),
       });
       const data = (await response.json()) as AssistantReply;
       if (!response.ok) {
@@ -544,6 +574,13 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
             dir="auto"
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onPaste={(e) => {
+              const files = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
+              if (files.length) {
+                e.preventDefault();
+                void addImages(files);
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -554,6 +591,41 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
             placeholder="I want to see Habima Square, the Jaffa port, and a good market"
             className="block w-full resize-y rounded-[6px] border border-tk-field bg-white px-[13px] py-[5px] text-[13.3px] leading-[19.5px] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
           />
+          <div className="flex flex-wrap items-center gap-[7px]">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => {
+                void addImages([...(e.target.files ?? [])]);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              disabled={images.length >= MAX_IMAGES}
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-full border border-tk-field bg-white px-[10px] py-[3px] text-[12px] text-tk-body hover:border-tk-send disabled:cursor-not-allowed"
+            >
+              📎 Add image
+            </button>
+            {images.map((src, i) => (
+              <span key={i} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt="" className="h-[34px] w-[34px] rounded-[5px] object-cover" />
+                <button
+                  type="button"
+                  aria-label="Remove image"
+                  onClick={() => setImages((cur) => cur.filter((_, j) => j !== i))}
+                  className="absolute -right-[5px] -top-[5px] flex h-[15px] w-[15px] items-center justify-center rounded-full bg-tk-ink text-[10px] leading-none text-white"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
           {!pending && !isBuilding && (
             // Theme shortcuts: one scrollable row between the input and Send; typing still works.
             <div
@@ -607,7 +679,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
           )}
           <button
             type="submit"
-            disabled={pending || isBuilding || !text.trim()}
+            disabled={pending || isBuilding || (!text.trim() && images.length === 0)}
             className="block h-[37px] w-full rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-white transition-colors hover:bg-[#c2643c] disabled:cursor-not-allowed"
           >
             {isBuilding ? "Building your walk…" : "Send"}
