@@ -14,6 +14,8 @@ export interface WalkParams {
   avoidStreets?: string[];
   /** Avoid roads OSM marks as unsafe on foot. */
   avoidDangerous?: boolean;
+  /** Town the whole walk must stay inside (a name Nominatim can resolve, e.g. "Caesarea, Israel"). */
+  stayInArea?: string;
 }
 
 /** Average adult walking pace (~4.8 km/h) until we have learned the walker's own. */
