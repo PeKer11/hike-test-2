@@ -34,6 +34,10 @@ const CATEGORIES: AttractionCategory[] = [
 /** Most results Sol ever sees from one tool call: keeps the prompt small. */
 const MAX_RESULTS_TO_MODEL = 6;
 const DEFAULT_NEARBY_RADIUS_M = 2000;
+/** find_clean_walk: places considered, combinations scanned, and sets routed for real (each costs 1-2 routing calls). */
+const SEARCH_POOL_MAX = 18;
+const SEARCH_COMBOS_MAX = 20000;
+const SEARCH_ROUTE_BUDGET = 8;
 
 export const ASSISTANT_TOOLS: ToolDef[] = [
   {
@@ -156,6 +160,23 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
               description: "true when the walker stated an order for the stops (\"first the beach, then pizza\"); stop_ids must then be in exactly that order",
             }, },
         required: ["stop_ids"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "find_clean_walk",
+      description:
+        "Search the places found so far for a set of stops whose real walking loop meets the walker's rules (no street twice, inside the town, time and distance limits). Use it when the walker wants N stops with such rules, or when estimate_walk reports problems and swapping by hand is not working. Needs the start set and enough places found (call find_nearby for several kinds first, ideally 15+ places). Returns stop_ids to pass to estimate_walk and build_walk.",
+      parameters: {
+        type: "object",
+        properties: {
+          count: { type: "number", description: "how many stops in total (2-6)" },
+          must_ids: { type: "array", items: { type: "string" }, description: "candidate ids that must be in the walk" },
+        },
+        required: ["count"],
         additionalProperties: false,
       },
     },
@@ -499,6 +520,99 @@ export async function runTool(
       const fact = typeof args.fact === "string" ? args.fact.trim().slice(0, 120) : "";
       if (fact.length < 3) return { output: JSON.stringify({ error: "fact too short" }), state };
       return { output: JSON.stringify({ ok: true, saved: fact }), state, remember: fact };
+    }
+
+    if (name === "find_clean_walk") {
+      const origin = state.origin;
+      if (!origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
+      const count = Math.min(6, Math.max(2, Math.round(num(args.count) ?? 5)));
+      const must = (Array.isArray(args.must_ids) ? args.must_ids : [])
+        .map((id) => state.candidates.find((c) => c.id === id))
+        .filter((c): c is Candidate => Boolean(c))
+        .slice(0, count);
+      const loop = state.params.endDistanceKm === 0;
+      const boundary = state.params.stayInArea ? await fetchTownBoundary(state.params.stayInArea) : null;
+      const pool = state.candidates
+        .filter((c) => c.category !== "area" && !must.includes(c) && haversineDistance(origin, c.coordinates) > 150 && (!boundary || insideBoundary(c.coordinates, boundary)))
+        .sort((a, b) => haversineDistance(origin, a.coordinates) - haversineDistance(origin, b.coordinates))
+        .slice(0, SEARCH_POOL_MAX);
+      const need = count - must.length;
+      if (pool.length < need) {
+        return { output: JSON.stringify({ error: `only ${pool.length + must.length} usable places found; call find_nearby for more kinds first` }), state };
+      }
+      const all = [...must, ...pool];
+      const m = await getMatrix({ locations: [origin, ...all].map((c) => toOrsCoord("coordinates" in c ? c.coordinates : c)) } as Parameters<typeof getMatrix>[0]);
+      const full = m.distances as number[][];
+      const pace = state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM;
+      const { timeMinutes, maxWalkKm } = state.params;
+      // Every combination of the pool, ordered as a loop; keep those within the limits, most spread out first.
+      const scored: Array<{ idx: number[]; spacing: number }> = [];
+      const consider = (chosen: number[]) => {
+        const idx = [...must.map((_, i) => i + 1), ...chosen.map((i) => i + 1 + must.length)];
+        const sub = [0, ...idx].map((a) => [0, ...idx].map((b) => full[a]?.[b] ?? Infinity));
+        const order = bestOrder(sub, loop).map((i) => idx[i - 1]);
+        let at = 0;
+        let meters = 0;
+        for (const j of order) {
+          meters += full[at]?.[j] ?? Infinity;
+          at = j;
+        }
+        if (loop) meters += full[at]?.[0] ?? Infinity;
+        const visit = idx.reduce((s, i) => s + visitMinutes(all[i - 1].category), 0);
+        if (maxWalkKm && meters > maxWalkKm * 1100) return;
+        if (timeMinutes && (meters / 1000) * pace + visit > timeMinutes) return;
+        let spacing = Infinity;
+        for (const a of idx) for (const b of idx) if (a < b) spacing = Math.min(spacing, haversineDistance(all[a - 1].coordinates, all[b - 1].coordinates));
+        scored.push({ idx: order, spacing });
+      };
+      let seen = 0;
+      const walk = (start: number, chosen: number[]) => {
+        if (seen > SEARCH_COMBOS_MAX) return;
+        if (chosen.length === need) {
+          seen += 1;
+          consider(chosen);
+          return;
+        }
+        for (let i = start; i < pool.length; i++) walk(i + 1, [...chosen, i]);
+      };
+      walk(0, []);
+      scored.sort((a, b) => b.spacing - a.spacing);
+      let best: { stops: Candidate[]; repeatedKm: number; outsideKm: number; walkKm: number } | null = null;
+      let routed = 0;
+      for (const { idx } of scored.slice(0, SEARCH_ROUTE_BUDGET)) {
+        const stops = idx.map((i) => all[i - 1]);
+        try {
+          const r = await buildCleanRoute({
+            waypoints: [origin, ...stops.map((s) => s.coordinates), ...(loop ? [origin] : [])],
+            route: orsRoute,
+            noRepeat: state.params.noRepeat === true,
+            maxAttempts: 2,
+          });
+          routed += 1;
+          const out = boundary ? outsideKm(r.geometry, boundary) : 0;
+          const bad = badKm(r.quality.repeatedKm, 0, out, state.params);
+          const walkKm = Math.round(r.geometry.reduce((a, p, i) => a + (i ? haversineDistance(r.geometry[i - 1], p) : 0), 0) / 100) / 10;
+          if (!best || bad < badKm(best.repeatedKm, 0, best.outsideKm, state.params)) best = { stops, repeatedKm: r.quality.repeatedKm, outsideKm: out, walkKm };
+          if (bad <= 0.1) break;
+        } catch {
+          // routing failed for this set: try the next one
+        }
+      }
+      if (!best) return { output: JSON.stringify({ error: "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
+      const clean = badKm(best.repeatedKm, 0, best.outsideKm, state.params) <= 0.1;
+      return {
+        output: JSON.stringify({
+          found: clean,
+          stop_ids: best.stops.map((s) => s.id),
+          stops: best.stops.map((s) => s.name),
+          walkKm: best.walkKm,
+          repeatedKm: best.repeatedKm,
+          ...(boundary ? { outsideKm: best.outsideKm } : {}),
+          sets_checked: routed,
+          ...(clean ? {} : { note: "no set met every rule; this is the closest of those checked" }),
+        }),
+        state,
+      };
     }
 
     if (name === "estimate_walk" || name === "build_walk") {
