@@ -328,10 +328,10 @@ async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], 
   const waypoints = [origin, ...order.map((s) => s.coordinates), ...(loop ? [origin] : [])];
   let forbiddenPaths = forbidden.map((w) => w.path);
   let namedFromSteps = false;
-  if (lookupFailed && streets.length) {
+  if (lookupFailed && (streets.length || params.avoidDangerous)) {
     // Overpass is down: read the named streets off the walking router's own step names instead.
     try {
-      const found = await namedStreetPaths(waypoints, streets);
+      const found = await namedStreetPaths(waypoints, streets, params.avoidDangerous === true);
       if (found.named) {
         forbiddenPaths = found.paths;
         namedFromSteps = true;
@@ -360,7 +360,7 @@ async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], 
     repeatedKm,
     forbiddenKm,
     ...(boundary ? { outsideKm: outside } : {}),
-    ...(lookupFailed ? { unchecked: [params.avoidDangerous ? "dangerous roads" : "", streets.length && !namedFromSteps ? "avoided streets" : "", namedFromSteps && clean.attempts > 1 ? "avoided streets (re-routed route only partly re-read)" : ""].filter(Boolean) } : {}),
+    ...(lookupFailed ? { unchecked: [params.avoidDangerous && !namedFromSteps ? "dangerous roads" : "", streets.length && !namedFromSteps ? "avoided streets" : "", namedFromSteps && clean.attempts > 1 ? "avoided streets (re-routed route only partly re-read)" : ""].filter(Boolean) } : {}),
     ...(params.stayInArea && !boundary ? { unchecked: [...(lookupFailed ? ["dangerous roads / avoided streets"] : []), `town boundary of ${params.stayInArea}`] } : {}),
     orderIds: order.map((s) => s.id),
     avoidedStreets: [...new Set(forbidden.map((w) => w.name))].slice(0, 8),

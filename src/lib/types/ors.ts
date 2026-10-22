@@ -4,6 +4,8 @@ export interface OrsDirectionsRequest {
   coordinates: OrsCoordinate[];
   profile?: "foot-walking" | "foot-hiking" | "cycling-regular" | "driving-car";
   instructions?: boolean;
+  /** ORS extra_info keys, e.g. "waytype". */
+  extra_info?: string[];
   /** Passed through as ORS `options` (round_trip, avoid_polygons, ...). */
   options?: Record<string, unknown>;
 }
@@ -31,6 +33,8 @@ export interface OrsDirectionsRoute {
   };
   segments: OrsDirectionsSegment[];
   way_points: number[];
+  /** Present when extra_info was asked for: values are [fromIdx, toIdx, value] over the geometry. */
+  extras?: Record<string, { values: Array<[number, number, number]> }>;
 }
 
 export interface OrsDirectionsResponse {

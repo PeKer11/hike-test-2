@@ -238,6 +238,7 @@ export async function getDirections(
       coordinates: request.coordinates,
       instructions: request.instructions ?? true,
       ...(request.options ? { options: request.options } : {}),
+      ...(request.extra_info ? { extra_info: request.extra_info } : {}),
     },
     { cache: "no-store" },
   );

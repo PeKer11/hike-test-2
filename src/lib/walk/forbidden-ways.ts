@@ -21,6 +21,9 @@ const DANGEROUS = [
 
 const MAX_WAYS = 400;
 
+// Overpass is a free shared server that is often at capacity: remember what it did answer.
+const cache = new Map<string, ForbiddenWay[]>();
+
 /** A street name as an Overpass-QL regex literal. */
 function nameRegex(names: string[]): string {
   return names
@@ -66,9 +69,14 @@ export async function fetchForbiddenWays(
   }
   if (opts.dangerous) parts.push(...DANGEROUS.map((q) => `${q}${around};`));
   if (parts.length === 0) return [];
+  const query = `[out:json][timeout:25];(${parts.join("")});out tags geom;`;
+  const hit = cache.get(query);
+  if (hit) return hit;
   try {
-    const elements = await runOverpassQuery(`[out:json][timeout:25];(${parts.join("")});out tags geom;`);
-    return parseForbiddenWays(elements as unknown as WayElement[], streets);
+    const elements = await runOverpassQuery(query);
+    const ways = parseForbiddenWays(elements as unknown as WayElement[], streets);
+    cache.set(query, ways);
+    return ways;
   } catch {
     opts.onError?.(); // the caller must say the check did not happen
     return [];
