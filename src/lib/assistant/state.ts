@@ -16,6 +16,8 @@ export interface WalkParams {
   avoidDangerous?: boolean;
   /** Town the whole walk must stay inside (a name Nominatim can resolve, e.g. "Caesarea, Israel"). */
   stayInArea?: string;
+  /** Streets the walk must pass along (one point on each becomes a stop with no visiting time). */
+  viaStreets?: string[];
 }
 
 /** Average adult walking pace (~4.8 km/h) until we have learned the walker's own. */
@@ -23,6 +25,7 @@ export const DEFAULT_PACE_MIN_PER_KM = 12.5;
 
 /** Minutes spent at a stop, by kind of place. */
 export function visitMinutes(category: string): number {
+  if (category === "area") return 0; // a street the walk must pass: nothing to visit
   return category === "food" ? 45 : category === "museum" ? 60 : category === "park" || category === "nature" ? 25 : 30;
 }
 

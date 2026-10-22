@@ -50,12 +50,12 @@ export function parseForbiddenWays(elements: WayElement[], streets: string[]): F
 /**
  * Streets the walker does not want to walk along, around `center`: ones they
  * named, and (if asked) roads OSM tags as unsafe on foot. Empty on any failure,
- * so a lookup outage never blocks building a walk.
+ * so a lookup outage never blocks building a walk; `onError` tells the caller it failed.
  */
 export async function fetchForbiddenWays(
   center: Coordinates,
   radiusM: number,
-  opts: { streets?: string[]; dangerous?: boolean },
+  opts: { streets?: string[]; dangerous?: boolean; onError?: () => void },
 ): Promise<ForbiddenWay[]> {
   const streets = (opts.streets ?? []).filter((s) => s.trim());
   const around = `(around:${Math.min(Math.max(Math.round(radiusM), 500), 8000)},${center.lat},${center.lng})`;
@@ -70,6 +70,7 @@ export async function fetchForbiddenWays(
     const elements = await runOverpassQuery(`[out:json][timeout:25];(${parts.join("")});out tags geom;`);
     return parseForbiddenWays(elements as unknown as WayElement[], streets);
   } catch {
+    opts.onError?.(); // the caller must say the check did not happen
     return [];
   }
 }
