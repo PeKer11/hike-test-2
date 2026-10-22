@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { AssistantDefaults } from "@/lib/assistant/defaults";
 import { AssistantSettings, PACE_PRESETS, useAssistantDefaults } from "./AssistantSettings";
+import { StartLocationPicker } from "./StartLocationPicker";
 import type { Attraction, Coordinates } from "@/lib/types";
 
 interface Message {
@@ -60,6 +61,8 @@ interface AssistantChatProps {
   /** A walk has been built and can be started. */
   walkReady: boolean;
   onStart: (simulate: boolean) => void;
+  /** The walker picked a start point (GPS or searched place). */
+  onSetOrigin: (coordinates: Coordinates) => void;
 }
 
 // Unstated limits mean "no limit": the planner's largest accepted values.
@@ -261,7 +264,7 @@ function toAttraction(c: Candidate): Attraction {
   };
 }
 
-export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onFocusPlace, walkReady, onStart }: AssistantChatProps) {
+export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onFocusPlace, walkReady, onStart, onSetOrigin }: AssistantChatProps) {
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
@@ -534,6 +537,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
 
         {error && <p className="mx-[17px] mt-2 text-[12px] text-red-700">{error}</p>}
 
+        <StartLocationPicker onPick={onSetOrigin} />
         <form onSubmit={(e) => void send(e)} className="relative z-0 mt-[12px] space-y-[11px] px-[17px]">
           <textarea
             ref={inputRef}

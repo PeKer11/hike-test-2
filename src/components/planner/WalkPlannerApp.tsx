@@ -3070,6 +3070,10 @@ export function WalkPlannerApp({
                   onPlacesChange={setPreviewPlaces}
                   onFocusPlace={(coordinates) => focusOn(coordinates, 17)}
                   walkReady={walkPhase === "planned"}
+                  onSetOrigin={(coordinates) => {
+                    setCurrentPosition(coordinates);
+                    focusOn(coordinates, 14);
+                  }}
                   onStart={(simulate) => {
                     setIsSimulating(simulate);
                     setStartRequested(true);
