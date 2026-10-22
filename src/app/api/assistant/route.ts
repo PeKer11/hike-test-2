@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { callerKey, chatRateLimiter, rateLimitedResponse } from "@/lib/api/rate-limit";
+import { assistantRateLimiter, callerKey, rateLimitedResponse } from "@/lib/api/rate-limit";
 import {
   KEEP_RECENT,
   SUMMARIZE_AFTER,
@@ -68,7 +68,7 @@ function asState(raw: unknown): AssistantState {
  * state (places found, limits) are stored under the walker's own RLS session.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const verdict = chatRateLimiter.check(callerKey(request));
+  const verdict = assistantRateLimiter.check(callerKey(request));
   if (!verdict.allowed) return rateLimitedResponse(verdict);
 
   let body: AssistantRequest;

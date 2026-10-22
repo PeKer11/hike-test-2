@@ -296,3 +296,13 @@ export const chatRateLimiter = createRateLimiter([
   { limit: 6, windowMs: MINUTE_MS },
   { limit: 30, windowMs: DAY_MS },
 ]);
+
+/**
+ * `/api/assistant` - the planner chat. Each message is one request, and a route
+ * conversation takes many (limits, corrections, retries), so it gets more room
+ * than the in-walk box; spend is capped separately by the walker's budget.
+ */
+export const assistantRateLimiter = createRateLimiter([
+  { limit: 10, windowMs: MINUTE_MS },
+  { limit: 150, windowMs: DAY_MS },
+]);

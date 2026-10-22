@@ -8,6 +8,7 @@ for (const key of Object.keys(process.env)) {
 
 import { resetAllCircuitBreakers } from "@/lib/api/circuit-breaker";
 import {
+  assistantRateLimiter,
   chatRateLimiter,
   geminiRateLimiter,
   learningRateLimiter,
@@ -33,6 +34,7 @@ import {
  * the limiter drives it within a single case, which this leaves untouched.
  */
 beforeEach(() => {
+  assistantRateLimiter.reset();
   chatRateLimiter.reset();
   geminiRateLimiter.reset();
   learningRateLimiter.reset();
