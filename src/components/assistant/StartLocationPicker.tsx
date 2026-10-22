@@ -57,22 +57,46 @@ export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
     };
   }, [query]);
 
-  function locateMe() {
+  function locate(silent: boolean) {
     if (!navigator.geolocation) {
-      setStatus("Your browser can't share a location.");
+      if (!silent) setStatus("Your browser can't share a location.");
       return;
     }
-    setStatus("Finding you…");
+    if (!silent) setStatus("Finding you…");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setStatus(null);
         setLabel("My location");
         onPick({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
-      () => setStatus("Couldn't get your location. Allow it in the browser, or search for a place."),
-      { enableHighAccuracy: true, timeout: 10000 },
+      (err) => {
+        if (silent) return;
+        setStatus(
+          err.code === err.PERMISSION_DENIED
+            ? "Location is blocked for this site. Click the icon left of the address bar to allow it, or search for a place."
+            : err.code === err.TIMEOUT
+              ? "Finding you took too long. Try again, or search for a place."
+              : "Your device couldn't find its location (check Location Services in System Settings), or search for a place.",
+        );
+      },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 },
     );
   }
+
+  // The browser remembers the choice per site, so once allowed we find the walker without asking again.
+  useEffect(() => {
+    let cancelled = false;
+    navigator.permissions
+      ?.query({ name: "geolocation" })
+      .then((p) => {
+        if (!cancelled && p.state === "granted") locate(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
+  }, []);
 
   return (
     <div className="relative mt-[10px] px-[17px]">
@@ -87,7 +111,7 @@ export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
         />
         <button
           type="button"
-          onClick={locateMe}
+          onClick={() => locate(false)}
           className="shrink-0 whitespace-nowrap rounded-full border border-tk-send/60 bg-transparent px-[10px] py-[4px] font-brand text-[12px] font-semibold text-tk-wordmark transition-colors hover:bg-white"
         >
           📍 My location
