@@ -276,7 +276,6 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
   const [askPace, setAskPace] = useState(false);
   const [choices, setChoices] = useState<string[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [placeOpen, setPlaceOpen] = useState(false);
   const { defaults, setDefaults } = useAssistantDefaults();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -411,19 +410,6 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
           </button>
           <button
             type="button"
-            aria-label="Set start place"
-            title="Start place"
-            className={`relative top-[2px] flex h-[16px] w-[16px] items-center justify-center ${
-              placeOpen ? "text-tk-send" : "text-[#2b2d3a]"
-            }`}
-            onClick={() => setPlaceOpen((v) => !v)}
-          >
-            <svg viewBox="0 0 24 24" className="h-[14px] w-[14px]" fill="currentColor" aria-hidden>
-              <path d="M12 1.5a7.5 7.5 0 0 0-7.5 7.5c0 5.4 6.2 12.2 6.9 12.9a.8.8 0 0 0 1.2 0c.7-.7 6.9-7.5 6.9-12.9A7.5 7.5 0 0 0 12 1.5Zm0 10.2a2.7 2.7 0 1 1 0-5.4 2.7 2.7 0 0 1 0 5.4Z" />
-            </svg>
-          </button>
-          <button
-            type="button"
             aria-label="Assistant settings"
             title="Settings"
             className={`relative top-[2px] flex h-[16px] w-[16px] items-center justify-center ${
@@ -439,7 +425,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
       </div>
 
       <div className="pb-[13px]">
-        <StartLocationPicker open={placeOpen} onDone={() => setPlaceOpen(false)} onPick={onSetOrigin} />
+        <StartLocationPicker onPick={onSetOrigin} />
         {settingsOpen && (
           <div className="mx-[17px] mt-[8px]">
             <AssistantSettings defaults={defaults} onChange={setDefaults} />

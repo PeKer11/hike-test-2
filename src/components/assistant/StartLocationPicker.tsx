@@ -20,14 +20,10 @@ interface NominatimHit {
 interface StartLocationPickerProps {
   /** The walk's start point has been chosen (GPS or searched). */
   onPick: (coordinates: Coordinates) => void;
-  /** Show the search row; when closed only the chosen start is shown. */
-  open: boolean;
-  /** A start was chosen, so the search row can fold away. */
-  onDone: () => void;
 }
 
 /** Lets the walker set where the walk starts: GPS, or a searched city/address. */
-export function StartLocationPicker({ onPick, open, onDone }: StartLocationPickerProps) {
+export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StartOption[]>([]);
   const [label, setLabel] = useState<string | null>(null);
@@ -41,17 +37,29 @@ export function StartLocationPicker({ onPick, open, onDone }: StartLocationPicke
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       try {
-        const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}&limit=5`, { signal: controller.signal });
+        const res = await fetch(
+          `/api/geocode?q=${encodeURIComponent(query)}&limit=5`,
+          { signal: controller.signal },
+        );
         if (!res.ok) throw new Error("search failed");
         const hits = (await res.json()) as NominatimHit[];
         setStatus(null);
         setResults(
           hits
-            .map((h) => ({ id: h.place_id, name: h.display_name, coordinates: { lat: Number(h.lat), lng: Number(h.lon) } }))
-            .filter((h) => Number.isFinite(h.coordinates.lat) && Number.isFinite(h.coordinates.lng)),
+            .map((h) => ({
+              id: h.place_id,
+              name: h.display_name,
+              coordinates: { lat: Number(h.lat), lng: Number(h.lon) },
+            }))
+            .filter(
+              (h) =>
+                Number.isFinite(h.coordinates.lat) &&
+                Number.isFinite(h.coordinates.lng),
+            ),
         );
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
         setStatus("Search is unavailable right now.");
       }
     }, 500);
@@ -72,7 +80,6 @@ export function StartLocationPicker({ onPick, open, onDone }: StartLocationPicke
         setStatus(null);
         setLabel("My location");
         onPick({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        if (!silent) onDone();
       },
       (err) => {
         if (silent) return;
@@ -103,11 +110,8 @@ export function StartLocationPicker({ onPick, open, onDone }: StartLocationPicke
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
   }, []);
 
-  if (!open && !label && !status) return null;
-
   return (
     <div className="relative mt-[8px] px-[17px]">
-      {open && (
       <div className="flex items-center gap-[7px]">
         <input
           type="text"
@@ -125,8 +129,7 @@ export function StartLocationPicker({ onPick, open, onDone }: StartLocationPicke
           📍 My location
         </button>
       </div>
-      )}
-      {open && results.length > 0 && (
+      {results.length > 0 && (
         <ul className="absolute inset-x-[17px] top-full z-20 mt-[2px] max-h-44 overflow-auto rounded-[6px] border border-tk-field bg-white shadow-tk-soft">
           {results.map((r) => (
             <li key={r.id}>
@@ -138,7 +141,6 @@ export function StartLocationPicker({ onPick, open, onDone }: StartLocationPicke
                   setQuery("");
                   setResults([]);
                   onPick(r.coordinates);
-                  onDone();
                 }}
                 className="block w-full px-[10px] py-[6px] text-start text-[12px] text-tk-body hover:bg-tk-well"
               >
