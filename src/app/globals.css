@@ -63,3 +63,16 @@ body {
 .walk-hud .leaflet-bottom {
   margin-bottom: var(--hud-h, 9rem);
 }
+
+/* The OSM credit sits in the page's bottom-right corner, not the map's. It is
+   still always visible, which is what the licence needs. */
+.leaflet-container .leaflet-control-attribution {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
+}
+.walk-hud .leaflet-container .leaflet-control-attribution {
+  bottom: var(--hud-h, 9rem);
+}
+
