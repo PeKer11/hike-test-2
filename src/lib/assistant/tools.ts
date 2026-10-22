@@ -669,8 +669,18 @@ export async function runTool(
         return { output: JSON.stringify({ error: `only ${pool.length + must.length} usable places found; call find_nearby for more kinds first` }), state };
       }
       const all = [...must, ...pool];
-      const m = await getMatrix({ locations: [origin, ...all].map((c) => toOrsCoord("coordinates" in c ? c.coordinates : c)) } as Parameters<typeof getMatrix>[0]);
-      const full = m.distances as number[][];
+      const spots = [origin, ...all.map((c) => c.coordinates)];
+      let full: number[][];
+      let approx = false;
+      try {
+        const m = await getMatrix({ locations: spots.map(toOrsCoord) } as Parameters<typeof getMatrix>[0]);
+        full = m.distances as number[][];
+      } catch (err) {
+        // Matrix quota used up or service down: straight lines x1.3 order the sets; the real routes below are still checked.
+        console.error("[assistant] matrix failed, using straight-line distances:", err);
+        approx = true;
+        full = spots.map((a) => spots.map((b) => haversineDistance(a, b) * 1.3));
+      }
       const pace = state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM;
       const { timeMinutes, maxWalkKm } = state.params;
       // Every combination of the pool, ordered as a loop; keep those within the limits, most spread out first.
@@ -742,6 +752,7 @@ export async function runTool(
           ...(forbiddenFailed ? { unchecked: ["dangerous roads / avoided streets: the map data service did not answer"] } : {}),
           ...(state.params.stayInArea && !boundary ? { unchecked_boundary: state.params.stayInArea } : {}),
           sets_checked: routed,
+          ...(approx ? { note_distances: "distances between places are estimates (the matrix service was unavailable); the final route is still checked on real streets" } : {}),
           ...(clean ? {} : { note: "no set met every rule; this is the closest of those checked", relaxOptions: relaxOptionsFor(state.params) }),
         }),
         state,
@@ -806,7 +817,8 @@ export async function runTool(
         action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}) },
       };
     }
-  } catch {
+  } catch (err) {
+    console.error(`[assistant] tool ${name} failed:`, err);
     return { output: JSON.stringify({ error: "lookup failed, try again or say so" }), state };
   }
   return { output: JSON.stringify({ error: "unknown tool" }), state };

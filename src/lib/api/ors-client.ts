@@ -28,6 +28,10 @@ function parseOrsError(errorText: string, status: number): string {
     // Fall back to plain-text matching when ORS does not return structured JSON.
   }
 
+  if (status === 403 && normalizedError.includes("quota")) {
+    return "Routing quota exceeded.";
+  }
+
   if (status === 401 || status === 403) {
     return "API key is missing or invalid.";
   }
