@@ -28,9 +28,12 @@ describe("boundary", () => {
   it("detects inside and outside", () => {
     expect(insideBoundary({ lat: 0.5, lng: 0.5 }, square)).toBe(true);
     expect(insideBoundary({ lat: 0.5, lng: 1.5 }, square)).toBe(false);
+    // ~0.005 deg (about 550 m) outside the edge is within the slack; 0.02 deg is not
+    expect(insideBoundary({ lat: 0.5, lng: 1.005 }, square)).toBe(true);
+    expect(insideBoundary({ lat: 0.5, lng: 1.02 }, square)).toBe(false);
   });
   it("measures the stretch outside", () => {
-    const km = outsideKm([{ lat: 0.5, lng: 0.9 }, { lat: 0.5, lng: 1.1 }], square);
+    const km = outsideKm([{ lat: 0.5, lng: 0.9 }, { lat: 0.5, lng: 1.5 }], square);
     expect(km).toBeGreaterThan(5);
   });
 });

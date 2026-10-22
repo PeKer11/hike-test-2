@@ -84,8 +84,32 @@ function inRing(p: Coordinates, ring: number[][]): boolean {
   return inside;
 }
 
-export function insideBoundary(p: Coordinates, boundary: Boundary): boolean {
-  return boundary.some((ring) => inRing(p, ring));
+/**
+ * Nominatim's outline of a town is its residential area: for Caesarea it leaves out the harbour and the Roman
+ * site. A point this close to the outline still counts as inside.
+ */
+export const BOUNDARY_SLACK_M = 800;
+
+function metresToRing(p: Coordinates, ring: number[][]): number {
+  const mx = 111320 * Math.cos((p.lat * Math.PI) / 180);
+  const my = 110540;
+  let best = Infinity;
+  for (let i = 1; i < ring.length; i++) {
+    const ax = (ring[i - 1][0] - p.lng) * mx;
+    const ay = (ring[i - 1][1] - p.lat) * my;
+    const bx = (ring[i][0] - p.lng) * mx;
+    const by = (ring[i][1] - p.lat) * my;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2));
+    best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+  }
+  return best;
+}
+
+export function insideBoundary(p: Coordinates, boundary: Boundary, slackM = BOUNDARY_SLACK_M): boolean {
+  return boundary.some((ring) => inRing(p, ring) || (slackM > 0 && metresToRing(p, ring) <= slackM));
 }
 
 /** Kilometres of `path` (sampled every `stepM`) that lie outside the boundary. */

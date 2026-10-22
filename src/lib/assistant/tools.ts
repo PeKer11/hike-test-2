@@ -215,6 +215,8 @@ interface RouteCheck {
   /** Set when a rule fails: the stop whose removal fixes it, and what each removal would leave. */
   forcingStop?: string;
   relaxations?: Array<{ drop: string; repeatedKm: number; outsideKm?: number }>;
+  /** Replacing the forcing stop by another place already found, when that gives a clean route. */
+  swaps?: Array<{ replace: string; with: string; repeatedKm: number; outsideKm?: number }>;
 }
 
 /** Rule violations of one routed attempt, in km (0 = clean). */
@@ -223,7 +225,7 @@ function badKm(repeatedKm: number, forbiddenKm: number, outside: number, params:
 }
 
 /** Routes the stops for real and measures repeats, loop closure and avoided streets; null when no rule needs checking. */
-async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], params: WalkParams): Promise<RouteCheck | null> {
+async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], params: WalkParams, alternatives: Candidate[] = []): Promise<RouteCheck | null> {
   const loop = params.endDistanceKm === 0;
   const streets = params.avoidStreets ?? [];
   if (!loop && !params.noRepeat && !params.avoidDangerous && streets.length === 0 && !params.stayInArea) return null;
@@ -280,7 +282,32 @@ async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], 
     const left = (r: (typeof relaxations)[number]) => badKm(r.repeatedKm, 0, r.outsideKm ?? 0, params);
     relaxations.sort((a, b) => left(a) - left(b));
     check.relaxations = relaxations.slice(0, 3);
-    if (relaxations[0] && left(relaxations[0]) <= 0.1) check.forcingStop = relaxations[0].drop;
+    if (relaxations[0] && left(relaxations[0]) <= 0.1) {
+      check.forcingStop = relaxations[0].drop;
+      // Try other places already found (same kind, not in the walk) in the forcing stop's place.
+      const k = order.findIndex((s) => s.name === check.forcingStop);
+      const spare = alternatives.filter((c) => c.category === order[k].category && !order.some((s) => s.id === c.id)).slice(0, 3);
+      const swaps: NonNullable<RouteCheck["swaps"]> = [];
+      for (const alt of spare) {
+        const swapped = order.map((s, i) => (i === k ? alt : s));
+        try {
+          const r = await buildCleanRoute({
+            waypoints: [origin, ...swapped.map((s) => s.coordinates), ...(loop ? [origin] : [])],
+            route: orsRoute,
+            noRepeat: params.noRepeat === true,
+            forbiddenWays: forbiddenPaths,
+            maxAttempts: 1,
+          });
+          const out = boundary ? outsideKm(r.geometry, boundary) : 0;
+          if (badKm(r.quality.repeatedKm, r.quality.forbiddenKm, out, params) <= 0.1) {
+            swaps.push({ replace: order[k].name, with: alt.name, repeatedKm: r.quality.repeatedKm, ...(boundary ? { outsideKm: out } : {}) });
+          }
+        } catch {
+          // no route with this swap: skip it
+        }
+      }
+      if (swaps.length) check.swaps = swaps;
+    }
   }
   return check;
 }
@@ -491,7 +518,7 @@ export async function runTool(
         const { order, ...shown } = est;
         let route: RouteCheck | null = null;
         try {
-          route = await checkRoute(state.origin, order, state.params);
+          route = await checkRoute(state.origin, order, state.params, state.candidates);
         } catch {
           route = null; // routing is down: say nothing rather than guess
         }
@@ -506,7 +533,7 @@ export async function runTool(
       // The rules are enforced here, not in the prompt: build exactly the order that was checked, and only when it passes.
       let route: RouteCheck | null = null;
       try {
-        route = await checkRoute(state.origin, est.order, state.params);
+        route = await checkRoute(state.origin, est.order, state.params, state.candidates);
       } catch {
         route = null; // routing is down: the planner still warns
       }
