@@ -235,6 +235,8 @@ interface RouteCheck {
   problems: string[];
   /** Checks that could not run (map data service down): tell the walker they were NOT verified. */
   unchecked?: string[];
+  /** Stop ids in the order that repeats the least street; build_walk uses it. */
+  orderIds?: string[];
   /** What the walker can give up when no route meets every rule: ask which one. */
   relaxOptions?: string[];
   /** Only with stay_in_area: kilometres of the route outside the town. */
@@ -264,6 +266,54 @@ function relaxOptionsFor(params: WalkParams): string[] {
   ];
 }
 
+/** Orders of `order` other than the given one, shortest straight-line tour first (a loop and its reverse count once). */
+function otherOrders(origin: Candidate["coordinates"], order: Candidate[], loop: boolean): Candidate[][] {
+  const out: Candidate[][] = [];
+  const permute = (rest: Candidate[], acc: Candidate[]) => {
+    if (!rest.length) {
+      out.push(acc);
+      return;
+    }
+    rest.forEach((c, i) => permute([...rest.slice(0, i), ...rest.slice(i + 1)], [...acc, c]));
+  };
+  permute(order, []);
+  const key = (o: Candidate[]) => o.map((c) => c.id).join();
+  const seen = new Set([key(order), ...(loop ? [key([...order].reverse())] : [])]);
+  const tour = (o: Candidate[]) => [origin, ...o.map((c) => c.coordinates), ...(loop ? [origin] : [])].reduce((a, p, i, all) => a + (i ? haversineDistance(all[i - 1], p) : 0), 0);
+  return out
+    .filter((o) => {
+      const k = key(o);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      if (loop) seen.add(key([...o].reverse()));
+      return true;
+    })
+    .sort((a, b) => tour(a) - tour(b));
+}
+
+/** With no_repeat: tries the next few visiting orders and keeps the one whose real route repeats the least street. */
+async function leastRepeatOrder(origin: Candidate["coordinates"], order: Candidate[], loop: boolean, params: WalkParams, forbiddenWays: Candidate["coordinates"][][]): Promise<Candidate[]> {
+  if (!params.noRepeat || order.length < 3 || order.length > 6) return order;
+  const routed = async (o: Candidate[]) =>
+    (await buildCleanRoute({ waypoints: [origin, ...o.map((c) => c.coordinates), ...(loop ? [origin] : [])], route: orsRoute, noRepeat: true, forbiddenWays, maxAttempts: 1 })).quality;
+  let best = order;
+  try {
+    const first = await routed(order);
+    let bestBad = first.repeatedKm + first.forbiddenKm;
+    for (const o of otherOrders(origin, order, loop).slice(0, 4)) {
+      if (bestBad <= ACCEPTABLE_BAD_KM) break;
+      const q = await routed(o);
+      if (q.repeatedKm + q.forbiddenKm < bestBad) {
+        best = o;
+        bestBad = q.repeatedKm + q.forbiddenKm;
+      }
+    }
+  } catch {
+    // routing failed: keep the given order
+  }
+  return best;
+}
+
 /** Routes the stops for real and measures repeats, loop closure and avoided streets; null when no rule needs checking. */
 async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], params: WalkParams, alternatives: Candidate[] = []): Promise<RouteCheck | null> {
   const loop = params.endDistanceKm === 0;
@@ -290,8 +340,10 @@ async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], 
       // stays unchecked
     }
   }
+  order = await leastRepeatOrder(origin, order, loop, params, forbiddenPaths);
+  const finalWaypoints = [origin, ...order.map((s) => s.coordinates), ...(loop ? [origin] : [])];
   const clean = await buildCleanRoute({
-    waypoints,
+    waypoints: finalWaypoints,
     route: orsRoute,
     noRepeat: params.noRepeat === true,
     forbiddenWays: forbiddenPaths,
@@ -310,6 +362,7 @@ async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], 
     ...(boundary ? { outsideKm: outside } : {}),
     ...(lookupFailed ? { unchecked: [params.avoidDangerous ? "dangerous roads" : "", streets.length && !namedFromSteps ? "avoided streets" : "", namedFromSteps && clean.attempts > 1 ? "avoided streets (re-routed route only partly re-read)" : ""].filter(Boolean) } : {}),
     ...(params.stayInArea && !boundary ? { unchecked: [...(lookupFailed ? ["dangerous roads / avoided streets"] : []), `town boundary of ${params.stayInArea}`] } : {}),
+    orderIds: order.map((s) => s.id),
     avoidedStreets: [...new Set(forbidden.map((w) => w.name))].slice(0, 8),
     problems,
     ...(problems.length ? { relaxOptions: relaxOptionsFor(params) } : {}),
@@ -734,7 +787,7 @@ export async function runTool(
       if (route && route.problems.length) {
         return { output: JSON.stringify({ error: "route breaks the walker's rules", route }), state };
       }
-      args.stop_ids = est.order.map((s) => s.id);
+      args.stop_ids = route?.orderIds ?? est.order.map((s) => s.id);
       args.ordered = true;
     }
 
