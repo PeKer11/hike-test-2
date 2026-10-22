@@ -20,10 +20,14 @@ interface NominatimHit {
 interface StartLocationPickerProps {
   /** The walk's start point has been chosen (GPS or searched). */
   onPick: (coordinates: Coordinates) => void;
+  /** Show the search row; when closed only the chosen start is shown. */
+  open: boolean;
+  /** A start was chosen, so the search row can fold away. */
+  onDone: () => void;
 }
 
 /** Lets the walker set where the walk starts: GPS, or a searched city/address. */
-export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
+export function StartLocationPicker({ onPick, open, onDone }: StartLocationPickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StartOption[]>([]);
   const [label, setLabel] = useState<string | null>(null);
@@ -68,6 +72,7 @@ export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
         setStatus(null);
         setLabel("My location");
         onPick({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        if (!silent) onDone();
       },
       (err) => {
         if (silent) return;
@@ -98,8 +103,11 @@ export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
   }, []);
 
+  if (!open && !label && !status) return null;
+
   return (
-    <div className="relative mt-[10px] px-[17px]">
+    <div className="relative mt-[8px] px-[17px]">
+      {open && (
       <div className="flex items-center gap-[7px]">
         <input
           type="text"
@@ -117,7 +125,8 @@ export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
           📍 My location
         </button>
       </div>
-      {results.length > 0 && (
+      )}
+      {open && results.length > 0 && (
         <ul className="absolute inset-x-[17px] top-full z-20 mt-[2px] max-h-44 overflow-auto rounded-[6px] border border-tk-field bg-white shadow-tk-soft">
           {results.map((r) => (
             <li key={r.id}>
@@ -129,6 +138,7 @@ export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
                   setQuery("");
                   setResults([]);
                   onPick(r.coordinates);
+                  onDone();
                 }}
                 className="block w-full px-[10px] py-[6px] text-start text-[12px] text-tk-body hover:bg-tk-well"
               >
