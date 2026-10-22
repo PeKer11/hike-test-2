@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
 import "leaflet-defaulticon-compatibility";
 
-import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
+import { AttributionControl, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 import { useEffect } from "react";
 
 import { MapClickHandler } from "@/components/map/MapClickHandler";
@@ -147,7 +147,10 @@ export default function MapView({
         zoom={zoom}
         className="h-full w-full"
         style={{ height: "100%", width: "100%" }}
+        attributionControl={false}
       >
+      {/* No "Leaflet" prefix (optional); the OpenStreetMap credit itself is a licence requirement and stays. */}
+      <AttributionControl prefix={false} />
       <TileLayer
         attribution={getTileAttribution()}
         url={getTileUrl()}
