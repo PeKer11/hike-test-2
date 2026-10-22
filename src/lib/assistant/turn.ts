@@ -10,9 +10,9 @@ import type { AssistantState, BuildAction } from "./state";
 import { ASSISTANT_TOOLS, runTool } from "./tools";
 
 /** A user turn is at most this many model calls (each tool round is one). */
-const MAX_MODEL_CALLS = 6;
+const MAX_MODEL_CALLS = 12;
 const MAX_OUTPUT_TOKENS = 700;
-const TURN_TIMEOUT_MS = 45_000;
+const TURN_TIMEOUT_MS = 90_000;
 
 export interface TurnMessage {
   role: "user" | "assistant";
@@ -121,8 +121,18 @@ export async function runAssistantTurn(
       return { reply: (final?.content ?? "").trim(), state, action, askLimits, choices, remembered, billedMicros };
     }
   }
+  // Out of tool rounds: have the model report what it found so far, in the walker's language, instead of a canned English line.
+  const wrapUp = await call({
+    model: input.choice.model,
+    messages: [...messages, { role: "user", content: "Stop searching. In the walker's language, say briefly what you found so far and what you still need from them." }],
+    tools: [],
+    maxOutputTokens: 300,
+    signal: AbortSignal.timeout(20_000),
+    reasoningEffort: input.effort,
+  }).catch(() => null);
+  if (wrapUp) billedMicros += estimateCostMicros(input.choice.model, wrapUp.inTok, wrapUp.outTok);
   return {
-    reply: "I got tangled up — could you say that another way?",
+    reply: wrapUp?.content?.trim() || "I got tangled up — could you say that another way?",
     state,
     action,
     remembered,
