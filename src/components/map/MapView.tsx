@@ -21,7 +21,7 @@ import { getTileAttribution, getTileUrl } from "@/lib/map/tile-config";
 import type { Attraction, Coordinates, Waypoint } from "@/lib/types";
 import type { Announcement } from "@/lib/walk/poi-announcer";
 
-interface MapViewProps {
+export interface MapViewProps {
   waypoints: Waypoint[];
   routeGeometry: Coordinates[];
   /** The path already walked, drawn in a muted colour under the remaining route. */

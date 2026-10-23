@@ -1,12 +1,17 @@
 import dynamic from "next/dynamic";
 
-const DynamicMap = dynamic(() => import("./MapView"), {
+const loading = () => (
+  <div className="flex h-full w-full items-center justify-center bg-cream text-charcoal/60">
+    Loading map...
+  </div>
+);
+
+// v2: Google map when NEXT_PUBLIC_MAP_PROVIDER=google and a browser key is set; otherwise the Leaflet/OSM map (v1).
+const useGoogle = process.env.NEXT_PUBLIC_MAP_PROVIDER === "google" && !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
+
+const DynamicMap = dynamic(() => (useGoogle ? import("./GoogleMapView") : import("./MapView")), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-full w-full items-center justify-center bg-cream text-charcoal/60">
-      Loading map...
-    </div>
-  ),
+  loading,
 });
 
 export { DynamicMap };
