@@ -98,6 +98,19 @@ const pin = (bg: string, border: string, glyph: string, size: number) => (
   <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: 9999, background: bg, border: `2px solid ${border}`, color: "#fff", fontSize: 13, lineHeight: 1, boxShadow: "0 1px 4px rgba(0,0,0,0.35)" }}>{glyph}</span>
 );
 
+/** Notable (Wikidata) places: a gold star with a white rim and a soft shadow. */
+const goldStar = (
+  <svg width="30" height="30" viewBox="0 0 24 24" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.45))" }} aria-hidden="true">
+    <defs>
+      <linearGradient id="traike-gold" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#ffe066" />
+        <stop offset="1" stopColor="#f5a800" />
+      </linearGradient>
+    </defs>
+    <path d="M12 2.2l2.9 6.1 6.7.8-4.9 4.6 1.3 6.6L12 16.9l-6 3.4 1.3-6.6-4.9-4.6 6.7-.8z" fill="url(#traike-gold)" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" />
+  </svg>
+);
+
 /**
  * Google-map version of the recommended layer. "Top rated" is the main control: Google's own ranking of
  * places around the map centre (rating + number of reviews), with Wikidata notable places and Traike-user
@@ -257,7 +270,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
               <span className="rounded bg-white/95 px-1 text-xs font-semibold shadow">★ {i.rating?.toFixed(1)} ({i.ratingCount})</span>
             </div>
           ) : i.source === "notable" ? (
-            pin("#2f5d46", "#fff", "✦", 22)
+            goldStar
           ) : (
             pin("#fff", "#c2652f", "⭐", 26)
           )}
