@@ -32,7 +32,8 @@ const STREET_WORDS = /^(רחוב|רח|שדרות|שד|דרך|street|st|road|rd|a
 export function streetCore(name: string): string {
   return name
     .toLowerCase()
-    .replace(/['׳"״`.,-]/g, " ")
+    .replace(/['׳"״`’]/g, "")
+    .replace(/[.,-]/g, " ")
     .split(/\s+/)
     .filter((w) => w && !STREET_WORDS.test(w))
     .map((w) => w.replace(/^ה(?=.{2,})/, ""))
@@ -41,8 +42,12 @@ export function streetCore(name: string): string {
 
 /** True when OSM spelling `candidate` is (or contains) the street the walker named. */
 export function matchesStreet(candidate: string, wanted: string): boolean {
-  const core = streetCore(wanted);
-  return core.length >= 2 && streetCore(candidate).includes(core);
+  const core = streetCore(wanted).split(" ").filter(Boolean);
+  if (!core.length || (core.length === 1 && core[0].length < 3)) return false;
+  // Whole words only: "הרצל" must not match "הרצליה".
+  const words = streetCore(candidate).split(" ").filter(Boolean);
+  for (let i = 0; i + core.length <= words.length; i++) if (core.every((w, j) => words[i + j] === w)) return true;
+  return false;
 }
 
 // Overpass is a free shared server that is often at capacity: remember what it did answer.
@@ -52,8 +57,9 @@ const cache = new Map<string, ForbiddenWay[]>();
 function nameRegex(streets: string[]): string {
   return streets
     .map(streetCore)
-    .filter((c) => c.length >= 2)
-    .map((n) => n.replace(/[.*+?^${}()|[\]\\"]/g, "\\$&"))
+    .filter((c) => c.length >= 3 || c.includes(" "))
+    .map((n) => n.replace(/[.*+?^${}()|[\]\\"]/g, "\\$&").replace(/ /g, "[ -]"))
+    .map((n) => `(^|[ -])ה?${n}($|[ -])`)
     .join("|")
     .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"');

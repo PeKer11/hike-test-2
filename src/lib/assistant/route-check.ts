@@ -8,8 +8,8 @@ import { brokenKm, brokenRules, evaluateRoute, unavailableVerdict, type RuleId, 
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
 import { DEFAULT_PACE_MIN_PER_KM, visitMinutes, type Candidate, type WalkParams } from "./state";
 
-/** Directions calls one tool call may spend (ORS free tier: ~40 a minute). */
-export const ROUTING_CALLS_PER_TOOL = 30;
+/** Directions calls one assistant turn may spend across all its tools (ORS free tier: ~40 a minute). */
+export const TURN_ROUTING_CALLS = 35;
 /** Visit orders tried when the first one repeats a street. */
 const ORDERS_TRIED = 4;
 const MAX_ALTERNATIVES = 3;
@@ -91,7 +91,7 @@ export async function routeAndJudge(
   spares: Candidate[] = [],
   opts: { alternatives?: boolean; orderSearch?: boolean; budget?: RoutingBudget; env?: CheckEnv } = {},
 ): Promise<Judged> {
-  const budget = opts.budget ?? makeBudget(ROUTING_CALLS_PER_TOOL);
+  const budget = opts.budget ?? makeBudget(TURN_ROUTING_CALLS);
   const route = budgeted(orsRoute, budget, isRouteCached);
   const loop = params.endDistanceKm === 0;
   const pace = params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM;
@@ -148,7 +148,7 @@ export async function routeAndJudge(
   }
   const verdict = main as Verdict;
   const result: Judged = { verdict, orderIds: best.map((s) => s.id) };
-  if (verdict.ok || opts.alternatives === false) return result;
+  if (!verdict.broken || opts.alternatives === false) return result;
 
   const summary = (v: Verdict) => ({ walkKm: v.walkKm, totalMin: v.totalMin, repeatedKm: v.rules.find((r) => r.rule === "no_repeat")?.value, outsideKm: v.rules.find((r) => r.rule === "stay_in_area")?.value });
   const alts: Array<Alternative & { km: number }> = [];
@@ -162,7 +162,7 @@ export async function routeAndJudge(
     if (best.length > 1) {
       for (let k = 0; k < best.length; k++) {
         const rest = best.filter((_, i) => i !== k);
-        const r = await judge(rest, 1);
+        const r = await judge(rest, 2);
         const left = brokenRules(r.verdict);
         if (left.length < broken.length || brokenKm(r.verdict) < brokenKm(verdict)) {
           alts.push({ option: `drop ${best[k].name}`, stop_ids: rest.map((s) => s.id), rulesBroken: left, ...summary(r.verdict), km: brokenKm(r.verdict) });
@@ -184,7 +184,9 @@ export async function routeAndJudge(
   } catch {
     // budget or router ran out: the alternatives found so far stand
   }
-  alts.sort((a, b) => a.rulesBroken.length - b.rulesBroken.length || a.km - b.km);
+  // Giving up the walker's safety rule is the last suggestion, never the first.
+  const rank = (a: Alternative & { km: number }) => (a.option === "keep this route and give up: avoid_dangerous" ? 1 : 0);
+  alts.sort((a, b) => rank(a) - rank(b) || a.rulesBroken.length - b.rulesBroken.length || a.km - b.km);
   result.alternatives = alts.slice(0, MAX_ALTERNATIVES).map((a) => ({ option: a.option, stop_ids: a.stop_ids, rulesBroken: a.rulesBroken, walkKm: a.walkKm, totalMin: a.totalMin, repeatedKm: a.repeatedKm, outsideKm: a.outsideKm }));
   return result;
 }

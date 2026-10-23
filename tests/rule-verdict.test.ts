@@ -109,5 +109,7 @@ describe("unavailableVerdict", () => {
     const v = unavailableVerdict({ noRepeat: true, avoidStreets: ["x"], endDistanceKm: 0 }, "routing limit reached");
     expect(v.ok).toBe(false);
     expect(v.rules.every((r) => r.status === "not_checked")).toBe(true);
+    expect(v.broken).toBe(false); // unchecked is not the same as "no route exists"
+    expect(v.unavailable).toBe(true);
   });
 });

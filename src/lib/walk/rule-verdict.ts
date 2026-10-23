@@ -22,6 +22,10 @@ export interface RuleResult {
 export interface Verdict {
   /** True only when every rule that applies is `met`. */
   ok: boolean;
+  /** True when at least one rule was checked and is `not_met` (an unchecked rule alone never makes a route "broken"). */
+  broken: boolean;
+  /** True when no route could be built, so nothing was measured. */
+  unavailable?: boolean;
   rules: RuleResult[];
   walkKm: number;
   walkMin: number;
@@ -60,6 +64,7 @@ export function limitRules(params: VerdictParams, walkKm: number, walkMin: numbe
 export function makeVerdict(rules: RuleResult[], walkKm: number, walkMin: number, visitMin: number): Verdict {
   return {
     ok: rules.every((r) => r.status === "met"),
+    broken: rules.some((r) => r.status === "not_met"),
     rules,
     walkKm: round1(walkKm),
     walkMin: Math.round(walkMin),
@@ -180,7 +185,7 @@ export function unavailableVerdict(params: VerdictParams, why: string): Verdict 
   for (const street of params.viaStreets ?? []) rules.push({ rule: "via_streets", status: "not_checked", detail: `${street}: ${why}` });
   if (params.timeMinutes) rules.push({ rule: "time", status: "not_checked", limit: params.timeMinutes, detail: why });
   if (params.maxWalkKm) rules.push({ rule: "max_walk", status: "not_checked", limit: params.maxWalkKm, detail: why });
-  return { ok: false, rules, walkKm: 0, walkMin: 0, visitMin: 0, totalMin: 0 };
+  return { ok: false, broken: false, unavailable: true, rules, walkKm: 0, walkMin: 0, visitMin: 0, totalMin: 0 };
 }
 
 /** Rules that are not met, worst first, for ranking alternatives. */
@@ -190,5 +195,10 @@ export function brokenRules(v: Verdict): RuleId[] {
 
 /** Kilometres of street-level breakage, to compare two routes that both fail. */
 export function brokenKm(v: Verdict): number {
-  return v.rules.filter((r) => r.status === "not_met" && r.rule !== "time" && r.rule !== "max_walk").reduce((a, r) => a + (r.value ?? 0), 0);
+  const amount = (r: RuleResult): number => {
+    if (r.rule === "end_distance") return Math.max(0, (r.value ?? 0) - (r.limit ?? 0));
+    if (r.rule === "via_streets" || r.rule === "loop") return 0.5;
+    return r.value ?? 0;
+  };
+  return v.rules.filter((r) => r.status === "not_met" && r.rule !== "time" && r.rule !== "max_walk").reduce((a, r) => a + amount(r), 0);
 }

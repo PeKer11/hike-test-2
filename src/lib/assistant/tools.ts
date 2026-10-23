@@ -7,9 +7,9 @@ import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
 import { searchPlaces } from "@/lib/api/nominatim-client";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
-import { makeBudget, matrixCoolingDown, noteMatrixError } from "@/lib/walk/routing-budget";
+import { makeBudget, matrixCoolingDown, noteMatrixError, type RoutingBudget } from "@/lib/walk/routing-budget";
 import { brokenKm, limitRules, makeVerdict, type RuleResult, type Verdict } from "@/lib/walk/rule-verdict";
-import { loadEnv, needsRouteCheck, routeAndJudge, ROUTING_CALLS_PER_TOOL, type Judged } from "./route-check";
+import { loadEnv, needsRouteCheck, routeAndJudge, TURN_ROUTING_CALLS, type Judged } from "./route-check";
 
 import {
   DEFAULT_PACE_MIN_PER_KM,
@@ -226,13 +226,13 @@ interface Estimate {
 }
 
 /** Identifies a set of stops under the current rules, so a check made for it can be reused. */
-function checkKey(ids: string[], params: WalkParams): string {
-  return `${[...ids].sort().join(",")}|${JSON.stringify(params)}`;
+function checkKey(ids: string[], params: WalkParams, ordered: boolean): string {
+  return `${ordered ? ids.join(",") : [...ids].sort().join(",")}|${ordered}|${JSON.stringify(params)}`;
 }
 
 /** Keeps the last few checks (verdict + order) so build_walk does not route again. */
-function rememberCheck(state: AssistantState, ids: string[], judged: Judged): NonNullable<AssistantState["checks"]> {
-  const key = checkKey(ids, state.params);
+function rememberCheck(state: AssistantState, ids: string[], ordered: boolean, judged: Judged): NonNullable<AssistantState["checks"]> {
+  const key = checkKey(ids, state.params, ordered);
   return [{ key, verdict: judged.verdict, orderIds: judged.orderIds }, ...(state.checks ?? []).filter((c) => c.key !== key)].slice(0, 3);
 }
 
@@ -313,6 +313,8 @@ export async function runTool(
   name: string,
   rawArgs: string,
   input: AssistantState,
+  /** Directions calls shared by every tool of one assistant turn (ORS allows ~40 a minute). */
+  budget: RoutingBudget = makeBudget(TURN_ROUTING_CALLS),
 ): Promise<ToolRun> {
   let notChecked: RuleResult[] = [];
   const state: AssistantState = {
@@ -538,25 +540,25 @@ export async function runTool(
       walk(0, []);
       scored.sort((a, b) => b.spacing - a.spacing);
       const score = (v: Verdict) => v.rules.filter((r) => r.status === "not_met").length * 100 + brokenKm(v);
-      const searchBudget = makeBudget(ROUTING_CALLS_PER_TOOL);
       let best: { stops: Candidate[]; verdict: Verdict } | null = null;
       let routed = 0;
       for (const { idx } of scored.slice(0, SEARCH_ROUTE_BUDGET)) {
         const stops = idx.map((i) => all[i - 1]);
-        const r = await routeAndJudge(origin, stops, state.params, [], { alternatives: false, orderSearch: false, budget: searchBudget, env });
-        if (r.verdict.walkKm === 0) break; // no route could be built (budget or router): more sets will not help
+        const r = await routeAndJudge(origin, stops, state.params, [], { alternatives: false, orderSearch: false, budget, env });
+        if (r.verdict.unavailable) break; // no route could be built (budget or router): more sets will not help
         routed += 1;
         if (!best || score(r.verdict) < score(best.verdict)) best = { stops, verdict: r.verdict };
         if (r.verdict.ok) break;
       }
       if (!best) return { output: JSON.stringify({ error: scored.length ? "routes could not be built just now; try again in a minute" : "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
       // The chosen set gets the full check: best visiting order and, if it still breaks a rule, the alternatives.
-      const judged = await routeAndJudge(origin, best.stops, state.params, pool, { env });
-      state.checks = rememberCheck(state, best.stops.map((s) => s.id), judged);
+      const judged = await routeAndJudge(origin, best.stops, state.params, pool, { env, budget });
+      state.checks = rememberCheck(state, best.stops.map((s) => s.id), false, judged);
       const byId = new Map(best.stops.map((s) => [s.id, s.name]));
       return {
         output: JSON.stringify({
-          found: judged.verdict.ok,
+          found: !judged.verdict.broken,
+          all_rules_met: judged.verdict.ok,
           stop_ids: judged.orderIds,
           stops: judged.orderIds.map((id) => byId.get(id)),
           verdict: judged.verdict,
@@ -579,19 +581,19 @@ export async function runTool(
       const ordered = args.ordered === true;
       const est = await estimateWalk(state.origin, picked, state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM, ordered, state.params.endDistanceKm === 0);
       // One verdict per set of stops: build_walk reuses what estimate_walk / find_clean_walk already checked.
-      const cached = name === "build_walk" ? state.checks?.find((c) => c.key === checkKey(picked.map((c2) => c2.id), state.params)) : undefined;
+      const cached = name === "build_walk" ? state.checks?.find((c) => c.key === checkKey(picked.map((c2) => c2.id), state.params, ordered)) : undefined;
       let judged: Judged;
       if (cached) {
         judged = { verdict: cached.verdict, orderIds: cached.orderIds };
       } else if (needsRouteCheck(state.params)) {
-        judged = await routeAndJudge(state.origin, est.order, state.params, state.candidates);
+        judged = await routeAndJudge(state.origin, est.order, state.params, state.candidates, { orderSearch: !ordered, budget });
       } else {
         judged = {
           verdict: makeVerdict(limitRules(state.params, est.walkKm, est.walkMin, est.visitMin), est.walkKm, est.walkMin, est.visitMin),
           orderIds: est.order.map((s) => s.id),
         };
       }
-      if (!cached) state.checks = rememberCheck(state, picked.map((c) => c.id), judged);
+      if (!cached) state.checks = rememberCheck(state, picked.map((c) => c.id), ordered, judged);
       if (name === "estimate_walk") {
         return { output: JSON.stringify({ walkKm: judged.verdict.walkKm, walkMin: judged.verdict.walkMin, visitMin: judged.verdict.visitMin, totalMin: judged.verdict.totalMin, legs: est.legs, verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
       }
@@ -599,7 +601,7 @@ export async function runTool(
         return { output: JSON.stringify({ error: "limits not asked yet: call ask_limits first" }), state };
       }
       // The rules are enforced here, not in the prompt: build exactly the order that was checked, and only when no rule is broken.
-      if (judged.verdict.rules.some((r) => r.status === "not_met")) {
+      if (judged.verdict.broken) {
         const onlyLimits = judged.verdict.rules.every((r) => r.status !== "not_met" || r.rule === "time" || r.rule === "max_walk");
         return { output: JSON.stringify({ error: onlyLimits ? "does not fit" : "route breaks the walker's rules", verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
       }

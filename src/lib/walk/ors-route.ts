@@ -63,7 +63,10 @@ export async function orsRoute(waypoints: Coordinates[], avoid: AvoidPolygons | 
   const stateRoads = wayTypes ? wayTypes.filter(([, , v]) => v === STATE_ROAD).map(([a, b]) => geometry.slice(a, b + 1)).filter((p) => p.length >= 2) : null;
   details.set(geometry, { named, stateRoads });
 
-  cache.set(key, geometry);
-  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);
+  // A backup-router answer has no step positions (no names, no road types): do not keep it as the answer.
+  if (steps.some((s) => s.way_points)) {
+    cache.set(key, geometry);
+    if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);
+  }
   return geometry;
 }

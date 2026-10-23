@@ -7,6 +7,8 @@ import {
 
 import { ASSISTANT_SYSTEM } from "./prompt";
 import type { AssistantState, BuildAction } from "./state";
+import { makeBudget } from "@/lib/walk/routing-budget";
+import { TURN_ROUTING_CALLS } from "./route-check";
 import { ASSISTANT_TOOLS, runTool } from "./tools";
 
 /** A user turn is at most this many model calls (each tool round is one). */
@@ -83,6 +85,7 @@ export async function runAssistantTurn(
   ];
 
   const signal = AbortSignal.timeout(TURN_TIMEOUT_MS);
+  const budget = makeBudget(TURN_ROUTING_CALLS);
   for (let i = 0; i < MAX_MODEL_CALLS; i += 1) {
     const response = await call({
       model: input.choice.model,
@@ -99,7 +102,7 @@ export async function runAssistantTurn(
     }
     messages.push({ role: "assistant", content: response.content, tool_calls: response.toolCalls });
     for (const tc of response.toolCalls) {
-      const run = await runTool(tc.function.name, tc.function.arguments, state);
+      const run = await runTool(tc.function.name, tc.function.arguments, state, budget);
       state = run.state;
       if (run.action) action = run.action;
       if (run.askLimits) askLimits = true;

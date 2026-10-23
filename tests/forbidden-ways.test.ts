@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseForbiddenWays } from "@/lib/walk/forbidden-ways";
+import { matchesStreet, parseForbiddenWays } from "@/lib/walk/forbidden-ways";
 
 const geom = [
   { lat: 32, lon: 34 },
@@ -21,5 +21,18 @@ describe("parseForbiddenWays", () => {
 
   it("skips elements without geometry", () => {
     expect(parseForbiddenWays([{ type: "way", tags: { name: "X" } }, { type: "node" }], [])).toEqual([]);
+  });
+});
+
+describe("matchesStreet whole-word matching", () => {
+  it("matches a transliteration with an apostrophe", () => {
+    expect(matchesStreet("HaNeviim", "HaNevi'im St")).toBe(true);
+  });
+  it("does not match a longer name that merely starts with the street", () => {
+    expect(matchesStreet("הרצליה", "הרצל")).toBe(false);
+    expect(matchesStreet("דרור", "הדר")).toBe(false);
+  });
+  it("still matches with the street word and the leading ה", () => {
+    expect(matchesStreet("רחוב הנביאים", "נביאים")).toBe(true);
   });
 });
