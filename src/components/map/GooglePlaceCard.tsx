@@ -63,7 +63,7 @@ export function GooglePlaceCard({ name, lat, lng }: { name: string; lat: number;
       ) : null}
       {state === "none" ? <p className="text-xs text-slate-600">No Google match for this place.</p> : null}
       {state === "error" ? <p className="text-xs text-slate-600">Could not load Google reviews.</p> : null}
-      <div ref={host} style={{ minWidth: 260 }} />
+      <div ref={host} style={{ minWidth: 260, maxHeight: 260, overflowY: "auto" }} />
     </div>
   );
 }
