@@ -81,7 +81,7 @@ const GROUPS: Record<Group, { label: string; glyph: ReactNode; color: string; ty
 const GROUP_CATEGORY: Record<Group, AttractionCategory> = { food: "food", nature: "nature", culture: "museum", sights: "landmark" };
 const MIN_RATING = 4.0;
 const MIN_RATINGS = 25;
-const PER_GROUP = 3;
+const PER_GROUP = 5;
 /** Rating x log(reviews), halved at radius/5 of distance: near places beat slightly better far ones. */
 const placeScore = (rating: number, count: number, distM: number, radius: number) => (rating * Math.log10(count + 1)) / (1 + distM / (radius / 5));
 const SEARCHES_PER_SESSION = 6;
