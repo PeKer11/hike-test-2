@@ -265,8 +265,8 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
 
   return (
     <>
-      <MapControl position={ControlPosition.TOP_RIGHT}>
-        <div className="flex flex-col items-end gap-1 p-2.5 pt-12">
+      <MapControl position={ControlPosition.TOP_CENTER}>
+        <div className="flex max-w-[60vw] flex-wrap items-start justify-center gap-1 p-2.5">
           <button type="button" onClick={() => void showTop()} aria-pressed={top.length > 0} className={btn(top.length > 0)}>
             🏆 Top rated
           </button>
@@ -276,11 +276,11 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
             </button>
           ) : null}
           {top.length ? (
-            <div className="rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">
+            <div className="flex flex-wrap gap-x-2 rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">
               {Object.values(GROUPS).map((g) => (
-                <div key={g.label}>
+                <span key={g.label}>
                   {g.glyph} {g.label}
-                </div>
+                </span>
               ))}
             </div>
           ) : null}
