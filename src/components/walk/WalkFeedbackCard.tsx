@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Button, Card } from "@/components/ui";
 import { CATEGORY_EMOJI } from "@/lib/constants/categories";
+import { socialEnabled } from "@/lib/social/flag";
 import type { Attraction } from "@/lib/types";
 
 interface WalkFeedbackCardProps {
@@ -29,6 +30,7 @@ export function WalkFeedbackCard({
   learnPreferences,
   onDismiss,
 }: WalkFeedbackCardProps) {
+  const [recommended, setRecommended] = useState<Record<string, boolean>>({});
   const [ratings, setRatings] = useState<Record<string, boolean>>({});
   const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -61,6 +63,18 @@ export function WalkFeedbackCard({
         },
       ],
     });
+  };
+
+  const recommend = (attraction: Attraction) => {
+    const on = !recommended[attraction.id];
+    setRecommended((current) => ({ ...current, [attraction.id]: on }));
+    if (on) rate(attraction, true); // recommending a place also counts as liking it for this walker
+    // Same id the thumbs use; the server accepts only OSM and Google place ids.
+    void fetch("/api/places/recommend", {
+      method: on ? "PUT" : "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ poiKey: attraction.id, category: attraction.category, tags: [] }),
+    }).catch(() => {});
   };
 
   const submitComment = async () => {
@@ -149,6 +163,19 @@ export function WalkFeedbackCard({
               >
                 👎
               </button>
+              {socialEnabled() && (
+                <button
+                  type="button"
+                  onClick={() => recommend(attraction)}
+                  aria-label={`Recommend ${attraction.name}`}
+                  aria-pressed={recommended[attraction.id] === true}
+                  className={`shrink-0 rounded-full px-1.5 py-0.5 text-sm transition ${
+                    recommended[attraction.id] ? "bg-terra/15 opacity-100" : "opacity-30 hover:opacity-70"
+                  }`}
+                >
+                  ⭐
+                </button>
+              )}
             </li>
           );
         })}

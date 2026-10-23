@@ -15,6 +15,8 @@ export const MEMORY_TABLES = [
   "routine_habits",
   // Social opt-in (S1/S2): deleting the row also stops the walker's votes counting.
   "community_optin",
+  // Places the walker recommended (R1).
+  "place_recommendations",
   // The walker's own thumbs up/down rows (the aggregate views only count rows that exist).
   "attraction_feedback",
 ] as const;
