@@ -3,6 +3,8 @@
 import L from "leaflet";
 import { useEffect, useRef, useState } from "react";
 
+import { distanceM, namesOverlap } from "@/lib/places/match";
+
 const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -26,38 +28,20 @@ function loadGoogle(): Promise<any> {
 
 const MATCH_RADIUS_M = 100;
 
-function distanceM(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const rad = Math.PI / 180;
-  const dLat = (lat2 - lat1) * rad;
-  const dLng = (lng2 - lng1) * rad;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371000 * Math.asin(Math.sqrt(a));
-}
-
-/** True when the two names share a word of 3+ letters, or one contains the other. */
-function namesOverlap(a: string, b: string): boolean {
-  const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
-  const [x, y] = [norm(a), norm(b)];
-  if (!x || !y) return false;
-  if (x.includes(y) || y.includes(x)) return true;
-  const words = new Set(x.split(" ").filter((w) => w.length >= 3));
-  return y.split(" ").some((w) => words.has(w));
-}
-
 /**
  * Google's own Place Details card for a place found by name near a point: stars and review count first,
  * the reviews behind "See reviews" with a way back. Google draws and attributes the content; nothing
  * from it is stored or re-drawn on our map.
  */
-export function GooglePlaceCard({ name, lat, lng }: { name: string; lat: number; lng: number }) {
+export function GooglePlaceCard({ name, lat, lng, placeId: knownId, startWithReviews = false }: { name: string; lat: number; lng: number; placeId?: string; startWithReviews?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
-  const [placeId, setPlaceId] = useState<string | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "none" | "error">("loading");
-  const [showReviews, setShowReviews] = useState(false);
+  const [placeId, setPlaceId] = useState<string | null>(knownId ?? null);
+  const [state, setState] = useState<"loading" | "ready" | "none" | "error">(knownId ? "ready" : "loading");
+  const [showReviews, setShowReviews] = useState(startWithReviews);
   const [matchedName, setMatchedName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!KEY) return;
+    if (!KEY || knownId) return;
     let alive = true;
     (async () => {
       try {
@@ -78,7 +62,7 @@ export function GooglePlaceCard({ name, lat, lng }: { name: string; lat: number;
     return () => {
       alive = false;
     };
-  }, [name, lat, lng]);
+  }, [name, lat, lng, knownId]);
 
   useEffect(() => {
     if (!placeId || !host.current) return;
@@ -106,7 +90,7 @@ export function GooglePlaceCard({ name, lat, lng }: { name: string; lat: number;
           {showReviews ? "← Back" : "See reviews"}
         </button>
       ) : null}
-      <div ref={host} style={{ minWidth: 260, maxHeight: 260, overflowY: "auto" }} />
+      <div ref={host} style={{ minWidth: 260, maxHeight: 190, overflowY: "auto" }} />
     </div>
   );
 }

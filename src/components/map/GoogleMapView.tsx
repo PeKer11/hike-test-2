@@ -3,6 +3,8 @@
 import { APIProvider, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useEffect } from "react";
 
+import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStopMarkers } from "@/components/map/GoogleMarkers";
+import { GoogleRecommendedLayer } from "@/components/map/GoogleRecommendedLayer";
 import type { MapViewProps } from "@/components/map/MapView";
 import type { Coordinates } from "@/lib/types";
 import { WORLDCOVER_ATTRIBUTION } from "@/lib/types/landcover";
@@ -64,6 +66,7 @@ function PositionFollower({ currentPosition, followPosition = false }: { current
 
 /** Google Maps version of `MapView` — same props, so the planner doesn't change. */
 export default function GoogleMapView({
+  waypoints,
   routeGeometry,
   walkedGeometry,
   center,
@@ -72,10 +75,16 @@ export default function GoogleMapView({
   onMapClick,
   currentPosition,
   followPosition,
+  previewPlaces,
+  pinnedIds,
+  onTogglePin,
   hudInset = false,
   callouts,
+  onCalloutSelect,
   previewRoutes,
   extraAttribution,
+  onAddToWalk,
+  addedIds,
 }: MapViewProps) {
   const credits = [
     "Route: © OpenStreetMap contributors · openrouteservice",
@@ -84,7 +93,8 @@ export default function GoogleMapView({
   ];
 
   return (
-    <div className={hudInset ? "walk-hud absolute inset-0" : "absolute inset-0"}>
+    // Google's logo and terms link must stay visible, so while the walk HUD is up the map ends above it.
+    <div className="absolute inset-x-0 top-0" style={{ bottom: hudInset ? "var(--hud-h, 9rem)" : 0 }}>
       <APIProvider apiKey={KEY}>
         <Map
           mapId={MAP_ID}
@@ -106,6 +116,11 @@ export default function GoogleMapView({
           {previewRoutes?.map((r) => (
             <Line key={r.id} path={r.geometry} color={r.highlighted ? "#c15f3c" : "#1e3d2f"} weight={r.highlighted ? 5 : 3} opacity={r.highlighted ? 0.95 : 0.55} zIndex={3} dashed />
           ))}
+          <GoogleStopMarkers waypoints={waypoints} pinnedIds={pinnedIds} onTogglePin={onTogglePin} />
+          <GooglePreviewMarkers places={previewPlaces ?? []} />
+          <GoogleRecommendedLayer onAddToWalk={onAddToWalk} addedIds={addedIds} />
+          {currentPosition ? <GoogleCurrentPosition position={currentPosition} /> : null}
+          {callouts && onCalloutSelect ? <GoogleCallouts announcements={callouts} onSelect={onCalloutSelect} /> : null}
         </Map>
       </APIProvider>
       <div className="pointer-events-none absolute bottom-6 left-2 z-10 max-w-[70%] rounded bg-white/80 px-1.5 py-0.5 text-[10px] text-slate-700">

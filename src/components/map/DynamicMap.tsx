@@ -6,8 +6,8 @@ const loading = () => (
   </div>
 );
 
-// v2: Google map when NEXT_PUBLIC_MAP_PROVIDER=google and a browser key is set; otherwise the Leaflet/OSM map (v1).
-const useGoogle = process.env.NEXT_PUBLIC_MAP_PROVIDER === "google" && !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
+// v2: Google map whenever a browser key is set, unless NEXT_PUBLIC_MAP_PROVIDER=leaflet; otherwise the Leaflet/OSM map (v1).
+const useGoogle = process.env.NEXT_PUBLIC_MAP_PROVIDER !== "leaflet" && !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
 
 const DynamicMap = dynamic(() => (useGoogle ? import("./GoogleMapView") : import("./MapView")), {
   ssr: false,
