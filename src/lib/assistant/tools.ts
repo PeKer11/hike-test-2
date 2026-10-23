@@ -3,12 +3,13 @@ import type { ToolDef } from "@/lib/llm/providers/openai-tools";
 import type { AttractionCategory } from "@/lib/types";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
-import { ACCEPTABLE_BAD_KM, buildCleanRoute } from "@/lib/walk/clean-route";
-import { bestOrder, insideBoundary, outsideKm, pickSpread, type Boundary } from "@/lib/walk/loop-search";
+import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
 import { searchPlaces } from "@/lib/api/nominatim-client";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
-import { namedStreetPaths, orsRoute } from "@/lib/walk/ors-route";
+import { makeBudget, matrixCoolingDown, noteMatrixError } from "@/lib/walk/routing-budget";
+import { brokenKm, limitRules, makeVerdict, type RuleResult, type Verdict } from "@/lib/walk/rule-verdict";
+import { loadEnv, needsRouteCheck, routeAndJudge, ROUTING_CALLS_PER_TOOL, type Judged } from "./route-check";
 
 import {
   DEFAULT_PACE_MIN_PER_KM,
@@ -106,6 +107,7 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
           avoid_streets: { type: "array", items: { type: "string" }, description: "street names the walker does not want to walk along, exactly as they wrote them" },
           via_streets: { type: "array", items: { type: "string" }, description: "streets the walker wants the walk to go along; used by find_clean_walk" },
           stay_in_area: { type: "string", description: "town the whole walk must stay inside, with country, e.g. 'Caesarea, Israel'; the server checks the real route against its boundary" },
+          clear: { type: "array", items: { type: "string", enum: ["no_repeat", "stay_in_area", "avoid_streets", "avoid_dangerous", "via_streets", "time_minutes", "max_walk_km"] }, description: "rules the walker gives up: they are removed" },
           avoid_dangerous: { type: "boolean", description: "true when the walker wants to avoid dangerous roads; the server finds them from OpenStreetMap (fast roads, no sidewalk)" },
         },
         additionalProperties: false,
@@ -223,203 +225,15 @@ interface Estimate {
   order: Candidate[];
 }
 
-/** What a real walking route through the stops looks like against the walker's rules. */
-interface RouteCheck {
-  /** Only meaningful when the walker wants to end where they started. */
-  endsAtStart?: boolean;
-  repeatedKm: number;
-  forbiddenKm: number;
-  /** Roads treated as unsafe or named, so the walker can correct the list. */
-  avoidedStreets: string[];
-  /** Plain-language note when a rule could not be met. */
-  problems: string[];
-  /** Checks that could not run (map data service down): tell the walker they were NOT verified. */
-  unchecked?: string[];
-  /** Stop ids in the order that repeats the least street; build_walk uses it. */
-  orderIds?: string[];
-  /** What the walker can give up when no route meets every rule: ask which one. */
-  relaxOptions?: string[];
-  /** Only with stay_in_area: kilometres of the route outside the town. */
-  outsideKm?: number;
-  /** Set when a rule fails: the stop whose removal fixes it, and what each removal would leave. */
-  forcingStop?: string;
-  relaxations?: Array<{ drop: string; repeatedKm: number; outsideKm?: number }>;
-  /** Replacing the forcing stop by another place already found, when that gives a clean route. */
-  swaps?: Array<{ replace: string; with: string; repeatedKm: number; outsideKm?: number }>;
+/** Identifies a set of stops under the current rules, so a check made for it can be reused. */
+function checkKey(ids: string[], params: WalkParams): string {
+  return `${[...ids].sort().join(",")}|${JSON.stringify(params)}`;
 }
 
-/** Rule violations of one routed attempt, in km (0 = clean). */
-function badKm(repeatedKm: number, forbiddenKm: number, outside: number, params: WalkParams): number {
-  return (params.noRepeat ? repeatedKm : 0) + forbiddenKm + outside;
-}
-
-/** Rules the walker could give up, named from what is actually set, for the "no route meets everything" answer. */
-function relaxOptionsFor(params: WalkParams): string[] {
-  return [
-    ...(params.noRepeat ? ["allow a short stretch of street to be walked twice"] : []),
-    ...(params.stayInArea ? [`allow the route to step slightly outside ${params.stayInArea}`] : []),
-    ...(params.avoidStreets?.length ? [`allow the route to pass along ${params.avoidStreets.join(", ")}`] : []),
-    ...(params.avoidDangerous ? ["allow roads marked unsafe on foot"] : []),
-    ...(params.viaStreets?.length ? [`skip the stop on ${params.viaStreets.join(", ")}`] : []),
-    "fewer stops",
-    ...(params.timeMinutes || params.maxWalkKm ? ["a longer time or distance limit"] : []),
-  ];
-}
-
-/** Orders of `order` other than the given one, shortest straight-line tour first (a loop and its reverse count once). */
-function otherOrders(origin: Candidate["coordinates"], order: Candidate[], loop: boolean): Candidate[][] {
-  const out: Candidate[][] = [];
-  const permute = (rest: Candidate[], acc: Candidate[]) => {
-    if (!rest.length) {
-      out.push(acc);
-      return;
-    }
-    rest.forEach((c, i) => permute([...rest.slice(0, i), ...rest.slice(i + 1)], [...acc, c]));
-  };
-  permute(order, []);
-  const key = (o: Candidate[]) => o.map((c) => c.id).join();
-  const seen = new Set([key(order), ...(loop ? [key([...order].reverse())] : [])]);
-  const tour = (o: Candidate[]) => [origin, ...o.map((c) => c.coordinates), ...(loop ? [origin] : [])].reduce((a, p, i, all) => a + (i ? haversineDistance(all[i - 1], p) : 0), 0);
-  return out
-    .filter((o) => {
-      const k = key(o);
-      if (seen.has(k)) return false;
-      seen.add(k);
-      if (loop) seen.add(key([...o].reverse()));
-      return true;
-    })
-    .sort((a, b) => tour(a) - tour(b));
-}
-
-/** With no_repeat: tries the next few visiting orders and keeps the one whose real route repeats the least street. */
-async function leastRepeatOrder(origin: Candidate["coordinates"], order: Candidate[], loop: boolean, params: WalkParams, forbiddenWays: Candidate["coordinates"][][]): Promise<Candidate[]> {
-  if (!params.noRepeat || order.length < 3 || order.length > 6) return order;
-  const routed = async (o: Candidate[]) =>
-    (await buildCleanRoute({ waypoints: [origin, ...o.map((c) => c.coordinates), ...(loop ? [origin] : [])], route: orsRoute, noRepeat: true, forbiddenWays, maxAttempts: 1 })).quality;
-  let best = order;
-  try {
-    const first = await routed(order);
-    let bestBad = first.repeatedKm + first.forbiddenKm;
-    for (const o of otherOrders(origin, order, loop).slice(0, 4)) {
-      if (bestBad <= ACCEPTABLE_BAD_KM) break;
-      const q = await routed(o);
-      if (q.repeatedKm + q.forbiddenKm < bestBad) {
-        best = o;
-        bestBad = q.repeatedKm + q.forbiddenKm;
-      }
-    }
-  } catch {
-    // routing failed: keep the given order
-  }
-  return best;
-}
-
-/** Routes the stops for real and measures repeats, loop closure and avoided streets; null when no rule needs checking. */
-async function checkRoute(origin: Candidate["coordinates"], order: Candidate[], params: WalkParams, alternatives: Candidate[] = []): Promise<RouteCheck | null> {
-  const loop = params.endDistanceKm === 0;
-  const streets = params.avoidStreets ?? [];
-  if (!loop && !params.noRepeat && !params.avoidDangerous && streets.length === 0 && !params.stayInArea) return null;
-  const boundary: Boundary | null = params.stayInArea ? await fetchTownBoundary(params.stayInArea) : null;
-  let lookupFailed = false;
-  const forbidden =
-    streets.length || params.avoidDangerous
-      ? await fetchForbiddenWays(origin, Math.max((params.radiusKm ?? 3) * 1500, 2000), { streets, dangerous: params.avoidDangerous, onError: () => (lookupFailed = true) })
-      : [];
-  const waypoints = [origin, ...order.map((s) => s.coordinates), ...(loop ? [origin] : [])];
-  let forbiddenPaths = forbidden.map((w) => w.path);
-  let namedFromSteps = false;
-  if (lookupFailed && (streets.length || params.avoidDangerous)) {
-    // Overpass is down: read the named streets off the walking router's own step names instead.
-    try {
-      const found = await namedStreetPaths(waypoints, streets, params.avoidDangerous === true);
-      if (found.named) {
-        forbiddenPaths = found.paths;
-        namedFromSteps = true;
-      }
-    } catch {
-      // stays unchecked
-    }
-  }
-  order = await leastRepeatOrder(origin, order, loop, params, forbiddenPaths);
-  const finalWaypoints = [origin, ...order.map((s) => s.coordinates), ...(loop ? [origin] : [])];
-  const clean = await buildCleanRoute({
-    waypoints: finalWaypoints,
-    route: orsRoute,
-    noRepeat: params.noRepeat === true,
-    forbiddenWays: forbiddenPaths,
-  });
-  const { repeatedKm, forbiddenKm, closesLoop } = clean.quality;
-  const outside = boundary ? outsideKm(clean.geometry, boundary) : 0;
-  const problems: string[] = [];
-  if (boundary && outside > ACCEPTABLE_BAD_KM) problems.push(`${outside} km of the route run outside ${params.stayInArea}`);
-  if (params.noRepeat && repeatedKm > ACCEPTABLE_BAD_KM) problems.push(`${repeatedKm} km of street are walked twice even after re-routing`);
-  if (forbiddenKm > ACCEPTABLE_BAD_KM) problems.push(`${forbiddenKm} km run along streets they wanted to avoid`);
-  if (loop && !closesLoop) problems.push("the route does not end back at the start");
-  const check: RouteCheck = {
-    ...(loop ? { endsAtStart: closesLoop } : {}),
-    repeatedKm,
-    forbiddenKm,
-    ...(boundary ? { outsideKm: outside } : {}),
-    ...(lookupFailed ? { unchecked: [params.avoidDangerous && !namedFromSteps ? "dangerous roads" : "", streets.length && !namedFromSteps ? "avoided streets" : "", namedFromSteps && clean.attempts > 1 ? "avoided streets (re-routed route only partly re-read)" : ""].filter(Boolean) } : {}),
-    ...(params.stayInArea && !boundary ? { unchecked: [...(lookupFailed ? ["dangerous roads / avoided streets"] : []), `town boundary of ${params.stayInArea}`] } : {}),
-    orderIds: order.map((s) => s.id),
-    avoidedStreets: [...new Set(forbidden.map((w) => w.name))].slice(0, 8),
-    problems,
-    ...(problems.length ? { relaxOptions: relaxOptionsFor(params) } : {}),
-  };
-  if (problems.length && order.length > 1 && badKm(repeatedKm, forbiddenKm, outside, params) > ACCEPTABLE_BAD_KM) {
-    // Route again without each stop (one routing call each) to find which stop forces the problem.
-    const relaxations: NonNullable<RouteCheck["relaxations"]> = [];
-    for (let k = 0; k < order.length; k++) {
-      const rest = order.filter((_, i) => i !== k);
-      try {
-        const alt = await buildCleanRoute({
-          waypoints: [origin, ...rest.map((s) => s.coordinates), ...(loop ? [origin] : [])],
-          route: orsRoute,
-          noRepeat: params.noRepeat === true,
-          forbiddenWays: forbiddenPaths,
-          maxAttempts: 1,
-        });
-        relaxations.push({
-          drop: order[k].name,
-          repeatedKm: alt.quality.repeatedKm,
-          ...(boundary ? { outsideKm: outsideKm(alt.geometry, boundary) } : {}),
-        });
-      } catch {
-        // no route without this stop: leave it out of the list
-      }
-    }
-    const left = (r: (typeof relaxations)[number]) => badKm(r.repeatedKm, 0, r.outsideKm ?? 0, params);
-    relaxations.sort((a, b) => left(a) - left(b));
-    check.relaxations = relaxations.slice(0, 3);
-    if (relaxations[0] && left(relaxations[0]) <= ACCEPTABLE_BAD_KM) {
-      check.forcingStop = relaxations[0].drop;
-      // Try other places already found (same kind, not in the walk) in the forcing stop's place.
-      const k = order.findIndex((s) => s.name === check.forcingStop);
-      const spare = alternatives.filter((c) => c.category === order[k].category && !order.some((s) => s.id === c.id)).slice(0, 3);
-      const swaps: NonNullable<RouteCheck["swaps"]> = [];
-      for (const alt of spare) {
-        const swapped = order.map((s, i) => (i === k ? alt : s));
-        try {
-          const r = await buildCleanRoute({
-            waypoints: [origin, ...swapped.map((s) => s.coordinates), ...(loop ? [origin] : [])],
-            route: orsRoute,
-            noRepeat: params.noRepeat === true,
-            forbiddenWays: forbiddenPaths,
-            maxAttempts: 1,
-          });
-          const out = boundary ? outsideKm(r.geometry, boundary) : 0;
-          if (badKm(r.quality.repeatedKm, r.quality.forbiddenKm, out, params) <= ACCEPTABLE_BAD_KM) {
-            swaps.push({ replace: order[k].name, with: alt.name, repeatedKm: r.quality.repeatedKm, ...(boundary ? { outsideKm: out } : {}) });
-          }
-        } catch {
-          // no route with this swap: skip it
-        }
-      }
-      if (swaps.length) check.swaps = swaps;
-    }
-  }
-  return check;
+/** Keeps the last few checks (verdict + order) so build_walk does not route again. */
+function rememberCheck(state: AssistantState, ids: string[], judged: Judged): NonNullable<AssistantState["checks"]> {
+  const key = checkKey(ids, state.params);
+  return [{ key, verdict: judged.verdict, orderIds: judged.orderIds }, ...(state.checks ?? []).filter((c) => c.key !== key)].slice(0, 3);
 }
 
 /** Shortest order from the start (closing back to it when `loop`) (or the given order when `ordered`), street distances from ORS (straight line x1.3 if ORS fails). */
@@ -433,10 +247,12 @@ async function estimateWalk(
   const points = [origin, ...stops.map((s) => s.coordinates)];
   let dist: number[][];
   try {
+    if (matrixCoolingDown()) throw new Error("matrix cooling down");
     const m = await getMatrix({ locations: points.map(toOrsCoord) } as Parameters<typeof getMatrix>[0]);
     dist = m.distances as number[][];
     if (!dist?.length) throw new Error("empty");
-  } catch {
+  } catch (err) {
+    noteMatrixError(err);
     dist = points.map((a) => points.map((b) => haversineDistance(a, b) * 1.3));
   }
   const sequence = ordered ? stops.map((_, i) => i + 1) : bestOrder(dist, loop);
@@ -498,6 +314,7 @@ export async function runTool(
   rawArgs: string,
   input: AssistantState,
 ): Promise<ToolRun> {
+  let notChecked: RuleResult[] = [];
   const state: AssistantState = {
     ...input,
     params: { ...input.params },
@@ -594,6 +411,15 @@ export async function runTool(
         const streets = args.avoid_streets.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim().slice(0, 60));
         state.params.avoidStreets = [...new Set([...(state.params.avoidStreets ?? []), ...streets])].slice(0, 10);
       }
+      for (const rule of Array.isArray(args.clear) ? args.clear : []) {
+        if (rule === "no_repeat") delete state.params.noRepeat;
+        else if (rule === "stay_in_area") delete state.params.stayInArea;
+        else if (rule === "avoid_streets") delete state.params.avoidStreets;
+        else if (rule === "avoid_dangerous") delete state.params.avoidDangerous;
+        else if (rule === "via_streets") delete state.params.viaStreets;
+        else if (rule === "time_minutes") delete state.params.timeMinutes;
+        else if (rule === "max_walk_km") delete state.params.maxWalkKm;
+      }
       return { output: JSON.stringify({ ok: true, params: state.params }), state };
     }
 
@@ -652,14 +478,9 @@ export async function runTool(
         }
         must.push(point);
       }
-      let forbiddenFailed = false;
-      const forbidden =
-        (state.params.avoidStreets?.length || state.params.avoidDangerous)
-          ? await fetchForbiddenWays(origin, Math.max((state.params.radiusKm ?? 3) * 1500, 2000), { streets: state.params.avoidStreets ?? [], dangerous: state.params.avoidDangerous, onError: () => (forbiddenFailed = true) })
-          : [];
-      const forbiddenPaths = forbidden.map((w) => w.path);
+      const env = await loadEnv(origin, state.params);
+      const boundary = env.boundary;
       const loop = state.params.endDistanceKm === 0;
-      const boundary = state.params.stayInArea ? await fetchTownBoundary(state.params.stayInArea) : null;
       const pool = state.candidates
         .filter((c) => c.category !== "area" && !must.includes(c) && haversineDistance(origin, c.coordinates) > 150 && (!boundary || insideBoundary(c.coordinates, boundary)))
         .sort((a, b) => haversineDistance(origin, a.coordinates) - haversineDistance(origin, b.coordinates))
@@ -673,11 +494,12 @@ export async function runTool(
       let full: number[][];
       let approx = false;
       try {
+        if (matrixCoolingDown()) throw new Error("matrix cooling down");
         const m = await getMatrix({ locations: spots.map(toOrsCoord) } as Parameters<typeof getMatrix>[0]);
         full = m.distances as number[][];
       } catch (err) {
         // Matrix quota used up or service down: straight lines x1.3 order the sets; the real routes below are still checked.
-        console.error("[assistant] matrix failed, using straight-line distances:", err);
+        noteMatrixError(err);
         approx = true;
         full = spots.map((a) => spots.map((b) => haversineDistance(a, b) * 1.3));
       }
@@ -715,45 +537,33 @@ export async function runTool(
       };
       walk(0, []);
       scored.sort((a, b) => b.spacing - a.spacing);
-      let best: { stops: Candidate[]; repeatedKm: number; outsideKm: number; forbiddenKm: number; walkKm: number } | null = null;
+      const score = (v: Verdict) => v.rules.filter((r) => r.status === "not_met").length * 100 + brokenKm(v);
+      const searchBudget = makeBudget(ROUTING_CALLS_PER_TOOL);
+      let best: { stops: Candidate[]; verdict: Verdict } | null = null;
       let routed = 0;
       for (const { idx } of scored.slice(0, SEARCH_ROUTE_BUDGET)) {
         const stops = idx.map((i) => all[i - 1]);
-        try {
-          const r = await buildCleanRoute({
-            waypoints: [origin, ...stops.map((s) => s.coordinates), ...(loop ? [origin] : [])],
-            route: orsRoute,
-            noRepeat: state.params.noRepeat === true,
-            forbiddenWays: forbiddenPaths,
-            maxAttempts: 2,
-          });
-          routed += 1;
-          const out = boundary ? outsideKm(r.geometry, boundary) : 0;
-          const bad = badKm(r.quality.repeatedKm, r.quality.forbiddenKm, out, state.params);
-          const walkKm = Math.round(r.geometry.reduce((a, p, i) => a + (i ? haversineDistance(r.geometry[i - 1], p) : 0), 0) / 100) / 10;
-          if (!best || bad < badKm(best.repeatedKm, best.forbiddenKm, best.outsideKm, state.params)) best = { stops, repeatedKm: r.quality.repeatedKm, outsideKm: out, forbiddenKm: r.quality.forbiddenKm, walkKm };
-          if (bad <= ACCEPTABLE_BAD_KM) break;
-        } catch {
-          // routing failed for this set: try the next one
-        }
+        const r = await routeAndJudge(origin, stops, state.params, [], { alternatives: false, orderSearch: false, budget: searchBudget, env });
+        if (r.verdict.walkKm === 0) break; // no route could be built (budget or router): more sets will not help
+        routed += 1;
+        if (!best || score(r.verdict) < score(best.verdict)) best = { stops, verdict: r.verdict };
+        if (r.verdict.ok) break;
       }
-      if (!best) return { output: JSON.stringify({ error: "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
-      const clean = badKm(best.repeatedKm, best.forbiddenKm, best.outsideKm, state.params) <= ACCEPTABLE_BAD_KM;
+      if (!best) return { output: JSON.stringify({ error: scored.length ? "routes could not be built just now; try again in a minute" : "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
+      // The chosen set gets the full check: best visiting order and, if it still breaks a rule, the alternatives.
+      const judged = await routeAndJudge(origin, best.stops, state.params, pool, { env });
+      state.checks = rememberCheck(state, best.stops.map((s) => s.id), judged);
+      const byId = new Map(best.stops.map((s) => [s.id, s.name]));
       return {
         output: JSON.stringify({
-          found: clean,
-          stop_ids: best.stops.map((s) => s.id),
-          stops: best.stops.map((s) => s.name),
-          walkKm: best.walkKm,
-          repeatedKm: best.repeatedKm,
-          ...(boundary ? { outsideKm: best.outsideKm } : {}),
-          ...(forbiddenPaths.length ? { forbiddenKm: best.forbiddenKm } : {}),
+          found: judged.verdict.ok,
+          stop_ids: judged.orderIds,
+          stops: judged.orderIds.map((id) => byId.get(id)),
+          verdict: judged.verdict,
+          ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}),
           ...(missingVia.length ? { streets_not_found: missingVia } : {}),
-          ...(forbiddenFailed ? { unchecked: ["dangerous roads / avoided streets: the map data service did not answer"] } : {}),
-          ...(state.params.stayInArea && !boundary ? { unchecked_boundary: state.params.stayInArea } : {}),
           sets_checked: routed,
           ...(approx ? { note_distances: "distances between places are estimates (the matrix service was unavailable); the final route is still checked on real streets" } : {}),
-          ...(clean ? {} : { note: "no set met every rule; this is the closest of those checked", relaxOptions: relaxOptionsFor(state.params) }),
         }),
         state,
       };
@@ -768,37 +578,33 @@ export async function runTool(
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       const ordered = args.ordered === true;
       const est = await estimateWalk(state.origin, picked, state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM, ordered, state.params.endDistanceKm === 0);
-      const { timeMinutes, maxWalkKm } = state.params;
-      const problems: string[] = [];
-      if (timeMinutes && est.totalMin > timeMinutes) problems.push(`needs ${est.totalMin} min, they have ${timeMinutes}`);
-      if (maxWalkKm && est.walkKm > maxWalkKm * 1.1) problems.push(`walks ${est.walkKm} km, their cap is ${maxWalkKm}`);
+      // One verdict per set of stops: build_walk reuses what estimate_walk / find_clean_walk already checked.
+      const cached = name === "build_walk" ? state.checks?.find((c) => c.key === checkKey(picked.map((c2) => c2.id), state.params)) : undefined;
+      let judged: Judged;
+      if (cached) {
+        judged = { verdict: cached.verdict, orderIds: cached.orderIds };
+      } else if (needsRouteCheck(state.params)) {
+        judged = await routeAndJudge(state.origin, est.order, state.params, state.candidates);
+      } else {
+        judged = {
+          verdict: makeVerdict(limitRules(state.params, est.walkKm, est.walkMin, est.visitMin), est.walkKm, est.walkMin, est.visitMin),
+          orderIds: est.order.map((s) => s.id),
+        };
+      }
+      if (!cached) state.checks = rememberCheck(state, picked.map((c) => c.id), judged);
       if (name === "estimate_walk") {
-        const { order, ...shown } = est;
-        let route: RouteCheck | null = null;
-        try {
-          route = await checkRoute(state.origin, order, state.params, state.candidates);
-        } catch {
-          route = null; // routing is down: say nothing rather than guess
-        }
-        return { output: JSON.stringify({ ...shown, fits: problems.length === 0, problems, ...(route ? { route } : {}) }), state };
+        return { output: JSON.stringify({ walkKm: judged.verdict.walkKm, walkMin: judged.verdict.walkMin, visitMin: judged.verdict.visitMin, totalMin: judged.verdict.totalMin, legs: est.legs, verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
       }
       if (!state.limitsSettled) {
         return { output: JSON.stringify({ error: "limits not asked yet: call ask_limits first" }), state };
       }
-      if (problems.length) {
-        return { output: JSON.stringify({ error: "does not fit", problems, estimate: est }), state };
+      // The rules are enforced here, not in the prompt: build exactly the order that was checked, and only when no rule is broken.
+      if (judged.verdict.rules.some((r) => r.status === "not_met")) {
+        const onlyLimits = judged.verdict.rules.every((r) => r.status !== "not_met" || r.rule === "time" || r.rule === "max_walk");
+        return { output: JSON.stringify({ error: onlyLimits ? "does not fit" : "route breaks the walker's rules", verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
       }
-      // The rules are enforced here, not in the prompt: build exactly the order that was checked, and only when it passes.
-      let route: RouteCheck | null = null;
-      try {
-        route = await checkRoute(state.origin, est.order, state.params, state.candidates);
-      } catch {
-        route = null; // routing is down: the planner still warns
-      }
-      if (route && route.problems.length) {
-        return { output: JSON.stringify({ error: "route breaks the walker's rules", route }), state };
-      }
-      args.stop_ids = route?.orderIds ?? est.order.map((s) => s.id);
+      notChecked = judged.verdict.rules.filter((r) => r.status === "not_checked" || r.status === "partial");
+      args.stop_ids = judged.orderIds;
       args.ordered = true;
     }
 
@@ -812,7 +618,7 @@ export async function runTool(
       if (!origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       state.chosen = stops.map((s) => s.id);
       return {
-        output: JSON.stringify({ ok: true, building: stops.map((s) => s.name) }),
+        output: JSON.stringify({ ok: true, building: stops.map((s) => s.name), ...(notChecked.length ? { not_checked: notChecked } : {}) }),
         state,
         action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}) },
       };

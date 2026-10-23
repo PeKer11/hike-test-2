@@ -28,6 +28,10 @@ function parseOrsError(errorText: string, status: number): string {
     // Fall back to plain-text matching when ORS does not return structured JSON.
   }
 
+  if (status === 429) {
+    return "Routing rate limit reached.";
+  }
+
   if (status === 403 && normalizedError.includes("quota")) {
     return "Routing quota exceeded.";
   }
@@ -248,8 +252,10 @@ export async function getDirections(
   );
 
   // OSRM can't do round trips, and only has a foot profile.
+  // OSRM also ignores avoid_polygons: a "re-route around X" through it would quietly return X again.
   const canFallBack =
     !request.options?.round_trip &&
+    !request.options?.avoid_polygons &&
     (profile === "foot-walking" || profile === "foot-hiking");
   if (!canFallBack) return ors;
 

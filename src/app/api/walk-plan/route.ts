@@ -673,13 +673,18 @@ export async function POST(request: Request): Promise<NextResponse> {
             ? body.avoidStreets.filter((x): x is string => typeof x === "string").slice(0, 10)
             : [];
           const avoidDangerous = body.avoidDangerous === true;
+          let forbiddenLookupFailed = false;
           const forbidden =
             avoidStreets.length || avoidDangerous
               ? await fetchForbiddenWays(origin, Math.max(radiusMeters * 1.5, 2000), {
                   streets: avoidStreets,
                   dangerous: avoidDangerous,
+                  onError: () => (forbiddenLookupFailed = true),
                 })
               : [];
+          if (forbiddenLookupFailed) {
+            warnings.push("Could not check the streets you wanted to avoid: the map-data service did not answer.");
+          }
           const clean = await buildCleanRoute({
             waypoints,
             noRepeat: body.noRepeat === true,

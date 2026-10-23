@@ -1,4 +1,5 @@
 import type { AttractionCategory, Coordinates } from "@/lib/types";
+import type { Verdict } from "@/lib/walk/rule-verdict";
 
 /** What the walker has said about the walk. Anything unset means "no limit". */
 export interface WalkParams {
@@ -51,6 +52,8 @@ export interface AssistantState {
   chosen: string[];
   /** The walker has answered (or waived) time / radius / distance limits. */
   limitsSettled?: boolean;
+  /** Recent route checks (verdict + visiting order), so build_walk reuses what estimate_walk found. In-memory only. */
+  checks?: Array<{ key: string; verdict: Verdict; orderIds: string[] }>;
 }
 
 export const EMPTY_STATE: AssistantState = {

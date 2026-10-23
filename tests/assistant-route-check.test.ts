@@ -1,0 +1,120 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Coordinates } from "@/lib/types";
+
+const p = (lat: number, lng: number): Coordinates => ({ lat, lng });
+const origin = p(32, 34);
+const north = p(32.01, 34);
+const outAndBack = [origin, north, origin];
+const square = [origin, north, p(32.01, 34.012), p(32, 34.012), origin];
+
+const details = new Map<Coordinates[], { named: Array<{ name: string; path: Coordinates[] }>; stateRoads: Coordinates[][] | null }>();
+let route: (w: Coordinates[], avoid: unknown) => Promise<Coordinates[]>;
+const router = vi.fn((w: Coordinates[], avoid: unknown) => route(w, avoid));
+let overpassDown = false;
+
+vi.mock("@/lib/walk/ors-route", () => ({
+  orsRoute: (w: Coordinates[], avoid: unknown) => router(w, avoid),
+  isRouteCached: () => false,
+  routeDetail: (g: Coordinates[]) => details.get(g),
+}));
+vi.mock("@/lib/walk/forbidden-ways", async (orig) => ({
+  ...(await orig<typeof import("@/lib/walk/forbidden-ways")>()),
+  fetchForbiddenWays: vi.fn(async (_c: Coordinates, _r: number, opts: { onError?: () => void }) => {
+    if (overpassDown) opts.onError?.();
+    return [];
+  }),
+}));
+vi.mock("@/lib/api/ors-client", () => ({
+  getMatrix: vi.fn(async () => ({ distances: [[0, 1100, 3000], [1100, 0, 2500], [3000, 2500, 0]] })),
+}));
+
+import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
+import { runTool } from "@/lib/assistant/tools";
+
+const state = (params: AssistantState["params"]): AssistantState => ({
+  ...EMPTY_STATE,
+  origin,
+  limitsSettled: true,
+  params,
+  candidates: [
+    { id: "c1", name: "A", coordinates: north, category: "park", placeId: "a" },
+    { id: "c2", name: "B", coordinates: p(32.01, 34.012), category: "food", placeId: "b" },
+  ],
+});
+const call = async (name: string, args: object, st: AssistantState) => {
+  const run = await runTool(name, JSON.stringify(args), st);
+  return { run, out: JSON.parse(run.output) };
+};
+
+beforeEach(() => {
+  router.mockClear();
+  details.clear();
+  overpassDown = false;
+  route = async () => square;
+});
+
+describe("route check", () => {
+  it("build_walk after estimate_walk reuses the check: no further routing", async () => {
+    const st = state({ noRepeat: true, endDistanceKm: 0 });
+    const est = await call("estimate_walk", { stop_ids: ["c1", "c2"] }, st);
+    expect(est.out.verdict.ok).toBe(true);
+    const used = router.mock.calls.length;
+    const built = await call("build_walk", { stop_ids: ["c1", "c2"] }, est.run.state);
+    expect(built.run.action?.stops).toHaveLength(2);
+    expect(router.mock.calls.length).toBe(used);
+  });
+
+  it("a repeated street is not_met, build is refused, and alternatives come with numbers", async () => {
+    route = async () => outAndBack;
+    const st = state({ noRepeat: true, endDistanceKm: 0 });
+    const est = await call("estimate_walk", { stop_ids: ["c1", "c2"] }, st);
+    expect(est.out.verdict.ok).toBe(false);
+    expect(est.out.verdict.rules.find((r: { rule: string }) => r.rule === "no_repeat").status).toBe("not_met");
+    expect(est.out.alternatives.length).toBeGreaterThan(0);
+    expect(est.out.alternatives[0].option).toContain("give up");
+    const built = await call("build_walk", { stop_ids: ["c1", "c2"] }, st);
+    expect(built.run.action).toBeUndefined();
+    expect(built.out.error).toContain("breaks");
+  });
+
+  it("with the map service down, router street names still catch an avoided street", async () => {
+    overpassDown = true;
+    const g = [origin, north, origin];
+    details.set(g, { named: [{ name: "הנביאים", path: [origin, north] }], stateRoads: null });
+    route = async () => g;
+    const st = state({ avoidStreets: ["רחוב הנביאים"] });
+    const est = await call("estimate_walk", { stop_ids: ["c1", "c2"] }, st);
+    expect(est.out.verdict.rules.find((r: { rule: string }) => r.rule === "avoid_streets").status).toBe("not_met");
+  });
+
+  it("with the map service down and no names, the rule is not_checked and never met", async () => {
+    overpassDown = true;
+    route = async () => square;
+    const st = state({ avoidStreets: ["הנביאים"] });
+    const est = await call("estimate_walk", { stop_ids: ["c1", "c2"] }, st);
+    expect(est.out.verdict.rules.find((r: { rule: string }) => r.rule === "avoid_streets").status).toBe("not_checked");
+    expect(est.out.verdict.ok).toBe(false);
+    // not_checked does not block a build, but it is reported
+    const built = await call("build_walk", { stop_ids: ["c1", "c2"] }, st);
+    expect(built.run.action).toBeDefined();
+    expect(built.out.not_checked).toBeDefined();
+  });
+
+  it("a router failure gives not_checked verdicts instead of a tool error", async () => {
+    route = async () => {
+      throw new Error("Routing quota exceeded.");
+    };
+    const st = state({ noRepeat: true, endDistanceKm: 0 });
+    const est = await call("estimate_walk", { stop_ids: ["c1", "c2"] }, st);
+    expect(est.out.error).toBeUndefined();
+    expect(est.out.verdict.rules.every((r: { status: string }) => r.status === "not_checked")).toBe(true);
+  });
+
+  it("clear removes a rule the walker gives up", async () => {
+    const st = state({ noRepeat: true, avoidStreets: ["x"], endDistanceKm: 0 });
+    const r = await call("set_walk_params", { clear: ["no_repeat", "avoid_streets"] }, st);
+    expect(r.run.state.params.noRepeat).toBeUndefined();
+    expect(r.run.state.params.avoidStreets).toBeUndefined();
+    expect(r.run.state.params.endDistanceKm).toBe(0);
+  });
+});
