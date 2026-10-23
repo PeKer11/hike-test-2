@@ -911,6 +911,8 @@ export function WalkPlannerApp({
       keepAttractions?: Attraction[];
       /** Visit `keepAttractions` exactly in the given order instead of optimizing it. */
       fixedOrder?: boolean;
+      /** The route the assistant already checked: shown as is (this build only, never on automatic rebuilds). */
+      presetGeometry?: Coordinates[];
       /** Route rules from the assistant; remembered so automatic rebuilds keep them. */
       routeRules?: AssistantBuild["routeRules"];
       pinnedIds?: string[];
@@ -1021,6 +1023,7 @@ export function WalkPlannerApp({
           preferredCategories: input.preferredCategories,
           explicitAttractions: keepAttractions,
           fixedOrder: options?.fixedOrder === true ? true : undefined,
+          presetGeometry: options?.presetGeometry,
           ...routeRulesRef.current,
           pinnedAttractionIds: activePinnedIds,
           fillRemainingTime: options?.fillRemainingTime ?? false,
@@ -3089,7 +3092,7 @@ export function WalkPlannerApp({
                         radiusMeters: build.radiusMeters,
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
-                      { keepAttractions: build.stops, fixedOrder: build.fixedOrder, fillRemainingTime: false, routeRules: build.routeRules },
+                      { keepAttractions: build.stops, fixedOrder: build.fixedOrder, presetGeometry: build.geometry, fillRemainingTime: false, routeRules: build.routeRules },
                     );
                   }}
                 />

@@ -1,6 +1,6 @@
 import { searchNearbyPlaces, searchTextPlaces } from "@/lib/api/google-places-client";
 import type { ToolDef } from "@/lib/llm/providers/openai-tools";
-import type { AttractionCategory } from "@/lib/types";
+import type { AttractionCategory, Coordinates } from "@/lib/types";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
@@ -235,7 +235,9 @@ function checkKey(ids: string[], params: WalkParams, ordered: boolean): string {
 /** Keeps the last few checks (verdict + order) so build_walk does not route again. */
 function rememberCheck(state: AssistantState, ids: string[], ordered: boolean, judged: Judged): NonNullable<AssistantState["checks"]> {
   const key = checkKey(ids, state.params, ordered);
-  return [{ key, verdict: judged.verdict, orderIds: judged.orderIds }, ...(state.checks ?? []).filter((c) => c.key !== key)].slice(0, 3);
+  const geometry = judged.geometry?.map((p) => ({ lat: Math.round(p.lat * 1e5) / 1e5, lng: Math.round(p.lng * 1e5) / 1e5 }));
+  const older = (state.checks ?? []).filter((c) => c.key !== key).map((c) => ({ key: c.key, verdict: c.verdict, orderIds: c.orderIds }));
+  return [{ key, verdict: judged.verdict, orderIds: judged.orderIds, ...(geometry ? { geometry } : {}) }, ...older].slice(0, 3);
 }
 
 /** Shortest order from the start (closing back to it when `loop`) (or the given order when `ordered`), street distances from ORS (straight line x1.3 if ORS fails). */
@@ -322,6 +324,7 @@ export async function runTool(
 ): Promise<ToolRun> {
   let notChecked: RuleResult[] = [];
   let builtVerdict: Verdict | undefined;
+  let builtGeometry: Coordinates[] | undefined;
   const state: AssistantState = {
     ...input,
     params: { ...input.params },
@@ -522,6 +525,7 @@ export async function runTool(
       const { timeMinutes, maxWalkKm } = state.params;
       // Every combination of the pool, ordered as a loop; keep those within the limits, most spread out first.
       const scored: Array<{ idx: number[]; spacing: number }> = [];
+      let closest: { idx: number[]; over: number } | null = null;
       const consider = (chosen: number[]) => {
         const idx = [...must.map((_, i) => i + 1), ...chosen.map((i) => i + 1 + must.length)];
         const sub = [0, ...idx].map((a) => [0, ...idx].map((b) => full[a]?.[b] ?? Infinity));
@@ -534,8 +538,12 @@ export async function runTool(
         }
         if (loop) meters += full[at]?.[0] ?? Infinity;
         const visit = idx.reduce((s, i) => s + visitMinutes(all[i - 1].category), 0);
-        if (maxWalkKm && meters > maxWalkKm * 1100) return;
-        if (timeMinutes && (meters / 1000) * pace + visit > timeMinutes) return;
+        const over = Math.max(maxWalkKm ? meters / (maxWalkKm * 1100) : 0, timeMinutes ? ((meters / 1000) * pace + visit) / timeMinutes : 0);
+        if (over > 1) {
+          // Nothing may fit: keep the set that overshoots least, so the walker is shown real numbers instead of "impossible".
+          if (!closest || over < closest.over) closest = { idx: order, over };
+          return;
+        }
         let spacing = Infinity;
         for (const a of idx) for (const b of idx) if (a < b) spacing = Math.min(spacing, haversineDistance(all[a - 1].coordinates, all[b - 1].coordinates));
         scored.push({ idx: order, spacing });
@@ -552,6 +560,7 @@ export async function runTool(
       };
       walk(0, []);
       scored.sort((a, b) => b.spacing - a.spacing);
+      if (!scored.length && closest) scored.push({ idx: (closest as { idx: number[] }).idx, spacing: 0 });
       const score = (v: Verdict) => v.rules.filter((r) => r.status === "not_met").length * 100 + brokenKm(v);
       let best: { stops: Candidate[]; verdict: Verdict } | null = null;
       let routed = 0;
@@ -597,7 +606,7 @@ export async function runTool(
       const cached = name === "build_walk" ? state.checks?.find((c) => c.key === checkKey(picked.map((c2) => c2.id), state.params, ordered)) : undefined;
       let judged: Judged;
       if (cached) {
-        judged = { verdict: cached.verdict, orderIds: cached.orderIds };
+        judged = { verdict: cached.verdict, orderIds: cached.orderIds, geometry: cached.geometry };
       } else if (needsRouteCheck(state.params)) {
         judged = await routeAndJudge(state.origin, est.order, state.params, state.candidates, { orderSearch: !ordered, budget });
       } else {
@@ -619,6 +628,18 @@ export async function runTool(
         return { output: JSON.stringify({ error: onlyLimits ? "does not fit" : "route breaks the walker's rules", verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
       }
       builtVerdict = judged.verdict;
+      // The map must show the route that was checked, not a second one the planner computes.
+      if (needsRouteCheck(state.params)) {
+        if (!judged.geometry) {
+          const again = await routeAndJudge(state.origin, judged.orderIds.map((id) => state.candidates.find((c) => c.id === id)).filter((c): c is Candidate => Boolean(c)), state.params, [], { alternatives: false, orderSearch: false, budget });
+          if (again.verdict.broken) return { output: JSON.stringify({ error: "route breaks the walker's rules", verdict: again.verdict }), state };
+          if (!again.verdict.unavailable) {
+            judged.geometry = again.geometry;
+            builtVerdict = again.verdict;
+          }
+        }
+        builtGeometry = judged.geometry;
+      }
       notChecked = judged.verdict.rules.filter((r) => r.status === "not_checked" || r.status === "partial");
       args.stop_ids = judged.orderIds;
       args.ordered = true;
@@ -636,7 +657,7 @@ export async function runTool(
       return {
         output: JSON.stringify({ built: true, building: stops.map((s) => s.name), ...(builtVerdict ? { verdict: builtVerdict } : {}), ...(notChecked.length ? { not_checked: notChecked } : {}) }),
         state,
-        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}) },
+        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}), ...(builtGeometry ? { geometry: builtGeometry } : {}) },
       };
     }
   } catch (err) {

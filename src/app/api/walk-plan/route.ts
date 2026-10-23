@@ -26,7 +26,7 @@ import {
 import { buildCleanRoute } from "@/lib/walk/clean-route";
 import { orsRoute } from "@/lib/walk/ors-route";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
-import type { RouteQuality } from "@/lib/walk/route-quality";
+import { analyzeRoute, type RouteQuality } from "@/lib/walk/route-quality";
 import type {
   Attraction,
   AttractionCategory,
@@ -57,6 +57,8 @@ interface WalkPlanApiRequest {
   // already on instead of discovering a whole new set of POIs.
   explicitAttractions?: Attraction[];
   fixedOrder?: boolean;
+  /** A route the assistant already checked; used as is when it matches the request (see usablePresetGeometry). */
+  presetGeometry?: unknown;
   /** Never walk the same street twice: the route is re-planned around repeats. */
   noRepeat?: boolean;
   /** Streets the walker does not want to walk along, by name. */
@@ -230,6 +232,20 @@ async function withProfilePreferences(
  * constraint out of the way.
  */
 const MAX_PLAN_ATTEMPTS = 3;
+const PRESET_MAX_POINTS = 20_000;
+const PRESET_START_TOLERANCE_M = 100;
+
+/** A route the assistant already checked, when it is safe to show as is: the stops are the walker's own, in their order, and it starts where the walk starts. */
+function usablePresetGeometry(raw: unknown, origin: Coordinates, fixedExplicit: boolean): Coordinates[] | undefined {
+  if (!fixedExplicit || !Array.isArray(raw) || raw.length < 2 || raw.length > PRESET_MAX_POINTS) return undefined;
+  const points: Coordinates[] = [];
+  for (const p of raw) {
+    const q = p as { lat?: unknown; lng?: unknown } | null;
+    if (!q || typeof q.lat !== "number" || typeof q.lng !== "number" || !Number.isFinite(q.lat) || !Number.isFinite(q.lng)) return undefined;
+    points.push({ lat: q.lat, lng: q.lng });
+  }
+  return haversineDistance(points[0], origin) <= PRESET_START_TOLERANCE_M ? points : undefined;
+}
 
 /**
  * Below this share of the requested time actually spent walking and visiting,
@@ -657,7 +673,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     let geometry: Coordinates[] | undefined;
     let routeQuality: Pick<RouteQuality, "endGapM" | "closesLoop" | "repeatedKm" | "forbiddenKm"> | undefined;
 
-    if (plan.orderedAttractions.length > 0) {
+    const preset = usablePresetGeometry(body.presetGeometry, origin, body.fixedOrder === true && hasExplicit);
+    if (preset) {
+      geometry = preset;
+      routeQuality = analyzeRoute(preset, []);
+    } else if (plan.orderedAttractions.length > 0) {
       if (!process.env.ORS_API_KEY) {
         warnings.push(
           "No ORS_API_KEY configured — route geometry is unavailable. Start Walk is disabled until geometry is present.",

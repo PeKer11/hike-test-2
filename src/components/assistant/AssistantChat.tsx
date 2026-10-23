@@ -47,6 +47,8 @@ export interface AssistantBuild {
   fixedOrder?: boolean;
   /** Route rules the walker stated; sent with every (re)build of this walk. */
   routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean };
+  /** The route the assistant checked: the planner shows this one for this build. */
+  geometry?: Coordinates[];
 }
 
 interface AssistantChatProps {
@@ -411,6 +413,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
             params.endDistanceKm === undefined ? undefined : params.endDistanceKm * 1000,
           stops: stops.map(toAttraction),
           fixedOrder: data.action.ordered === true,
+          geometry: data.action.geometry,
           routeRules: {
             noRepeat: params.noRepeat,
             avoidStreets: params.avoidStreets,

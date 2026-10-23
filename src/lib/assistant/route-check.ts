@@ -1,3 +1,4 @@
+import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
 import { buildCleanRoute } from "@/lib/walk/clean-route";
 import { fetchForbiddenWays, matchesStreet, type ForbiddenWay } from "@/lib/walk/forbidden-ways";
@@ -30,6 +31,8 @@ export interface Judged {
   verdict: Verdict;
   /** Stop ids in the order that was checked; build with this order. */
   orderIds: string[];
+  /** The walking route that was checked (for `orderIds`); the map must show this one. */
+  geometry?: Coordinates[];
   alternatives?: Alternative[];
 }
 
@@ -106,7 +109,7 @@ export async function routeAndJudge(
 
   const waypointsOf = (stops: Candidate[]) => [origin, ...stops.map((s) => s.coordinates), ...(loop ? [origin] : [])];
 
-  async function judge(stops: Candidate[], maxAttempts: number): Promise<{ verdict: Verdict; stops: Candidate[] }> {
+  async function judge(stops: Candidate[], maxAttempts: number): Promise<{ verdict: Verdict; stops: Candidate[]; geometry: Coordinates[] }> {
     const waypoints = waypointsOf(stops);
     const forbiddenWays = env.forbidden.ways.map((w) => w.path);
     if (streets.length || (params.avoidDangerous && env.forbidden.failed)) {
@@ -127,15 +130,17 @@ export async function routeAndJudge(
       paceMinPerKm: pace,
       visitMin: stops.reduce((a, s) => a + visitMinutes(s.category), 0),
     });
-    return { verdict, stops };
+    return { verdict, stops, geometry: clean.geometry };
   }
 
   // With no_repeat, a different visiting order often repeats less street: keep the one whose real route repeats least.
   let best = order;
   let main: Verdict | null = null;
+  let mainGeometry: Coordinates[] | undefined;
   try {
     const first = await judge(order, 3);
     main = first.verdict;
+    mainGeometry = first.geometry;
     if (opts.orderSearch !== false && params.noRepeat && order.length >= 3 && order.length <= 6) {
       // Fewer broken rules first, then fewer broken kilometres.
       const bad = (v: Verdict) => brokenRules(v).length * 1000 + brokenKm(v);
@@ -145,9 +150,14 @@ export async function routeAndJudge(
         if (bad(tried.verdict) < bad(main)) {
           best = o;
           main = tried.verdict;
+          mainGeometry = tried.geometry;
         }
       }
-      if (best !== order) main = (await judge(best, 3)).verdict;
+      if (best !== order) {
+        const again = await judge(best, 3);
+        main = again.verdict;
+        mainGeometry = again.geometry;
+      }
     }
   } catch (err) {
     const why = err instanceof BudgetExceeded ? "the routing limit for this request was reached" : "the routing service did not answer";
@@ -155,7 +165,7 @@ export async function routeAndJudge(
     if (!main) return { verdict: unavailableVerdict(params, why), orderIds: order.map((s) => s.id) };
   }
   const verdict = main as Verdict;
-  const result: Judged = { verdict, orderIds: best.map((s) => s.id) };
+  const result: Judged = { verdict, orderIds: best.map((s) => s.id), geometry: mainGeometry };
   if (!verdict.broken || opts.alternatives === false) return result;
 
   const summary = (v: Verdict) => ({ walkKm: v.walkKm, totalMin: v.totalMin, repeatedKm: v.rules.find((r) => r.rule === "no_repeat")?.value, outsideKm: v.rules.find((r) => r.rule === "stay_in_area")?.value });

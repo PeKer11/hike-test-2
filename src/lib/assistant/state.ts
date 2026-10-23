@@ -52,8 +52,8 @@ export interface AssistantState {
   chosen: string[];
   /** The walker has answered (or waived) time / radius / distance limits. */
   limitsSettled?: boolean;
-  /** Recent route checks (verdict + visiting order), so build_walk reuses what estimate_walk found. In-memory only. */
-  checks?: Array<{ key: string; verdict: Verdict; orderIds: string[] }>;
+  /** Recent route checks (verdict + visiting order), so build_walk reuses what estimate_walk found. In-memory only. Only the newest check keeps its route geometry. */
+  checks?: Array<{ key: string; verdict: Verdict; orderIds: string[]; geometry?: Coordinates[] }>;
 }
 
 export const EMPTY_STATE: AssistantState = {
@@ -71,4 +71,6 @@ export interface BuildAction {
   stops: Candidate[];
   /** The walker stated an order for the stops; the walk must visit them exactly in that order. */
   ordered?: boolean;
+  /** The route that was checked; the planner shows exactly this one when it is sent along. */
+  geometry?: Coordinates[];
 }
