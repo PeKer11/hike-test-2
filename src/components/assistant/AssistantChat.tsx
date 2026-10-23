@@ -302,6 +302,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  const [copiedAt, setCopiedAt] = useState<number | null>(null);
   const refreshChats = useCallback(async () => {
     const { data } = await createClient()
       .from("assistant_chats")
@@ -520,13 +521,23 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
             <div
               key={i}
               dir="auto"
-              className={`whitespace-pre-wrap px-[14px] py-[9px] text-[13px] leading-[1.4] ${
+              title={copiedAt === i ? undefined : "Click to copy"}
+              onClick={(e) => {
+                // A drag-selection or a click on a place link keeps its own meaning; a plain click copies the message.
+                if (window.getSelection()?.toString() || (e.target as HTMLElement).closest("button, a")) return;
+                void navigator.clipboard?.writeText(m.content).then(() => {
+                  setCopiedAt(i);
+                  window.setTimeout(() => setCopiedAt((cur) => (cur === i ? null : cur)), 1200);
+                });
+              }}
+              className={`relative cursor-pointer whitespace-pre-wrap px-[14px] py-[9px] text-[13px] leading-[1.4] ${
                 m.role === "user"
                   ? "ms-8 rounded-[13px] rounded-br-[4px] bg-tk-ink text-tk-card"
                   : "me-8 rounded-[13px] rounded-bl-[4px] bg-tk-bubble text-tk-body shadow-[0_2px_6px_rgba(110,80,50,0.12)]"
               }`}
             >
               {m.role === "assistant" ? renderMessage(m.content, places, onFocusPlace) : m.content}
+              {copiedAt === i && <span className="absolute -top-2 end-2 rounded-full bg-tk-ink px-2 text-[10px] text-tk-card">Copied</span>}
             </div>
           ))}
           {limitsOpen && !pending && (
