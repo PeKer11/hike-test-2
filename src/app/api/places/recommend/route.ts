@@ -16,7 +16,7 @@ export async function PUT(request: Request): Promise<NextResponse> {
   if (!user) return NextResponse.json({ saved: false }, { status: 401 });
   const { error } = await supabase
     .from("place_recommendations")
-    .upsert({ user_id: user.id, poi_key: rec.poiKey, category: rec.category, tags: rec.tags, ...(rec.lat !== undefined ? { lat: rec.lat, lng: rec.lng } : {}), ...(rec.name ? { name: rec.name } : {}), updated_at: new Date().toISOString() }, { onConflict: "user_id,poi_key" });
+    .upsert({ user_id: user.id, poi_key: rec.poiKey, category: rec.category, tags: rec.tags, review: rec.review ?? null, ...(rec.lat !== undefined ? { lat: rec.lat, lng: rec.lng } : {}), ...(rec.name ? { name: rec.name } : {}), updated_at: new Date().toISOString() }, { onConflict: "user_id,poi_key" });
   return NextResponse.json({ saved: !error }, { status: error ? 500 : 200 });
 }
 

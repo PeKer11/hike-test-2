@@ -47,9 +47,18 @@ describe("GET /api/places/recommended", () => {
     expect((await GET(url("south=1"))).status).toBe(400);
     getUser.mockResolvedValueOnce({ data: { user: null } });
     expect((await GET(url(BOX))).status).toBe(401);
-    rpc.mockResolvedValue({ data: [{ poi_key: "osm-node-1", name: "Cafe", category: "food", lat: 32.45, lng: 34.85, supporters_bucket: "5+", tags: ["view"] }], error: null });
+    rpc.mockResolvedValue({ data: [{ poi_key: "osm-node-1", name: "Cafe", category: "food", lat: 32.45, lng: 34.85, supporters: 1, tags: ["view"], reviews: ["Lovely view"] }], error: null });
     const res = await GET(url(BOX));
     expect(rpc).toHaveBeenCalledWith("recommended_places_in_bbox", { p_south: 32.4, p_west: 34.8, p_north: 32.5, p_east: 34.9 });
-    expect((await res.json()).places).toEqual([{ poiKey: "osm-node-1", name: "Cafe", category: "food", lat: 32.45, lng: 34.85, supporters: "5+", tags: ["view"] }]);
+    expect((await res.json()).places).toEqual([{ poiKey: "osm-node-1", name: "Cafe", category: "food", lat: 32.45, lng: 34.85, supporters: 1, tags: ["view"], reviews: ["Lovely view"] }]);
+  });
+});
+
+describe("parseRecommendation review", () => {
+  it("keeps a trimmed review capped at 280 characters and drops an empty one", async () => {
+    const { parseRecommendation } = await import("@/lib/social/recommendations");
+    const base = { poiKey: "osm-node-1", category: "food", tags: [] };
+    expect(parseRecommendation({ ...base, review: `  ${"x".repeat(400)}  ` })?.review).toHaveLength(280);
+    expect(parseRecommendation({ ...base, review: "   " })?.review).toBeUndefined();
   });
 });

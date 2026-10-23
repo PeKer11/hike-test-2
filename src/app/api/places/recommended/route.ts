@@ -16,14 +16,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!user) return NextResponse.json({ places: [] }, { status: 401 });
   const { data, error } = await supabase.rpc("recommended_places_in_bbox", { p_south: box.south, p_west: box.west, p_north: box.north, p_east: box.east });
   if (error) return NextResponse.json({ places: [] }, { status: 500 });
-  const places = (data ?? []).map((p: { poi_key: string; name: string; category: string; lat: number; lng: number; supporters_bucket: string; tags: string[] }) => ({
+  const places = (data ?? []).map((p: { poi_key: string; name: string; category: string; lat: number; lng: number; supporters: number; tags: string[]; reviews: string[] }) => ({
     poiKey: p.poi_key,
     name: p.name,
     category: p.category,
     lat: p.lat,
     lng: p.lng,
-    supporters: p.supporters_bucket,
+    supporters: p.supporters,
     tags: p.tags ?? [],
+    reviews: p.reviews ?? [],
   }));
   return NextResponse.json({ places });
 }

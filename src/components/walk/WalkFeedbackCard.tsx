@@ -31,6 +31,7 @@ export function WalkFeedbackCard({
   onDismiss,
 }: WalkFeedbackCardProps) {
   const [recommended, setRecommended] = useState<Record<string, boolean>>({});
+  const [reviews, setReviews] = useState<Record<string, string>>({});
   const [ratings, setRatings] = useState<Record<string, boolean>>({});
   const [comment, setComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -65,15 +66,14 @@ export function WalkFeedbackCard({
     });
   };
 
-  const recommend = (attraction: Attraction) => {
-    const on = !recommended[attraction.id];
+  const recommend = (attraction: Attraction, on = !recommended[attraction.id]) => {
     setRecommended((current) => ({ ...current, [attraction.id]: on }));
     if (on) rate(attraction, true); // recommending a place also counts as liking it for this walker
     // Same id the thumbs use; the server accepts only OSM and Google place ids.
     void fetch("/api/places/recommend", {
       method: on ? "PUT" : "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ poiKey: attraction.id, category: attraction.category, tags: [], lat: attraction.coordinates.lat, lng: attraction.coordinates.lng, name: attraction.name }),
+      body: JSON.stringify({ poiKey: attraction.id, category: attraction.category, tags: [], lat: attraction.coordinates.lat, lng: attraction.coordinates.lng, name: attraction.name, review: reviews[attraction.id] ?? "" }),
     }).catch(() => {});
   };
 
@@ -180,6 +180,23 @@ export function WalkFeedbackCard({
           );
         })}
       </ul>
+
+      {socialEnabled() &&
+        attractions
+          .filter((attraction) => recommended[attraction.id])
+          .map((attraction) => (
+            <div key={attraction.id} className="space-y-1">
+              <label className="block text-xs font-medium text-charcoal/80">Short review of {attraction.name} (optional)</label>
+              <textarea
+                value={reviews[attraction.id] ?? ""}
+                onChange={(event) => setReviews((current) => ({ ...current, [attraction.id]: event.target.value.slice(0, 280) }))}
+                onBlur={() => recommend(attraction, true)}
+                rows={2}
+                className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
+              />
+              <p className="text-xs text-charcoal/60">Shown publicly to other Traike users as &ldquo;a Traike user&rdquo;, with no name.</p>
+            </div>
+          ))}
 
       <div className="space-y-2">
         <label className="block text-xs font-medium text-charcoal/80">

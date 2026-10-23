@@ -4,6 +4,7 @@ import L from "leaflet";
 import { useState } from "react";
 import { Marker, Popup, useMap } from "react-leaflet";
 
+import { GooglePlaceCard } from "@/components/map/GooglePlaceCard";
 import { notableEnabled, socialEnabled } from "@/lib/social/flag";
 
 interface RecommendedPlace {
@@ -12,8 +13,9 @@ interface RecommendedPlace {
   category: string;
   lat: number;
   lng: number;
-  supporters: string;
+  supporters: number;
   tags: string[];
+  reviews: string[];
 }
 
 interface NotablePlace {
@@ -115,6 +117,7 @@ export function RecommendedLayer() {
               <a className="text-xs underline" href={`https://www.wikidata.org/wiki/${p.id}`} target="_blank" rel="noreferrer">
                 Source: Wikidata
               </a>
+              <GooglePlaceCard name={p.name} lat={p.lat} lng={p.lng} />
             </div>
           </Popup>
         </Marker>
@@ -124,8 +127,14 @@ export function RecommendedLayer() {
           <Popup>
             <div className="space-y-1">
               <div className="text-sm font-semibold">{p.name}</div>
-              <div className="text-xs text-slate-600">Recommended by {p.supporters} walkers</div>
+              <div className="text-xs text-slate-600">{p.supporters === 1 ? "Recommended by a Traike user" : `Recommended by ${p.supporters} Traike users`}</div>
               {p.tags.length ? <div className="text-xs text-slate-600">{p.tags.join(" · ")}</div> : null}
+              {p.reviews.map((r, i) => (
+                <blockquote key={i} className="border-l-2 border-terra/50 pl-2 text-xs text-slate-700">
+                  {r} <span className="text-slate-500">— a Traike user</span>
+                </blockquote>
+              ))}
+              <GooglePlaceCard name={p.name} lat={p.lat} lng={p.lng} />
             </div>
           </Popup>
         </Marker>

@@ -18,6 +18,8 @@ export interface Recommendation {
   lat?: number;
   lng?: number;
   name?: string;
+  /** A short public review, shown to other opted-in walkers as written by "a Traike user". */
+  review?: string;
 }
 
 /** A well-formed recommendation from a request body, or null. Unknown tags are dropped, extras beyond three ignored. */
@@ -28,6 +30,8 @@ export function parseRecommendation(raw: unknown): Recommendation | null {
   if (!CATEGORIES.includes(r.category as AttractionCategory)) return null;
   const tags = Array.isArray(r.tags) ? [...new Set(r.tags.filter((t): t is PlaceTag => PLACE_TAGS.includes(t as PlaceTag)))].slice(0, MAX_TAGS) : [];
   const rec: Recommendation = { poiKey: r.poiKey, category: r.category as AttractionCategory, tags };
+  const review = typeof r.review === "string" ? r.review.trim().slice(0, 280) : "";
+  if (review) rec.review = review;
   // Google Places content (name, position) must not be stored or drawn on our map: a google-* key carries only the key.
   if (r.poiKey.startsWith("google-")) return rec;
   if (typeof r.lat === "number" && typeof r.lng === "number" && Math.abs(r.lat) <= 90 && Math.abs(r.lng) <= 180) {
