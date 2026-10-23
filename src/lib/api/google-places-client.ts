@@ -5,10 +5,17 @@ import type { AttractionCategory, Coordinates } from "@/lib/types";
 const SEARCH_TEXT_URL = "https://places.googleapis.com/v1/places:searchText";
 const SEARCH_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby";
 
-// Pro-tier fields only. `rating` / `userRatingCount` would move every request to
-// the Enterprise SKU (1,000 free a month instead of 5,000), so ranking by
-// reviews is deliberately not done here.
+// Pro-tier fields. `rating` / `userRatingCount` move a request to the Enterprise SKU
+// (1,000 free a month instead of 5,000, $35 instead of $32 per 1,000), so they are
+// asked for only where they are used (the assistant's nearby search), and
+// GOOGLE_PLACES_RATINGS=0 turns them off. They only ever order results: Google's
+// terms keep ratings off a non-Google map and forbid storing them.
 const FIELD_MASK = "places.id,places.displayName,places.location,places.primaryType,places.types";
+const RATING_FIELDS = ",places.rating,places.userRatingCount";
+
+function ratingsEnabled(): boolean {
+  return process.env.GOOGLE_PLACES_RATINGS !== "0";
+}
 
 const REQUEST_TIMEOUT_MS = 6000;
 // Google's per-day quota in Cloud Console is the real cap; this is the in-process
@@ -35,6 +42,9 @@ export interface GooglePlace {
   coordinates: Coordinates;
   primaryType: string | null;
   types: string[];
+  /** Google rating (1-5) and how many ratings it rests on; only when asked for and Google has them. */
+  rating?: number;
+  ratingCount?: number;
 }
 
 interface RawPlace {
@@ -43,6 +53,8 @@ interface RawPlace {
   location?: { latitude?: number; longitude?: number };
   primaryType?: string;
   types?: string[];
+  rating?: number;
+  userRatingCount?: number;
 }
 
 let usageDay = "";
@@ -68,7 +80,7 @@ export function categoryTypes(category: AttractionCategory): string[] {
   return CATEGORY_TYPES[category];
 }
 
-async function post(url: string, body: unknown): Promise<GooglePlace[]> {
+async function post(url: string, body: unknown, withRatings = false): Promise<GooglePlace[]> {
   if (!googlePlacesAvailable()) {
     throw new Error("Google Places unavailable (no key or daily cap reached).");
   }
@@ -78,7 +90,7 @@ async function post(url: string, body: unknown): Promise<GooglePlace[]> {
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": process.env.GOOGLE_PLACES_API_KEY!.trim(),
-      "X-Goog-FieldMask": FIELD_MASK,
+      "X-Goog-FieldMask": withRatings && ratingsEnabled() ? FIELD_MASK + RATING_FIELDS : FIELD_MASK,
     },
     body: JSON.stringify(body),
     cache: "no-store",
@@ -99,6 +111,7 @@ async function post(url: string, body: unknown): Promise<GooglePlace[]> {
       coordinates: { lat, lng },
       primaryType: p.primaryType ?? null,
       types: p.types ?? [],
+      ...(typeof p.rating === "number" && typeof p.userRatingCount === "number" ? { rating: p.rating, ratingCount: p.userRatingCount } : {}),
     });
   }
   return places;
@@ -134,6 +147,7 @@ export function searchNearbyPlaces(
   center: Coordinates,
   radiusMeters: number,
   maxResults = 20,
+  withRatings = false,
 ): Promise<GooglePlace[]> {
   return post(SEARCH_NEARBY_URL, {
     includedTypes: categoryTypes(category),
@@ -145,7 +159,7 @@ export function searchNearbyPlaces(
         radius: Math.min(50000, Math.max(100, radiusMeters)),
       },
     },
-  });
+  }, withRatings);
 }
 
 /** Every kind a walker might be told about, in one nearby request (Google caps it at 20). */

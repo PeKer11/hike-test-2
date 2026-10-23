@@ -16,6 +16,7 @@ import {
   visitMinutes,
   type AssistantState,
   type BuildAction,
+  placeScore,
   type Candidate,
   type WalkParams,
 } from "./state";
@@ -38,6 +39,11 @@ const MAX_RESULTS_TO_MODEL = 6;
 const DEFAULT_NEARBY_RADIUS_M = 2000;
 /** find_clean_walk: places considered, combinations scanned, and sets routed for real (each costs 1-2 routing calls). */
 const SEARCH_POOL_MAX = 18;
+/** A place with no rating counts as this (see placeScore); one star of rating is worth about this many metres of distance. */
+const RATING_PRIOR_SCORE = 4.0;
+const RATING_M_PER_STAR = 400;
+/** Sets whose smallest gap between stops differs by less than this count as equally spread out, so rating decides. */
+const SPACING_BUCKET_M = 150;
 const SEARCH_COMBOS_MAX = 20000;
 const SEARCH_ROUTE_BUDGET = 8;
 
@@ -291,6 +297,10 @@ function addCandidates(state: AssistantState, found: Candidate[]): Candidate[] {
   for (const c of found) {
     const existing = known.get(c.placeId);
     if (existing) {
+      if (existing.rating === undefined && c.rating !== undefined) {
+        existing.rating = c.rating;
+        existing.ratingCount = c.ratingCount;
+      }
       result.push(existing);
       continue;
     }
@@ -310,6 +320,7 @@ function compact(list: Candidate[]): string {
       name: c.name,
       kind: c.category,
       ...(c.distanceMeters !== undefined ? { dist_m: c.distanceMeters } : {}),
+      ...(c.rating !== undefined ? { google_rating: Math.round(c.rating * 10) / 10, google_reviews: c.ratingCount } : {}),
     })),
   );
 }
@@ -373,7 +384,7 @@ export async function runTool(
         num(args.radius_m) ??
         (state.params.radiusKm ? state.params.radiusKm * 1000 : DEFAULT_NEARBY_RADIUS_M);
       const wanted = Math.min(MAX_RESULTS_TO_MODEL, Math.round(num(args.count) ?? 3));
-      const places = await searchNearbyPlaces(category, anchor, radius);
+      const places = await searchNearbyPlaces(category, anchor, radius, 20, true);
       const boundary = state.params.stayInArea ? await fetchTownBoundary(state.params.stayInArea) : null;
       const inTown = boundary ? places.filter((p) => insideBoundary(p.coordinates, boundary)) : places;
       const ranked = (inTown.length ? inTown : places)
@@ -384,8 +395,10 @@ export async function runTool(
           category,
           placeId: p.placeId,
           distanceMeters: Math.round(haversineDistance(anchor, p.coordinates)),
+          ...(p.rating !== undefined ? { rating: p.rating, ratingCount: p.ratingCount } : {}),
         }))
-        .sort((a, b) => a.distanceMeters - b.distanceMeters);
+        // Near first; a better-rated place may edge ahead (one star is worth about 400 m), but only inside the radius that was asked for.
+        .sort((a, b) => a.distanceMeters - (placeScore(a) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR - (b.distanceMeters - (placeScore(b) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR));
       const picked = args.spread === true ? pickSpread(ranked, wanted, anchor) : ranked.slice(0, wanted);
       const found = addCandidates(state, picked);
       return { output: found.length ? compact(found) : JSON.stringify({ error: "nothing found" }), state };
@@ -524,7 +537,7 @@ export async function runTool(
       const pace = state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM;
       const { timeMinutes, maxWalkKm } = state.params;
       // Every combination of the pool, ordered as a loop; keep those within the limits, most spread out first.
-      const scored: Array<{ idx: number[]; spacing: number }> = [];
+      const scored: Array<{ idx: number[]; spacing: number; rating: number }> = [];
       let closest: { idx: number[]; over: number } | null = null;
       const consider = (chosen: number[]) => {
         const idx = [...must.map((_, i) => i + 1), ...chosen.map((i) => i + 1 + must.length)];
@@ -546,7 +559,8 @@ export async function runTool(
         }
         let spacing = Infinity;
         for (const a of idx) for (const b of idx) if (a < b) spacing = Math.min(spacing, haversineDistance(all[a - 1].coordinates, all[b - 1].coordinates));
-        scored.push({ idx: order, spacing });
+        const rating = idx.reduce((s, i) => s + placeScore(all[i - 1]), 0) / idx.length;
+        scored.push({ idx: order, spacing, rating });
       };
       let seen = 0;
       const walk = (start: number, chosen: number[]) => {
@@ -559,8 +573,9 @@ export async function runTool(
         for (let i = start; i < pool.length; i++) walk(i + 1, [...chosen, i]);
       };
       walk(0, []);
-      scored.sort((a, b) => b.spacing - a.spacing);
-      if (!scored.length && closest) scored.push({ idx: (closest as { idx: number[] }).idx, spacing: 0 });
+      // Every set here already meets the limits: most spread out first, and among equally spread sets the better-rated one.
+      scored.sort((a, b) => Math.round(b.spacing / SPACING_BUCKET_M) - Math.round(a.spacing / SPACING_BUCKET_M) || b.rating - a.rating || b.spacing - a.spacing);
+      if (!scored.length && closest) scored.push({ idx: (closest as { idx: number[] }).idx, spacing: 0, rating: 0 });
       const score = (v: Verdict) => v.rules.filter((r) => r.status === "not_met").length * 100 + brokenKm(v);
       let best: { stops: Candidate[]; verdict: Verdict } | null = null;
       let routed = 0;

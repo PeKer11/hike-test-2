@@ -38,6 +38,21 @@ export interface Candidate {
   category: AttractionCategory | "area";
   placeId: string;
   distanceMeters?: number;
+  /** Google rating and the number of ratings behind it (assistant nearby search only; never shown on the map). */
+  rating?: number;
+  ratingCount?: number;
+}
+
+const RATING_PRIOR = 4.0;
+const RATING_PRIOR_WEIGHT = 10;
+
+/**
+ * How good a place looks, 1-5, from its rating shrunk toward an average place so a 5.0 from two reviews does
+ * not beat a 4.6 from two thousand. A place with no rating is an average one: unrated never loses to rated.
+ */
+export function placeScore(c: Pick<Candidate, "rating" | "ratingCount">): number {
+  if (c.rating === undefined || !c.ratingCount) return RATING_PRIOR;
+  return (c.rating * c.ratingCount + RATING_PRIOR * RATING_PRIOR_WEIGHT) / (c.ratingCount + RATING_PRIOR_WEIGHT);
 }
 
 /**
