@@ -12,6 +12,7 @@ import type { Attraction, AttractionCategory } from "@/lib/types";
 interface Item {
   key: string;
   source: "google" | "notable" | "community";
+  group?: Group;
   name: string;
   lat: number;
   lng: number;
@@ -62,10 +63,19 @@ const GOOGLE_CATEGORY: [RegExp, AttractionCategory][] = [
   [/worship|church|synagogue|mosque/i, "religious"],
 ];
 
-const TOP_TYPES = ["tourist_attraction", "park", "museum", "art_gallery", "cafe", "restaurant", "historical_landmark", "hiking_area", "beach", "garden"];
+type Group = "food" | "nature" | "culture" | "sights";
+
+/** One search per group, so a food-heavy area can't crowd out nature, museums and sights. */
+const GROUPS: Record<Group, { label: string; glyph: string; color: string; types: string[]; radius: number }> = {
+  food: { label: "Food", glyph: "🍽", color: "#e8742c", types: ["restaurant", "cafe", "bakery"], radius: 1500 },
+  nature: { label: "Nature", glyph: "🌳", color: "#2f8f4e", types: ["park", "national_park", "hiking_area", "beach", "garden"], radius: 3000 },
+  culture: { label: "Museum & art", glyph: "🏛", color: "#7c4dbd", types: ["museum", "art_gallery"], radius: 3000 },
+  sights: { label: "Sights", glyph: "📍", color: "#2563eb", types: ["tourist_attraction", "historical_landmark", "synagogue", "church", "mosque"], radius: 3000 },
+};
+const GROUP_CATEGORY: Record<Group, AttractionCategory> = { food: "food", nature: "nature", culture: "museum", sights: "landmark" };
 const MIN_RATING = 4.0;
 const MIN_RATINGS = 25;
-const MAX_SHOWN = 12;
+const PER_GROUP = 3;
 const SEARCHES_PER_SESSION = 6;
 const SEARCH_COUNT_KEY = "traike-top-rated-searches";
 
@@ -134,47 +144,53 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
     if (!map || !placesLib) return;
     if (!searchesLeft()) return setNote("Top-rated search limit reached for this session");
     const c = map.getCenter();
-    const b = map.getBounds();
     if (!c) return;
-    const half = b ? distanceM(b.getSouthWest().lat(), b.getSouthWest().lng(), b.getNorthEast().lat(), b.getNorthEast().lng()) / 2 : 1500;
     setNote("Loading…");
     countSearch();
     try {
-      const { places } = await placesLib.Place.searchNearby({
-        locationRestriction: { center: c, radius: Math.min(1500, Math.max(300, half)) },
-        includedPrimaryTypes: TOP_TYPES,
-        fields: ["id", "displayName", "location", "rating", "userRatingCount", "primaryType"],
-        rankPreference: placesLib.SearchNearbyRankPreference.POPULARITY,
-        maxResultCount: 20,
-      });
-      const items: Item[] = places
-        .filter((p) => p.location && p.id && (p.rating ?? 0) >= MIN_RATING && (p.userRatingCount ?? 0) >= MIN_RATINGS)
-        .sort((a, z) => (z.rating ?? 0) * Math.log10((z.userRatingCount ?? 0) + 1) - (a.rating ?? 0) * Math.log10((a.userRatingCount ?? 0) + 1))
-        .slice(0, MAX_SHOWN)
-        .map((p) => {
-          const name = p.displayName ?? "Place";
-          const lat = p.location!.lat();
-          const lng = p.location!.lng();
-          return {
-            key: `g-${p.id}`,
-            source: "google" as const,
-            name,
-            lat,
-            lng,
-            rating: p.rating ?? undefined,
-            ratingCount: p.userRatingCount ?? undefined,
-            placeId: p.id,
-            // Only the place id is kept as the stop's identity; the Google card re-fetches name/rating when shown.
-            attraction: {
-              id: `google-${p.id}`,
-              name,
-              coordinates: { lat, lng },
-              category: GOOGLE_CATEGORY.find(([re]) => re.test(p.primaryType ?? ""))?.[1] ?? "landmark",
-              avgVisitMinutes: 20,
-              tags: { source: "google" },
-            },
-          };
-        });
+      const perGroup = await Promise.all(
+        (Object.keys(GROUPS) as Group[]).map(async (group) => {
+          const g = GROUPS[group];
+          const { places } = await placesLib.Place.searchNearby({
+            locationRestriction: { center: c, radius: g.radius },
+            includedPrimaryTypes: g.types,
+            fields: ["id", "displayName", "location", "rating", "userRatingCount", "primaryType"],
+            rankPreference: placesLib.SearchNearbyRankPreference.POPULARITY,
+            maxResultCount: 12,
+          });
+          return places
+            .filter((p) => p.location && p.id && (p.rating ?? 0) >= MIN_RATING && (p.userRatingCount ?? 0) >= MIN_RATINGS)
+            .sort((a, z) => (z.rating ?? 0) * Math.log10((z.userRatingCount ?? 0) + 1) - (a.rating ?? 0) * Math.log10((a.userRatingCount ?? 0) + 1))
+            .slice(0, PER_GROUP)
+            .map((p): Item => {
+              const name = p.displayName ?? "Place";
+              const lat = p.location!.lat();
+              const lng = p.location!.lng();
+              return {
+                key: `g-${p.id}`,
+                source: "google",
+                group,
+                name,
+                lat,
+                lng,
+                rating: p.rating ?? undefined,
+                ratingCount: p.userRatingCount ?? undefined,
+                placeId: p.id,
+                // Only the place id is kept as the stop's identity; the Google card re-fetches name/rating when shown.
+                attraction: {
+                  id: `google-${p.id}`,
+                  name,
+                  coordinates: { lat, lng },
+                  category: GOOGLE_CATEGORY.find(([re]) => re.test(p.primaryType ?? ""))?.[1] ?? GROUP_CATEGORY[group],
+                  avgVisitMinutes: 20,
+                  tags: { source: "google" },
+                },
+              };
+            });
+        }),
+      );
+      const seen = new Set<string>();
+      const items = perGroup.flat().filter((i) => !seen.has(i.key) && seen.add(i.key));
       setNote(items.length ? "" : "No highly rated place found around here");
       setTop(items);
     } catch (error) {
@@ -259,6 +275,15 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
               ⭐ Recommended
             </button>
           ) : null}
+          {top.length ? (
+            <div className="rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">
+              {Object.values(GROUPS).map((g) => (
+                <div key={g.label}>
+                  {g.glyph} {g.label}
+                </div>
+              ))}
+            </div>
+          ) : null}
           {note ? <p className="max-w-52 rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
         </div>
       </MapControl>
@@ -266,7 +291,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
         <AdvancedMarker key={i.key} position={{ lat: i.lat, lng: i.lng }} onClick={() => setOpenKey(i.key)} zIndex={i.source === "google" ? 300 : 200}>
           {i.source === "google" ? (
             <div className="flex items-center gap-1" data-testid="top-rated-marker">
-              {pin("#fff", "#c2652f", "🏆", 26)}
+              {pin(GROUPS[i.group ?? "sights"].color, "#fff", GROUPS[i.group ?? "sights"].glyph, 28)}
               <span className="rounded bg-white/95 px-1 text-xs font-semibold shadow">★ {i.rating?.toFixed(1)} ({i.ratingCount})</span>
             </div>
           ) : i.source === "notable" ? (
@@ -283,7 +308,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
             {open.source === "google" ? (
               <>
                 <div className="text-xs text-slate-700">
-                  ★ {open.rating?.toFixed(1)} · {open.ratingCount} Google reviews
+                  {GROUPS[open.group ?? "sights"].label} · ★ {open.rating?.toFixed(1)} · {open.ratingCount} Google reviews
                 </div>
                 {reviewsFor === open.key ? (
                   <GooglePlaceCard name={open.name} lat={open.lat} lng={open.lng} placeId={open.placeId} startWithReviews />
