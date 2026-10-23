@@ -83,7 +83,7 @@ describe("forget everything", () => {
         for (const c of m[1].matchAll(/add column (?:if not exists )?(\w+)/gi)) cols.add(c[1]);
       }
     }
-    const settingsNotLearned = new Set(["callout_level", "ui_language"]);
+    const settingsNotLearned = new Set(["callout_level", "ui_language", "is_internal"]) // is_internal is an operator flag, not something the walker taught us;
     for (const c of cols) {
       if (!settingsNotLearned.has(c)) expect(PROFILE_LEARNED_RESET).toHaveProperty(c);
     }

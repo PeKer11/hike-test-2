@@ -60,6 +60,7 @@ export async function runAssistantTurn(
   let state = input.state;
   let action: BuildAction | undefined;
   let askLimits = false;
+  let unchecked: string[] = [];
   let choices: string[] | undefined;
   const remembered: string[] = [];
   let billedMicros = 0;
@@ -109,6 +110,14 @@ export async function runAssistantTurn(
       if (run.choices) choices = run.choices;
       if (run.remember) remembered.push(run.remember);
       messages.push({ role: "tool", tool_call_id: tc.id, content: run.output });
+      if (tc.function.name === "build_walk" && run.action) {
+        try {
+          const open = (JSON.parse(run.output).not_checked ?? []) as Array<{ rule: string; status: string }>;
+          unchecked = open.map((r) => `${r.rule} (${r.status})`);
+        } catch {
+          unchecked = [];
+        }
+      }
     }
     // A build ends the turn: the client now runs the planner.
     if (action || askLimits || choices) {
@@ -116,12 +125,14 @@ export async function runAssistantTurn(
         model: input.choice.model,
         messages,
         tools: [],
-        maxOutputTokens: 200,
+        maxOutputTokens: 400,
         signal,
         reasoningEffort: input.effort,
       }).catch(() => null);
       if (final) billedMicros += estimateCostMicros(input.choice.model, final.inTok, final.outTok);
-      return { reply: (final?.content ?? "").trim(), state, action, askLimits, choices, remembered, billedMicros };
+      // Said by the server, so a rule that was not fully checked is never left out of the reply.
+      const reply = `${(final?.content ?? "").trim()}${unchecked.length ? `\n\n⚠ Not fully checked: ${unchecked.join(", ")}` : ""}`.trim();
+      return { reply, state, action, askLimits, choices, remembered, billedMicros };
     }
   }
   // Out of tool rounds: have the model report what it found so far, in the walker's language, instead of a canned English line.

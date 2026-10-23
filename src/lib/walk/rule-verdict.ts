@@ -52,12 +52,26 @@ const km = (path: Coordinates[]): number => path.reduce((a, p, i) => a + (i ? ha
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-/** Time and distance rules, from numbers measured on the real route (or estimated, when no route rule needs routing). */
-export function limitRules(params: VerdictParams, walkKm: number, walkMin: number, visitMin: number): RuleResult[] {
+/** Time and distance rules, from numbers measured on the real route (or estimated, when no route rule needs routing). `approx`: the numbers are straight-line estimates, so the rule is at best partial. */
+export function limitRules(params: VerdictParams, walkKm: number, walkMin: number, visitMin: number, approx = false): RuleResult[] {
   const totalMin = walkMin + visitMin;
   const rules: RuleResult[] = [];
-  if (params.timeMinutes) rules.push({ rule: "time", status: totalMin <= params.timeMinutes ? "met" : "not_met", value: Math.round(totalMin), limit: params.timeMinutes });
-  if (params.maxWalkKm) rules.push({ rule: "max_walk", status: walkKm <= params.maxWalkKm * 1.1 ? "met" : "not_met", value: round1(walkKm), limit: params.maxWalkKm });
+  const estimated = "distances are straight-line estimates, not a real route";
+  if (params.timeMinutes) {
+    const fits = totalMin <= params.timeMinutes;
+    rules.push({ rule: "time", status: !fits ? "not_met" : approx ? "partial" : "met", value: Math.round(totalMin), limit: params.timeMinutes, ...(fits && approx ? { detail: estimated } : {}) });
+  }
+  if (params.maxWalkKm) {
+    const fits = walkKm <= params.maxWalkKm;
+    const near = walkKm <= params.maxWalkKm * 1.1;
+    rules.push({
+      rule: "max_walk",
+      status: !near ? "not_met" : !fits || approx ? "partial" : "met",
+      value: round1(walkKm),
+      limit: params.maxWalkKm,
+      ...(near && !fits ? { detail: "over the limit, within the 10% tolerance" } : near && approx ? { detail: estimated } : {}),
+    });
+  }
   return rules;
 }
 
@@ -102,7 +116,7 @@ export function evaluateRoute(input: VerdictInput): Verdict {
   } else if (params.endDistanceKm && params.endDistanceKm > 0) {
     const end = geometry[geometry.length - 1];
     const away = end ? haversineDistance(origin, end) / 1000 : 0;
-    rules.push({ rule: "end_distance", status: away <= params.endDistanceKm * 1.1 ? "met" : "not_met", value: round1(away), limit: params.endDistanceKm });
+    rules.push({ rule: "end_distance", status: away <= params.endDistanceKm ? "met" : away <= params.endDistanceKm * 1.1 ? "partial" : "not_met", value: round1(away), limit: params.endDistanceKm, ...(away > params.endDistanceKm && away <= params.endDistanceKm * 1.1 ? { detail: "over the limit, within the 10% tolerance" } : {}) });
   }
 
   if (params.noRepeat) {

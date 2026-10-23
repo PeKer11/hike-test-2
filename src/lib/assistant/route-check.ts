@@ -130,7 +130,8 @@ export async function routeAndJudge(
     const first = await judge(order, 3);
     main = first.verdict;
     if (opts.orderSearch !== false && params.noRepeat && order.length >= 3 && order.length <= 6) {
-      const bad = (v: Verdict) => brokenKm(v);
+      // Fewer broken rules first, then fewer broken kilometres.
+      const bad = (v: Verdict) => brokenRules(v).length * 1000 + brokenKm(v);
       for (const o of otherOrders(origin, order, loop).slice(0, ORDERS_TRIED)) {
         if (bad(main) <= 0.05) break;
         const tried = await judge(o, 1);

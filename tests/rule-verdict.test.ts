@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Coordinates } from "@/lib/types";
 import { matchesStreet, streetCore, type ForbiddenWay } from "@/lib/walk/forbidden-ways";
 import type { RouteDetail } from "@/lib/walk/ors-route";
-import { evaluateRoute, unavailableVerdict, type VerdictInput } from "@/lib/walk/rule-verdict";
+import { evaluateRoute, limitRules, unavailableVerdict, type VerdictInput } from "@/lib/walk/rule-verdict";
 
 const p = (lat: number, lng: number): Coordinates => ({ lat, lng });
 const origin = p(32, 34);
@@ -111,5 +111,20 @@ describe("unavailableVerdict", () => {
     expect(v.rules.every((r) => r.status === "not_checked")).toBe(true);
     expect(v.broken).toBe(false); // unchecked is not the same as "no route exists"
     expect(v.unavailable).toBe(true);
+  });
+});
+
+describe("limitRules", () => {
+  it("is partial, not met, when the numbers are only estimates", () => {
+    const [time, walk] = limitRules({ timeMinutes: 60, maxWalkKm: 4 }, 3, 40, 10, true);
+    expect(time.status).toBe("partial");
+    expect(walk.status).toBe("partial");
+  });
+  it("is met on measured numbers within the limit", () => {
+    expect(limitRules({ maxWalkKm: 4 }, 3.9, 40, 0).map((r) => r.status)).toEqual(["met"]);
+  });
+  it("is partial inside the 10% tolerance and not_met beyond it", () => {
+    expect(limitRules({ maxWalkKm: 4 }, 4.3, 40, 0)[0].status).toBe("partial");
+    expect(limitRules({ maxWalkKm: 4 }, 4.5, 40, 0)[0].status).toBe("not_met");
   });
 });

@@ -107,7 +107,7 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
           avoid_streets: { type: "array", items: { type: "string" }, description: "street names the walker does not want to walk along, exactly as they wrote them" },
           via_streets: { type: "array", items: { type: "string" }, description: "streets the walker wants the walk to go along; used by find_clean_walk" },
           stay_in_area: { type: "string", description: "town the whole walk must stay inside, with country, e.g. 'Caesarea, Israel'; the server checks the real route against its boundary" },
-          clear: { type: "array", items: { type: "string", enum: ["no_repeat", "stay_in_area", "avoid_streets", "avoid_dangerous", "via_streets", "time_minutes", "max_walk_km"] }, description: "rules the walker gives up: they are removed" },
+          clear: { type: "array", items: { type: "string", enum: ["no_repeat", "stay_in_area", "avoid_streets", "avoid_dangerous", "via_streets", "time", "max_walk", "loop", "end_distance"] }, description: "rules the walker gives up: they are removed" },
           avoid_dangerous: { type: "boolean", description: "true when the walker wants to avoid dangerous roads; the server finds them from OpenStreetMap (fast roads, no sidewalk)" },
         },
         additionalProperties: false,
@@ -223,6 +223,8 @@ interface Estimate {
   legs: Array<{ to: string; km: number; min: number }>;
   /** The stops in the order they are walked (not shown to the model). */
   order: Candidate[];
+  /** True when the distances are straight-line estimates (the matrix service was unavailable). */
+  approx: boolean;
 }
 
 /** Identifies a set of stops under the current rules, so a check made for it can be reused. */
@@ -246,6 +248,7 @@ async function estimateWalk(
 ): Promise<Estimate> {
   const points = [origin, ...stops.map((s) => s.coordinates)];
   let dist: number[][];
+  let approx = false;
   try {
     if (matrixCoolingDown()) throw new Error("matrix cooling down");
     const m = await getMatrix({ locations: points.map(toOrsCoord) } as Parameters<typeof getMatrix>[0]);
@@ -253,6 +256,7 @@ async function estimateWalk(
     if (!dist?.length) throw new Error("empty");
   } catch (err) {
     noteMatrixError(err);
+    approx = true;
     dist = points.map((a) => points.map((b) => haversineDistance(a, b) * 1.3));
   }
   const sequence = ordered ? stops.map((_, i) => i + 1) : bestOrder(dist, loop);
@@ -271,7 +275,7 @@ async function estimateWalk(
   const walkKm = Math.round(meters / 100) / 10;
   const walkMin = Math.round((meters / 1000) * pace);
   const visitMin = stops.reduce((sum, s) => sum + visitMinutes(s.category), 0);
-  return { walkKm, walkMin, visitMin, totalMin: walkMin + visitMin, legs, order: visited };
+  return { walkKm, walkMin, visitMin, totalMin: walkMin + visitMin, legs, order: visited, approx };
 }
 
 function num(value: unknown): number | undefined {
@@ -317,6 +321,7 @@ export async function runTool(
   budget: RoutingBudget = makeBudget(TURN_ROUTING_CALLS),
 ): Promise<ToolRun> {
   let notChecked: RuleResult[] = [];
+  let builtVerdict: Verdict | undefined;
   const state: AssistantState = {
     ...input,
     params: { ...input.params },
@@ -413,16 +418,24 @@ export async function runTool(
         const streets = args.avoid_streets.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim().slice(0, 60));
         state.params.avoidStreets = [...new Set([...(state.params.avoidStreets ?? []), ...streets])].slice(0, 10);
       }
+      const cleared: string[] = [];
+      const ignored: string[] = [];
       for (const rule of Array.isArray(args.clear) ? args.clear : []) {
         if (rule === "no_repeat") delete state.params.noRepeat;
         else if (rule === "stay_in_area") delete state.params.stayInArea;
         else if (rule === "avoid_streets") delete state.params.avoidStreets;
         else if (rule === "avoid_dangerous") delete state.params.avoidDangerous;
         else if (rule === "via_streets") delete state.params.viaStreets;
-        else if (rule === "time_minutes") delete state.params.timeMinutes;
-        else if (rule === "max_walk_km") delete state.params.maxWalkKm;
+        else if (rule === "time_minutes" || rule === "time") delete state.params.timeMinutes;
+        else if (rule === "max_walk_km" || rule === "max_walk") delete state.params.maxWalkKm;
+        else if (rule === "loop" || rule === "end_distance") delete state.params.endDistanceKm;
+        else {
+          ignored.push(String(rule));
+          continue;
+        }
+        cleared.push(String(rule));
       }
-      return { output: JSON.stringify({ ok: true, params: state.params }), state };
+      return { output: JSON.stringify({ ok: true, params: state.params, cleared, ...(ignored.length ? { ignored } : {}) }), state };
     }
 
     if (name === "ask_limits") {
@@ -454,8 +467,8 @@ export async function runTool(
       // Streets the walk must go along: one point on the nearest matching street becomes a zero-minute stop.
       const missingVia: string[] = [];
       const viaBoundary = state.params.stayInArea ? await fetchTownBoundary(state.params.stayInArea) : null;
+      const realMust = must.length;
       for (const street of state.params.viaStreets ?? []) {
-        if (must.length >= count) break;
         let point = state.candidates.find((c) => c.placeId === `via:${street}`);
         if (!point) {
           const ways = (await fetchForbiddenWays(origin, 3000, { streets: [street] })).filter((w) => w.path.length >= 2);
@@ -487,7 +500,7 @@ export async function runTool(
         .filter((c) => c.category !== "area" && !must.includes(c) && haversineDistance(origin, c.coordinates) > 150 && (!boundary || insideBoundary(c.coordinates, boundary)))
         .sort((a, b) => haversineDistance(origin, a.coordinates) - haversineDistance(origin, b.coordinates))
         .slice(0, SEARCH_POOL_MAX);
-      const need = count - must.length;
+      const need = count - realMust; // via points are not stops the walker counts
       if (pool.length < need) {
         return { output: JSON.stringify({ error: `only ${pool.length + must.length} usable places found; call find_nearby for more kinds first` }), state };
       }
@@ -589,7 +602,7 @@ export async function runTool(
         judged = await routeAndJudge(state.origin, est.order, state.params, state.candidates, { orderSearch: !ordered, budget });
       } else {
         judged = {
-          verdict: makeVerdict(limitRules(state.params, est.walkKm, est.walkMin, est.visitMin), est.walkKm, est.walkMin, est.visitMin),
+          verdict: makeVerdict(limitRules(state.params, est.walkKm, est.walkMin, est.visitMin, est.approx), est.walkKm, est.walkMin, est.visitMin),
           orderIds: est.order.map((s) => s.id),
         };
       }
@@ -605,6 +618,7 @@ export async function runTool(
         const onlyLimits = judged.verdict.rules.every((r) => r.status !== "not_met" || r.rule === "time" || r.rule === "max_walk");
         return { output: JSON.stringify({ error: onlyLimits ? "does not fit" : "route breaks the walker's rules", verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
       }
+      builtVerdict = judged.verdict;
       notChecked = judged.verdict.rules.filter((r) => r.status === "not_checked" || r.status === "partial");
       args.stop_ids = judged.orderIds;
       args.ordered = true;
@@ -620,7 +634,7 @@ export async function runTool(
       if (!origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       state.chosen = stops.map((s) => s.id);
       return {
-        output: JSON.stringify({ ok: true, building: stops.map((s) => s.name), ...(notChecked.length ? { not_checked: notChecked } : {}) }),
+        output: JSON.stringify({ built: true, building: stops.map((s) => s.name), ...(builtVerdict ? { verdict: builtVerdict } : {}), ...(notChecked.length ? { not_checked: notChecked } : {}) }),
         state,
         action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}) },
       };
