@@ -13,6 +13,7 @@ import { MapMarkers } from "@/components/map/MapMarkers";
 import { OptionPreviewLines, type PreviewRoute } from "@/components/map/OptionPreviewLines";
 import { ExtraAttribution } from "@/components/map/ExtraAttribution";
 import { PoiCallouts } from "@/components/map/PoiCallouts";
+import { RecommendedLayer } from "@/components/map/RecommendedLayer";
 import { PreviewMarkers } from "@/components/map/PreviewMarkers";
 import { RoutePolyline } from "@/components/map/RoutePolyline";
 import { WORLDCOVER_ATTRIBUTION } from "@/lib/types/landcover";
@@ -168,6 +169,7 @@ export default function MapView({
         onTogglePin={onTogglePin}
       />
       <PreviewMarkers places={previewPlaces ?? []} />
+      <RecommendedLayer />
       {currentPosition ? <CurrentPositionMarker position={currentPosition} /> : null}
       {walkedGeometry && walkedGeometry.length > 1 ? (
         <Polyline

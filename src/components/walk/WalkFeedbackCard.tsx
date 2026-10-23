@@ -73,7 +73,7 @@ export function WalkFeedbackCard({
     void fetch("/api/places/recommend", {
       method: on ? "PUT" : "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ poiKey: attraction.id, category: attraction.category, tags: [] }),
+      body: JSON.stringify({ poiKey: attraction.id, category: attraction.category, tags: [], lat: attraction.coordinates.lat, lng: attraction.coordinates.lng, name: attraction.name }),
     }).catch(() => {});
   };
 
