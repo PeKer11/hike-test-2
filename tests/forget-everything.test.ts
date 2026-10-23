@@ -28,6 +28,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 import { DELETE, MEMORY_TABLES, PROFILE_LEARNED_RESET } from "@/app/api/forget-everything/route";
 import { HABIT_ASK_KEY } from "@/lib/walk/companion/habit-ask-log";
+import { START_LOCATION_KEY } from "@/lib/start-location";
 import { clearLocalLearning, FORGOTTEN_EVENT, LEARNING_STORAGE_KEYS } from "@/lib/preferences/forget-client";
 
 beforeEach(() => {
@@ -101,5 +102,6 @@ describe("forget everything", () => {
     expect(store.has(HABIT_ASK_KEY)).toBe(false);
     expect(events).toEqual([FORGOTTEN_EVENT]);
     expect(LEARNING_STORAGE_KEYS).toContain(HABIT_ASK_KEY);
+    expect(LEARNING_STORAGE_KEYS).toContain(START_LOCATION_KEY);
   });
 });

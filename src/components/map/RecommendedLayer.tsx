@@ -23,6 +23,11 @@ const starIcon = L.divIcon({
   iconAnchor: [13, 13],
 });
 
+/** Leaflet treats any click inside its container as a map click unless the element opts out. */
+const keepClicksOffMap = (el: HTMLDivElement | null) => {
+  if (el) L.DomEvent.disableClickPropagation(el);
+};
+
 /**
  * "Recommended" button over the map: shows the places other walkers recommended in the area on screen.
  * Renders nothing unless the social flag is on. Needs a signed-in, opted-in walker (the server decides).
@@ -66,7 +71,7 @@ export function RecommendedLayer() {
   return (
     <>
       <div className="leaflet-top leaflet-right" style={{ pointerEvents: "none" }}>
-        <div className="leaflet-control" style={{ pointerEvents: "auto", marginTop: 10, marginRight: 10 }}>
+        <div ref={keepClicksOffMap} className="leaflet-control" style={{ pointerEvents: "auto", marginTop: 10, marginRight: 10 }}>
           <button
             type="button"
             onClick={() => void toggle()}

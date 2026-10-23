@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { loadSavedStart, saveStart } from "@/lib/start-location";
 import type { Coordinates } from "@/lib/types";
 
 interface StartOption {
@@ -20,10 +21,12 @@ interface NominatimHit {
 interface StartLocationPickerProps {
   /** The walk's start point has been chosen (GPS or searched). */
   onPick: (coordinates: Coordinates) => void;
+  /** The start already in use; when set, nothing is looked up on mount. */
+  origin?: Coordinates | null;
 }
 
 /** Lets the walker set where the walk starts: GPS, or a searched city/address. */
-export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
+export function StartLocationPicker({ onPick, origin }: StartLocationPickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StartOption[]>([]);
   const [label, setLabel] = useState<string | null>(null);
@@ -79,7 +82,9 @@ export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
       (pos) => {
         setStatus(null);
         setLabel("My location");
-        onPick({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        saveStart(here, "My last location");
+        onPick(here);
       },
       (err) => {
         if (silent) return;
@@ -91,12 +96,19 @@ export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
               : "Your device couldn't find its location (check Location Services in System Settings), or search for a place.",
         );
       },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: silent ? 5 * 60 * 1000 : 0 },
     );
   }
 
   // The browser remembers the choice per site, so once allowed we find the walker without asking again.
   useEffect(() => {
+    if (origin) return;
+    const saved = loadSavedStart();
+    if (saved) {
+      setLabel(saved.label);
+      onPick(saved.coordinates);
+      return;
+    }
     let cancelled = false;
     navigator.permissions
       ?.query({ name: "geolocation" })
@@ -140,6 +152,7 @@ export function StartLocationPicker({ onPick }: StartLocationPickerProps) {
                   setLabel(r.name);
                   setQuery("");
                   setResults([]);
+                  saveStart(r.coordinates, r.name);
                   onPick(r.coordinates);
                 }}
                 className="block w-full px-[10px] py-[6px] text-start text-[12px] text-tk-body hover:bg-tk-well"

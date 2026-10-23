@@ -459,7 +459,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
       </div>
 
       <div className="pb-[13px]">
-        <StartLocationPicker onPick={onSetOrigin} />
+        <StartLocationPicker origin={origin} onPick={onSetOrigin} />
         {settingsOpen && (
           <div className="mx-[17px] mt-[8px]">
             <AssistantSettings defaults={defaults} onChange={setDefaults} />

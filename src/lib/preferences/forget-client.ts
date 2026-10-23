@@ -1,10 +1,11 @@
+import { START_LOCATION_KEY } from "@/lib/start-location";
 import { HABIT_ASK_KEY } from "@/lib/walk/companion/habit-ask-log";
 
 /** Fired on `window` after the server confirmed "forget everything". */
 export const FORGOTTEN_EVENT = "traike:forgotten";
 
 /** localStorage keys that hold anything learned about the walker (settings and voice toggle are not learning). */
-export const LEARNING_STORAGE_KEYS: readonly string[] = [HABIT_ASK_KEY];
+export const LEARNING_STORAGE_KEYS: readonly string[] = [HABIT_ASK_KEY, START_LOCATION_KEY];
 
 /** Clears the browser-side learned state and tells the planner to drop its in-memory copy. */
 export function clearLocalLearning(): void {
