@@ -1,7 +1,7 @@
 "use client";
 
 import { AdvancedMarker, ControlPosition, InfoWindow, MapControl, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { GooglePlaceCard } from "@/components/map/GooglePlaceCard";
 import { distanceM, namesOverlap } from "@/lib/places/match";
@@ -63,14 +63,20 @@ const GOOGLE_CATEGORY: [RegExp, AttractionCategory][] = [
   [/worship|church|synagogue|mosque/i, "religious"],
 ];
 
+const icon = (d: string) => (
+  <svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d={d} />
+  </svg>
+);
+
 type Group = "food" | "nature" | "culture" | "sights";
 
 /** One search per group, so a food-heavy area can't crowd out nature, museums and sights. */
-const GROUPS: Record<Group, { label: string; glyph: string; color: string; types: string[]; radius: number }> = {
-  food: { label: "Food", glyph: "🍽", color: "#e8742c", types: ["restaurant", "cafe", "bakery"], radius: 1500 },
-  nature: { label: "Nature", glyph: "🌳", color: "#2f8f4e", types: ["park", "national_park", "hiking_area", "beach", "garden"], radius: 3000 },
-  culture: { label: "Museum & art", glyph: "🏛", color: "#7c4dbd", types: ["museum", "art_gallery"], radius: 3000 },
-  sights: { label: "Sights", glyph: "📍", color: "#2563eb", types: ["tourist_attraction", "historical_landmark", "synagogue", "church", "mosque"], radius: 3000 },
+const GROUPS: Record<Group, { label: string; glyph: ReactNode; color: string; types: string[]; radius: number }> = {
+  food: { label: "Food", glyph: icon("M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 4-3 7h3v11"), color: "#e8742c", types: ["restaurant", "cafe", "bakery"], radius: 1500 },
+  nature: { label: "Nature", glyph: icon("M12 22v-5M12 3l6 8h-3l4 6H5l4-6H6z"), color: "#2f8f4e", types: ["park", "national_park", "hiking_area", "beach", "garden"], radius: 3000 },
+  culture: { label: "Museum & art", glyph: icon("M3 21h18M5 21V10M9 21V10M15 21V10M19 21V10M3 10l9-6 9 6"), color: "#7c4dbd", types: ["museum", "art_gallery"], radius: 3000 },
+  sights: { label: "Sights", glyph: icon("M4 8h3l2-3h6l2 3h3v11H4zM12 11.5a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4z"), color: "#2563eb", types: ["tourist_attraction", "historical_landmark", "synagogue", "church", "mosque"], radius: 3000 },
 };
 const GROUP_CATEGORY: Record<Group, AttractionCategory> = { food: "food", nature: "nature", culture: "museum", sights: "landmark" };
 const MIN_RATING = 4.0;
@@ -104,8 +110,19 @@ function AddToWalkButton({ attraction, onAdd, added }: { attraction: Attraction;
   );
 }
 
-const pin = (bg: string, border: string, glyph: string, size: number) => (
-  <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: 9999, background: bg, border: `2px solid ${border}`, color: "#fff", fontSize: 13, lineHeight: 1, boxShadow: "0 1px 4px rgba(0,0,0,0.35)" }}>{glyph}</span>
+function ZoomButtons() {
+  const map = useMap();
+  const b = "flex h-8 w-8 items-center justify-center text-lg font-medium text-charcoal hover:bg-slate-100";
+  return (
+    <div className="flex overflow-hidden rounded-full border border-terra/60 bg-white shadow">
+      <button type="button" aria-label="Zoom out" className={b} onClick={() => map?.setZoom((map.getZoom() ?? 14) - 1)}>−</button>
+      <button type="button" aria-label="Zoom in" className={b} onClick={() => map?.setZoom((map.getZoom() ?? 14) + 1)}>+</button>
+    </div>
+  );
+}
+
+const pin = (bg: string, border: string, glyph: ReactNode, size: number) => (
+  <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: 9999, background: bg, border: `2px solid ${border}`, color: "#fff", fontSize: 13, lineHeight: 1, boxShadow: "0 1px 4px rgba(0,0,0,0.35)" }}><span style={{ width: "62%", height: "62%", display: "flex" }}>{glyph}</span></span>
 );
 
 /** Notable (Wikidata) places: a gold star with a white rim and a soft shadow. */
@@ -276,14 +293,16 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
               ⭐ Recommended
             </button>
           ) : null}
+          <ZoomButtons />
           {top.length ? (
-            <div className="flex flex-wrap gap-x-2 rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">
+            <div className="pointer-events-none flex basis-full justify-end"><div className="flex flex-wrap justify-end gap-x-2 rounded bg-white/85 px-2 py-1 text-xs text-charcoal shadow">
               {Object.values(GROUPS).map((g) => (
-                <span key={g.label}>
-                  {g.glyph} {g.label}
+                <span key={g.label} className="flex items-center gap-1">
+                  <span className="inline-flex h-4 w-4 rounded-full p-0.5 text-white" style={{ background: g.color }}>{g.glyph}</span>
+                  {g.label}
                 </span>
               ))}
-            </div>
+            </div></div>
           ) : null}
           {note ? <p className="max-w-52 rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
         </div>
@@ -292,7 +311,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
         <AdvancedMarker key={i.key} position={{ lat: i.lat, lng: i.lng }} onClick={() => setOpenKey(i.key)} zIndex={i.source === "google" ? 300 : 200}>
           {i.source === "google" ? (
             <div className="flex items-center gap-1" data-testid="top-rated-marker">
-              {pin(GROUPS[i.group ?? "sights"].color, "#fff", GROUPS[i.group ?? "sights"].glyph, 28)}
+              {pin(GROUPS[i.group ?? "sights"].color, "#fff", GROUPS[i.group ?? "sights"].glyph, 32)}
               <span className="rounded bg-white/95 px-1 text-xs font-semibold shadow">★ {i.rating?.toFixed(1)} ({i.ratingCount})</span>
             </div>
           ) : i.source === "notable" ? (

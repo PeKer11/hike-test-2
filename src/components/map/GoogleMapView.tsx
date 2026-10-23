@@ -103,6 +103,7 @@ export default function GoogleMapView({
           gestureHandling="greedy"
           clickableIcons={false}
           streetViewControl={false}
+          zoomControl={false}
           keyboardShortcuts={false}
           style={{ width: "100%", height: "100%" }}
           onClick={(e) => {
