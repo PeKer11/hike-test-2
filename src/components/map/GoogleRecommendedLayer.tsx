@@ -82,6 +82,8 @@ const GROUP_CATEGORY: Record<Group, AttractionCategory> = { food: "food", nature
 const MIN_RATING = 4.0;
 const MIN_RATINGS = 25;
 const PER_GROUP = 3;
+/** Rating x log(reviews), halved for every radius/3 of distance: near places beat slightly better far ones. */
+const placeScore = (rating: number, count: number, distM: number, radius: number) => (rating * Math.log10(count + 1)) / (1 + distM / (radius / 3));
 const SEARCHES_PER_SESSION = 6;
 const SEARCH_COUNT_KEY = "traike-top-rated-searches";
 
@@ -177,7 +179,9 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
           });
           return places
             .filter((p) => p.location && p.id && (p.rating ?? 0) >= MIN_RATING && (p.userRatingCount ?? 0) >= MIN_RATINGS)
-            .sort((a, z) => (z.rating ?? 0) * Math.log10((z.userRatingCount ?? 0) + 1) - (a.rating ?? 0) * Math.log10((a.userRatingCount ?? 0) + 1))
+            .map((p) => ({ p, score: placeScore(p.rating ?? 0, p.userRatingCount ?? 0, distanceM(c.lat(), c.lng(), p.location!.lat(), p.location!.lng()), g.radius) }))
+            .sort((a, z) => z.score - a.score)
+            .map(({ p }) => p)
             .slice(0, PER_GROUP)
             .map((p): Item => {
               const name = p.displayName ?? "Place";
