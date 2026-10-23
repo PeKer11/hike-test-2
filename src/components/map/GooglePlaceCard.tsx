@@ -13,9 +13,10 @@ function loadGoogle(): Promise<any> {
   if (w.google?.maps?.importLibrary) return Promise.resolve(w.google);
   loading ??= new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(KEY ?? "")}&loading=async&v=weekly`;
+    // importLibrary only exists once Google's own callback has fired, not on script.onload.
+    w.__traikeGoogleReady = () => resolve(w.google);
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(KEY ?? "")}&loading=async&v=weekly&callback=__traikeGoogleReady`;
     script.async = true;
-    script.onload = () => resolve(w.google);
     script.onerror = () => reject(new Error("Google Maps failed to load"));
     document.head.appendChild(script);
   });
@@ -41,8 +42,9 @@ export function GooglePlaceCard({ name, lat, lng }: { name: string; lat: number;
         if (!alive || !host.current) return;
         const id = places?.[0]?.id;
         if (!id) return setState("none");
-        host.current.innerHTML = `<gmp-place-details style="width:100%"><gmp-place-details-place-request place="${id}"></gmp-place-details-place-request><gmp-place-content-config><gmp-place-rating></gmp-place-rating><gmp-place-reviews></gmp-place-reviews></gmp-place-content-config></gmp-place-details>`;
-      } catch {
+        host.current.innerHTML = `<gmp-place-details style="width:100%"><gmp-place-details-place-request place="${id}"></gmp-place-details-place-request><gmp-place-rating></gmp-place-rating><gmp-place-reviews></gmp-place-reviews></gmp-place-details>`;
+      } catch (error) {
+        console.error("GooglePlaceCard", error);
         if (alive) setState("error");
       }
     })();

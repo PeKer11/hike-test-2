@@ -6,6 +6,7 @@ import { Marker, Popup, useMap } from "react-leaflet";
 
 import { GooglePlaceCard } from "@/components/map/GooglePlaceCard";
 import { notableEnabled, socialEnabled } from "@/lib/social/flag";
+import type { Attraction, AttractionCategory } from "@/lib/types";
 
 interface RecommendedPlace {
   poiKey: string;
@@ -24,6 +25,45 @@ interface NotablePlace {
   kind: string;
   lat: number;
   lng: number;
+}
+
+const KIND_CATEGORY: [RegExp, AttractionCategory][] = [
+  [/museum|gallery/i, "museum"],
+  [/viewpoint|lookout/i, "viewpoint"],
+  [/church|synagogue|mosque|monastery|shrine|temple/i, "religious"],
+  [/park|reserve|waterfall|spring|cave|beach|forest|nature|lake/i, "nature"],
+];
+
+const notableAttraction = (p: NotablePlace): Attraction => ({
+  id: `wikidata-${p.id}`,
+  name: p.name,
+  coordinates: { lat: p.lat, lng: p.lng },
+  category: KIND_CATEGORY.find(([re]) => re.test(p.kind))?.[1] ?? "landmark",
+  avgVisitMinutes: 15,
+  tags: { source: "wikidata" },
+});
+
+const recommendedAttraction = (p: RecommendedPlace): Attraction => ({
+  id: p.poiKey,
+  name: p.name,
+  coordinates: { lat: p.lat, lng: p.lng },
+  category: p.category as AttractionCategory,
+  avgVisitMinutes: 15,
+  tags: {},
+});
+
+function AddToWalkButton({ attraction, onAdd, added }: { attraction: Attraction; onAdd?: (a: Attraction) => void; added: boolean }) {
+  if (!onAdd) return null;
+  return (
+    <button
+      type="button"
+      disabled={added}
+      onClick={() => onAdd(attraction)}
+      className="mt-1 rounded-full bg-terra px-3 py-1 text-xs font-medium text-white disabled:bg-forest/70"
+    >
+      {added ? "✓ Added to walk" : "＋ Add to walk"}
+    </button>
+  );
 }
 
 const notableIcon = L.divIcon({
@@ -49,7 +89,7 @@ const keepClicksOffMap = (el: HTMLDivElement | null) => {
  * "Recommended" button over the map: shows the places other walkers recommended in the area on screen.
  * Renders nothing unless the social flag is on. Needs a signed-in, opted-in walker (the server decides).
  */
-export function RecommendedLayer() {
+export function RecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddToWalk?: (place: Attraction) => void; addedIds?: string[] }) {
   const map = useMap();
   const [places, setPlaces] = useState<RecommendedPlace[] | null>(null);
   const [notable, setNotable] = useState<NotablePlace[]>([]);
@@ -118,6 +158,7 @@ export function RecommendedLayer() {
                 Source: Wikidata
               </a>
               <GooglePlaceCard name={p.name} lat={p.lat} lng={p.lng} />
+              <AddToWalkButton attraction={notableAttraction(p)} onAdd={onAddToWalk} added={addedIds.includes(`wikidata-${p.id}`)} />
             </div>
           </Popup>
         </Marker>
@@ -135,6 +176,7 @@ export function RecommendedLayer() {
                 </blockquote>
               ))}
               <GooglePlaceCard name={p.name} lat={p.lat} lng={p.lng} />
+              <AddToWalkButton attraction={recommendedAttraction(p)} onAdd={onAddToWalk} added={addedIds.includes(p.poiKey)} />
             </div>
           </Popup>
         </Marker>

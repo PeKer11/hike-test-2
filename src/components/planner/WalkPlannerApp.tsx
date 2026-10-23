@@ -462,6 +462,8 @@ export function WalkPlannerApp({
   // Candidate pins for the places currently listed in PlacePromptPanel — shown
   // until they either become real waypoints or the list they came from is gone.
   const [previewPlaces, setPreviewPlaces] = useState<Attraction[]>([]);
+  // Places the walker tapped "Add to walk" on before a walk exists; they join the next build.
+  const [wishlist, setWishlist] = useState<Attraction[]>([]);
   const [recordedPointCount, setRecordedPointCount] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<Coordinates | null>(null);
@@ -2322,6 +2324,19 @@ export function WalkPlannerApp({
     void handleBuildWalk(input, options);
   };
 
+  // "Add to walk" on a map popup. A planned walk is rebuilt with the place; with no walk yet it waits in the wishlist.
+  const addMapPlaceToWalk = (place: Attraction) => {
+    const plan = walkPlanRef.current;
+    const input = walkInputRef.current;
+    if (plan && input && walkPhase === "planned") {
+      if (plan.orderedAttractions.some((a) => a.id === place.id)) return;
+      setWishlist((current) => [...current, place]);
+      void handleBuildWalk(input, { keepAttractions: [...plan.orderedAttractions, place], fillRemainingTime: false });
+      return;
+    }
+    setWishlist((current) => (current.some((a) => a.id === place.id) ? current : [...current, place]));
+  };
+
   // "Add to walk" on a place the walker was told about: the same rebuild as
   // recalling a dropped stop — pinned, so no later rebuild takes it back out.
   const addNearbyPlaceToWalk = (place: NearbyPlace) => {
@@ -3092,7 +3107,7 @@ export function WalkPlannerApp({
                         radiusMeters: build.radiusMeters,
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
-                      { keepAttractions: build.stops, fixedOrder: build.fixedOrder, presetGeometry: build.geometry, fillRemainingTime: false, routeRules: build.routeRules },
+                      { keepAttractions: [...build.stops, ...wishlist.filter((w) => !build.stops.some((s) => s.id === w.id))], fixedOrder: build.fixedOrder, presetGeometry: build.geometry, fillRemainingTime: false, routeRules: build.routeRules },
                     );
                   }}
                 />
@@ -3605,6 +3620,8 @@ export function WalkPlannerApp({
           currentPosition={currentPosition ?? undefined}
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}
+          onAddToWalk={walkPhase === "walking" ? undefined : addMapPlaceToWalk}
+          addedIds={wishlist.map((w) => w.id)}
           pinnedIds={pinnedAttractionIds}
           // Gated on `walkPlan` existing, not on `walkPhase === "walking"` —
           // fixed 2026-08-24, found as a discoverability gap in the map-pin

@@ -47,6 +47,9 @@ interface MapViewProps {
   previewRoutes?: PreviewRoute[];
   /** Extra data-source credits (e.g. Open-Meteo while the companion uses weather). */
   extraAttribution?: string[];
+  /** "Add to walk" on a Recommended-layer place; the layer shows no button without it. */
+  onAddToWalk?: (place: Attraction) => void;
+  addedIds?: string[];
 }
 
 function MapViewport({ center, zoom, focusTick = 0 }: { center: Coordinates; zoom: number; focusTick?: number }) {
@@ -133,6 +136,8 @@ export default function MapView({
   onCalloutSelect,
   previewRoutes,
   extraAttribution,
+  onAddToWalk,
+  addedIds,
 }: MapViewProps) {
   // ESA WorldCover (CC BY 4.0) is credited whenever a satellite find is on the map.
   const credits = [
@@ -169,7 +174,7 @@ export default function MapView({
         onTogglePin={onTogglePin}
       />
       <PreviewMarkers places={previewPlaces ?? []} />
-      <RecommendedLayer />
+      <RecommendedLayer onAddToWalk={onAddToWalk} addedIds={addedIds} />
       {currentPosition ? <CurrentPositionMarker position={currentPosition} /> : null}
       {walkedGeometry && walkedGeometry.length > 1 ? (
         <Polyline
