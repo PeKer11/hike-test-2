@@ -92,8 +92,14 @@ describe("evaluateRoute", () => {
     const params = { viaStreets: ["הרצל"] };
     const along = evaluateRoute(base({ params, detail: detailOf([{ name: "הרצל", path: [origin, north] }]) }));
     expect(rule(along, "via_streets")?.status).toBe("met");
-    const crossed = evaluateRoute(base({ params, detail: detailOf([{ name: "אחר", path: [origin, north] }]) }));
+    const known = { ways: [{ name: "הרצל", names: ["הרצל", "Herzl"], reason: "named" as const, path: [p(32.02, 34.01), p(32.03, 34.01)] }], failed: false };
+    const crossed = evaluateRoute(base({ params, viaWays: known, detail: detailOf([{ name: "אחר", path: [origin, north] }]) }));
     expect(rule(crossed, "via_streets")?.status).toBe("not_met");
+    // The street is not on the map and the router names differ: a different spelling cannot be ruled out.
+    expect(rule(evaluateRoute(base({ params, detail: detailOf([{ name: "אחר", path: [origin, north] }]) })), "via_streets")?.status).toBe("not_checked");
+    // The router spells it in English; the map knows both spellings and the route runs along it.
+    const english = evaluateRoute(base({ params, viaWays: { ways: [{ name: "הרצל", names: ["הרצל", "Herzl"], reason: "named", path: [origin, north] }], failed: false }, detail: detailOf([{ name: "Herzl", path: [origin, north] }]) }));
+    expect(rule(english, "via_streets")?.status).toBe("met");
     expect(rule(evaluateRoute(base({ params, detail: detailOf([]) })), "via_streets")?.status).toBe("not_checked");
   });
 

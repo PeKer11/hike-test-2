@@ -95,6 +95,8 @@ export interface VerdictInput {
   params: VerdictParams;
   /** Ways from the map-data service; `failed` when it did not answer. */
   forbidden: { ways: ForbiddenWay[]; failed: boolean };
+  /** OSM ways for the streets the walk must go along (every spelling); absent when none were asked for. */
+  viaWays?: { ways: ForbiddenWay[]; failed: boolean };
   /** Town outline; null when it could not be fetched. */
   boundary: Boundary | null;
   paceMinPerKm: number;
@@ -176,12 +178,14 @@ export function evaluateRoute(input: VerdictInput): Verdict {
   }
 
   for (const street of params.viaStreets ?? []) {
-    if (!hasNames) {
-      rules.push({ rule: "via_streets", status: "not_checked", detail: `no street names from the router to confirm ${street}` });
-      continue;
-    }
-    const along = round2((detail?.named ?? []).filter((s) => matchesStreet(s.name, street)).reduce((a, s) => a + km(s.path), 0));
-    rules.push({ rule: "via_streets", status: along >= VIA_MIN_KM ? "met" : "not_met", value: along, detail: street });
+    // The router may spell the street in another language than the walker did: OSM knows every spelling, so measure on its ways too.
+    const mapWays = (input.viaWays?.ways ?? []).filter((w) => w.names.some((n) => matchesStreet(n, street)));
+    const byMap = mapWays.length ? analyzeRoute(geometry, mapWays.map((w) => w.path)).forbiddenKm : 0;
+    const byName = (detail?.named ?? []).filter((s) => matchesStreet(s.name, street)).reduce((a, s) => a + km(s.path), 0);
+    const along = round2(Math.max(byMap, byName));
+    if (along >= VIA_MIN_KM) rules.push({ rule: "via_streets", status: "met", value: along, detail: street });
+    else if (mapWays.length) rules.push({ rule: "via_streets", status: "not_met", value: along, detail: street });
+    else rules.push({ rule: "via_streets", status: "not_checked", detail: `${street}: not confirmed (the street was not found on the map, so a different spelling cannot be ruled out)` });
   }
 
   rules.push(...limitRules(params, walkKm, walkMin, input.visitMin));

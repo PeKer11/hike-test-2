@@ -42,6 +42,8 @@ export function needsRouteCheck(params: WalkParams): boolean {
 export interface CheckEnv {
   boundary: Boundary | null;
   forbidden: { ways: ForbiddenWay[]; failed: boolean };
+  /** Where the streets the walk must go along are on the map. */
+  viaWays: { ways: ForbiddenWay[]; failed: boolean };
 }
 
 export async function loadEnv(origin: Candidate["coordinates"], params: WalkParams): Promise<CheckEnv> {
@@ -52,7 +54,11 @@ export async function loadEnv(origin: Candidate["coordinates"], params: WalkPara
     streets.length || params.avoidDangerous
       ? await fetchForbiddenWays(origin, Math.max((params.radiusKm ?? 3) * 1500, 2000), { streets, dangerous: params.avoidDangerous, onError: () => (failed = true) })
       : [];
-  return { boundary, forbidden: { ways, failed } };
+  let viaFailed = false;
+  const viaWays = params.viaStreets?.length
+    ? await fetchForbiddenWays(origin, Math.max((params.radiusKm ?? 3) * 1500, 2000), { streets: params.viaStreets, onError: () => (viaFailed = true) })
+    : [];
+  return { boundary, forbidden: { ways, failed }, viaWays: { ways: viaWays.filter((w) => w.reason === "named"), failed: viaFailed } };
 }
 
 /** Orders of `order` other than the given one, shortest straight-line tour first (a loop and its reverse count once). */
@@ -116,6 +122,7 @@ export async function routeAndJudge(
       origin,
       params,
       forbidden: env.forbidden,
+      viaWays: env.viaWays,
       boundary: env.boundary,
       paceMinPerKm: pace,
       visitMin: stops.reduce((a, s) => a + visitMinutes(s.category), 0),
