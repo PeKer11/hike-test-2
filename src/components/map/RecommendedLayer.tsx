@@ -4,7 +4,7 @@ import L from "leaflet";
 import { useState } from "react";
 import { Marker, Popup, useMap } from "react-leaflet";
 
-import { socialEnabled } from "@/lib/social/flag";
+import { notableEnabled, socialEnabled } from "@/lib/social/flag";
 
 interface RecommendedPlace {
   poiKey: string;
@@ -15,6 +15,21 @@ interface RecommendedPlace {
   supporters: string;
   tags: string[];
 }
+
+interface NotablePlace {
+  id: string;
+  name: string;
+  kind: string;
+  lat: number;
+  lng: number;
+}
+
+const notableIcon = L.divIcon({
+  className: "custom-map-notable-marker",
+  html: '<span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:9999px;background:#2f5d46;border:2px solid #fff;color:#fff;font-size:12px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.35);">✦</span>',
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+});
 
 const starIcon = L.divIcon({
   className: "custom-map-recommended-marker",
@@ -35,13 +50,15 @@ const keepClicksOffMap = (el: HTMLDivElement | null) => {
 export function RecommendedLayer() {
   const map = useMap();
   const [places, setPlaces] = useState<RecommendedPlace[] | null>(null);
+  const [notable, setNotable] = useState<NotablePlace[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "empty" | "signin" | "error">("idle");
 
-  if (!socialEnabled()) return null;
+  if (!socialEnabled() && !notableEnabled()) return null;
 
   const toggle = async () => {
     if (places) {
       setPlaces(null);
+      setNotable([]);
       setStatus("idle");
       return;
     }
@@ -54,19 +71,25 @@ export function RecommendedLayer() {
     const west = Math.max(b.getWest(), c.lng - half);
     const east = Math.min(b.getEast(), c.lng + half);
     setStatus("loading");
+    const area = (halfSpan: number) => `south=${Math.max(b.getSouth(), c.lat - halfSpan)}&west=${Math.max(b.getWest(), c.lng - halfSpan)}&north=${Math.min(b.getNorth(), c.lat + halfSpan)}&east=${Math.min(b.getEast(), c.lng + halfSpan)}`;
     try {
-      const res = await fetch(`/api/places/recommended?south=${south}&west=${west}&north=${north}&east=${east}`);
-      if (res.status === 401) return setStatus("signin");
-      if (!res.ok) return setStatus("error");
-      const data = (await res.json()) as { places: RecommendedPlace[] };
-      setPlaces(data.places);
-      setStatus(data.places.length ? "idle" : "empty");
+      const [community, wiki] = await Promise.all([
+        socialEnabled() ? fetch(`/api/places/recommended?south=${south}&west=${west}&north=${north}&east=${east}`) : null,
+        notableEnabled() ? fetch(`/api/places/notable?${area(0.05)}`) : null,
+      ]);
+      if (community?.status === 401 && !wiki) return setStatus("signin");
+      if (community && !community.ok && community.status !== 401 && !wiki?.ok) return setStatus("error");
+      const found = community?.ok ? ((await community.json()) as { places: RecommendedPlace[] }).places : [];
+      const around = wiki?.ok ? ((await wiki.json()) as { places: NotablePlace[] }).places : [];
+      setPlaces(found);
+      setNotable(around);
+      setStatus(found.length || around.length ? "idle" : "empty");
     } catch {
       setStatus("error");
     }
   };
 
-  const note = { loading: "Loading…", empty: "No place in this area has enough recommendations yet", signin: "Sign in to see recommendations", error: "Could not load recommendations", idle: "" }[status];
+  const note = { loading: "Loading…", empty: "No recommended or notable place found in this area yet", signin: "Sign in to see recommendations", error: "Could not load recommendations", idle: "" }[status];
 
   return (
     <>
@@ -83,6 +106,19 @@ export function RecommendedLayer() {
           {note ? <p className="mt-1 max-w-52 rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
         </div>
       </div>
+      {notable.map((p) => (
+        <Marker key={p.id} position={[p.lat, p.lng]} icon={notableIcon}>
+          <Popup>
+            <div className="space-y-1">
+              <div className="text-sm font-semibold">{p.name}</div>
+              <div className="text-xs text-slate-600">Notable place · {p.kind}</div>
+              <a className="text-xs underline" href={`https://www.wikidata.org/wiki/${p.id}`} target="_blank" rel="noreferrer">
+                Source: Wikidata
+              </a>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
       {places?.map((p) => (
         <Marker key={p.poiKey} position={[p.lat, p.lng]} icon={starIcon}>
           <Popup>

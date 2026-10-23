@@ -28,6 +28,8 @@ export function parseRecommendation(raw: unknown): Recommendation | null {
   if (!CATEGORIES.includes(r.category as AttractionCategory)) return null;
   const tags = Array.isArray(r.tags) ? [...new Set(r.tags.filter((t): t is PlaceTag => PLACE_TAGS.includes(t as PlaceTag)))].slice(0, MAX_TAGS) : [];
   const rec: Recommendation = { poiKey: r.poiKey, category: r.category as AttractionCategory, tags };
+  // Google Places content (name, position) must not be stored or drawn on our map: a google-* key carries only the key.
+  if (r.poiKey.startsWith("google-")) return rec;
   if (typeof r.lat === "number" && typeof r.lng === "number" && Math.abs(r.lat) <= 90 && Math.abs(r.lng) <= 180) {
     rec.lat = Math.round(r.lat * 1e5) / 1e5;
     rec.lng = Math.round(r.lng * 1e5) / 1e5;
@@ -38,12 +40,12 @@ export function parseRecommendation(raw: unknown): Recommendation | null {
 }
 
 /** The map box a client asks for; null when it is malformed or larger than half a degree a side (the SQL caps it too). */
-export function parseBbox(search: URLSearchParams): { south: number; west: number; north: number; east: number } | null {
+export function parseBbox(search: URLSearchParams, maxSpan = 0.5): { south: number; west: number; north: number; east: number } | null {
   const [south, west, north, east] = ["south", "west", "north", "east"].map((k) => Number(search.get(k)));
   const box = { south, west, north, east };
   if (![south, west, north, east].every((n) => Number.isFinite(n))) return null;
   if (Math.abs(south) > 90 || Math.abs(north) > 90 || Math.abs(west) > 180 || Math.abs(east) > 180) return null;
-  if (north <= south || east <= west || north - south > 0.5 || east - west > 0.5) return null;
+  if (north <= south || east <= west || north - south > maxSpan || east - west > maxSpan) return null;
   return box;
 }
 

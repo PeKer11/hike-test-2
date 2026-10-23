@@ -4,7 +4,6 @@ import type { NearbyProvider } from "@/lib/places/nearby-provider";
 import { isRingNotable } from "@/lib/attractions/overpass-client";
 import { distanceToPath } from "@/lib/places/path";
 import { createSupabaseTileStore, scanWithTileCache } from "@/lib/places/osm-tile-scan";
-import { fetchGoogleNearby } from "@/lib/places/google-nearby";
 import { clusterToItem, fetchPhotoClusters } from "@/lib/places/commons-density";
 import { runDetectedScanCounted } from "@/lib/places/detected-scan";
 import {
@@ -55,7 +54,7 @@ export async function runDiscoveryScan(
   const tileStore = provider.fetchInBboxes
     ? await createSupabaseTileStore().catch(() => null)
     : null;
-  const [osm, wiki, commons, google] = await Promise.allSettled([
+  const [osm, wiki, commons] = await Promise.allSettled([
     scanWithTileCache({
       points,
       radiusMeters,
@@ -67,22 +66,12 @@ export async function runDiscoveryScan(
     }),
     signals ? fetchWikiPlaces(samples) : Promise.resolve({ places: [], calls: 0 }),
     signals ? fetchPhotoClusters(samples) : Promise.resolve({ clusters: [], calls: 0 }),
-    fetchGoogleNearby(points, ringRadiusMeters),
   ]);
-  const googlePlaces = google.status === "fulfilled" ? google.value : [];
-  // OSM is flaky: with Google results the scan still succeeds without it.
-  if (osm.status === "rejected" && googlePlaces.length === 0) throw osm.reason;
+  // Google Places content may not be drawn on or near our OSM map (Maps Platform terms 3.2.3(e)), so it is not scanned here.
+  if (osm.status === "rejected") throw osm.reason;
 
   const osmPlaces = osm.status === "fulfilled" ? osm.value : [];
-  // Google adds to OSM, never doubles it: skip one that is the same place.
-  const extra = googlePlaces.filter(
-    (g) =>
-      !osmPlaces.some((o) => {
-        const d = haversineDistance(o.coordinates, g.coordinates);
-        return d <= 15 || (d <= 80 && o.name.toLowerCase() === g.name.toLowerCase());
-      }),
-  );
-  const all = [...osmPlaces, ...extra];
+  const all = osmPlaces;
   const places = all.filter((p) => distanceToPath(p.coordinates, points) <= radiusMeters + 50);
   const placeIds = new Set(places.map((p) => p.id));
   const ring = all.filter(
