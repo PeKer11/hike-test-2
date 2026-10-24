@@ -32,6 +32,7 @@ import { Button, Card } from "@/components/ui";
 import { SideTabs, type SideTab } from "@/components/planner/SideTabs";
 import { FriendsPanel } from "@/components/walks/FriendsPanel";
 import { MyWalksPanel } from "@/components/walks/MyWalksPanel";
+import { recordRun } from "@/lib/walks/walk-runs";
 import { newWalkFromPlan, rebuildFromSaved, saveBuiltWalk, updateWalk } from "@/lib/walks/walk-history";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
@@ -930,6 +931,8 @@ export function WalkPlannerApp({
       pinnedIds?: string[];
       fillRemainingTime?: boolean;
       heading?: number;
+      /** Walk again: this build is another run of an existing saved walk, not a new history entry. */
+      existingWalkId?: string;
     },
   ) => {
     if (options?.routeRules !== undefined) routeRulesRef.current = options.routeRules;
@@ -1066,12 +1069,14 @@ export function WalkPlannerApp({
         // A walk the walker asked for is saved as "planned"; automatic rebuilds are the same walk.
         if (!options?.autoResume && isSignedIn && data.orderedAttractions.length > 0) {
           setWalkBookmarked(false);
-          savedWalkIdRef.current = saveBuiltWalk(
-            newWalkFromPlan(input, data.orderedAttractions, data.totalMinutes, data.totalDistanceMeters),
-          ).then((id) => {
-            setWalksVersion((v) => v + 1);
-            return id;
-          });
+          savedWalkIdRef.current = options?.existingWalkId
+            ? Promise.resolve(options.existingWalkId)
+            : saveBuiltWalk(
+                newWalkFromPlan(input, data.orderedAttractions, data.totalMinutes, data.totalDistanceMeters),
+              ).then((id) => {
+                setWalksVersion((v) => v + 1);
+                return id;
+              });
         }
         applyCompanionMemory((data as { companionMemory?: unknown }).companionMemory);
         setHabitHints(Array.isArray(data.habitHints) ? data.habitHints : []);
@@ -1561,7 +1566,13 @@ export function WalkPlannerApp({
     if (walkMode && isSignedIn && savedWalkIdRef.current && (walkStats?.elapsedMin ?? 0) >= 1) {
       const row = savedWalkIdRef.current;
       const done = { status: "completed" as const, totalMin: walkStats?.elapsedMin ?? 0, distanceM: walkStats?.walkedM ?? 0 };
-      void row.then((id) => (id ? updateWalk(id, done) : false)).then(() => setWalksVersion((v) => v + 1));
+      void row
+        .then(async (id) => {
+          if (!id) return false;
+          void recordRun(id, { startedAt: new Date(walkStartTimeRef.current).toISOString(), finishedAt: new Date().toISOString(), minutes: done.totalMin, distanceM: done.distanceM });
+          return updateWalk(id, done);
+        })
+        .then(() => setWalksVersion((v) => v + 1));
     }
     if (
       walkMode &&
@@ -3114,7 +3125,7 @@ export function WalkPlannerApp({
                   onWalkAgain={(walk) => {
                     const { input, attractions } = rebuildFromSaved(walk);
                     setSideTab("plan");
-                    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true });
+                    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, existingWalkId: walk.id });
                   }}
                 />
               )}
