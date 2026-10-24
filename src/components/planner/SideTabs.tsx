@@ -2,11 +2,12 @@
 
 import type { KeyboardEvent } from "react";
 
-export type SideTab = "plan" | "walks" | "friends";
+export type SideTab = "plan" | "walks" | "places" | "friends";
 
 const TABS: { id: SideTab; label: string }[] = [
   { id: "plan", label: "Plan" },
   { id: "walks", label: "Walks" },
+  { id: "places", label: "Places" },
   { id: "friends", label: "Friends" },
 ];
 

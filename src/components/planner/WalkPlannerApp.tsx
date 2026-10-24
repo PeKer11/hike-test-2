@@ -32,8 +32,10 @@ import { Button, Card } from "@/components/ui";
 import { SideTabs, type SideTab } from "@/components/planner/SideTabs";
 import { FriendsPanel } from "@/components/walks/FriendsPanel";
 import { MyWalksPanel } from "@/components/walks/MyWalksPanel";
+import { SavedPlacesTab } from "@/components/places/SavedPlacesTab";
+import { markStopsVisited } from "@/lib/places/saved-places";
 import { recordRun } from "@/lib/walks/walk-runs";
-import { newWalkFromPlan, rebuildFromSaved, saveBuiltWalk, updateWalk } from "@/lib/walks/walk-history";
+import { newWalkFromPlan, rebuildFromSaved, saveBuiltWalk, stopsFromAttractions, updateWalk } from "@/lib/walks/walk-history";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
   useCollapseFlow,
@@ -1563,6 +1565,12 @@ export function WalkPlannerApp({
     const memory = companionMemoryRef.current;
     const discovery = discoveryRef.current;
     const input = walkInputRef.current;
+    if (walkMode && isSignedIn && (walkStats?.elapsedMin ?? 0) >= 1) {
+      // Saved places that were on this walk and visited get the "visited" mark (others are ignored).
+      const seen = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+      const visitedStops = (walkPlanRef.current?.orderedAttractions ?? []).filter((a) => seen.has(a.id));
+      if (visitedStops.length > 0) void markStopsVisited(stopsFromAttractions(visitedStops));
+    }
     if (walkMode && isSignedIn && savedWalkIdRef.current && (walkStats?.elapsedMin ?? 0) >= 1) {
       const row = savedWalkIdRef.current;
       const done = { status: "completed" as const, totalMin: walkStats?.elapsedMin ?? 0, distanceM: walkStats?.walkedM ?? 0 };
@@ -3129,6 +3137,7 @@ export function WalkPlannerApp({
                   }}
                 />
               )}
+              {isSignedIn && walkPhase !== "walking" && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}
               {isSignedIn && walkPhase !== "walking" && sideTab === "friends" && <FriendsPanel expanded />}
               {/* "contents" keeps the plan column's layout; hidden keeps the chat and form mounted. */}
               <div className={sideTab === "plan" || !isSignedIn || walkPhase === "walking" ? "contents" : "hidden"}>
