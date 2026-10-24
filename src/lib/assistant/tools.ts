@@ -442,9 +442,8 @@ export async function runTool(
       const category = CATEGORIES.find((c) => c === args.category);
       if (!category) return { output: JSON.stringify({ error: "unknown category" }), state };
       const anchor =
-        typeof args.around === "string"
-          ? state.candidates.find((c) => c.id === args.around)?.coordinates
-          : state.origin;
+        (typeof args.around === "string" ? state.candidates.find((c) => c.id === args.around)?.coordinates : undefined) ??
+        state.origin;
       if (!anchor) {
         return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       }
