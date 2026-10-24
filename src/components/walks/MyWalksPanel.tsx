@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 import { listMyWalks, type SavedWalk } from "@/lib/walks/saved-walks";
 import { deleteWalk, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
 import { fetchWalksWithRuns, type WalkWithRuns } from "@/lib/walks/walk-runs";
@@ -64,7 +65,9 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain }: MyWalksPan
       {(
         <>
           {loading && <p className="text-xs text-charcoal/60">Loading…</p>}
-          {!loading && shown.length === 0 && <p className="text-xs text-charcoal/60">No walks yet. Build one and it shows up here.</p>}
+          {!loading && shown.length === 0 && (
+            <EmptyState image="empty-walks.png" title={filter === "drafts" ? "No drafts" : "No walks yet"} hint="Build one and it shows up here." />
+          )}
           <ul aria-label="My walks" className="space-y-2">
             {shown.map(({ walk: w, runs, runCount, isDraft }) => (
               <li key={w.id} className="space-y-1 rounded-md bg-white/70 p-2 text-xs">

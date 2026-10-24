@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 import {
   acceptFriend,
   getMyFriendCode,
@@ -142,6 +143,9 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
             </ul>
           )}
 
+          {accepted.length === 0 && sent.length === 0 && incoming.length === 0 && (
+            <EmptyState image="empty-friends.png" title="No friends yet" hint="Share your code, or enter a friend's code above." />
+          )}
           {(accepted.length > 0 || sent.length > 0) && (
             <ul aria-label="Friends" className="space-y-1">
               {[...accepted, ...sent].map((f) => (

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { EmptyState } from "@/components/ui/EmptyState";
 import { PlaceSearch } from "@/components/waypoints";
 import {
   clearVisitedPlaces,
@@ -107,7 +108,7 @@ export function SavedPlacesTab({ isSignedIn }: SavedPlacesTabProps) {
 
       {loading && <p className="text-xs text-charcoal/60">Loading…</p>}
       {!loading && shown.length === 0 && (
-        <p className="text-xs text-charcoal/60">No saved places yet. Search for one, or add the places from your walks.</p>
+        <EmptyState image="empty-places.png" title="No saved places yet" hint="Search for one, or add the places from your walks." />
       )}
       <ul aria-label="Saved places" className="space-y-1">
         {shown.map((p) => (
