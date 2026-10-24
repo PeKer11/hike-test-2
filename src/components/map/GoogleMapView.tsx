@@ -1,6 +1,6 @@
 "use client";
 
-import { APIProvider, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
+import { APIProvider, ControlPosition, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useEffect } from "react";
 
 import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStopMarkers } from "@/components/map/GoogleMarkers";
@@ -103,7 +103,8 @@ export default function GoogleMapView({
           gestureHandling="greedy"
           clickableIcons={false}
           streetViewControl={false}
-          zoomControl={false}
+          zoomControl
+          zoomControlOptions={{ position: ControlPosition.RIGHT_BOTTOM }}
           keyboardShortcuts={false}
           style={{ width: "100%", height: "100%" }}
           onClick={(e) => {

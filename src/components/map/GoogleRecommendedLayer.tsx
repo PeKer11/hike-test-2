@@ -112,17 +112,6 @@ function AddToWalkButton({ attraction, onAdd, added }: { attraction: Attraction;
   );
 }
 
-function ZoomButtons() {
-  const map = useMap();
-  const b = "flex h-8 w-8 items-center justify-center text-lg font-medium text-charcoal hover:bg-slate-100";
-  return (
-    <div className="flex overflow-hidden rounded-full border border-terra/60 bg-white shadow">
-      <button type="button" aria-label="Zoom out" className={b} onClick={() => map?.setZoom((map.getZoom() ?? 14) - 1)}>−</button>
-      <button type="button" aria-label="Zoom in" className={b} onClick={() => map?.setZoom((map.getZoom() ?? 14) + 1)}>+</button>
-    </div>
-  );
-}
-
 const pin = (bg: string, border: string, glyph: ReactNode, size: number) => (
   <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: size, height: size, borderRadius: 9999, background: bg, border: `2px solid ${border}`, color: "#fff", fontSize: 13, lineHeight: 1, boxShadow: "0 1px 4px rgba(0,0,0,0.35)" }}><span style={{ width: "62%", height: "62%", display: "flex" }}>{glyph}</span></span>
 );
@@ -297,7 +286,6 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
               ⭐ Recommended
             </button>
           ) : null}
-          <ZoomButtons />
           {top.length ? (
             <div className="pointer-events-none flex basis-full justify-end"><div className="flex flex-wrap justify-end gap-x-2 rounded bg-white/85 px-2 py-1 text-xs text-charcoal shadow">
               {Object.values(GROUPS).map((g) => (
