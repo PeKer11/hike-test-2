@@ -13,8 +13,8 @@ const input = { origin: { lat: 3, lng: 4 }, availableMinutes: 90, walkingPaceMin
 describe("walk-history", () => {
   it("maps stops and keeps google place ids only", () => {
     expect(stopsFromAttractions([a("google-ABC", "Cafe"), a("osm-1", "Park")])).toEqual([
-      { name: "Cafe", category: "park", lat: 1, lng: 2, placeId: "ABC" },
-      { name: "Park", category: "park", lat: 1, lng: 2 },
+      { name: "Cafe", category: "park", lat: 1, lng: 2, visitMinutes: 5, placeId: "ABC" },
+      { name: "Park", category: "park", lat: 1, lng: 2, visitMinutes: 5 },
     ]);
   });
   it("keeps params small and omits unset ones", () => {
@@ -32,5 +32,6 @@ describe("walk-history", () => {
     const r = rebuildFromSaved(w);
     expect(r.input).toMatchObject({ origin: { lat: 3, lng: 4 }, availableMinutes: 90, radiusMeters: 2000 });
     expect(r.attractions[0].id).toBe("google-ABC");
+    expect(r.attractions[0].avgVisitMinutes).toBe(5);
   });
 });

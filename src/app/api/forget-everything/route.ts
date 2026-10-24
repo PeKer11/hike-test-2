@@ -21,6 +21,9 @@ export const MEMORY_TABLES = [
   "attraction_feedback",
   // Walk history (built, bookmarked, finished) and the walker's friend links.
   "saved_walks",
+  // Each walk's runs (also cascade with the walk) and the walker's saved places list.
+  "walk_runs",
+  "saved_places",
 ] as const;
 
 /**

@@ -12,6 +12,7 @@ export function stopsFromAttractions(items: Attraction[]): SavedStop[] {
     category: a.category,
     lat: a.coordinates.lat,
     lng: a.coordinates.lng,
+    ...(Number.isFinite(a.avgVisitMinutes) && a.avgVisitMinutes > 0 ? { visitMinutes: Math.round(a.avgVisitMinutes) } : {}),
     ...(a.id.startsWith(GOOGLE_PREFIX) ? { placeId: a.id.slice(GOOGLE_PREFIX.length) } : {}),
   }));
 }
@@ -78,7 +79,7 @@ export function rebuildFromSaved(walk: SavedWalk): { input: WalkCompanionInput; 
     name: s.name,
     coordinates: { lat: s.lat, lng: s.lng },
     category: s.category as AttractionCategory,
-    avgVisitMinutes: 10,
+    avgVisitMinutes: num(s.visitMinutes, 10),
     tags: {},
   }));
   return { input, attractions };

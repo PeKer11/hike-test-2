@@ -74,6 +74,8 @@ describe("forget everything", () => {
     expect(res.status).toBe(204);
     expect(deleted).toContain("attraction_feedback");
     expect(deleted).toContain("saved_walks");
+    expect(deleted).toContain("walk_runs");
+    expect(deleted).toContain("saved_places");
     expect(deleted).toContain("friendships");
     expect(profileUpdate).toEqual(PROFILE_LEARNED_RESET);
     for (const col of ["pace_by_env", "walking_pace_min_per_km", "typical_walk_minutes", "session_count"]) {

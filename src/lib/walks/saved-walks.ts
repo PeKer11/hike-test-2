@@ -9,6 +9,8 @@ export interface SavedStop {
   lng: number;
   /** Google place_id when the stop came from Google (kept so the stop can be looked up again). */
   placeId?: string;
+  /** Minutes planned at this stop, so "walk again" keeps the same total time. */
+  visitMinutes?: number;
 }
 
 export interface SavedWalk {
