@@ -104,7 +104,11 @@ export async function fetchForbiddenWays(
   const hit = cache.get(query);
   if (hit) return hit;
   try {
-    const elements = await runOverpassQuery(query);
+    // The shared servers are often briefly overloaded: one more try a few seconds later usually gets through.
+    const elements = await runOverpassQuery(query).catch(async () => {
+      await new Promise((r) => setTimeout(r, 3000));
+      return runOverpassQuery(query);
+    });
     const ways = parseForbiddenWays(elements as unknown as WayElement[], streets).filter((w) => w.reason === "named" || opts.dangerous);
     cache.set(query, ways);
     return ways;
