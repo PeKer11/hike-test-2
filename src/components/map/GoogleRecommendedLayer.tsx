@@ -271,31 +271,37 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
   const all = [...top, ...secondary];
   const open = all.find((i) => i.key === openKey);
   const enabled = socialEnabled() || notableEnabled();
+  // One button: Google's top rated plus the community/notable places, shown together and cleared together.
+  const toggleAll = () => {
+    if (top.length || extra !== null) {
+      setTop([]);
+      setExtra(null);
+      setNote("");
+      return;
+    }
+    void showTop();
+    if (enabled) void showExtra();
+  };
   const btn = (on: boolean) => `rounded-full border border-terra/60 px-3 py-1.5 text-sm font-medium shadow ${on ? "bg-terra text-white" : "bg-white text-charcoal"}`;
 
   return (
     <>
       <MapControl position={ControlPosition.TOP_RIGHT}>
         {/* Right-aligned and capped so it never reaches the Map/Satellite switch on the left. */}
-        <div className="flex max-w-[min(420px,42vw)] flex-wrap items-start justify-end gap-1 p-2.5">
-          <button type="button" onClick={() => void showTop()} aria-pressed={top.length > 0} className={btn(top.length > 0)}>
-            🏆 Top rated
-          </button>
-          {enabled ? (
-            <button type="button" onClick={() => void showExtra()} aria-pressed={extra !== null} className={btn(extra !== null)}>
-              ⭐ Recommended
-            </button>
-          ) : null}
+        <div className="flex max-w-[min(640px,60vw)] flex-wrap items-center justify-end gap-2 p-2.5">
           {top.length ? (
-            <div className="pointer-events-none flex basis-full justify-end"><div className="flex flex-wrap justify-end gap-x-2 rounded bg-white/85 px-2 py-1 text-xs text-charcoal shadow">
+            <div className="pointer-events-none flex flex-wrap justify-end gap-x-2 rounded bg-white/85 px-2 py-1 text-xs text-charcoal shadow">
               {Object.values(GROUPS).map((g) => (
                 <span key={g.label} className="flex items-center gap-1">
                   <span className="inline-flex h-4 w-4 rounded-full p-0.5 text-white" style={{ background: g.color }}>{g.glyph}</span>
                   {g.label}
                 </span>
               ))}
-            </div></div>
+            </div>
           ) : null}
+          <button type="button" onClick={toggleAll} aria-pressed={top.length > 0 || extra !== null} className={btn(top.length > 0 || extra !== null)}>
+            🏆 Top rated
+          </button>
           {note ? <p className="max-w-52 rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
         </div>
       </MapControl>
