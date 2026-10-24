@@ -65,10 +65,20 @@ export const fromRow = (r: Row): SavedWalk => ({
   completedAt: r.completed_at,
 });
 
-/** The signed-in walker's own walks, newest first. Empty on any failure. */
-export async function listMyWalks(client: SupabaseClient, userId: string, limit = 50): Promise<SavedWalk[]> {
+/** The signed-in walker's own walks, newest first. Throws on a query failure. */
+export async function listMyWalksOrThrow(client: SupabaseClient, userId: string, limit = 50): Promise<SavedWalk[]> {
   const { data, error } = await client.from("saved_walks").select(COLUMNS).eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);
-  return error || !data ? [] : (data as Row[]).map(fromRow);
+  if (error || !data) throw new Error("saved_walks query failed");
+  return (data as Row[]).map(fromRow);
+}
+
+/** Same, but empty on any failure. */
+export async function listMyWalks(client: SupabaseClient, userId: string, limit = 50): Promise<SavedWalk[]> {
+  try {
+    return await listMyWalksOrThrow(client, userId, limit);
+  } catch {
+    return [];
+  }
 }
 
 export async function insertWalk(client: SupabaseClient, userId: string, w: NewSavedWalk): Promise<string | null> {

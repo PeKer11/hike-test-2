@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { EmptyState } from "@/components/ui/EmptyState";
-import { listMyWalks, type SavedWalk } from "@/lib/walks/saved-walks";
+import { listMyWalksOrThrow, type SavedWalk } from "@/lib/walks/saved-walks";
 import { deleteWalk, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
 import { fetchWalksWithRuns, type WalkWithRuns } from "@/lib/walks/walk-runs";
 
@@ -23,12 +23,15 @@ const CHIP: Record<SavedWalk["status"], string> = {
 export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain }: MyWalksPanelProps) {
   const [items, setItems] = useState<WalkWithRuns[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<"all" | "drafts">("all");
   const [open, setOpen] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const list = await withWalkClient((c, uid) => listMyWalks(c, uid));
-    setItems(await fetchWalksWithRuns(list ?? []));
+    const list = await withWalkClient((c, uid) => listMyWalksOrThrow(c, uid));
+    const grouped = list ? await fetchWalksWithRuns(list) : null;
+    setFailed(!grouped);
+    setItems(grouped ?? []);
     setLoading(false);
   }, []);
 
@@ -65,7 +68,8 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain }: MyWalksPan
       {(
         <>
           {loading && <p className="text-xs text-charcoal/60">Loading…</p>}
-          {!loading && shown.length === 0 && (
+          {!loading && failed && <EmptyState image="load-error.png" title="Couldn't load your walks" hint="Check your connection and reopen this tab." />}
+          {!loading && !failed && shown.length === 0 && (
             <EmptyState image="empty-walks.png" title={filter === "drafts" ? "No drafts" : "No walks yet"} hint="Build one and it shows up here." />
           )}
           <ul aria-label="My walks" className="space-y-2">

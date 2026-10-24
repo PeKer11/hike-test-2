@@ -23,12 +23,15 @@ interface SavedPlacesTabProps {
 export function SavedPlacesTab({ isSignedIn }: SavedPlacesTabProps) {
   const [places, setPlaces] = useState<SavedPlace[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [showVisited, setShowVisited] = useState(true);
   const [confirmClear, setConfirmClear] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setPlaces(await fetchPlaces());
+    const list = await fetchPlaces();
+    setFailed(!list);
+    setPlaces(list ?? []);
     setLoading(false);
   }, []);
 
@@ -107,7 +110,8 @@ export function SavedPlacesTab({ isSignedIn }: SavedPlacesTabProps) {
       </div>
 
       {loading && <p className="text-xs text-charcoal/60">Loading…</p>}
-      {!loading && shown.length === 0 && (
+      {!loading && failed && <EmptyState image="load-error.png" title="Couldn't load your places" hint="Check your connection and reopen this tab." />}
+      {!loading && !failed && shown.length === 0 && (
         <EmptyState image="empty-places.png" title="No saved places yet" hint="Search for one, or add the places from your walks." />
       )}
       <ul aria-label="Saved places" className="space-y-1">

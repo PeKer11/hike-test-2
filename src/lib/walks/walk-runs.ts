@@ -93,7 +93,8 @@ export function groupRuns(walks: SavedWalk[], runs: WalkRun[]): WalkWithRuns[] {
 export async function listRunsForWalks(client: SupabaseClient, walkIds: string[]): Promise<WalkRun[]> {
   if (walkIds.length === 0) return [];
   const { data, error } = await client.from("walk_runs").select(COLUMNS).in("walk_id", walkIds).order("started_at", { ascending: false });
-  return error || !data ? [] : (data as Row[]).map(fromRow);
+  if (error || !data) throw new Error("walk_runs query failed");
+  return (data as Row[]).map(fromRow);
 }
 
 /** The walker's walks grouped with their runs. */
@@ -108,5 +109,6 @@ export const recordRun = (walkId: string, run: NewWalkRun = {}): Promise<string 
 export const fetchRuns = async (walkId: string): Promise<WalkRun[]> =>
   (await withWalkClient((c) => listRuns(c, walkId))) ?? [];
 
-export const fetchWalksWithRuns = async (walks: SavedWalk[]): Promise<WalkWithRuns[]> =>
-  (await withWalkClient((c) => listMyWalksWithRuns(c, walks))) ?? groupRuns(walks, []);
+/** null = could not load. */
+export const fetchWalksWithRuns = (walks: SavedWalk[]): Promise<WalkWithRuns[] | null> =>
+  withWalkClient((c) => listMyWalksWithRuns(c, walks));

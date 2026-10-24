@@ -33,7 +33,7 @@ export function SavedPlacePicker({ addedIds, onAdd }: SavedPlacePickerProps) {
     setOpen(next);
     if (!next) return;
     setLoading(true);
-    setPlaces((await fetchPlaces()).filter((p) => !p.visitedAt));
+    setPlaces(((await fetchPlaces()) ?? []).filter((p) => !p.visitedAt));
     setLoading(false);
   };
 

@@ -83,10 +83,11 @@ export function placesFromStops(stops: SavedStop[]): NewSavedPlace[] {
   );
 }
 
-/** The walker's places, newest first. Empty on any failure. */
+/** The walker's places, newest first. Throws on a query failure so callers can tell it from an empty list. */
 export async function listPlaces(client: SupabaseClient, userId: string, limit = 200): Promise<SavedPlace[]> {
   const { data, error } = await client.from("saved_places").select(COLUMNS).eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);
-  return error || !data ? [] : (data as Row[]).map(fromRow);
+  if (error || !data) throw new Error("saved_places query failed");
+  return (data as Row[]).map(fromRow);
 }
 
 /** Add places; ones already in the list are left alone (idempotent). Returns how many rows were sent, or null on failure. */
@@ -131,7 +132,8 @@ export async function clearVisited(client: SupabaseClient, userId: string): Prom
 export const keysFromStops = (stops: SavedStop[]): PlaceKey[] => placesFromStops(stops).map(({ source, placeRef }) => ({ source, placeRef }));
 
 /** Browser helpers: signed-out or any failure is swallowed (null / false / empty). */
-export const fetchPlaces = async (): Promise<SavedPlace[]> => (await withWalkClient((c, uid) => listPlaces(c, uid))) ?? [];
+/** null = could not load (failure or signed out); [] = really empty. */
+export const fetchPlaces = (): Promise<SavedPlace[] | null> => withWalkClient((c, uid) => listPlaces(c, uid));
 export const savePlaces = (places: NewSavedPlace[]): Promise<number | null> => withWalkClient((c, uid) => addPlaces(c, uid, places));
 export const saveStopsAsPlaces = (stops: SavedStop[]): Promise<number | null> => withWalkClient((c, uid) => addFromWalk(c, uid, stops));
 export const deletePlace = async (id: string): Promise<boolean> => (await withWalkClient((c, uid) => removePlace(c, uid, id))) === true;
