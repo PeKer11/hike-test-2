@@ -446,12 +446,12 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
             type="button"
             aria-label="Assistant settings"
             title="Settings"
-            className={`ml-auto flex h-[30px] w-[30px] items-center justify-center rounded-full border shadow-sm transition-colors ${
-              settingsOpen ? "border-tk-send/50 bg-white text-tk-send" : "border-tk-line bg-white/70 text-[#2b2d3a] hover:bg-white"
+            className={`ml-auto flex h-[22px] w-[22px] items-center justify-center transition-colors ${
+              settingsOpen ? "text-tk-send" : "text-[#2b2d3a] hover:text-tk-send"
             }`}
             onClick={() => setSettingsOpen((v) => !v)}
           >
-            <svg viewBox="0 0 24 24" className="h-[19px] w-[19px]" fill="currentColor" fillRule="evenodd" aria-hidden>
+            <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="currentColor" fillRule="evenodd" aria-hidden>
               <path d="M20.43 10.29 L22.91 10.57 L22.91 13.43 L20.43 13.71 L19.17 16.75 L20.72 18.70 L18.70 20.72 L16.75 19.17 L13.71 20.43 L13.43 22.91 L10.57 22.91 L10.29 20.43 L7.25 19.17 L5.30 20.72 L3.28 18.70 L4.83 16.75 L3.57 13.71 L1.09 13.43 L1.09 10.57 L3.57 10.29 L4.83 7.25 L3.28 5.30 L5.30 3.28 L7.25 4.83 L10.29 3.57 L10.57 1.09 L13.43 1.09 L13.71 3.57 L16.75 4.83 L18.70 3.28 L20.72 5.30 L19.17 7.25Z M12 8.4a3.6 3.6 0 1 0 0 7.2a3.6 3.6 0 1 0 0-7.2Z" />
             </svg>
           </button>
