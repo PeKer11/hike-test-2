@@ -29,6 +29,8 @@ import type {
   WalkPlan,
 } from "@/lib/types";
 import { Button, Card } from "@/components/ui";
+import { SideTabs, type SideTab } from "@/components/planner/SideTabs";
+import { FriendsPanel } from "@/components/walks/FriendsPanel";
 import { MyWalksPanel } from "@/components/walks/MyWalksPanel";
 import { newWalkFromPlan, rebuildFromSaved, saveBuiltWalk, updateWalk } from "@/lib/walks/walk-history";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
@@ -901,6 +903,7 @@ export function WalkPlannerApp({
   // The saved_walks row of the walk on screen, so finishing it updates the same row.
   const savedWalkIdRef = useRef<Promise<string | null> | null>(null);
   const [walksVersion, setWalksVersion] = useState(0);
+  const [sideTab, setSideTab] = useState<SideTab>("plan");
   const [walkBookmarked, setWalkBookmarked] = useState(false);
 
   const handleBuildWalk = async (
@@ -3103,6 +3106,21 @@ export function WalkPlannerApp({
             </>
           ) : !isAdvancedOpen || plannerMode === "walk-companion" ? (
             <>
+              {isSignedIn && walkPhase !== "walking" && <SideTabs value={sideTab} onChange={setSideTab} />}
+              {isSignedIn && walkPhase !== "walking" && sideTab === "walks" && (
+                <MyWalksPanel
+                  isSignedIn={isSignedIn}
+                  refreshKey={walksVersion}
+                  onWalkAgain={(walk) => {
+                    const { input, attractions } = rebuildFromSaved(walk);
+                    setSideTab("plan");
+                    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true });
+                  }}
+                />
+              )}
+              {isSignedIn && walkPhase !== "walking" && sideTab === "friends" && <FriendsPanel expanded />}
+              {/* "contents" keeps the plan column's layout; hidden keeps the chat and form mounted. */}
+              <div className={sideTab === "plan" || !isSignedIn || walkPhase === "walking" ? "contents" : "hidden"}>
               {isSignedIn && (
                 // Stays mounted while walking so the conversation continues; collapsed then, so it never pushes End Walk down.
                 <details className={walkPhase === "walking" ? "rounded-tk-card bg-tk-card shadow-tk-card" : "[&>summary]:hidden"} open={walkPhase !== "walking" || undefined}>
@@ -3269,16 +3287,6 @@ export function WalkPlannerApp({
                 >
                   {walkBookmarked ? "Saved for later" : "🔖 Save for later"}
                 </Button>
-              )}
-              {walkPhase !== "walking" && (
-                <MyWalksPanel
-                  isSignedIn={isSignedIn}
-                  refreshKey={walksVersion}
-                  onWalkAgain={(walk) => {
-                    const { input, attractions } = rebuildFromSaved(walk);
-                    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true });
-                  }}
-                />
               )}
               {/* Pinned stop no longer fits the remaining time — ask, don't drop it */}
               {pinnedTimeWarning && (
@@ -3529,6 +3537,7 @@ export function WalkPlannerApp({
                   <p className="text-sm text-amber-700">{walkTrackingMessage}</p>
                 </Card>
               ) : null}
+              </div>
             </>
           ) : (
             <HikeSearchPanel

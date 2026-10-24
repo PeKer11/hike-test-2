@@ -19,9 +19,10 @@ export interface PlannableWalk {
 }
 
 /** Friends: my code, add by code, requests, friends, and the walks they shared. Renders nothing when signed out. */
-export function FriendsPanel({ onPlan }: { onPlan?: (w: PlannableWalk) => void }) {
+export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: PlannableWalk) => void; expanded?: boolean }) {
   const [signedIn, setSignedIn] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
+  const open = expanded || openState;
   const [code, setCode] = useState<string | null>(null);
   const [friends, setFriends] = useState<FriendRow[]>([]);
   const [walks, setWalks] = useState<FriendWalk[]>([]);
@@ -70,15 +71,17 @@ export function FriendsPanel({ onPlan }: { onPlan?: (w: PlannableWalk) => void }
 
   return (
     <section className="space-y-2 rounded-[10px] border border-charcoal/10 bg-cream/60 p-3">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full cursor-pointer items-center justify-between text-sm font-medium text-charcoal/80 hover:text-forest"
-      >
-        <span>Friends{incoming.length ? ` (${incoming.length} new)` : ""}</span>
-        <span aria-hidden="true">{open ? "▲" : "▼"}</span>
-      </button>
+      {!expanded && (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full cursor-pointer items-center justify-between text-sm font-medium text-charcoal/80 hover:text-forest"
+        >
+          <span>Friends{incoming.length ? ` (${incoming.length} new)` : ""}</span>
+          <span aria-hidden="true">{open ? "▲" : "▼"}</span>
+        </button>
+      )}
 
       {open && (
         <div className="space-y-3 text-xs text-charcoal/80">

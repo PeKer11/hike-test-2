@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { FriendsPanel } from "@/components/walks/FriendsPanel";
 import { listMyWalks, type SavedWalk } from "@/lib/walks/saved-walks";
 import { deleteWalk, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
 
@@ -21,7 +20,6 @@ const CHIP: Record<SavedWalk["status"], string> = {
 
 export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain }: MyWalksPanelProps) {
   const [walks, setWalks] = useState<SavedWalk[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
 
   const load = useCallback(async () => {
     const list = await withWalkClient((c, uid) => listMyWalks(c, uid));
@@ -47,16 +45,8 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain }: MyWalksPan
 
   return (
     <section className="space-y-2 rounded-[10px] border border-charcoal/10 bg-cream/60 p-3">
-      <button
-        type="button"
-        aria-expanded={isOpen}
-        onClick={() => setIsOpen((o) => !o)}
-        className="flex w-full cursor-pointer items-center justify-between text-sm font-medium text-charcoal/80 hover:text-forest"
-      >
-        <span>My walks ({walks.length})</span>
-        <span aria-hidden="true">{isOpen ? "▲" : "▼"}</span>
-      </button>
-      {isOpen && (
+      <h2 className="text-sm font-medium text-charcoal/80">My walks ({walks.length})</h2>
+      {(
         <>
           {walks.length === 0 && <p className="text-xs text-charcoal/60">No walks yet. Build one and it shows up here.</p>}
           <ul aria-label="My walks" className="space-y-2">
@@ -88,7 +78,6 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain }: MyWalksPan
           </ul>
         </>
       )}
-      <FriendsPanel />
     </section>
   );
 }
