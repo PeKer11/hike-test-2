@@ -5,7 +5,6 @@ import { isRingNotable } from "@/lib/attractions/overpass-client";
 import { distanceToPath } from "@/lib/places/path";
 import { createSupabaseTileStore, scanWithTileCache } from "@/lib/places/osm-tile-scan";
 import { clusterToItem, fetchPhotoClusters } from "@/lib/places/commons-density";
-import { runDetectedScanCounted } from "@/lib/places/detected-scan";
 import {
   fetchWikiPlaces,
   sampleScanPoints,
@@ -95,21 +94,17 @@ export async function runDiscoveryScan(
     )
     .map(clusterToItem);
 
-  // Flag off: no calls. Any failure: no items (never throws, never blocks).
-  const detectedRun = await runDetectedScanCounted(points, ringRadiusMeters, {
-    wikiPlaces: wikiPlaces.map((w) => w.coordinates),
-    photoClusters: clusters,
-    lang: options.lang,
-  });
-
+  // The imagery ("detected") tier is switched off here, for walk-time discovery and route building alike.
+  // TODO: it only adds places that look like parks from land cover; it checks no hazard (closures, firing zones, wildlife),
+  // so do not re-enable it as a safety signal. See hiking-ai.md "safety caution".
   return {
     places,
     ring,
     wikipedia,
     commons: commonsItems,
-    detected: detectedRun.items,
+    detected: [],
     calls: {
-      overpass: 1 + detectedRun.overpassCalls,
+      overpass: 1,
       wikipedia: wiki.status === "fulfilled" ? wiki.value.calls : 0,
       commons: commons.status === "fulfilled" ? commons.value.calls : 0,
     },

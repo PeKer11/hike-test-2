@@ -61,9 +61,4 @@ describe("runDiscoveryScan: shared tile cache and language", () => {
     expect(scan.ring.map((p) => p.id)).toEqual(["ring-notable"]);
   });
 
-  it("passes the UI language to the detected scan", async () => {
-    const provider = { fetchAlongPath: vi.fn(), fetchAround: vi.fn(), fetchScan: async () => [] } as unknown as NearbyProvider;
-    await runDiscoveryScan(provider, PATH, 250, 600, false, { lang: "he" });
-    expect(runDetected.mock.calls[0][2]).toMatchObject({ lang: "he" });
-  });
 });
