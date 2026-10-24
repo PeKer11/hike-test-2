@@ -57,7 +57,7 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
     };
   }, [refresh]);
 
-  if (!signedIn || !client) return null;
+  if (!signedIn || !client) return expanded ? <p className="p-3 text-xs text-charcoal/60">Loading…</p> : null;
 
   const act = async (fn: () => Promise<boolean>, fail: string) => {
     setNote((await fn()) ? null : fail);

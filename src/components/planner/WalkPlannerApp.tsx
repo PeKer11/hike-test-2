@@ -32,10 +32,12 @@ import { Button, Card } from "@/components/ui";
 import { SideTabs, type SideTab } from "@/components/planner/SideTabs";
 import { FriendsPanel } from "@/components/walks/FriendsPanel";
 import { MyWalksPanel } from "@/components/walks/MyWalksPanel";
+import { listFriends } from "@/lib/walks/friends";
+import { SavedPlacePicker } from "@/components/places/SavedPlacePicker";
 import { SavedPlacesTab } from "@/components/places/SavedPlacesTab";
 import { markStopsVisited } from "@/lib/places/saved-places";
 import { recordRun } from "@/lib/walks/walk-runs";
-import { newWalkFromPlan, rebuildFromSaved, saveBuiltWalk, stopsFromAttractions, updateWalk } from "@/lib/walks/walk-history";
+import { newWalkFromPlan, rebuildFromSaved, saveBuiltWalk, stopsFromAttractions, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
   useCollapseFlow,
@@ -907,6 +909,13 @@ export function WalkPlannerApp({
   const savedWalkIdRef = useRef<Promise<string | null> | null>(null);
   const [walksVersion, setWalksVersion] = useState(0);
   const [sideTab, setSideTab] = useState<SideTab>("plan");
+  const [friendRequests, setFriendRequests] = useState(0);
+  useEffect(() => {
+    if (!isSignedIn || sideTab === "friends") return;
+    void withWalkClient((c) => listFriends(c)).then((rows) =>
+      setFriendRequests((rows ?? []).filter((f) => f.status === "pending" && f.incoming).length),
+    );
+  }, [isSignedIn, sideTab]);
   const [walkBookmarked, setWalkBookmarked] = useState(false);
 
   const handleBuildWalk = async (
@@ -2381,6 +2390,18 @@ export function WalkPlannerApp({
     setWishlist((current) => (current.some((a) => a.id === place.id) ? current : [...current, place]));
   };
 
+  // "From saved places": all picked places join the wishlist; a planned walk is rebuilt once with them.
+  const addSavedPlacesToWalk = (places: Attraction[]) => {
+    const plan = walkPlanRef.current;
+    const input = walkInputRef.current;
+    const fresh = places.filter((p) => !wishlist.some((w) => w.id === p.id));
+    setWishlist((current) => [...current, ...fresh.filter((p) => !current.some((c) => c.id === p.id))]);
+    if (plan && input && walkPhase === "planned") {
+      const extra = fresh.filter((p) => !plan.orderedAttractions.some((a) => a.id === p.id));
+      if (extra.length > 0) void handleBuildWalk(input, { keepAttractions: [...plan.orderedAttractions, ...extra], fillRemainingTime: false });
+    }
+  };
+
   // "Add to walk" on a place the walker was told about: the same rebuild as
   // recalling a dropped stop — pinned, so no later rebuild takes it back out.
   const addNearbyPlaceToWalk = (place: NearbyPlace) => {
@@ -3125,7 +3146,7 @@ export function WalkPlannerApp({
             </>
           ) : !isAdvancedOpen || plannerMode === "walk-companion" ? (
             <>
-              {isSignedIn && walkPhase !== "walking" && <SideTabs value={sideTab} onChange={setSideTab} />}
+              {isSignedIn && walkPhase !== "walking" && <SideTabs value={sideTab} onChange={setSideTab} friendsBadge={sideTab === "friends" ? 0 : friendRequests} />}
               {isSignedIn && walkPhase !== "walking" && sideTab === "walks" && (
                 <MyWalksPanel
                   isSignedIn={isSignedIn}
@@ -3176,6 +3197,7 @@ export function WalkPlannerApp({
                 />
                 </details>
               )}
+              {isSignedIn && walkPhase !== "walking" && <SavedPlacePicker addedIds={wishlist.map((w) => w.id)} onAdd={addSavedPlacesToWalk} />}
               {walkPhase !== "walking" && !isSignedIn && (
                 <PlacePromptPanel
                   nearLocation={currentPosition ?? mapClickedCoords}

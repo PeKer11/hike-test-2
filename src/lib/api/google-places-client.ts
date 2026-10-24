@@ -194,3 +194,23 @@ export function categoryOfGooglePlace(place: GooglePlace): AttractionCategory {
   }
   return "other";
 }
+
+/** One place by its id (Place Details), for saved places that keep only the id. Null when Google can't find it. */
+export async function getPlaceById(placeId: string): Promise<GooglePlace | null> {
+  if (!googlePlacesAvailable()) throw new Error("Google Places unavailable (no key or daily cap reached).");
+  usageCount += 1;
+  const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+    headers: {
+      "X-Goog-Api-Key": process.env.GOOGLE_PLACES_API_KEY!.trim(),
+      "X-Goog-FieldMask": "id,displayName,location,primaryType,types",
+    },
+    cache: "no-store",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) return null;
+  const p = (await response.json()) as RawPlace;
+  const lat = p.location?.latitude;
+  const lng = p.location?.longitude;
+  if (!p.id || !p.displayName?.text || typeof lat !== "number" || typeof lng !== "number") return null;
+  return { placeId: p.id, name: p.displayName.text, coordinates: { lat, lng }, primaryType: p.primaryType ?? null, types: p.types ?? [] };
+}
