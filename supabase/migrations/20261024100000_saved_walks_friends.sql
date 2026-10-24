@@ -69,9 +69,13 @@ create policy "Delete own walks" on public.saved_walks for delete to authenticat
 
 create policy "Read own friendships" on public.friendships for select to authenticated
   using (auth.uid() in (requester_id, addressee_id));
-create policy "Request a friendship" on public.friendships for insert to authenticated
-  with check (auth.uid() = requester_id and status = 'pending');
+-- Requests are created only through request_friend() (rate-limited); no direct insert.
+revoke insert on table public.friendships from authenticated;
+-- The addressee may only flip a pending request to accepted: no other column can change (a changed
+-- requester_id would force a friendship with anyone).
+revoke update on table public.friendships from authenticated;
+grant update (status) on table public.friendships to authenticated;
 create policy "Accept a request" on public.friendships for update to authenticated
-  using (auth.uid() = addressee_id) with check (auth.uid() = addressee_id);
+  using (auth.uid() = addressee_id and status = 'pending') with check (auth.uid() = addressee_id and status = 'accepted');
 create policy "End a friendship" on public.friendships for delete to authenticated
   using (auth.uid() in (requester_id, addressee_id));

@@ -64,12 +64,12 @@ create or replace function public.list_friends()
   returns table (friendship_id uuid, friend_id uuid, label text, status text, incoming boolean)
   language sql stable security definer set search_path = public as $$
   select f.id,
-         o.id,
+         case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end,
          'Friend ' || coalesce(right(o.friend_code, 4), '----'),
          f.status,
          (f.addressee_id = auth.uid())
   from public.friendships f
-  join public.profiles o on o.id = case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
+  left join public.profiles o on o.id = case when f.requester_id = auth.uid() then f.addressee_id else f.requester_id end
   where auth.uid() in (f.requester_id, f.addressee_id)
   order by f.created_at desc
   limit 200;
@@ -83,7 +83,7 @@ create or replace function public.friends_walks()
          'Friend ' || coalesce(right(p.friend_code, 4), '----'),
          w.title, w.status, w.area_label, w.total_min, w.distance_m, w.stops, w.created_at
   from public.saved_walks w
-  join public.profiles p on p.id = w.user_id
+  left join public.profiles p on p.id = w.user_id
   where w.visibility = 'friends'
     and w.user_id <> auth.uid()
     and public.are_friends(auth.uid(), w.user_id)
