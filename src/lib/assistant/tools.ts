@@ -2,6 +2,7 @@ import { searchNearbyPlaces, searchTextPlaces } from "@/lib/api/google-places-cl
 import type { ToolDef } from "@/lib/llm/providers/openai-tools";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
 import { appUserAgent } from "@/lib/api/http-identity";
+import { HAZARD_ATTRIBUTION, HAZARD_RADIUS_KM, hazardUrl, parseHazardCounts, seasonalNotes } from "@/lib/safety/nature-hazards";
 import { inSafetyCoverage, parseWarnings, SAFETY_ATTRIBUTION, SAFETY_FEED_URL, warningsAt } from "@/lib/safety/meteoalarm";
 import { assessWalkWindow, FORECAST_ATTRIBUTION, forecastUrl, parseForecast } from "@/lib/weather/forecast";
 import { getMatrix } from "@/lib/api/ors-client";
@@ -205,6 +206,19 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
           start_in_hours: { type: "number", description: "hours from now until the walk starts; 0 when they start now" },
           duration_minutes: { type: "number", description: "the walk's totalMin from estimate_walk; defaults to the time limit" },
         },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_nature_hazards",
+      description:
+        "Wildlife and seasonal nuisances near the start point for the month of the walk (vipers, scorpions, wild boar, jackals, porcupines, ticks, sand flies, jellyfish season). Call it with check_weather for walks outdoors in nature. Report the record counts as 'N records within 5 km' and never say an area has no snakes or is safe, even when the count is 0.",
+      parameters: {
+        type: "object",
+        properties: { start_in_hours: { type: "number", description: "hours from now until the walk starts; 0 when they start now" } },
         additionalProperties: false,
       },
     },
@@ -673,6 +687,20 @@ export async function runTool(
         return { output: JSON.stringify({ ok: warnings.length === 0, warnings, attribution: SAFETY_ATTRIBUTION }), state };
       } catch {
         return { output: JSON.stringify({ error: "warnings unavailable: say safety warnings were not checked" }), state };
+      }
+    }
+
+    if (name === "check_nature_hazards") {
+      if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
+      const startIn = typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 12) : 0;
+      const month = new Date(Date.now() + startIn * 3_600_000).getMonth() + 1;
+      const seasonal = seasonalNotes(month);
+      try {
+        const res = await fetch(hazardUrl(state.origin.lat, state.origin.lng, month), { headers: { "User-Agent": appUserAgent() }, signal: AbortSignal.timeout(6_000) });
+        if (!res.ok) return { output: JSON.stringify({ error: "wildlife records unavailable: say wildlife was not checked", seasonal }), state };
+        return { output: JSON.stringify({ radiusKm: HAZARD_RADIUS_KM, month, records: parseHazardCounts(await res.json()), seasonal, attribution: HAZARD_ATTRIBUTION }), state };
+      } catch {
+        return { output: JSON.stringify({ error: "wildlife records unavailable: say wildlife was not checked", seasonal }), state };
       }
     }
 
