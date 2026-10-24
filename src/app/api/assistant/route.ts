@@ -14,6 +14,8 @@ import { selectFactsForPrompt } from "@/lib/preferences/fact-extractor";
 import { getStandingFacts, learnFactsFromText } from "@/lib/preferences/fact-store";
 import { runMeteredTurn } from "@/lib/llm/llm-client";
 import { LlmBudgetExceededError } from "@/lib/llm/types";
+import { placesNote } from "@/lib/assistant/places-note";
+import { listPlaces } from "@/lib/places/saved-places";
 import { createClient } from "@/lib/supabase/server";
 import { listMyWalks } from "@/lib/walks/saved-walks";
 
@@ -157,9 +159,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   const taste = tasteNote(defaults, learned);
   const facts = selectFactsForPrompt(await getStandingFacts(supabase, user.id), new Date());
-  const memoryNote = facts.length
-    ? `\nWhat you already remember about this walker (use it, do not ask again): ${facts.map((f) => f.text).join("; ")}.`
-    : "";
+  const savedPlaces = await listPlaces(supabase, user.id).catch(() => []);
+  const memoryNote =
+    (facts.length
+      ? `\nWhat you already remember about this walker (use it, do not ask again): ${facts.map((f) => f.text).join("; ")}.`
+      : "") + placesNote(savedPlaces);
   const origin = parseOrigin(body.origin);
   if (origin && !state.origin) state = { ...state, origin };
   // Answers from the tap-to-choose limits boxes: null / missing = no limit.
