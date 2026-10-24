@@ -3081,7 +3081,10 @@ export function WalkPlannerApp({
             </>
           ) : !isAdvancedOpen || plannerMode === "walk-companion" ? (
             <>
-              {walkPhase !== "walking" && isSignedIn && (
+              {isSignedIn && (
+                // Stays mounted while walking so the conversation continues; collapsed then, so it never pushes End Walk down.
+                <details className={walkPhase === "walking" ? "rounded-tk-card bg-tk-card shadow-tk-card" : "[&>summary]:hidden"} open={walkPhase !== "walking" || undefined}>
+                <summary className="cursor-pointer px-4 py-2.5 font-brand text-sm font-semibold text-tk-ink">Chat with Traike · re-plan</summary>
                 <AssistantChat
                   origin={currentPosition ?? mapClickedCoords ?? null}
                   isBuilding={isWalkPlanLoading}
@@ -3107,10 +3110,11 @@ export function WalkPlannerApp({
                         radiusMeters: build.radiusMeters,
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
-                      { keepAttractions: [...build.stops, ...wishlist.filter((w) => !build.stops.some((s) => s.id === w.id))], fixedOrder: build.fixedOrder, presetGeometry: build.geometry, fillRemainingTime: false, routeRules: build.routeRules },
+                      { keepAttractions: [...build.stops, ...wishlist.filter((w) => !build.stops.some((s) => s.id === w.id))], fixedOrder: build.fixedOrder, presetGeometry: build.geometry, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhase === "walking" },
                     );
                   }}
                 />
+                </details>
               )}
               {walkPhase !== "walking" && !isSignedIn && (
                 <PlacePromptPanel
