@@ -1,6 +1,8 @@
 import { searchNearbyPlaces, searchTextPlaces } from "@/lib/api/google-places-client";
 import type { ToolDef } from "@/lib/llm/providers/openai-tools";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
+import { appUserAgent } from "@/lib/api/http-identity";
+import { assessWalkWindow, FORECAST_ATTRIBUTION, forecastUrl, parseForecast } from "@/lib/weather/forecast";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
@@ -170,6 +172,22 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
               description: "true when the walker stated an order for the stops (\"first the beach, then pizza\"); stop_ids must then be in exactly that order",
             }, },
         required: ["stop_ids"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_weather",
+      description:
+        "Check the hourly forecast at the start point for the hours the walk will take. Call it once after estimate_walk and before build_walk (and again if the walker changes the time available or says they start later). Returns `issues` (rain, thunderstorm, heat, cold, wind) with the walk hour they hit.",
+      parameters: {
+        type: "object",
+        properties: {
+          start_in_hours: { type: "number", description: "hours from now until the walk starts; 0 when they start now" },
+          duration_minutes: { type: "number", description: "the walk's totalMin from estimate_walk; defaults to the time limit" },
+        },
         additionalProperties: false,
       },
     },
@@ -606,6 +624,22 @@ export async function runTool(
         }),
         state,
       };
+    }
+
+    if (name === "check_weather") {
+      if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
+      const startIn = typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 12) : 0;
+      const minutes = typeof args.duration_minutes === "number" && args.duration_minutes > 0 ? args.duration_minutes : (state.params.timeMinutes ?? 120);
+      try {
+        const res = await fetch(forecastUrl(state.origin.lat, state.origin.lng), { headers: { "User-Agent": appUserAgent() }, signal: AbortSignal.timeout(6_000) });
+        if (!res.ok) return { output: JSON.stringify({ error: "forecast unavailable: say the weather was not checked" }), state };
+        const hours = parseForecast(await res.json());
+        if (hours.length === 0) return { output: JSON.stringify({ error: "forecast unavailable: say the weather was not checked" }), state };
+        const issues = assessWalkWindow(hours, startIn, minutes);
+        return { output: JSON.stringify({ ok: issues.length === 0, checkedHours: Math.min(Math.ceil(minutes / 60), Math.max(0, hours.length - Math.floor(startIn))), issues, attribution: FORECAST_ATTRIBUTION }), state };
+      } catch {
+        return { output: JSON.stringify({ error: "forecast unavailable: say the weather was not checked" }), state };
+      }
     }
 
     if (name === "estimate_walk" || name === "build_walk") {
