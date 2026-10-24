@@ -105,6 +105,7 @@ export default function GoogleMapView({
           streetViewControl={false}
           zoomControl
           zoomControlOptions={{ position: ControlPosition.RIGHT_BOTTOM }}
+          fullscreenControl={false}
           keyboardShortcuts={false}
           style={{ width: "100%", height: "100%" }}
           onClick={(e) => {

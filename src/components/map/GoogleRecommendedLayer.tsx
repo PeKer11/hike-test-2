@@ -276,8 +276,8 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
   return (
     <>
       <MapControl position={ControlPosition.TOP_RIGHT}>
-        {/* Right-aligned, clear of the fullscreen button (48px) and capped so it never reaches the Map/Satellite switch on the left. */}
-        <div className="flex max-w-[min(420px,42vw)] flex-wrap items-start justify-end gap-1 py-2.5 pl-2.5 pr-12">
+        {/* Right-aligned and capped so it never reaches the Map/Satellite switch on the left. */}
+        <div className="flex max-w-[min(420px,42vw)] flex-wrap items-start justify-end gap-1 p-2.5">
           <button type="button" onClick={() => void showTop()} aria-pressed={top.length > 0} className={btn(top.length > 0)}>
             🏆 Top rated
           </button>

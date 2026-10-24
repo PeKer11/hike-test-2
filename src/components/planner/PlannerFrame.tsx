@@ -9,6 +9,9 @@ import { WalkPlannerApp } from "./WalkPlannerApp";
 /* Iconoir-style glyphs (1.5px stroke, round caps) — DESIGN.md forbids icon
    packages. Deliberately the "fullscreen" corner arrows people already know
    from a video player, not the diagonal arrows the Advanced toggle uses. */
+// Same rule as DynamicMap: on the Google map the corner buttons sit bottom-right, above Google's zoom and fullscreen.
+const GOOGLE_MAP = process.env.NEXT_PUBLIC_MAP_PROVIDER !== "leaflet" && !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
+
 function IconFullscreen({ className }: { className?: string }) {
   return (
     <svg
@@ -116,7 +119,7 @@ export function PlannerFrame({
            the account indicator, which is pinned to the viewport's top-right.
            z-[600] clears the Leaflet panes. */
         className={`absolute right-3 z-[600] inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-forest/20 bg-white/95 text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-forest/10 ${
-          isExpanded ? "top-14" : "top-3"
+          GOOGLE_MAP ? "bottom-36" : isExpanded ? "top-14" : "top-3"
         }`}
       >
         {isExpanded ? (
