@@ -15,6 +15,7 @@ import { getStandingFacts, learnFactsFromText } from "@/lib/preferences/fact-sto
 import { runMeteredTurn } from "@/lib/llm/llm-client";
 import { LlmBudgetExceededError } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
+import { listMyWalks } from "@/lib/walks/saved-walks";
 
 const MAX_MESSAGE_CHARS = 1000;
 /** Chats kept per walker; the oldest is deleted when a new one starts. */
@@ -186,7 +187,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste, memoryNote });
+        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste, memoryNote, loadWalks: () => listMyWalks(supabase, user.id, 50) });
         let billed = turn.billedMicros;
         let newSummary = summary;
         let newSummarized = summarizedCount;

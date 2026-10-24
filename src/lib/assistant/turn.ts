@@ -10,6 +10,7 @@ import type { AssistantState, BuildAction } from "./state";
 import { makeBudget } from "@/lib/walk/routing-budget";
 import { TURN_ROUTING_CALLS } from "./route-check";
 import { ASSISTANT_TOOLS, runTool } from "./tools";
+import type { LoadWalks } from "./recall-walks";
 
 /** A user turn is at most this many model calls (each tool round is one). */
 const MAX_MODEL_CALLS = 12;
@@ -53,6 +54,8 @@ export async function runAssistantTurn(
     state: AssistantState;
     choice: ProviderChoice;
     effort?: string;
+    /** Loads the signed-in walker's saved walks for the recall_walks tool. */
+    loadWalks?: LoadWalks;
   },
   deps: TurnDeps = {},
 ): Promise<TurnResult> {
@@ -103,7 +106,7 @@ export async function runAssistantTurn(
     }
     messages.push({ role: "assistant", content: response.content, tool_calls: response.toolCalls });
     for (const tc of response.toolCalls) {
-      const run = await runTool(tc.function.name, tc.function.arguments, state, budget);
+      const run = await runTool(tc.function.name, tc.function.arguments, state, budget, input.loadWalks);
       state = run.state;
       if (run.action) action = run.action;
       if (run.askLimits) askLimits = true;

@@ -19,6 +19,8 @@ export const MEMORY_TABLES = [
   "place_recommendations",
   // The walker's own thumbs up/down rows (the aggregate views only count rows that exist).
   "attraction_feedback",
+  // Walk history (built, bookmarked, finished) and the walker's friend links.
+  "saved_walks",
 ] as const;
 
 /**
@@ -49,6 +51,12 @@ export async function DELETE(): Promise<NextResponse> {
     const { error } = await supabase.from(table).delete().eq("user_id", user.id);
     if (error) failed.push(table);
   }
+  // friendships has no user_id: the walker is either side of the link.
+  const { error: friendsError } = await supabase
+    .from("friendships")
+    .delete()
+    .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
+  if (friendsError) failed.push("friendships");
   const { error: profileError } = await supabase
     .from("profiles")
     .update(PROFILE_LEARNED_RESET)

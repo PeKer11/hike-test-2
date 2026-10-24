@@ -13,6 +13,7 @@ import { searchPlaces } from "@/lib/api/nominatim-client";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
 import { makeBudget, matrixCoolingDown, noteMatrixError, type RoutingBudget } from "@/lib/walk/routing-budget";
 import { brokenKm, limitRules, makeVerdict, type RuleResult, type Verdict } from "@/lib/walk/rule-verdict";
+import { formatRecalledWalks, type LoadWalks } from "./recall-walks";
 import { loadEnv, needsRouteCheck, routeAndJudge, TURN_ROUTING_CALLS, type Judged } from "./route-check";
 
 import {
@@ -226,6 +227,22 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "recall_walks",
+      description:
+        "The walker's own saved walks, newest first, with stop names and categories. Call it first for 'like yesterday', 'like my last walks', 'other X instead'. Returns an error when none are saved: then say no saved walks were found; never invent history.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "how many walks (1-10, default 5)" },
+          contains: { type: "string", description: "optional text the walk title or a stop name must contain" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "find_clean_walk",
       description:
         "Search the places found so far for a set of stops whose real walking loop meets the walker's rules (no street twice, inside the town, time and distance limits). Use it when the walker wants N stops with such rules, or when estimate_walk reports problems and swapping by hand is not working. Needs the start set and enough places found (call find_nearby for several kinds first, ideally 15+ places). Returns stop_ids to pass to estimate_walk and build_walk.",
@@ -381,6 +398,8 @@ export async function runTool(
   input: AssistantState,
   /** Directions calls shared by every tool of one assistant turn (ORS allows ~40 a minute). */
   budget: RoutingBudget = makeBudget(TURN_ROUTING_CALLS),
+  /** Loads the signed-in walker's saved walks; absent for guests. */
+  loadWalks?: LoadWalks,
 ): Promise<ToolRun> {
   let notChecked: RuleResult[] = [];
   let builtVerdict: Verdict | undefined;
@@ -688,6 +707,14 @@ export async function runTool(
       } catch {
         return { output: JSON.stringify({ error: "warnings unavailable: say safety warnings were not checked" }), state };
       }
+    }
+
+    if (name === "recall_walks") {
+      const limit = typeof args.limit === "number" ? Math.min(10, Math.max(1, Math.round(args.limit))) : 5;
+      const contains = typeof args.contains === "string" ? args.contains : undefined;
+      const walks = loadWalks ? formatRecalledWalks(await loadWalks().catch(() => []), limit, contains) : [];
+      if (walks.length === 0) return { output: JSON.stringify({ error: "no saved walks found: tell the walker so, do not invent any" }), state };
+      return { output: JSON.stringify({ walks }), state };
     }
 
     if (name === "check_nature_hazards") {

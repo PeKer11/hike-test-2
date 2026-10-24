@@ -15,6 +15,10 @@ vi.mock("@/lib/supabase/server", () => ({
           deleted.push(table);
           return Promise.resolve({ error: null });
         },
+        or: () => {
+          deleted.push(table);
+          return Promise.resolve({ error: null });
+        },
       }),
       update: (patch: Record<string, unknown>) => ({
         eq: () => {
@@ -69,6 +73,8 @@ describe("forget everything", () => {
     const res = await DELETE();
     expect(res.status).toBe(204);
     expect(deleted).toContain("attraction_feedback");
+    expect(deleted).toContain("saved_walks");
+    expect(deleted).toContain("friendships");
     expect(profileUpdate).toEqual(PROFILE_LEARNED_RESET);
     for (const col of ["pace_by_env", "walking_pace_min_per_km", "typical_walk_minutes", "session_count"]) {
       expect(profileUpdate).toHaveProperty(col);
@@ -84,7 +90,7 @@ describe("forget everything", () => {
         for (const c of m[1].matchAll(/add column (?:if not exists )?(\w+)/gi)) cols.add(c[1]);
       }
     }
-    const settingsNotLearned = new Set(["callout_level", "ui_language", "is_internal"]) // is_internal is an operator flag, not something the walker taught us;
+    const settingsNotLearned = new Set(["callout_level", "ui_language", "is_internal", "friend_code"]) // is_internal is an operator flag, not something the walker taught us;
     for (const c of cols) {
       if (!settingsNotLearned.has(c)) expect(PROFILE_LEARNED_RESET).toHaveProperty(c);
     }
