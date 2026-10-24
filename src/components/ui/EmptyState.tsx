@@ -12,8 +12,8 @@ export function EmptyState({ image, title, hint }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center gap-1 py-3 text-center">
       <img src={`/images/traike/${image}`} alt="" width={120} height={120} className="h-24 w-24 object-contain" />
-      <p className="text-xs font-medium text-charcoal/80">{title}</p>
-      {hint && <p className="text-xs text-charcoal/60">{hint}</p>}
+      <p className="font-display text-[15px] text-tk-ink">{title}</p>
+      {hint && <p className="text-xs text-tk-sage">{hint}</p>}
     </div>
   );
 }

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { Accessory } from "@/components/ui/Accessory";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { BTN_SOFT, LINK, PANEL, PANEL_SUB, PANEL_TITLE, ROW } from "@/components/ui/panel-style";
 import { PlaceSearch } from "@/components/waypoints";
 import {
   clearVisitedPlaces,
@@ -62,11 +64,15 @@ export function SavedPlacesTab({ isSignedIn }: SavedPlacesTabProps) {
   };
 
   return (
-    <section className="space-y-3 rounded-[10px] border border-charcoal/10 bg-cream/60 p-3">
-      <h2 className="text-sm font-medium text-charcoal/80">Saved places ({loading ? "…" : places.length})</h2>
+    <section className={`${PANEL} space-y-3`}>
+      <Accessory name="binoculars" className="absolute -right-1 top-1 w-[68px] rotate-6" />
+      <div className="pr-16">
+        <h2 className={PANEL_TITLE}>Saved places{loading ? "" : ` (${places.length})`}</h2>
+        <p className={PANEL_SUB}>Spots you want to see, and the ones you already have.</p>
+      </div>
 
       <div className="space-y-1">
-        <p className="text-xs text-charcoal/60">Add a place by search</p>
+        <p className="text-xs font-medium text-tk-sage">Add a place by search</p>
         <PlaceSearch
           onSelectPlace={async (place) => {
             const n = await savePlaces([
@@ -78,50 +84,51 @@ export function SavedPlacesTab({ isSignedIn }: SavedPlacesTabProps) {
         />
       </div>
 
-      <button type="button" onClick={() => void addFromWalks()} className="cursor-pointer text-xs font-medium text-forest hover:underline">
+      <button type="button" onClick={() => void addFromWalks()} className={LINK}>
         + Add places from my walks
       </button>
       {note && (
-        <p role="status" className="text-xs text-charcoal/70">
+        <p role="status" className="text-xs text-tk-check">
           {note}
         </p>
       )}
 
       <div className="flex items-center justify-between gap-2 text-xs">
-        <label className="flex cursor-pointer items-center gap-1 text-charcoal/70">
-          <input type="checkbox" checked={showVisited} onChange={(e) => setShowVisited(e.target.checked)} />
+        <label className="flex cursor-pointer items-center gap-1.5 text-tk-sage">
+          <input type="checkbox" className="accent-tk-ink" checked={showVisited} onChange={(e) => setShowVisited(e.target.checked)} />
           Show visited
         </label>
         {visitedCount > 0 &&
           (confirmClear ? (
             <span className="flex gap-2">
-              <button type="button" onClick={() => void clearVisited()} className="cursor-pointer font-medium text-terra">
+              <button type="button" onClick={() => void clearVisited()} className="cursor-pointer font-medium text-tk-check">
                 Remove {visitedCount} visited?
               </button>
-              <button type="button" onClick={() => setConfirmClear(false)} className="cursor-pointer text-charcoal/60">
+              <button type="button" onClick={() => setConfirmClear(false)} className="cursor-pointer text-tk-sage">
                 Cancel
               </button>
             </span>
           ) : (
-            <button type="button" onClick={() => setConfirmClear(true)} className="cursor-pointer text-charcoal/70 hover:text-terra">
+            <button type="button" onClick={() => setConfirmClear(true)} className={BTN_SOFT}>
               Clear visited ({visitedCount})
             </button>
           ))}
       </div>
 
-      {loading && <p className="text-xs text-charcoal/60">Loading…</p>}
+      {loading && <p className="text-xs text-tk-sage">Loading…</p>}
       {!loading && failed && <EmptyState image="load-error.png" title="Couldn't load your places" hint="Check your connection and reopen this tab." />}
       {!loading && !failed && shown.length === 0 && (
         <EmptyState image="empty-places.png" title="No saved places yet" hint="Search for one, or add the places from your walks." />
       )}
-      <ul aria-label="Saved places" className="space-y-1">
+      <ul aria-label="Saved places" className="space-y-2">
         {shown.map((p) => (
-          <li key={p.id} className="flex items-center justify-between gap-2 rounded-md bg-white/70 p-2 text-xs">
-            <span className={p.visitedAt ? "text-charcoal/50" : "font-medium text-charcoal"}>
+          <li key={p.id} className={`${ROW} flex items-center gap-2.5 !p-2.5`}>
+            <Accessory name={p.visitedAt ? "bench" : "signpost"} className="w-7 shrink-0" />
+            <span className={`min-w-0 flex-1 ${p.visitedAt ? "text-tk-sage" : "font-medium text-tk-ink"}`}>
               {p.label}
-              {p.visitedAt && <span className="ml-2 rounded-full bg-forest/15 px-2 py-0.5 text-forest">visited</span>}
+              {p.visitedAt && <span className="ml-2 rounded-full bg-tk-ink/10 px-2 py-0.5 text-[11px] text-tk-ink">visited</span>}
             </span>
-            <button type="button" onClick={() => void remove(p)} className="cursor-pointer text-charcoal/40 hover:text-terra">
+            <button type="button" onClick={() => void remove(p)} className="shrink-0 cursor-pointer text-xs text-tk-sage hover:text-tk-check">
               Remove
             </button>
           </li>

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { Accessory } from "@/components/ui/Accessory";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { BTN_PRIMARY, BTN_SOFT, FIELD, PANEL, PANEL_SUB, PANEL_TITLE, ROW } from "@/components/ui/panel-style";
 import {
   acceptFriend,
   getMyFriendCode,
@@ -58,7 +60,7 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
     };
   }, [refresh]);
 
-  if (!signedIn || !client) return expanded ? <p className="p-3 text-xs text-charcoal/60">Loading…</p> : null;
+  if (!signedIn || !client) return expanded ? <p className="p-3 text-xs text-tk-sage">Loading…</p> : null;
 
   const act = async (fn: () => Promise<boolean>, fail: string) => {
     setNote((await fn()) ? null : fail);
@@ -68,16 +70,25 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
   const incoming = friends.filter((f) => f.status === "pending" && f.incoming);
   const accepted = friends.filter((f) => f.status === "accepted");
   const sent = friends.filter((f) => f.status === "pending" && !f.incoming);
-  const btn = "cursor-pointer rounded-md px-2 py-1 text-xs font-medium";
+  
 
   return (
-    <section className="space-y-2 rounded-[10px] border border-charcoal/10 bg-cream/60 p-3">
+    <section className={`${PANEL} space-y-3`}>
+      {expanded && (
+        <>
+          <Accessory name="tent" className="absolute -right-1 top-1 w-[72px]" />
+          <div className="pr-16">
+            <h2 className={PANEL_TITLE}>Friends</h2>
+            <p className={PANEL_SUB}>Share walks and plan the next one together.</p>
+          </div>
+        </>
+      )}
       {!expanded && (
         <button
           type="button"
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
-          className="flex w-full cursor-pointer items-center justify-between text-sm font-medium text-charcoal/80 hover:text-forest"
+          className="flex w-full cursor-pointer items-center justify-between font-display text-[17px] text-tk-ink"
         >
           <span>Friends{incoming.length ? ` (${incoming.length} new)` : ""}</span>
           <span aria-hidden="true">{open ? "▲" : "▼"}</span>
@@ -85,15 +96,15 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
       )}
 
       {open && (
-        <div className="space-y-3 text-xs text-charcoal/80">
-          <div className="flex items-center justify-between gap-2 rounded-md bg-white/70 px-2 py-1.5">
-            <span>
-              My code: <strong className="font-mono tracking-wider">{code ?? "..."}</strong>
+        <div className="space-y-3 text-[13px]">
+          <div className={`${ROW} flex items-center justify-between gap-2 !py-2`}>
+            <span className="text-tk-sage">
+              My code: <strong className="font-mono tracking-wider text-tk-ink">{code ?? "..."}</strong>
             </span>
             {code && (
               <button
                 type="button"
-                className={`${btn} bg-forest/10 text-forest`}
+                className={BTN_SOFT}
                 onClick={() => void navigator.clipboard?.writeText(code).catch(() => undefined)}
               >
                 Copy
@@ -117,24 +128,24 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
               maxLength={12}
               placeholder="Friend's code"
               aria-label="Friend's code"
-              className="min-w-0 flex-1 rounded-md border border-charcoal/15 bg-white px-2 py-1 font-mono uppercase"
+              className={`${FIELD} font-mono uppercase`}
             />
-            <button type="submit" className={`${btn} bg-forest text-cream`}>
+            <button type="submit" className={BTN_PRIMARY}>
               Add
             </button>
           </form>
-          {note && <p role="status" className="text-terra">{note}</p>}
+          {note && <p role="status" className="text-xs text-tk-check">{note}</p>}
 
           {incoming.length > 0 && (
             <ul aria-label="Friend requests" className="space-y-1">
               {incoming.map((f) => (
-                <li key={f.friendshipId} className="flex items-center justify-between gap-2 rounded-md bg-white/70 px-2 py-1.5">
+                <li key={f.friendshipId} className={`${ROW} flex items-center justify-between gap-2 !py-2`}>
                   <span>{f.label} wants to be friends</span>
                   <span className="flex gap-1">
-                    <button type="button" className={`${btn} bg-forest text-cream`} onClick={() => void act(() => acceptFriend(client, f.friendshipId), "Couldn't accept.")}>
+                    <button type="button" className={BTN_PRIMARY} onClick={() => void act(() => acceptFriend(client, f.friendshipId), "Couldn't accept.")}>
                       Accept
                     </button>
-                    <button type="button" className={`${btn} bg-charcoal/10`} onClick={() => void act(() => removeFriendship(client, f.friendshipId), "Couldn't decline.")}>
+                    <button type="button" className={BTN_SOFT} onClick={() => void act(() => removeFriendship(client, f.friendshipId), "Couldn't decline.")}>
                       Decline
                     </button>
                   </span>
@@ -149,12 +160,13 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
           {(accepted.length > 0 || sent.length > 0) && (
             <ul aria-label="Friends" className="space-y-1">
               {[...accepted, ...sent].map((f) => (
-                <li key={f.friendshipId} className="flex items-center justify-between gap-2 rounded-md bg-white/70 px-2 py-1.5">
-                  <span>
+                <li key={f.friendshipId} className={`${ROW} flex items-center gap-2.5 !py-2`}>
+                  <Accessory name="hat" className="w-7 shrink-0" />
+                  <span className="min-w-0 flex-1 font-medium text-tk-ink">
                     {f.label}
                     {f.status === "pending" ? " (waiting)" : ""}
                   </span>
-                  <button type="button" className={`${btn} bg-charcoal/10`} onClick={() => void act(() => removeFriendship(client, f.friendshipId), "Couldn't remove.")}>
+                  <button type="button" className={BTN_SOFT} onClick={() => void act(() => removeFriendship(client, f.friendshipId), "Couldn't remove.")}>
                     {f.status === "pending" ? "Cancel" : "Remove"}
                   </button>
                 </li>
@@ -164,22 +176,22 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
 
           {walks.length > 0 && (
             <div className="space-y-1">
-              <p className="font-medium text-charcoal/70">Walks friends shared</p>
+              <p className="font-display text-[15px] text-tk-ink">Walks friends shared</p>
               <ul aria-label="Walks friends shared" className="space-y-1">
                 {walks.map((w) => (
-                  <li key={w.id} className="space-y-1 rounded-md bg-white/70 px-2 py-1.5">
+                  <li key={w.id} className={`${ROW} space-y-1`}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-medium text-forest">{w.title}</p>
-                        <p className="text-charcoal/60">
+                        <p className="font-display text-[15px] text-tk-ink">{w.title}</p>
+                        <p className="text-tk-sage">
                           {w.ownerLabel}
                           {w.totalMin !== null ? ` · ${w.totalMin} min` : ""}
                           {w.distanceM !== null ? ` · ${(w.distanceM / 1000).toFixed(1)} km` : ""}
                         </p>
-                        {w.stops.length > 0 && <p className="text-charcoal/60">{w.stops.map((s) => s.name).join(" → ")}</p>}
+                        {w.stops.length > 0 && <p className="text-tk-sage">{w.stops.map((s) => s.name).join(" → ")}</p>}
                       </div>
                       {onPlan && w.stops.length > 0 && (
-                        <button type="button" className={`${btn} shrink-0 bg-terra text-cream`} onClick={() => onPlan({ title: w.title, stops: w.stops })}>
+                        <button type="button" className={`${BTN_PRIMARY} shrink-0 !bg-tk-send`} onClick={() => onPlan({ title: w.title, stops: w.stops })}>
                           Plan this walk
                         </button>
                       )}
