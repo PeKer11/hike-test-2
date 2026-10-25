@@ -10,7 +10,8 @@ const GOOGLE_PREFIX = "google-";
 function placeIdOf(a: Attraction): string | undefined {
   if (a.id.startsWith(GOOGLE_PREFIX)) return a.id.slice(GOOGLE_PREFIX.length);
   const tagged = (a.tags as Record<string, unknown> | undefined)?.placeId;
-  return typeof tagged === "string" && tagged ? tagged : undefined;
+  // Only Google-shaped ids: "via:<street>" marks a street waypoint, not a place.
+  return typeof tagged === "string" && /^[A-Za-z0-9_-]{10,200}$/.test(tagged) ? tagged : undefined;
 }
 
 export function stopsFromAttractions(items: Attraction[]): SavedStop[] {

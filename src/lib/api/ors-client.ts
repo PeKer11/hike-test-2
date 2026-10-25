@@ -104,6 +104,7 @@ async function fetchOrs<T>(
     if (response.status === 429 || response.status >= 500) {
       const retryAfter = Number(response.headers?.get?.("Retry-After"));
       const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 3_000) : 1_000;
+      await response.body?.cancel?.().catch(() => {});
       await new Promise((r) => setTimeout(r, waitMs));
       response = await send();
     }

@@ -480,7 +480,8 @@ export async function runTool(
         .sort((a, b) => a.distanceMeters - (placeScore(a) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR - (b.distanceMeters - (placeScore(b) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR));
       const picked = args.spread === true ? pickSpread(ranked, wanted, anchor) : ranked.slice(0, wanted);
       const found = addCandidates(state, picked);
-      return { output: found.length ? compact(found) : JSON.stringify({ error: "nothing found" }), state };
+      const unchecked = state.params.stayInArea && !boundary ? `\nNOTE: the outline of ${state.params.stayInArea} could not be found, so these places were not checked against it: tell the walker.` : "";
+      return { output: found.length ? compact(found) + unchecked : JSON.stringify({ error: "nothing found" }), state };
     }
 
     if (name === "set_start") {
@@ -699,9 +700,9 @@ export async function runTool(
         if (hours.length === 0) return { output: JSON.stringify({ error: "forecast unavailable: say the weather was not checked" }), state };
         const issues = assessWalkWindow(hours, startIn, minutes);
         const wet = issues.some((i) => i.kind === "rain" || i.kind === "thunderstorm");
-        const dryStart = wet ? nextDryStart(hours, minutes, startIn + 1) : null;
+        const dryStart = wet ? nextDryStart(hours, minutes, startIn + 1, hours.length - 1) : null;
         const dark = endsAfterDark(hours, parseSunsets(body), startIn, minutes);
-        return { output: JSON.stringify({ ok: issues.length === 0, checkedHours: Math.min(Math.ceil(minutes / 60), Math.max(0, hours.length - Math.floor(startIn))), issues, ...(wet ? { nextDryStartInHours: dryStart, hint: dryStart === null ? "no dry window in the next 2 days: say so" : "offer to start later at that time, or pick indoor places" } : {}), ...(dark ? { endsAfterDark: true, note: "the walk ends after sunset: say so and prefer lit, busy streets" } : {}), attribution: FORECAST_ATTRIBUTION }), state };
+        return { output: JSON.stringify({ ok: issues.length === 0, checkedHours: Math.min(Math.ceil(minutes / 60), Math.max(0, hours.length - Math.floor(startIn))), issues, ...(wet ? { nextDryStartInHours: dryStart, ...(dryStart !== null ? { nextDryStartAt: hours[dryStart].time.slice(11, 16) } : {}), hint: dryStart === null ? "no dry window in the forecast (about 3 days): say so" : "offer to start later at that time, or pick indoor places" } : {}), ...(dark ? { endsAfterDark: true, note: "the walk ends after sunset: say so and prefer lit, busy streets" } : {}), attribution: FORECAST_ATTRIBUTION }), state };
       } catch {
         return { output: JSON.stringify({ error: "forecast unavailable: say the weather was not checked" }), state };
       }
@@ -710,7 +711,7 @@ export async function runTool(
     if (name === "check_safety") {
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       if (!inSafetyCoverage(state.origin.lat, state.origin.lng)) return { output: JSON.stringify({ error: "no warning source for this region: say safety warnings were not checked" }), state };
-      const startIn = typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 12) : 0;
+      const startIn = typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 60) : 0;
       const minutes = typeof args.duration_minutes === "number" && args.duration_minutes > 0 ? args.duration_minutes : (state.params.timeMinutes ?? 120);
       try {
         const res = await fetch(SAFETY_FEED_URL, { headers: { "User-Agent": appUserAgent() }, signal: AbortSignal.timeout(6_000) });
@@ -734,7 +735,7 @@ export async function runTool(
 
     if (name === "check_nature_hazards") {
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
-      const startIn = typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 12) : 0;
+      const startIn = typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 60) : 0;
       const month = new Date(Date.now() + startIn * 3_600_000).getMonth() + 1;
       const seasonal = seasonalNotes(month);
       try {
@@ -776,7 +777,8 @@ export async function runTool(
         return { output: JSON.stringify({ error: "limits not asked yet: call ask_limits first" }), state };
       }
       // A walk this long is a wrong start point or a wrong place, not a request: say so instead of building it.
-      if (judged.verdict.walkKm > MAX_PLAUSIBLE_WALK_KM) {
+      const plausibleKm = Math.max(MAX_PLAUSIBLE_WALK_KM, state.params.maxWalkKm ?? 0, state.params.timeMinutes ? (state.params.timeMinutes / (state.params.paceMinPerKm ?? 12)) : 0);
+      if (judged.verdict.walkKm > plausibleKm) {
         return { output: JSON.stringify({ error: `this walk is ${Math.round(judged.verdict.walkKm)} km: too long to walk. Check the start point (${state.origin.lat.toFixed(4)},${state.origin.lng.toFixed(4)}) and the places, and tell the walker.`, verdict: judged.verdict }), state };
       }
       // The rules are enforced here, not in the prompt: build exactly the order that was checked, and only when no rule is broken.

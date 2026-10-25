@@ -235,10 +235,7 @@ function elementToAttraction(el: OverpassElement): Attraction | null {
 // A public mirror that has not answered in this long is treated as down; the
 // old 20s per attempt let one dead mirror eat the whole request.
 // The operators ask for one request at a time per client and no fast retries; the server-side query allows 25s.
-const ATTEMPT_TIMEOUT_MS = 20_000;
-// A slow (not failed) attempt does not block the next one: after this long the
-// next mirror is started alongside it and the first good answer wins.
-const HEDGE_DELAY_MS = 20_000;
+const ATTEMPT_TIMEOUT_MS = 15_000;
 
 /** One request to one mirror. Throws on any failure; keeps the breaker current. */
 async function overpassAttempt(
@@ -247,7 +244,9 @@ async function overpassAttempt(
   body: string,
   cancel: AbortSignal,
 ): Promise<OverpassElement[]> {
-  const signal = AbortSignal.any([cancel, AbortSignal.timeout(ATTEMPT_TIMEOUT_MS)]);
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(), ATTEMPT_TIMEOUT_MS);
+  const signal = AbortSignal.any([cancel, timeout.signal]);
   try {
     const response =
       attempt.method === "POST"
@@ -289,13 +288,15 @@ async function overpassAttempt(
       overpassBreaker.recordFailure(attempt.endpoint);
     }
     throw err instanceof Error ? err : new Error("Overpass request failed.");
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 /**
  * Run one Overpass query against the endpoint list (POST then GET on each) and
  * return its elements. Attempts start in order: the next one starts as soon as
- * the previous fails, or after HEDGE_DELAY_MS if it is merely slow, and the
+ * the previous fails or times out (never two at once), and the
  * first good answer wins. Shared by the attraction search and the
  * along-the-walk lookups so they fail over identically.
  */
@@ -342,7 +343,6 @@ export async function runOverpassQuery(query: string): Promise<OverpassElement[]
       const attempt = attempts[next];
       next += 1;
       pending += 1;
-      hedgeTimer = setTimeout(launch, HEDGE_DELAY_MS);
       overpassAttempt(attempt, query, body, cancel.signal).then(
         (elements) => {
           if (settled) return;

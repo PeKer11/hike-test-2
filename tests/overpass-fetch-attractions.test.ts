@@ -87,12 +87,16 @@ describe("fetchAttractions endpoint failover", () => {
     try {
       const fetchMock = vi
         .fn()
-        .mockImplementationOnce(() => new Promise(() => {})) // hangs, never settles
+        // hangs until its own timeout aborts it
+        .mockImplementationOnce(
+          (_url: string, init: RequestInit) =>
+            new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(new Error("aborted")))),
+        )
         .mockResolvedValueOnce(ok({ elements: [] }));
       vi.stubGlobal("fetch", fetchMock);
 
       const pending = fetchAttractions(CENTER, 1500);
-      await vi.advanceTimersByTimeAsync(20_100);
+      await vi.advanceTimersByTimeAsync(15_100);
 
       await expect(pending).resolves.toEqual([]);
       expect(fetchMock).toHaveBeenCalledTimes(2);

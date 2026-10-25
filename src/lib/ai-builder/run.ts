@@ -119,5 +119,8 @@ export async function runAiBuild(req: AiBuildRequest, choice: ProviderChoice, ef
     }
     if (nag) messages.push({ role: "user", content: "That walk left out stops the walker pinned. Include every pinned stop and build again." });
   }
-  throw new Error("AI builder did not produce a walk that passed the checks");
+  throw new AiBuildRefusedError("AI builder did not produce a walk that passed the checks");
 }
+
+/** The AI worked, but every walk it built broke a rule or a limit: the planner must not build it instead. */
+export class AiBuildRefusedError extends Error {}

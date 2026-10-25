@@ -1036,10 +1036,8 @@ export function WalkPlannerApp({
       cancelled = true;
       controller.abort();
     };
-    const deadline = window.setTimeout(
-      () => controller.abort(),
-      snapshot ? MIDWALK_REBUILD_TIMEOUT_MS : WALK_PLAN_TIMEOUT_MS,
-    );
+    const deadlineMs = snapshot ? MIDWALK_REBUILD_TIMEOUT_MS : WALK_PLAN_TIMEOUT_MS;
+    let deadline = window.setTimeout(() => controller.abort(), deadlineMs);
     const slowNotice = window.setTimeout(() => {
       if (requestId === buildWalkRequestIdRef.current) {
         setIsWalkPlanSlow(true);
@@ -1089,10 +1087,13 @@ export function WalkPlannerApp({
             return;
           }
           // The AI itself failed (not sign-in, budget or bad input): the rule-based planner can still build the walk.
-          if (aiRes.status !== 502) {
+          if (aiRes.status < 500) {
             setWalkPlanError(ai.error ?? "The AI could not build a walk that fits.");
             return;
           }
+          // The AI used up the clock; the planner gets a fresh one.
+          window.clearTimeout(deadline);
+          deadline = window.setTimeout(() => controller.abort(), deadlineMs);
         } else {
           aiStops = ai.stops;
           aiGeometry = ai.geometry ?? undefined;
@@ -3243,8 +3244,8 @@ export function WalkPlannerApp({
                     if (attractions.length === 0) return;
                     setSideTab("plan");
                     void handleBuildWalk(
-                      { origin: currentPosition ?? attractions[0].coordinates, availableMinutes: attractions.length * 45 + 120, walkingPaceMinPerKm: 15, radiusMeters: 3000 },
-                      { keepAttractions: attractions, fixedOrder: true },
+                      { origin: currentPosition && haversineDistance(currentPosition, attractions[0].coordinates) <= 3000 ? currentPosition : attractions[0].coordinates, availableMinutes: attractions.length * 45 + 120, walkingPaceMinPerKm: 15, radiusMeters: 3000 },
+                      { keepAttractions: attractions, fixedOrder: true, aiDecided: true, routeRules: {} },
                     );
                   }}
                 />}

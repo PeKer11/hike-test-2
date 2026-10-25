@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { assistantRateLimiter, callerKey, rateLimitedResponse } from "@/lib/api/rate-limit";
-import { runAiBuild, type AiBuildRequest } from "@/lib/ai-builder/run";
+import { AiBuildRefusedError, runAiBuild, type AiBuildRequest } from "@/lib/ai-builder/run";
 import { runMeteredTurn } from "@/lib/llm/llm-client";
 import { LlmBudgetExceededError } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
@@ -66,6 +66,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch (error) {
     if (error instanceof LlmBudgetExceededError) {
       return NextResponse.json({ code: "budget", error: "The AI builder is resting for today. Try again tomorrow." }, { status: 429 });
+    }
+    if (error instanceof AiBuildRefusedError) {
+      return NextResponse.json({ code: "refused", error: "No walk fits those rules and limits. Loosen one of them, or move the start point." }, { status: 422 });
     }
     console.error("[ai-walk-plan] failed:", error);
     return NextResponse.json({ error: "The AI could not build a walk that fits. Try again." }, { status: 502 });

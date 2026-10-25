@@ -4,7 +4,7 @@ import { newWalkFromPlan, rebuildFromSaved, stopsFromAttractions } from "@/lib/w
 import type { SavedWalk } from "@/lib/walks/saved-walks";
 import type { Attraction } from "@/lib/types/walk-plan";
 
-const stop = (id: string, tags: Record<string, unknown> = {}): Attraction => ({
+const stop = (id: string, tags: Record<string, string> = {}): Attraction => ({
   id,
   name: id,
   coordinates: { lat: 32.07, lng: 34.77 },
@@ -16,8 +16,8 @@ const input = { origin: { lat: 32.07, lng: 34.77 }, availableMinutes: 90, walkin
 
 describe("saved walks keep identity and rules", () => {
   it("keeps the Google place id of chat and AI-builder stops, not only google- ids", () => {
-    const stops = stopsFromAttractions([stop("google-AAA"), stop("ai-BBB", { placeId: "BBB" }), stop("osm-1")]);
-    expect(stops.map((s) => s.placeId)).toEqual(["AAA", "BBB", undefined]);
+    const stops = stopsFromAttractions([stop("google-AAA"), stop("ai-BBB", { placeId: "ChIJBBBBBBBBBBBB" }), stop("osm-1"), stop("via-1", { placeId: "via:Dizengoff" })]);
+    expect(stops.map((s) => s.placeId)).toEqual(["AAA", "ChIJBBBBBBBBBBBB", undefined, undefined]);
   });
 
   it("round-trips the route rules, and gives an empty set when none were saved", () => {
