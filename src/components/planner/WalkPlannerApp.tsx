@@ -1151,7 +1151,7 @@ export function WalkPlannerApp({
           savedWalkIdRef.current = options?.existingWalkId
             ? Promise.resolve(options.existingWalkId)
             : saveBuiltWalk(
-                newWalkFromPlan(input, data.orderedAttractions, data.totalMinutes, data.totalDistanceMeters),
+                newWalkFromPlan(input, data.orderedAttractions, data.totalMinutes, data.totalDistanceMeters, routeRulesRef.current as Record<string, unknown> | undefined),
               ).then((id) => {
                 setWalksVersion((v) => v + 1);
                 return id;
@@ -3220,9 +3220,10 @@ export function WalkPlannerApp({
                   isSignedIn={isSignedIn}
                   refreshKey={walksVersion}
                   onWalkAgain={(walk) => {
-                    const { input, attractions } = rebuildFromSaved(walk);
+                    const { input, attractions, routeRules } = rebuildFromSaved(walk);
                     setSideTab("plan");
-                    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, existingWalkId: walk.id });
+                    // The saved rules come back with the walk (an empty set clears whatever the last build used).
+                    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, existingWalkId: walk.id, routeRules: routeRules as AssistantBuild["routeRules"] });
                   }}
                 />
               )}

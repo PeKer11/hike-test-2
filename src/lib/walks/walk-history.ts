@@ -6,6 +6,13 @@ import type { NewSavedWalk, SavedStop, SavedWalk } from "./saved-walks";
 /** Attractions from Google carry their place id in the attraction id (`google-<placeId>`). */
 const GOOGLE_PREFIX = "google-";
 
+/** Google place id of a stop: from a `google-` id, or from the tag the chat and AI builder put on their stops. */
+function placeIdOf(a: Attraction): string | undefined {
+  if (a.id.startsWith(GOOGLE_PREFIX)) return a.id.slice(GOOGLE_PREFIX.length);
+  const tagged = (a.tags as Record<string, unknown> | undefined)?.placeId;
+  return typeof tagged === "string" && tagged ? tagged : undefined;
+}
+
 export function stopsFromAttractions(items: Attraction[]): SavedStop[] {
   return items.map((a) => ({
     name: a.name,
@@ -13,7 +20,7 @@ export function stopsFromAttractions(items: Attraction[]): SavedStop[] {
     lat: a.coordinates.lat,
     lng: a.coordinates.lng,
     ...(Number.isFinite(a.avgVisitMinutes) && a.avgVisitMinutes > 0 ? { visitMinutes: Math.round(a.avgVisitMinutes) } : {}),
-    ...(a.id.startsWith(GOOGLE_PREFIX) ? { placeId: a.id.slice(GOOGLE_PREFIX.length) } : {}),
+    ...(placeIdOf(a) ? { placeId: placeIdOf(a) } : {}),
   }));
 }
 
@@ -42,6 +49,7 @@ export function newWalkFromPlan(
   attractions: Attraction[],
   totalMin: number,
   distanceM: number,
+  routeRules?: Record<string, unknown>,
 ): NewSavedWalk {
   const stops = stopsFromAttractions(attractions);
   return {
@@ -52,7 +60,7 @@ export function newWalkFromPlan(
     status: "planned",
     totalMin: Math.round(totalMin),
     distanceM: Math.round(distanceM),
-    params: paramsFromInput(input),
+    params: { ...paramsFromInput(input), ...(routeRules && Object.keys(routeRules).length ? { routeRules } : {}) },
   };
 }
 
@@ -60,7 +68,7 @@ const num = (v: unknown, fallback: number): number =>
   typeof v === "number" && Number.isFinite(v) && v > 0 ? v : fallback;
 
 /** Rebuild the same stops, in the same order, through the normal build path. */
-export function rebuildFromSaved(walk: SavedWalk): { input: WalkCompanionInput; attractions: Attraction[] } {
+export function rebuildFromSaved(walk: SavedWalk): { input: WalkCompanionInput; attractions: Attraction[]; routeRules: Record<string, unknown> } {
   const p = walk.params;
   const input: WalkCompanionInput = {
     origin: walk.start,
@@ -82,7 +90,8 @@ export function rebuildFromSaved(walk: SavedWalk): { input: WalkCompanionInput; 
     avgVisitMinutes: num(s.visitMinutes, 10),
     tags: {},
   }));
-  return { input, attractions };
+  const routeRules = typeof p.routeRules === "object" && p.routeRules !== null ? (p.routeRules as Record<string, unknown>) : {};
+  return { input, attractions, routeRules };
 }
 
 /** Signed-in browser session -> run `fn`; any failure or signed-out is swallowed (null). */

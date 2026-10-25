@@ -191,6 +191,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     placesNote(savedPlaces) +
     queuedNote(body.queued) +
     (body.walking === true ? "\nThe walker is in the middle of a walk, at the start point given. Plan from here, and never propose places they already passed." : "");
+  // Places they already walked to (marked visited in Saved places) are not offered again.
+  const visitedSaved = savedPlaces.filter((p) => p.visitedAt);
+  state = {
+    ...state,
+    avoid: {
+      placeIds: visitedSaved.filter((p) => p.source === "google").map((p) => p.placeRef),
+      spots: visitedSaved.flatMap((p) => (p.coordinates ? [p.coordinates] : [])),
+    },
+  };
   const origin = parseOrigin(body.origin);
   // Mid-walk the walker has moved: plan from here, not from where the chat first started.
   // The client always sends the start it shows (and mirrors any start the model sets), so the last explicit pick wins.

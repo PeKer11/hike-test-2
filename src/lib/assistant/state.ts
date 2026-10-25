@@ -69,6 +69,8 @@ export interface AssistantState {
   chosen: string[];
   /** The walker has answered (or waived) time / radius / distance limits. */
   limitsSettled?: boolean;
+  /** Places the walker already visited (saved and marked): find_nearby never offers them again. Rebuilt every turn. */
+  avoid?: { placeIds: string[]; spots: Coordinates[] };
   /** Recent route checks (verdict + visiting order), so build_walk reuses what estimate_walk found. In-memory only. Only the newest check keeps its route geometry. */
   checks?: Array<{ key: string; verdict: Verdict; orderIds: string[]; geometry?: Coordinates[] }>;
 }

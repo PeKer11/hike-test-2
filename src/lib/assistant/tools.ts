@@ -455,10 +455,17 @@ export async function runTool(
         num(args.radius_m) ??
         (state.params.radiusKm ? state.params.radiusKm * 1000 : DEFAULT_NEARBY_RADIUS_M);
       const wanted = Math.min(MAX_RESULTS_TO_MODEL, Math.round(num(args.count) ?? 3));
-      const places = await searchNearbyPlaces(category, anchor, radius, 20, true);
+      const avoid = state.avoid;
+      const places = (await searchNearbyPlaces(category, anchor, radius, 20, true)).filter(
+        (p) => !avoid?.placeIds.includes(p.placeId) && !avoid?.spots.some((s) => haversineDistance(s, p.coordinates) <= 40),
+      );
       const boundary = state.params.stayInArea ? await fetchTownBoundary(state.params.stayInArea) : null;
       const inTown = boundary ? places.filter((p) => insideBoundary(p.coordinates, boundary)) : places;
-      const ranked = (inTown.length ? inTown : places)
+      // Never quietly hand back places outside the town the walker asked to stay in.
+      if (boundary && inTown.length === 0 && places.length > 0) {
+        return { output: JSON.stringify({ error: `no ${category} places found inside ${state.params.stayInArea}: tell the walker, do not use places outside it` }), state };
+      }
+      const ranked = inTown
         .map((p) => ({
           id: "",
           name: p.name,
