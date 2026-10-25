@@ -333,7 +333,7 @@ export function WalkPlannerApp({
   const [feedbackAttractions, setFeedbackAttractions] = useState<
     Attraction[] | null
   >(null);
-  const [showWalkedPath, setShowWalkedPath] = useState(false);
+  const [showWalkedPath, setShowWalkedPath] = useState(true);
   const [finishData, setFinishData] = useState<WalkFinishData | null>(null);
   const walkInputRef = useRef<WalkCompanionInput | null>(null);
   const walkStartTimeRef = useRef<number>(0);
