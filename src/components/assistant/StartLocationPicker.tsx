@@ -123,7 +123,7 @@ export function StartLocationPicker({ onPick, origin }: StartLocationPickerProps
   }, []);
 
   return (
-    <div className="relative mt-[8px] px-[17px]">
+    <div className="relative z-30 mt-[8px] px-[17px]">
       <div className="flex items-center gap-[7px]">
         <input
           type="text"
