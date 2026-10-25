@@ -991,7 +991,8 @@ export function WalkPlannerApp({
       collapseFlow.endWalk();
       shortcut.endWalk();
       walkChat.reset();
-      walkedTrackRef.current = [];
+      // A re-plan in the middle of a walk keeps the gray trail: it is still where the walker has been.
+      if (walkPhase !== "walking") walkedTrackRef.current = [];
       walkStartPointRef.current = input.origin;
     }
     setCurrentPosition(input.origin);
