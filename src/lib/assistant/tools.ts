@@ -13,6 +13,8 @@ import { searchPlaces } from "@/lib/api/nominatim-client";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
 import { makeBudget, matrixCoolingDown, noteMatrixError, type RoutingBudget } from "@/lib/walk/routing-budget";
 import { brokenKm, limitRules, makeVerdict, type RuleResult, type Verdict } from "@/lib/walk/rule-verdict";
+import { clampPace } from "@/lib/walk/pace";
+import { legPace, MAX_DWELL_MIN, timeline, type StopPlan } from "@/lib/walk/timing";
 import { formatRecalledWalks, type LoadWalks } from "./recall-walks";
 import { loadEnv, needsRouteCheck, routeAndJudge, TURN_ROUTING_CALLS, type Judged } from "./route-check";
 
@@ -83,6 +85,35 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
           spread: { type: "boolean", description: "true to pick results spread across the whole area instead of the nearest ones; use it when the walker wants to see the whole town" },
         },
         required: ["category"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_stop_plan",
+      description:
+        "Per-stop wishes: how long to stay at a place (dwell_min, 0 = just pass by) and how fast to walk the leg that ARRIVES at it (pace: brisk | normal | stroll, or pace_min_per_km). Use id \"end\" for the leg back to the start of a loop. \"Fast to A, slowly at B\": A gets pace brisk, B gets more dwell_min (or stroll for the leg to B). Estimate again after changing it.",
+      parameters: {
+        type: "object",
+        properties: {
+          stops: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string", description: "candidate id, or \"end\"" },
+                dwell_min: { type: "number" },
+                pace: { type: "string", enum: ["brisk", "normal", "stroll"] },
+                pace_min_per_km: { type: "number" },
+              },
+              required: ["id"],
+              additionalProperties: false,
+            },
+          },
+          clear_ids: { type: "array", items: { type: "string" }, description: "ids whose plan to remove" },
+        },
         additionalProperties: false,
       },
     },
@@ -292,7 +323,9 @@ interface Estimate {
   walkMin: number;
   visitMin: number;
   totalMin: number;
-  legs: Array<{ to: string; km: number; min: number }>;
+  legs: Array<{ to: string; km: number; min: number; pace: number }>;
+  /** Stop plans that name a stop not in this walk. */
+  ignored: string[];
   /** The stops in the order they are walked (not shown to the model). */
   order: Candidate[];
   /** True when the distances are straight-line estimates (the matrix service was unavailable). */
@@ -319,6 +352,7 @@ async function estimateWalk(
   pace: number,
   ordered = false,
   loop = false,
+  plans?: WalkParams["stops"],
 ): Promise<Estimate> {
   const points = [origin, ...stops.map((s) => s.coordinates)];
   let dist: number[][];
@@ -337,19 +371,27 @@ async function estimateWalk(
   let at = 0;
   const legs: Estimate["legs"] = [];
   const visited: Candidate[] = [];
+  const legMeters: number[] = [];
   let meters = 0;
   for (const best of sequence) {
     const d = dist[at][best] ?? 0;
     meters += d;
     visited.push(stops[best - 1]);
-    legs.push({ to: stops[best - 1].name, km: Math.round(d / 100) / 10, min: Math.round((d / 1000) * pace) });
+    const legPaceNow = legPace(plans, stops[best - 1].id, pace);
+    legs.push({ to: stops[best - 1].name, km: Math.round(d / 100) / 10, min: Math.round((d / 1000) * legPaceNow), pace: Math.round(legPaceNow * 10) / 10 });
+    legMeters.push(d);
     at = best;
   }
-  if (loop) meters += dist[at][0] ?? 0;
+  if (loop) {
+    const back = dist[at][0] ?? 0;
+    meters += back;
+    legMeters.push(back);
+  }
   const walkKm = Math.round(meters / 100) / 10;
-  const walkMin = Math.round((meters / 1000) * pace);
-  const visitMin = stops.reduce((sum, s) => sum + visitMinutes(s.category), 0);
-  return { walkKm, walkMin, visitMin, totalMin: walkMin + visitMin, legs, order: visited, approx };
+  const t = timeline(visited.map((s) => ({ id: s.id, visitMin: visitMinutes(s.category) })), legMeters.map((m) => m / 1000), plans, pace);
+  const walkMin = Math.round(t.walkMin);
+  const visitMin = Math.round(t.visitMin);
+  return { walkKm, walkMin, visitMin, totalMin: walkMin + visitMin, legs, order: visited, approx, ignored: t.ignored };
 }
 
 function num(value: unknown): number | undefined {
@@ -482,6 +524,39 @@ export async function runTool(
       const found = addCandidates(state, picked);
       const unchecked = state.params.stayInArea && !boundary ? `\nNOTE: the outline of ${state.params.stayInArea} could not be found, so these places were not checked against it: tell the walker.` : "";
       return { output: found.length ? compact(found) + unchecked : JSON.stringify({ error: "nothing found" }), state };
+    }
+
+    if (name === "set_stop_plan") {
+      const plans = { ...(state.params.stops ?? {}) };
+      const clamped: string[] = [];
+      const unknown: string[] = [];
+      for (const raw of Array.isArray(args.stops) ? args.stops : []) {
+        const e = raw as Record<string, unknown>;
+        const id = typeof e.id === "string" ? e.id : "";
+        if (id !== "end" && !state.candidates.some((c) => c.id === id)) {
+          unknown.push(id);
+          continue;
+        }
+        const plan: StopPlan = { ...plans[id] };
+        if (typeof e.dwell_min === "number" && Number.isFinite(e.dwell_min) && e.dwell_min >= 0) {
+          plan.dwellMin = Math.min(e.dwell_min, MAX_DWELL_MIN);
+          if (plan.dwellMin !== e.dwell_min) clamped.push(`${id} dwell`);
+        }
+        if (typeof e.pace_min_per_km === "number" && Number.isFinite(e.pace_min_per_km) && e.pace_min_per_km > 0) {
+          plan.pace = clampPace(e.pace_min_per_km);
+          if (plan.pace !== e.pace_min_per_km) clamped.push(`${id} pace`);
+        } else if (e.pace === "brisk" || e.pace === "normal" || e.pace === "stroll") {
+          plan.pace = e.pace;
+        }
+        plans[id] = plan;
+      }
+      for (const id of Array.isArray(args.clear_ids) ? args.clear_ids : []) if (typeof id === "string") delete plans[id];
+      if (unknown.length && Object.keys(plans).length === Object.keys(state.params.stops ?? {}).length && !Array.isArray(args.clear_ids)) {
+        return { output: JSON.stringify({ error: `unknown stop id: ${unknown.join(", ")}: find the place first`, ...(clamped.length ? { clamped } : {}) }), state };
+      }
+      if (Object.keys(plans).length) state.params.stops = plans;
+      else delete state.params.stops;
+      return { output: JSON.stringify({ ok: true, plans: state.params.stops ?? {}, ...(unknown.length ? { unknown_ids: unknown } : {}), ...(clamped.length ? { clamped } : {}), next: "call estimate_walk again to see the new times" }), state };
     }
 
     if (name === "set_start") {
@@ -625,13 +700,20 @@ export async function runTool(
         const order = bestOrder(sub, loop).map((i) => idx[i - 1]);
         let at = 0;
         let meters = 0;
+        const legKms: number[] = [];
         for (const j of order) {
-          meters += full[at]?.[j] ?? Infinity;
+          const d = full[at]?.[j] ?? Infinity;
+          meters += d;
+          legKms.push(d / 1000);
           at = j;
         }
-        if (loop) meters += full[at]?.[0] ?? Infinity;
-        const visit = idx.reduce((s, i) => s + visitMinutes(all[i - 1].category), 0);
-        const over = Math.max(maxWalkKm ? meters / (maxWalkKm * 1100) : 0, timeMinutes ? ((meters / 1000) * pace + visit) / timeMinutes : 0);
+        if (loop) {
+          const back = full[at]?.[0] ?? Infinity;
+          meters += back;
+          legKms.push(back / 1000);
+        }
+        const t = timeline(order.map((i) => ({ id: all[i - 1].id, visitMin: visitMinutes(all[i - 1].category) })), legKms, state.params.stops, pace);
+        const over = Math.max(maxWalkKm ? meters / (maxWalkKm * 1100) : 0, timeMinutes ? t.totalMin / timeMinutes : 0);
         if (over > 1) {
           // Nothing may fit: keep the set that overshoots least, so the walker is shown real numbers instead of "impossible".
           if (!closest || over < closest.over) closest = { idx: order, over };
@@ -755,7 +837,7 @@ export async function runTool(
       if (picked.length === 0) return { output: JSON.stringify({ error: "no valid stop ids" }), state };
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       const ordered = args.ordered === true;
-      const est = await estimateWalk(state.origin, picked, state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM, ordered, state.params.endDistanceKm === 0);
+      const est = await estimateWalk(state.origin, picked, state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM, ordered, state.params.endDistanceKm === 0, state.params.stops);
       // One verdict per set of stops: build_walk reuses what estimate_walk / find_clean_walk already checked.
       const cached = name === "build_walk" ? state.checks?.find((c) => c.key === checkKey(picked.map((c2) => c2.id), state.params, ordered)) : undefined;
       let judged: Judged;
@@ -771,7 +853,7 @@ export async function runTool(
       }
       if (!cached) state.checks = rememberCheck(state, picked.map((c) => c.id), ordered, judged);
       if (name === "estimate_walk") {
-        return { output: JSON.stringify({ walkKm: judged.verdict.walkKm, walkMin: judged.verdict.walkMin, visitMin: judged.verdict.visitMin, totalMin: judged.verdict.totalMin, legs: est.legs, verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
+        return { output: JSON.stringify({ walkKm: judged.verdict.walkKm, walkMin: judged.verdict.walkMin, visitMin: judged.verdict.visitMin, totalMin: judged.verdict.totalMin, legs: est.legs, ...(est.ignored.length ? { stop_plan_ignored: est.ignored } : {}), verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
       }
       if (!state.limitsSettled) {
         return { output: JSON.stringify({ error: "limits not asked yet: call ask_limits first" }), state };

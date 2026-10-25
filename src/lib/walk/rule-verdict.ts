@@ -101,6 +101,8 @@ export interface VerdictInput {
   boundary: Boundary | null;
   paceMinPerKm: number;
   visitMin: number;
+  /** Walking minutes when legs have their own pace; otherwise km x paceMinPerKm. */
+  walkMin?: number;
 }
 
 /** Every rule against one real route. Pure: no network. "not_checked" is decided here and nowhere else. */
@@ -108,7 +110,7 @@ export function evaluateRoute(input: VerdictInput): Verdict {
   const { geometry, detail, origin, params, forbidden, boundary } = input;
   const loop = params.endDistanceKm === 0;
   const walkKm = km(geometry);
-  const walkMin = walkKm * input.paceMinPerKm;
+  const walkMin = input.walkMin ?? walkKm * input.paceMinPerKm;
   const quality = analyzeRoute(geometry, []);
   const rules: RuleResult[] = [];
   const hasNames = (detail?.named.length ?? 0) > 0;

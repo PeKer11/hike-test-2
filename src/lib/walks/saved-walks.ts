@@ -11,6 +11,8 @@ export interface SavedStop {
   placeId?: string;
   /** Minutes planned at this stop, so "walk again" keeps the same total time. */
   visitMinutes?: number;
+  /** The walker's own pace (min/km) for the leg arriving at this stop. */
+  legPaceMinPerKm?: number;
 }
 
 export interface SavedWalk {

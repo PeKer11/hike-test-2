@@ -19,9 +19,12 @@ export interface WalkParams {
   stayInArea?: string;
   /** Streets the walk must pass along (one point on each becomes a stop with no visiting time). */
   viaStreets?: string[];
+  /** Per-stop plans by candidate id: time to stay there, and how fast to walk the leg that arrives at it ("end" = the leg back). */
+  stops?: Record<string, StopPlan>;
 }
 
 export { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
+import type { StopPlan } from "@/lib/walk/timing";
 
 /** Minutes spent at a stop, by kind of place. */
 export function visitMinutes(category: string): number {

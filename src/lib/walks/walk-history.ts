@@ -1,6 +1,7 @@
 import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
 import type { Attraction, AttractionCategory } from "@/lib/types/walk-plan";
 
+import { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 import type { NewSavedWalk, SavedStop, SavedWalk } from "./saved-walks";
 
 /** Attractions from Google carry their place id in the attraction id (`google-<placeId>`). */
@@ -20,8 +21,9 @@ export function stopsFromAttractions(items: Attraction[]): SavedStop[] {
     category: a.category,
     lat: a.coordinates.lat,
     lng: a.coordinates.lng,
-    ...(Number.isFinite(a.avgVisitMinutes) && a.avgVisitMinutes > 0 ? { visitMinutes: Math.round(a.avgVisitMinutes) } : {}),
+    ...(Number.isFinite(a.avgVisitMinutes) && a.avgVisitMinutes >= 0 ? { visitMinutes: Math.round(a.avgVisitMinutes) } : {}),
     ...(placeIdOf(a) ? { placeId: placeIdOf(a) } : {}),
+    ...(a.legPaceMinPerKm !== undefined && Number.isFinite(a.legPaceMinPerKm) ? { legPaceMinPerKm: a.legPaceMinPerKm } : {}),
   }));
 }
 
@@ -74,7 +76,7 @@ export function rebuildFromSaved(walk: SavedWalk): { input: WalkCompanionInput; 
   const input: WalkCompanionInput = {
     origin: walk.start,
     availableMinutes: num(p.availableMinutes, walk.totalMin ?? 60),
-    walkingPaceMinPerKm: num(p.walkingPaceMinPerKm, 12),
+    walkingPaceMinPerKm: num(p.walkingPaceMinPerKm, DEFAULT_PACE_MIN_PER_KM),
     radiusMeters: num(p.radiusMeters, 1500),
     ...(typeof p.maxEndDistanceFromOriginMeters === "number"
       ? { maxEndDistanceFromOriginMeters: p.maxEndDistanceFromOriginMeters }
@@ -88,7 +90,9 @@ export function rebuildFromSaved(walk: SavedWalk): { input: WalkCompanionInput; 
     name: s.name,
     coordinates: { lat: s.lat, lng: s.lng },
     category: s.category as AttractionCategory,
-    avgVisitMinutes: num(s.visitMinutes, 10),
+    // 0 is a real answer ("just pass by"), so only a missing value falls back.
+    avgVisitMinutes: typeof s.visitMinutes === "number" && s.visitMinutes >= 0 ? s.visitMinutes : 10,
+    ...(typeof s.legPaceMinPerKm === "number" ? { legPaceMinPerKm: s.legPaceMinPerKm } : {}),
     tags: {},
   }));
   const routeRules = typeof p.routeRules === "object" && p.routeRules !== null ? (p.routeRules as Record<string, unknown>) : {};

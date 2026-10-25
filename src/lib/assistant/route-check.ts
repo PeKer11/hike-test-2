@@ -7,6 +7,7 @@ import { isRouteCached, orsRoute, routeDetail } from "@/lib/walk/ors-route";
 import { BudgetExceeded, budgeted, makeBudget, type RoutingBudget } from "@/lib/walk/routing-budget";
 import { brokenKm, brokenRules, evaluateRoute, unavailableVerdict, type RuleId, type Verdict } from "@/lib/walk/rule-verdict";
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
+import { legKmsFromGeometry, timeline } from "@/lib/walk/timing";
 import { DEFAULT_PACE_MIN_PER_KM, visitMinutes, type Candidate, type WalkParams } from "./state";
 
 /** Directions calls one assistant turn may spend across all its tools (ORS free tier: ~40 a minute). */
@@ -119,6 +120,12 @@ export async function routeAndJudge(
       if (params.avoidDangerous && env.forbidden.failed) forbiddenWays.push(...(detail?.stateRoads ?? []));
     }
     const clean = await buildCleanRoute({ waypoints, route, noRepeat: params.noRepeat === true, forbiddenWays, maxAttempts });
+    const t = timeline(
+      stops.map((c) => ({ id: c.id, visitMin: visitMinutes(c.category) })),
+      legKmsFromGeometry(clean.geometry, waypoints),
+      params.stops,
+      pace,
+    );
     const verdict = evaluateRoute({
       geometry: clean.geometry,
       detail: routeDetail(clean.geometry),
@@ -128,7 +135,9 @@ export async function routeAndJudge(
       viaWays: env.viaWays,
       boundary: env.boundary,
       paceMinPerKm: pace,
-      visitMin: stops.reduce((a, s) => a + visitMinutes(s.category), 0),
+      visitMin: t.visitMin,
+      // Per-leg pace only changes the total when the walker asked for it; otherwise the whole route at one pace, as before.
+      ...(params.stops && Object.keys(params.stops).length ? { walkMin: t.walkMin } : {}),
     });
     return { verdict, stops, geometry: clean.geometry };
   }

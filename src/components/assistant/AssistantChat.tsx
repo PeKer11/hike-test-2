@@ -8,8 +8,10 @@ import {
   type AssistantState,
   type BuildAction,
   type Candidate,
+  type WalkParams,
   visitMinutes,
 } from "@/lib/assistant/state";
+import { dwellMinutes, legPace } from "@/lib/walk/timing";
 import { createClient } from "@/lib/supabase/client";
 import type { AssistantDefaults } from "@/lib/assistant/defaults";
 import { AssistantSettings, PACE_PRESETS, useAssistantDefaults } from "./AssistantSettings";
@@ -278,13 +280,15 @@ const THEMES = [
   { label: "Hidden Gems", message: "Show me hidden gems", image: "/images/assistant/hidden.jpg" },
 ];
 
-function toAttraction(c: Candidate): Attraction {
+function toAttraction(c: Candidate, params?: WalkParams): Attraction {
+  const plan = params?.stops?.[c.id];
   return {
     id: c.id,
     name: c.name,
     coordinates: c.coordinates,
     category: c.category === "area" ? "landmark" : c.category,
-    avgVisitMinutes: visitMinutes(c.category),
+    avgVisitMinutes: dwellMinutes(params?.stops, c.id, visitMinutes(c.category)),
+    ...(plan?.pace !== undefined ? { legPaceMinPerKm: legPace(params?.stops, c.id, params?.paceMinPerKm ?? DEFAULT_PACE) } : {}),
     tags: { source: "assistant", placeId: c.placeId },
   };
 }
@@ -348,7 +352,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
     const candidates = ((chat?.state as Partial<AssistantState> | null)?.candidates ?? []) as Candidate[];
     setPlaces(candidates);
     const lastReply = [...((rows ?? []) as Message[])].reverse().find((m) => m.role === "assistant")?.content ?? "";
-    onPlacesChange(mentionedPlaces(lastReply, candidates).map(toAttraction));
+    onPlacesChange(mentionedPlaces(lastReply, candidates).map((c) => toAttraction(c)));
     setShowChats(false);
     setError(null);
   };
@@ -406,7 +410,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
       if (so && !walkingRef.current && (!origin || Math.abs(so.lat - origin.lat) > 1e-6 || Math.abs(so.lng - origin.lng) > 1e-6)) onSetOrigin(so);
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
       setPlaces(data.state.candidates);
-      onPlacesChange(mentionedPlaces(data.reply, data.state.candidates).map(toAttraction));
+      onPlacesChange(mentionedPlaces(data.reply, data.state.candidates).map((c) => toAttraction(c)));
       setStatedLimits({
         timeMinutes: data.state.params.timeMinutes ?? null,
         radiusKm: data.state.params.radiusKm ?? null,
@@ -425,7 +429,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
           radiusMeters: (params.radiusKm ?? NO_LIMIT_RADIUS_KM) * 1000,
           maxEndDistanceFromOriginMeters:
             params.endDistanceKm === undefined ? undefined : params.endDistanceKm * 1000,
-          stops: stops.map(toAttraction),
+          stops: stops.map((c) => toAttraction(c, params)),
           fixedOrder: data.action.ordered === true,
           geometry: data.action.geometry,
           routeRules: {

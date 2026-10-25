@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
+import { clampPace, DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 import { fetchAttractionsResilient as fetchAttractions } from "@/lib/attractions/resilient-attractions";
 import {
   MAX_WALK_STOPS,
@@ -673,6 +673,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const plan = best.plan;
+    // The walker asked for a different pace on some legs: re-time those legs, and the total with them.
+    for (const seg of plan.segments) {
+      const own = seg.to.legPaceMinPerKm;
+      if (own === undefined || !Number.isFinite(own)) continue;
+      const delta = (seg.distanceMeters / 1000) * (clampPace(own) - walkingPaceMinPerKm);
+      seg.walkingMinutes += delta;
+      plan.totalMinutes += delta;
+    }
 
     // 4. Fetch ORS geometry for the ordered route (origin → attraction 1 → 2 → ...)
     let geometry: Coordinates[] | undefined;

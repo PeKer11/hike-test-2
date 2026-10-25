@@ -18,6 +18,8 @@ export interface Attraction {
   coordinates: Coordinates;
   category: AttractionCategory;
   avgVisitMinutes: number;
+  /** The walker's own pace (min/km) for the leg that arrives at this stop; absent = the walk's pace. */
+  legPaceMinPerKm?: number;
   tags: Record<string, string>;
   distanceFromOriginMeters?: number;
   score?: number;
