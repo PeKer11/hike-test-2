@@ -8,6 +8,8 @@ import type { Attraction, AttractionCategory } from "@/lib/types/walk-plan";
 interface SavedPlacePickerProps {
   /** Ids already waiting in the walk's wishlist. */
   addedIds: string[];
+  /** Ids of the stops in the plan on the map right now; a queued place is only "in walk" once it is one of them. */
+  inWalkIds?: string[];
   onAdd: (places: Attraction[]) => void;
 }
 
@@ -21,7 +23,7 @@ const asAttraction = (id: string, name: string, category: string, coordinates: {
 });
 
 /** "+ From saved places": pick unvisited saved places to put into the walk. */
-export function SavedPlacePicker({ addedIds, onAdd }: SavedPlacePickerProps) {
+export function SavedPlacePicker({ addedIds, inWalkIds = [], onAdd }: SavedPlacePickerProps) {
   const [open, setOpen] = useState(false);
   const [places, setPlaces] = useState<SavedPlace[]>([]);
   const [loading, setLoading] = useState(false);
@@ -84,7 +86,11 @@ export function SavedPlacePicker({ addedIds, onAdd }: SavedPlacePickerProps) {
                 <label className="flex cursor-pointer items-center gap-2">
                   <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} />
                   <span className="text-charcoal">{p.label}</span>
-                  {addedIds.includes(p.source === "google" ? `google-${p.placeRef}` : `saved-${p.id}`) && <span className="text-forest">in walk</span>}
+                  {(() => {
+                    const id = p.source === "google" ? `google-${p.placeRef}` : `saved-${p.id}`;
+                    if (inWalkIds.includes(id)) return <span className="text-forest">in walk</span>;
+                    return addedIds.includes(id) ? <span className="text-charcoal/60">queued for the next build</span> : null;
+                  })()}
                 </label>
               </li>
             ))}

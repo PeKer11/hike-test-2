@@ -830,6 +830,8 @@ export function WalkPlannerApp({
     shortcut.endWalk();
     walkedTrackRef.current = [];
     walkStartPointRef.current = null;
+    // Queued saved places belonged to that walk; the next one starts clean.
+    setWishlist([]);
   };
 
   // Full reset — the same teardown behind "Clear All" (advanced) and
@@ -3198,7 +3200,7 @@ export function WalkPlannerApp({
                 />
                 </details>
               )}
-              {isSignedIn && walkPhase !== "walking" && <SavedPlacePicker addedIds={wishlist.map((w) => w.id)} onAdd={addSavedPlacesToWalk} />}
+              {isSignedIn && walkPhase !== "walking" && <SavedPlacePicker addedIds={wishlist.map((w) => w.id)} inWalkIds={(walkPlan?.orderedAttractions ?? []).map((a) => a.id)} onAdd={addSavedPlacesToWalk} />}
               {walkPhase !== "walking" && !isSignedIn && (
                 <PlacePromptPanel
                   nearLocation={currentPosition ?? mapClickedCoords}
