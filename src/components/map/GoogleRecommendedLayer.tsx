@@ -288,7 +288,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
     <>
       <MapControl position={ControlPosition.TOP_RIGHT}>
         {/* Right-aligned and capped so it never reaches the Map/Satellite switch on the left. */}
-        <div className="flex max-w-[min(640px,60vw)] flex-wrap items-center justify-end gap-2 p-2.5">
+        <div className="flex max-w-[min(640px,60vw)] flex-wrap items-center justify-end gap-2 p-2.5 sm:mt-10">
           {top.length ? (
             <div className="pointer-events-none flex flex-wrap justify-end gap-x-2 rounded bg-white/85 px-2 py-1 text-xs text-charcoal shadow">
               {Object.values(GROUPS).map((g) => (
