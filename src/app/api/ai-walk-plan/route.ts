@@ -34,7 +34,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const keep = (Array.isArray(body.keep) ? (body.keep as Attraction[]) : [])
     .filter((a) => a && typeof a.id === "string" && typeof a.name === "string" && finite(a.coordinates?.lat) && finite(a.coordinates?.lng))
     .slice(0, 20);
-  const rules = (body.routeRules ?? {}) as { noRepeat?: unknown; avoidStreets?: unknown; avoidDangerous?: unknown };
+  const rules = (body.routeRules ?? {}) as { noRepeat?: unknown; avoidStreets?: unknown; avoidDangerous?: unknown; stayInArea?: unknown };
   const aiRequest: AiBuildRequest = {
     origin: { lat: o.lat, lng: o.lng },
     reason: typeof body.reason === "string" ? body.reason.slice(0, 400) : "a new walk",
@@ -46,6 +46,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       noRepeat: rules.noRepeat === true ? true : undefined,
       avoidStreets: strings(rules.avoidStreets, 10).length ? strings(rules.avoidStreets, 10) : undefined,
       avoidDangerous: rules.avoidDangerous === true ? true : undefined,
+      stayInArea: typeof rules.stayInArea === "string" && rules.stayInArea.trim() ? rules.stayInArea.trim().slice(0, 80) : undefined,
     },
     keep,
     pinnedIds: strings(body.pinnedIds, 20),

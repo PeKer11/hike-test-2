@@ -26,6 +26,8 @@ import {
 import { buildCleanRoute } from "@/lib/walk/clean-route";
 import { orsRoute } from "@/lib/walk/ors-route";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
+import { outsideKm } from "@/lib/walk/loop-search";
+import { fetchTownBoundary } from "@/lib/walk/town-boundary";
 import { analyzeRoute, type RouteQuality } from "@/lib/walk/route-quality";
 import type {
   Attraction,
@@ -65,6 +67,8 @@ interface WalkPlanApiRequest {
   avoidStreets?: string[];
   /** Also avoid roads OSM marks as unsafe on foot (fast, or no sidewalk). */
   avoidDangerous?: boolean;
+  /** Stay inside this named town or area; the route is checked and a warning says how far it strays. */
+  stayInArea?: string;
   pinnedAttractionIds?: string[];
   /**
    * How many stops the walker asked for in words ("bring me 3 famous places").
@@ -720,6 +724,15 @@ export async function POST(request: Request): Promise<NextResponse> {
           }
           if (summary.forbiddenKm > 0.1) {
             warnings.push(`${summary.forbiddenKm} km of the route runs along streets you wanted to avoid.`);
+          }
+          if (typeof body.stayInArea === "string" && body.stayInArea.trim()) {
+            const area = body.stayInArea.trim().slice(0, 80);
+            const boundary = await fetchTownBoundary(area);
+            if (!boundary) warnings.push(`Could not find the outline of ${area}, so staying inside it was not checked.`);
+            else {
+              const out = outsideKm(clean.geometry, boundary);
+              if (out > 0.1) warnings.push(`${out} km of the route is outside ${area}.`);
+            }
           }
           if (returnToStart && !summary.closesLoop) {
             warnings.push("The route does not end back at the start.");

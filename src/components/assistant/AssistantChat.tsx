@@ -47,7 +47,7 @@ export interface AssistantBuild {
   /** The walker stated an order: visit the stops exactly as listed. */
   fixedOrder?: boolean;
   /** Route rules the walker stated; sent with every (re)build of this walk. */
-  routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean };
+  routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean; stayInArea?: string };
   /** The route the assistant checked: the planner shows this one for this build. */
   geometry?: Coordinates[];
 }
@@ -432,6 +432,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             noRepeat: params.noRepeat,
             avoidStreets: params.avoidStreets,
             avoidDangerous: params.avoidDangerous,
+            stayInArea: params.stayInArea,
           },
         });
       }
