@@ -45,7 +45,7 @@ describe("getMatrix", () => {
     await getMatrix({ locations });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://api.openrouteservice.org/v2/matrix/foot-walking");
+    expect(url).toBe("https://api.heigit.org/openrouteservice/v2/matrix/foot-walking");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({
       // ORS coordinate order is [lng, lat] — passed through untouched.
@@ -61,7 +61,7 @@ describe("getMatrix", () => {
     await getMatrix({ locations, profile: "foot-hiking" });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://api.openrouteservice.org/v2/matrix/foot-hiking",
+      "https://api.heigit.org/openrouteservice/v2/matrix/foot-hiking",
     );
   });
 

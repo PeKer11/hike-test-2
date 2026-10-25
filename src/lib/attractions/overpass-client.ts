@@ -234,10 +234,11 @@ function elementToAttraction(el: OverpassElement): Attraction | null {
 
 // A public mirror that has not answered in this long is treated as down; the
 // old 20s per attempt let one dead mirror eat the whole request.
-const ATTEMPT_TIMEOUT_MS = 8_000;
+// The operators ask for one request at a time per client and no fast retries; the server-side query allows 25s.
+const ATTEMPT_TIMEOUT_MS = 20_000;
 // A slow (not failed) attempt does not block the next one: after this long the
 // next mirror is started alongside it and the first good answer wins.
-const HEDGE_DELAY_MS = 2_500;
+const HEDGE_DELAY_MS = 20_000;
 
 /** One request to one mirror. Throws on any failure; keeps the breaker current. */
 async function overpassAttempt(
@@ -300,10 +301,8 @@ async function overpassAttempt(
  */
 export async function runOverpassQuery(query: string): Promise<OverpassElement[]> {
   const body = `data=${encodeURIComponent(query)}`;
-  const attempts: EndpointAttempt[] = OVERPASS_ENDPOINTS.flatMap((endpoint) => [
-    { endpoint, method: "POST" as const },
-    { endpoint, method: "GET" as const },
-  ]);
+  // POST only: sending the same query again as GET to the same mirror doubles the load for nothing.
+  const attempts: EndpointAttempt[] = OVERPASS_ENDPOINTS.map((endpoint) => ({ endpoint, method: "POST" as const }));
 
   const cancel = new AbortController();
 

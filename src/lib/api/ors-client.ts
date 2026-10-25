@@ -9,7 +9,10 @@ import type {
   OrsOptimizationResponse,
 } from "@/lib/types";
 
-const ORS_BASE_URL = "https://api.openrouteservice.org";
+// api.openrouteservice.org is deprecated (10x lower quota, shut-off planned early Nov 2026); directions and matrix live on heigit.
+// Optimization (VROOM) is not offered there yet, so it stays on the old host.
+const ORS_BASE_URL = "https://api.heigit.org/openrouteservice";
+const ORS_OPTIMIZATION_BASE_URL = "https://api.openrouteservice.org";
 
 function parseOrsError(errorText: string, status: number): string {
   let normalizedError = errorText.toLowerCase();
@@ -321,7 +324,7 @@ export async function optimizeRoute(
   request: OrsOptimizationRequest,
 ): Promise<OrsOptimizationResponse> {
   return fetchOrs<OrsOptimizationResponse>(
-    `${ORS_BASE_URL}/optimization`,
+    `${ORS_OPTIMIZATION_BASE_URL}/optimization`,
     request,
     { cache: "no-store" },
   );

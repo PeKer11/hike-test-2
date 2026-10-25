@@ -69,17 +69,20 @@ describe("fetchAttractions request", () => {
 });
 
 describe("fetchAttractions endpoint failover", () => {
-  it("retries the same endpoint as a GET before moving to the next mirror", async () => {
-    const fetchMock = stubOverpass(httpError(400, "Bad Request"), ok({ elements: [] }));
+  it("tries one mirror at a time, by POST only, and moves on when one fails", async () => {
+    const fetchMock = stubOverpass(httpError(500, "Server Error"), ok({ elements: [] }));
 
     await fetchAttractions(CENTER, 1500);
 
+    const [firstUrl, firstInit] = fetchMock.mock.calls[0] as [string, RequestInit];
     const [secondUrl, secondInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(secondUrl.startsWith(`${PRIMARY}?data=`)).toBe(true);
-    expect(secondInit.method).toBe("GET");
+    expect(firstUrl).toBe(PRIMARY);
+    expect(firstInit.method).toBe("POST");
+    expect(secondUrl).toBe(MIRROR);
+    expect(secondInit.method).toBe("POST");
   });
 
-  it("starts the next attempt without waiting out a hung one, and the first answer wins", async () => {
+  it("starts the next attempt after a hung one times out, and the first answer wins", async () => {
     vi.useFakeTimers();
     try {
       const fetchMock = vi
@@ -89,25 +92,13 @@ describe("fetchAttractions endpoint failover", () => {
       vi.stubGlobal("fetch", fetchMock);
 
       const pending = fetchAttractions(CENTER, 1500);
-      await vi.advanceTimersByTimeAsync(2_600);
+      await vi.advanceTimersByTimeAsync(20_100);
 
       await expect(pending).resolves.toEqual([]);
       expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it("moves to the next mirror once both methods on the first one fail", async () => {
-    const fetchMock = stubOverpass(
-      httpError(500, "Server Error"),
-      httpError(500, "Server Error"),
-      ok({ elements: [] }),
-    );
-
-    await fetchAttractions(CENTER, 1500);
-
-    expect(fetchMock.mock.calls[2][0]).toBe(MIRROR);
   });
 
   it("reports the status and body of the last failure when every mirror fails", async () => {
@@ -119,8 +110,8 @@ describe("fetchAttractions endpoint failover", () => {
     await expect(fetchAttractions(CENTER, 1500)).rejects.toThrow(
       "Overpass API error: 500 Server Error - rate limited, slow down",
     );
-    // Three endpoints, POST then GET on each.
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    // One POST per endpoint.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("translates a 403 into advice the walker can act on", async () => {
