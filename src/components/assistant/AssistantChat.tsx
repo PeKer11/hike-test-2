@@ -296,6 +296,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
   const [places, setPlaces] = useState<Candidate[]>([]);
   const [statedLimits, setStatedLimits] = useState<Partial<Limits>>({});
   const [text, setText] = useState("");
+  const [themes, setThemes] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [limitsOpen, setLimitsOpen] = useState(false);
@@ -369,7 +370,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
 
   const send = async (event: FormEvent | null, override?: { message: string; limits?: Limits }) => {
     event?.preventDefault();
-    const typed = override?.message ?? text.trim();
+    const typed = override?.message ?? [...THEMES.filter((t) => themes.includes(t.label)).map((t) => t.message), text.trim()].filter(Boolean).join(". ");
     const sentImages = override ? [] : images;
     const message = typed || (sentImages.length ? "🖼" : "");
     if (!message || pending) return;
@@ -377,6 +378,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
     setChoices([]);
     if (!override) {
       setText("");
+      setThemes([]);
       setImages([]);
     }
     setError(null);
@@ -678,8 +680,9 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                 <button
                   key={t.label}
                   type="button"
-                  onClick={() => void send(null, { message: t.message })}
-                  className="flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border border-[#eadfce] bg-[#fffdf9] py-[4px] pe-[12px] ps-[4px] font-brand text-[12.5px] font-semibold tracking-[0.005em] text-tk-ink shadow-[0_1px_3px_rgba(50,32,16,0.12)] transition-colors hover:border-tk-send hover:bg-white"
+                  aria-pressed={themes.includes(t.label)}
+                  onClick={() => setThemes((cur) => (cur.includes(t.label) ? cur.filter((l) => l !== t.label) : [...cur, t.label]))}
+                  className={`flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border ${themes.includes(t.label) ? "border-tk-send bg-white ring-1 ring-tk-send" : "border-[#eadfce] bg-[#fffdf9]"} py-[4px] pe-[12px] ps-[4px] font-brand text-[12.5px] font-semibold tracking-[0.005em] text-tk-ink shadow-[0_1px_3px_rgba(50,32,16,0.12)] transition-colors hover:border-tk-send hover:bg-white`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={t.image} alt="" aria-hidden className="h-[22px] w-[22px] rounded-full object-cover" />
@@ -697,7 +700,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
           )}
           <button
             type="submit"
-            disabled={pending || isBuilding || (!text.trim() && images.length === 0)}
+            disabled={pending || isBuilding || (!text.trim() && images.length === 0 && themes.length === 0)}
             className="block h-[37px] w-full rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-white transition-colors hover:bg-[#c2643c] disabled:cursor-not-allowed"
           >
             {isBuilding ? "Building your walk…" : "Send"}
