@@ -84,7 +84,7 @@ const MIN_RATINGS = 25;
 const PER_GROUP = 5;
 /** Rating x log(reviews), halved at radius/5 of distance: near places beat slightly better far ones. */
 const placeScore = (rating: number, count: number, distM: number, radius: number) => (rating * Math.log10(count + 1)) / (1 + distM / (radius / 5));
-const SEARCHES_PER_SESSION = 6;
+const SEARCHES_PER_SESSION = 20;
 const SEARCH_COUNT_KEY = "traike-top-rated-searches";
 
 function searchesLeft(): boolean {
@@ -279,6 +279,8 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = f
       setNote("");
       return;
     }
+    // Say so here: showExtra finishing would otherwise wipe the limit note and the button would look pressed but empty.
+    if (!searchesLeft()) return setNote("Top-rated search limit reached for this session");
     void showTop();
     if (enabled) void showExtra();
   };
