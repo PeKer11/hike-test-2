@@ -46,18 +46,26 @@ describe("assistant tools", () => {
     expect(run.state.params).toEqual({ timeMinutes: 120 });
   });
 
+  it("build_walk refuses a walk too long to be real (a wrong start point)", async () => {
+    vi.mocked(searchTextPlaces).mockResolvedValue([habima]);
+    const found = await runTool("search_place", JSON.stringify({ query: "x" }), { ...EMPTY_STATE, origin: { lat: 32, lng: 34 } });
+    const run = await runTool("build_walk", JSON.stringify({ stop_ids: ["c1"] }), { ...found.state, limitsSettled: true });
+    expect(run.action).toBeUndefined();
+    expect(run.output).toMatch(/too long to walk/);
+  });
+
   it("build_walk returns an action with real coordinates and ignores unknown ids", async () => {
     vi.mocked(searchTextPlaces).mockResolvedValue([habima]);
     const found = await runTool("search_place", JSON.stringify({ query: "x" }), {
       ...EMPTY_STATE,
-      origin: { lat: 32, lng: 34 },
+      origin: { lat: 32.06, lng: 34.77 },
     });
     const run = await runTool("build_walk", JSON.stringify({ stop_ids: ["c1", "zzz"] }), {
       ...found.state,
       limitsSettled: true,
     });
     expect(run.action?.stops).toHaveLength(1);
-    expect(run.action?.origin).toEqual({ lat: 32, lng: 34 });
+    expect(run.action?.origin).toEqual({ lat: 32.06, lng: 34.77 });
   });
 
   it("a failing lookup becomes an answer, not an exception", async () => {

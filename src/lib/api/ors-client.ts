@@ -8,6 +8,7 @@ import type {
   OrsOptimizationRequest,
   OrsOptimizationResponse,
 } from "@/lib/types";
+import { appUserAgent } from "./http-identity";
 
 // api.openrouteservice.org is deprecated (10x lower quota, shut-off planned early Nov 2026); directions and matrix live on heigit.
 // Optimization (VROOM) is not offered there yet, so it stays on the old host.
@@ -87,16 +88,25 @@ async function fetchOrs<T>(
   const timer = setTimeout(() => controller.abort(), ORS_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: getApiKey(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      ...init,
-      signal: init?.signal ?? controller.signal,
-    });
+    const send = () =>
+      fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: getApiKey(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        ...init,
+        signal: init?.signal ?? controller.signal,
+      });
+    let response = await send();
+    // One short retry for a rate-limit or server blip (honouring Retry-After, capped), not an endless loop.
+    if (response.status === 429 || response.status >= 500) {
+      const retryAfter = Number(response.headers?.get?.("Retry-After"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 3_000) : 1_000;
+      await new Promise((r) => setTimeout(r, waitMs));
+      response = await send();
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -181,7 +191,7 @@ async function getOsrmFootDirections(
     const path = coordinates.map(([lng, lat]) => `${lng},${lat}`).join(";");
     const response = await fetch(
       `${OSRM_FOOT_URL}/${path}?overview=full&geometries=polyline&steps=true`,
-      { cache: "no-store", signal: controller.signal },
+      { cache: "no-store", signal: controller.signal, headers: { "User-Agent": appUserAgent() } },
     );
     if (!response.ok) {
       throw new Error("Fallback routing service error.");

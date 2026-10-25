@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assessWalkWindow, parseForecast, type ForecastHour } from "@/lib/weather/forecast";
+import { assessWalkWindow, endsAfterDark, nextDryStart, parseForecast, parseSunsets, type ForecastHour } from "@/lib/weather/forecast";
 
 const hour = (i: number, over: Partial<ForecastHour> = {}): ForecastHour => ({
   time: `2026-10-24T${String(12 + i).padStart(2, "0")}:00`,
@@ -43,5 +43,34 @@ describe("parseForecast", () => {
     const hours = parseForecast({ hourly: { time: ["2026-10-24T12:00"], precipitation_probability: [40], apparent_temperature: [20] } });
     expect(hours).toEqual([{ time: "2026-10-24T12:00", feelsC: 20, precipProbPct: 40, precipMm: null, gustKmh: null, code: null }]);
     expect(parseForecast(null)).toEqual([]);
+  });
+});
+
+describe("dry start, sunsets and darkness", () => {
+  const hr = (i: number, rain: boolean) => ({
+    time: `2026-10-25T${String(i).padStart(2, "0")}:00`,
+    feelsC: 20,
+    precipProbPct: rain ? 80 : 0,
+    precipMm: rain ? 2 : 0,
+    gustKmh: 10,
+    code: 0,
+  });
+  const hours = Array.from({ length: 24 }, (_, i) => hr(i, i >= 8 && i <= 11));
+
+  it("finds the first start whose whole window is dry", () => {
+    expect(nextDryStart(hours, 120, 8)).toBe(12);
+    expect(nextDryStart(hours, 120, 0)).toBe(0);
+  });
+
+  it("returns null when no start in range is dry", () => {
+    expect(nextDryStart(hours.map((h) => ({ ...h, precipProbPct: 90 })), 60, 0)).toBeNull();
+  });
+
+  it("parses sunsets and flags a walk that ends after dark", () => {
+    const sunsets = parseSunsets({ daily: { time: ["2026-10-25"], sunset: ["2026-10-25T17:10"] } });
+    expect(sunsets).toEqual({ "2026-10-25": "2026-10-25T17:10" });
+    expect(endsAfterDark(hours, sunsets, 15, 150)).toBe(true);
+    expect(endsAfterDark(hours, sunsets, 9, 120)).toBe(false);
+    expect(parseSunsets(null)).toEqual({});
   });
 });

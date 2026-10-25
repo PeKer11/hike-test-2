@@ -4,7 +4,7 @@ import type { AttractionCategory, Coordinates } from "@/lib/types";
 import { appUserAgent } from "@/lib/api/http-identity";
 import { HAZARD_ATTRIBUTION, HAZARD_RADIUS_KM, hazardUrl, parseHazardCounts, seasonalNotes } from "@/lib/safety/nature-hazards";
 import { inSafetyCoverage, parseWarnings, SAFETY_ATTRIBUTION, SAFETY_FEED_URL, warningsAt } from "@/lib/safety/meteoalarm";
-import { assessWalkWindow, FORECAST_ATTRIBUTION, forecastUrl, parseForecast } from "@/lib/weather/forecast";
+import { assessWalkWindow, endsAfterDark, FORECAST_ATTRIBUTION, forecastUrl, nextDryStart, parseForecast, parseSunsets } from "@/lib/weather/forecast";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
@@ -392,6 +392,9 @@ function compact(list: Candidate[]): string {
 }
 
 /** Runs one tool call against the state. Never throws: a failure is an answer the model can read. */
+/** Longer than this is almost certainly a wrong start or place, not a walk. */
+const MAX_PLAUSIBLE_WALK_KM = 30;
+
 export async function runTool(
   name: string,
   rawArgs: string,
@@ -677,15 +680,19 @@ export async function runTool(
 
     if (name === "check_weather") {
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
-      const startIn = typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 12) : 0;
+      const startIn = typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 60) : 0;
       const minutes = typeof args.duration_minutes === "number" && args.duration_minutes > 0 ? args.duration_minutes : (state.params.timeMinutes ?? 120);
       try {
         const res = await fetch(forecastUrl(state.origin.lat, state.origin.lng), { headers: { "User-Agent": appUserAgent() }, signal: AbortSignal.timeout(6_000) });
         if (!res.ok) return { output: JSON.stringify({ error: "forecast unavailable: say the weather was not checked" }), state };
-        const hours = parseForecast(await res.json());
+        const body = await res.json();
+        const hours = parseForecast(body);
         if (hours.length === 0) return { output: JSON.stringify({ error: "forecast unavailable: say the weather was not checked" }), state };
         const issues = assessWalkWindow(hours, startIn, minutes);
-        return { output: JSON.stringify({ ok: issues.length === 0, checkedHours: Math.min(Math.ceil(minutes / 60), Math.max(0, hours.length - Math.floor(startIn))), issues, attribution: FORECAST_ATTRIBUTION }), state };
+        const wet = issues.some((i) => i.kind === "rain" || i.kind === "thunderstorm");
+        const dryStart = wet ? nextDryStart(hours, minutes, startIn + 1) : null;
+        const dark = endsAfterDark(hours, parseSunsets(body), startIn, minutes);
+        return { output: JSON.stringify({ ok: issues.length === 0, checkedHours: Math.min(Math.ceil(minutes / 60), Math.max(0, hours.length - Math.floor(startIn))), issues, ...(wet ? { nextDryStartInHours: dryStart, hint: dryStart === null ? "no dry window in the next 2 days: say so" : "offer to start later at that time, or pick indoor places" } : {}), ...(dark ? { endsAfterDark: true, note: "the walk ends after sunset: say so and prefer lit, busy streets" } : {}), attribution: FORECAST_ATTRIBUTION }), state };
       } catch {
         return { output: JSON.stringify({ error: "forecast unavailable: say the weather was not checked" }), state };
       }
@@ -758,6 +765,10 @@ export async function runTool(
       }
       if (!state.limitsSettled) {
         return { output: JSON.stringify({ error: "limits not asked yet: call ask_limits first" }), state };
+      }
+      // A walk this long is a wrong start point or a wrong place, not a request: say so instead of building it.
+      if (judged.verdict.walkKm > MAX_PLAUSIBLE_WALK_KM) {
+        return { output: JSON.stringify({ error: `this walk is ${Math.round(judged.verdict.walkKm)} km: too long to walk. Check the start point (${state.origin.lat.toFixed(4)},${state.origin.lng.toFixed(4)}) and the places, and tell the walker.`, verdict: judged.verdict }), state };
       }
       // The rules are enforced here, not in the prompt: build exactly the order that was checked, and only when no rule is broken.
       if (judged.verdict.broken) {

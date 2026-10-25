@@ -35,7 +35,8 @@ export function forecastUrl(lat: number, lng: number): string {
     latitude: String(lat),
     longitude: String(lng),
     hourly: "apparent_temperature,precipitation_probability,precipitation,wind_gusts_10m,weather_code",
-    forecast_hours: "24",
+    forecast_hours: "72",
+    daily: "sunset",
     timezone: "auto",
   });
   return `https://api.open-meteo.com/v1/forecast?${q.toString()}`;
@@ -99,4 +100,40 @@ export function assessWalkWindow(hours: ForecastHour[], startInHours: number, du
     }
   }
   return issues;
+}
+
+/**
+ * The soonest start (hours from the first forecast hour, from `fromHour` up to `toHour`) at which the walk has no
+ * rain or thunderstorm; null when there is none. Used to offer "start later" when the planned window is wet.
+ */
+export function nextDryStart(hours: ForecastHour[], durationMin: number, fromHour: number, toHour = 48): number | null {
+  for (let h = Math.max(0, Math.floor(fromHour)); h <= toHour; h++) {
+    if (!hours[h]) break;
+    const wet = assessWalkWindow(hours, h, durationMin).some((i) => i.kind === "rain" || i.kind === "thunderstorm");
+    if (!wet) return h;
+  }
+  return null;
+}
+
+/** Local sunset ("2026-10-25T17:08") for each date in the forecast, keyed "2026-10-25". Tolerant of a missing block. */
+export function parseSunsets(json: unknown): Record<string, string> {
+  const daily = ((json as { daily?: { time?: unknown; sunset?: unknown } } | null)?.daily ?? {}) as { time?: unknown; sunset?: unknown };
+  const out: Record<string, string> = {};
+  if (Array.isArray(daily.time) && Array.isArray(daily.sunset)) {
+    daily.time.forEach((d, i) => {
+      const sun = daily.sunset ? (daily.sunset as unknown[])[i] : null;
+      if (typeof d === "string" && typeof sun === "string") out[d] = sun;
+    });
+  }
+  return out;
+}
+
+/** True when the walk, started at forecast hour `startInHours`, ends after that day's sunset. Times are local ISO strings. */
+export function endsAfterDark(hours: ForecastHour[], sunsets: Record<string, string>, startInHours: number, durationMin: number): boolean {
+  const start = hours[Math.max(0, Math.floor(startInHours))];
+  if (!start) return false;
+  const sunset = sunsets[start.time.slice(0, 10)];
+  if (!sunset) return false;
+  const endMs = Date.parse(`${start.time}:00Z`) + durationMin * 60_000;
+  return endMs > Date.parse(`${sunset}:00Z`);
 }

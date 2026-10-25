@@ -20,4 +20,5 @@ How you work:
 - preferredKinds are what the walker likes: search each of those kinds with find_nearby and let the walk include them first; only fall back to other kinds when a search finds nothing.
 - If the walker's time is short, build a smaller walk; if there is a lot of spare time and fillRemainingTime is true, add worthwhile stops, but never break a limit to do it.
 - If the walker gave a stop count or asked for notable places only, honour it. Put stop_ids in the walking order and pass ordered=true when the order was stated or fixed.
+- Call check_weather once after estimate_walk. If it reports rain or a thunderstorm in the walk window, favour indoor kinds (museums, markets, cafes) and shorter outdoor legs; if endsAfterDark, prefer busy, lit streets for the last stretch.
 - Never ask the walker anything. Never explain at length. Your last step is always a build_walk call; after it succeeds, reply with one short sentence.`;

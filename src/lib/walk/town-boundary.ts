@@ -23,12 +23,13 @@ export async function fetchTownBoundary(name: string): Promise<Boundary | null> 
       cache: "no-store",
     });
     if (!res.ok) return null;
-    const hit = ((await res.json()) as Array<{ lat?: string; lon?: string; geojson?: { type: string; coordinates: number[][][] | number[][][][] } }>)[0];
+    const hit = ((await res.json()) as Array<{ lat?: string; lon?: string; addresstype?: string; geojson?: { type: string; coordinates: number[][][] | number[][][][] } }>)[0];
     const geo = hit?.geojson;
     let boundary: Boundary | null = null;
     if (geo?.type === "Polygon") boundary = [(geo.coordinates as number[][][])[0]];
     else if (geo?.type === "MultiPolygon") boundary = (geo.coordinates as number[][][][]).map((p) => p[0]);
-    if (boundary && hit?.lat && hit?.lon) boundary = clampBoundary(boundary, { lat: Number(hit.lat), lng: Number(hit.lon) }, TOWN_RADIUS_M);
+    // A city's outline is the city (Tel Aviv includes Jaffa and Ramat Aviv); only villages and towns get cut back, because their municipal outline spans fields and neighbouring settlements.
+    if (boundary && hit?.lat && hit?.lon && hit.addresstype !== "city") boundary = clampBoundary(boundary, { lat: Number(hit.lat), lng: Number(hit.lon) }, TOWN_RADIUS_M);
     cache.set(key, boundary);
     return boundary;
   } catch {
