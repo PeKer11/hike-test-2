@@ -473,6 +473,9 @@ export function WalkPlannerApp({
   const [previewPlaces, setPreviewPlaces] = useState<Attraction[]>([]);
   // Places the walker tapped "Add to walk" on before a walk exists; they join the next build.
   const [wishlist, setWishlist] = useState<Attraction[]>([]);
+  // The chat's build callback outlives the render it was created in; read the latest queue through this ref.
+  const wishlistRef = useRef(wishlist);
+  wishlistRef.current = wishlist;
   const [recordedPointCount, setRecordedPointCount] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<Coordinates | null>(null);
@@ -3187,7 +3190,7 @@ export function WalkPlannerApp({
                     setCurrentPosition(build.origin);
                     focusOn(build.origin, 14);
                     // Queued saved places aren't on the chat's preset line, so re-route instead of reusing it.
-                    const extraWishlist = wishlist.filter((w) => !build.stops.some((s) => s.id === w.id));
+                    const extraWishlist = wishlistRef.current.filter((w) => !build.stops.some((s) => s.id === w.id));
                     void handleBuildWalk(
                       {
                         origin: build.origin,
