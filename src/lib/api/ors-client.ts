@@ -11,9 +11,7 @@ import type {
 import { appUserAgent } from "./http-identity";
 
 // api.openrouteservice.org is deprecated (10x lower quota, shut-off planned early Nov 2026); directions and matrix live on heigit.
-// Optimization (VROOM) is not offered there yet, so it stays on the old host.
 const ORS_BASE_URL = "https://api.heigit.org/openrouteservice";
-const ORS_OPTIMIZATION_BASE_URL = "https://api.openrouteservice.org";
 
 function parseOrsError(errorText: string, status: number): string {
   let normalizedError = errorText.toLowerCase();
@@ -331,12 +329,75 @@ export async function getMatrix(
   );
 }
 
+/**
+ * Orders the jobs for one vehicle. ORS shuts its /optimization (VROOM) host down in November 2026, so this
+ * uses the walking matrix and orders the stops here: exact for a handful of stops, nearest-neighbour above.
+ * Only the first vehicle is used; time windows and max_distance are not applied (nothing is reported unassigned).
+ */
 export async function optimizeRoute(
   request: OrsOptimizationRequest,
 ): Promise<OrsOptimizationResponse> {
-  return fetchOrs<OrsOptimizationResponse>(
-    `${ORS_OPTIMIZATION_BASE_URL}/optimization`,
-    request,
-    { cache: "no-store" },
-  );
+  const vehicle = request.vehicles[0];
+  const jobs = request.jobs;
+  const start = vehicle.start ?? vehicle.end ?? jobs[0]?.location;
+  if (!start) throw new Error("Optimization needs a start point.");
+  const end = vehicle.end;
+  const locations = [start, ...jobs.map((j) => j.location), ...(end ? [end] : [])];
+  const { distances } = await getMatrix({ locations, profile: vehicle.profile });
+  const n = jobs.length;
+  const endIdx = end ? n + 1 : 0; // no end: the walk stops at the last job, so no closing leg
+  const d = (a: number, b: number) => distances[a]?.[b] ?? Infinity;
+  const cost = (order: number[]) => {
+    let at = 0;
+    let sum = 0;
+    for (const j of order) {
+      sum += d(at, j);
+      at = j;
+    }
+    return end ? sum + d(at, endIdx) : sum;
+  };
+  let best: number[] = [];
+  if (n > 7) {
+    const left = new Set(Array.from({ length: n }, (_, i) => i + 1));
+    let at = 0;
+    while (left.size) {
+      let pick = -1;
+      for (const j of left) if (pick < 0 || d(at, j) < d(at, pick)) pick = j;
+      best.push(pick);
+      left.delete(pick);
+      at = pick;
+    }
+  } else {
+    let bestCost = Infinity;
+    const permute = (rest: number[], picked: number[]) => {
+      if (rest.length === 0) {
+        const c = cost(picked);
+        if (c < bestCost) {
+          bestCost = c;
+          best = picked;
+        }
+        return;
+      }
+      rest.forEach((j, i) => permute([...rest.slice(0, i), ...rest.slice(i + 1)], [...picked, j]));
+    };
+    permute(Array.from({ length: n }, (_, i) => i + 1), []);
+  }
+  const total = cost(best);
+  return {
+    code: 0,
+    summary: { cost: total, routes: 1, unassigned: 0 },
+    unassigned: [],
+    routes: [
+      {
+        vehicle: vehicle.id,
+        distance: total,
+        duration: 0,
+        steps: [
+          ...(vehicle.start ? [{ type: "start", id: vehicle.id }] : []),
+          ...best.map((j) => ({ type: "job", id: jobs[j - 1].id })),
+          ...(end ? [{ type: "end", id: vehicle.id }] : []),
+        ],
+      },
+    ],
+  };
 }

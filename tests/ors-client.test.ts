@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getMatrix } from "@/lib/api/ors-client";
+import { getMatrix, optimizeRoute } from "@/lib/api/ors-client";
 
 function mockFetchOnce(
   payload: unknown,
@@ -71,5 +71,39 @@ describe("getMatrix", () => {
     await expect(getMatrix({ locations })).rejects.toThrow(
       "API key is missing or invalid.",
     );
+  });
+});
+
+describe("optimizeRoute", () => {
+  it("orders jobs by walking distance from the matrix, start to end", async () => {
+    // locations: 0 start, 1 jobA, 2 jobB, 3 end. B is nearer the start; A is nearer the end.
+    mockFetchOnce({
+      distances: [
+        [0, 900, 100, 1000],
+        [900, 0, 800, 100],
+        [100, 800, 0, 900],
+        [1000, 100, 900, 0],
+      ],
+    });
+    const res = await optimizeRoute({
+      jobs: [
+        { id: 11, location: [34.78, 32.08] },
+        { id: 22, location: [34.79, 32.09] },
+      ],
+      vehicles: [{ id: 1, profile: "foot-walking", start: [34.7, 32.0], end: [34.8, 32.1] }],
+    });
+    expect(res.routes[0].steps.map((s) => (s.type === "job" ? s.id : s.type))).toEqual(["start", 22, 11, "end"]);
+    expect(res.unassigned).toEqual([]);
+  });
+
+  it("retries once on a 429 and then succeeds", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 429, headers: { get: () => "0" }, json: async () => ({}), text: async () => "slow down" })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ distances: [[0, 5], [5, 0]] }), text: async () => "" });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await getMatrix({ locations: [[34.78, 32.08], [34.781, 32.081]] });
+    expect(result.distances[0][1]).toBe(5);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
