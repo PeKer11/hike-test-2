@@ -120,11 +120,14 @@ export async function routeAndJudge(
       if (params.avoidDangerous && env.forbidden.failed) forbiddenWays.push(...(detail?.stateRoads ?? []));
     }
     const clean = await buildCleanRoute({ waypoints, route, noRepeat: params.noRepeat === true, forbiddenWays, maxAttempts });
+    const legKms = legKmsFromGeometry(clean.geometry, waypoints);
+    const heights = routeDetail(clean.geometry)?.legs;
     const t = timeline(
       stops.map((c) => ({ id: c.id, visitMin: visitMinutes(c.category) })),
-      legKmsFromGeometry(clean.geometry, waypoints),
+      legKms,
       params.stops,
       pace,
+      heights && heights.length === legKms.length ? heights.map((l) => l.ascentM) : null,
     );
     const verdict = evaluateRoute({
       geometry: clean.geometry,
@@ -136,8 +139,8 @@ export async function routeAndJudge(
       boundary: env.boundary,
       paceMinPerKm: pace,
       visitMin: t.visitMin,
-      // Per-leg pace only changes the total when the walker asked for it; otherwise the whole route at one pace, as before.
-      ...(params.stops && Object.keys(params.stops).length ? { walkMin: t.walkMin } : {}),
+      // Per-leg pace and climbing change the walking time; without either it is the whole route at one pace, as before.
+      ...((params.stops && Object.keys(params.stops).length) || t.climbKnown ? { walkMin: t.walkMin } : {}),
     });
     return { verdict, stops, geometry: clean.geometry };
   }

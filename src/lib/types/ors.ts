@@ -6,6 +6,8 @@ export interface OrsDirectionsRequest {
   instructions?: boolean;
   /** ORS extra_info keys, e.g. "waytype". */
   extra_info?: string[];
+  /** Ask for elevation: the geometry then carries height, and segments report ascent/descent in metres. */
+  elevation?: boolean;
   /** Passed through as ORS `options` (round_trip, avoid_polygons, ...). */
   options?: Record<string, unknown>;
 }
@@ -22,6 +24,9 @@ export interface OrsDirectionsStep {
 export interface OrsDirectionsSegment {
   distance: number;
   duration: number;
+  /** Metres climbed / descended on this leg; only when elevation was asked for and answered. */
+  ascent?: number;
+  descent?: number;
   steps: OrsDirectionsStep[];
 }
 

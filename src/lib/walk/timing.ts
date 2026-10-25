@@ -25,6 +25,14 @@ export function dwellMinutes(plans: Record<string, StopPlan> | undefined, stopId
   return typeof d === "number" && Number.isFinite(d) && d >= 0 ? Math.min(d, MAX_DWELL_MIN) : fallback;
 }
 
+/**
+ * Extra minutes for climbing (Naismith, scaled to the walker's pace): 1 min per 10 m at 12 min/km.
+ * The first 5 m per km are ignored: the elevation data (~90 m grid) is noisy on city streets. Descents are not credited.
+ */
+export function climbMinutes(ascentM: number, legKm: number, paceMinPerKm: number): number {
+  return Math.max(0, ascentM - 5 * legKm) * (paceMinPerKm / 120);
+}
+
 export interface TimelineStop {
   id: string;
   /** Default minutes there when the walker said nothing. */
@@ -33,7 +41,11 @@ export interface TimelineStop {
 
 export interface Timeline {
   legs: Array<{ to: string; km: number; pace: number; min: number }>;
+  /** Walking minutes including the extra time for climbing. */
   walkMin: number;
+  climbMin: number;
+  /** False when the router gave no heights, so climbing is not counted. */
+  climbKnown: boolean;
   visitMin: number;
   totalMin: number;
   /** Plans for stops that are not in this walk (kept in state, applied again if the stop returns). */
@@ -44,17 +56,26 @@ export interface Timeline {
  * Walking and visiting time for one walk. `legKms[i]` is the distance to `stops[i]`; one extra entry is the leg back to the start.
  * With no plans this is exactly km x base pace + the default visit times.
  */
-export function timeline(stops: TimelineStop[], legKms: number[], plans: Record<string, StopPlan> | undefined, basePace: number): Timeline {
+export function timeline(
+  stops: TimelineStop[],
+  legKms: number[],
+  plans: Record<string, StopPlan> | undefined,
+  basePace: number,
+  /** Metres climbed on each leg (same length as legKms), when known. */
+  ascentsM?: number[] | null,
+): Timeline {
+  const climbKnown = Boolean(ascentsM && ascentsM.length === legKms.length);
   const legs: Timeline["legs"] = legKms.map((km, i) => {
     const to = stops[i]?.id ?? "end";
     const pace = legPace(plans, to, basePace);
-    return { to, km, pace, min: km * pace };
+    return { to, km, pace, min: km * pace + (climbKnown ? climbMinutes(ascentsM![i], km, pace) : 0) };
   });
+  const climbMin = climbKnown ? legs.reduce((a, l, i) => a + climbMinutes(ascentsM![i], l.km, l.pace), 0) : 0;
   const walkMin = legs.reduce((a, l) => a + l.min, 0);
   const visitMin = stops.reduce((a, s) => a + dwellMinutes(plans, s.id, s.visitMin), 0);
   const inWalk = new Set([...stops.map((s) => s.id), "end"]);
   const ignored = Object.keys(plans ?? {}).filter((id) => !inWalk.has(id));
-  return { legs, walkMin, visitMin, totalMin: walkMin + visitMin, ignored };
+  return { legs, walkMin, climbMin, climbKnown, visitMin, totalMin: walkMin + visitMin, ignored };
 }
 
 /**

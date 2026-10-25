@@ -13,6 +13,8 @@ export interface RouteDetail {
   named: Array<{ name: string; path: Coordinates[] }>;
   /** Stretches on state roads; null when the router gave no road types. */
   stateRoads: Coordinates[][] | null;
+  /** Climb per leg (one per pair of waypoints); null when the router gave no heights. */
+  legs?: Array<{ distanceM: number; ascentM: number }> | null;
 }
 
 const details = new WeakMap<Coordinates[], RouteDetail>();
@@ -48,11 +50,15 @@ export async function orsRoute(waypoints: Coordinates[], avoid: AvoidPolygons | 
     profile: "foot-walking",
     instructions: true,
     extra_info: ["waytype"],
+    elevation: true,
     ...(avoid ? { options: { avoid_polygons: avoid } } : {}),
   });
   const route = res.routes[0];
   if (!route?.geometry) throw new Error("no geometry");
-  const geometry = decodePolyline(route.geometry);
+  // Height only comes with the router that was asked for it; the backup router answers in 2D.
+  const hasElevation = route.segments.length > 0 && route.segments.every((s) => typeof s.ascent === "number");
+  const geometry = decodePolyline(route.geometry, 5, hasElevation);
+  const legs = hasElevation ? route.segments.map((s) => ({ distanceM: s.distance, ascentM: s.ascent as number })) : null;
 
   const steps = route.segments.flatMap((s) => s.steps);
   const named = steps
@@ -61,7 +67,7 @@ export async function orsRoute(waypoints: Coordinates[], avoid: AvoidPolygons | 
     .filter((s) => s.path.length >= 2);
   const wayTypes = route.extras?.waytype?.values;
   const stateRoads = wayTypes ? wayTypes.filter(([, , v]) => v === STATE_ROAD).map(([a, b]) => geometry.slice(a, b + 1)).filter((p) => p.length >= 2) : null;
-  details.set(geometry, { named, stateRoads });
+  details.set(geometry, { named, stateRoads, legs });
 
   // A backup-router answer has no step positions (no names, no road types): do not keep it as the answer.
   if (steps.some((s) => s.way_points)) {

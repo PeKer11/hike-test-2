@@ -1,6 +1,7 @@
 import type { Coordinates } from "@/lib/types";
 
-export function decodePolyline(encoded: string, precision = 5): Coordinates[] {
+/** `is3d`: every point also carries a height (ORS with elevation=true); it is read and dropped, so callers still get 2D points. */
+export function decodePolyline(encoded: string, precision = 5, is3d = false): Coordinates[] {
   const factor = 10 ** precision;
   const coordinates: Coordinates[] = [];
   let index = 0;
@@ -32,6 +33,13 @@ export function decodePolyline(encoded: string, precision = 5): Coordinates[] {
 
     const deltaLng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
     lng += deltaLng;
+
+    if (is3d) {
+      do {
+        byte = encoded.charCodeAt(index++) - 63;
+        shift += 5;
+      } while (byte >= 0x20);
+    }
 
     coordinates.push({
       lat: lat / factor,

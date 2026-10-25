@@ -259,6 +259,7 @@ export async function getDirections(
       instructions: request.instructions ?? true,
       ...(request.options ? { options: request.options } : {}),
       ...(request.extra_info ? { extra_info: request.extra_info } : {}),
+      ...(request.elevation ? { elevation: true } : {}),
     },
     { cache: "no-store" },
   );
