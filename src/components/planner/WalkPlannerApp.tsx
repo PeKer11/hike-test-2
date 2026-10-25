@@ -54,6 +54,7 @@ import {
 } from "@/lib/hooks";
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
+import { visitMinutes } from "@/lib/assistant/state";
 import type { WalkSettings } from "@/lib/types/walk-settings";
 import { downloadCsv, downloadGpx } from "@/lib/walk/gpx-exporter";
 import { AttractionDistancesPanel } from "@/components/walk/AttractionDistancesPanel";
@@ -1085,13 +1086,17 @@ export function WalkPlannerApp({
           if (snapshot) {
             revertToSnapshot(snapshot);
             setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
-          } else {
-            setWalkPlanError(ai.error ?? "The AI could not build a walk that fits.");
+            return;
           }
-          return;
+          // The AI itself failed (not sign-in, budget or bad input): the rule-based planner can still build the walk.
+          if (aiRes.status !== 502) {
+            setWalkPlanError(ai.error ?? "The AI could not build a walk that fits.");
+            return;
+          }
+        } else {
+          aiStops = ai.stops;
+          aiGeometry = ai.geometry ?? undefined;
         }
-        aiStops = ai.stops;
-        aiGeometry = ai.geometry ?? undefined;
       }
       const res = await fetch("/api/walk-plan", {
         method: "POST",
@@ -3222,7 +3227,26 @@ export function WalkPlannerApp({
                 />
               )}
               {isSignedIn && !walkMode && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}
-              {isSignedIn && !walkMode && sideTab === "friends" && <FriendsPanel expanded />}
+              {isSignedIn && !walkMode && sideTab === "friends" && <FriendsPanel
+                  expanded
+                  onPlan={(w) => {
+                    // A friend's shared walk: same stops in the same order, starting from where I am (or its first stop).
+                    const attractions: Attraction[] = w.stops.map((st, i) => ({
+                      id: `friend-${i}-${st.lat.toFixed(5)},${st.lng.toFixed(5)}`,
+                      name: st.name,
+                      coordinates: { lat: st.lat, lng: st.lng },
+                      category: st.category as Attraction["category"],
+                      avgVisitMinutes: visitMinutes(st.category),
+                      tags: {},
+                    }));
+                    if (attractions.length === 0) return;
+                    setSideTab("plan");
+                    void handleBuildWalk(
+                      { origin: currentPosition ?? attractions[0].coordinates, availableMinutes: attractions.length * 45 + 120, walkingPaceMinPerKm: 15, radiusMeters: 3000 },
+                      { keepAttractions: attractions, fixedOrder: true },
+                    );
+                  }}
+                />}
               {/* "contents" keeps the plan column's layout; hidden keeps the chat and form mounted. */}
               <div className={sideTab === "plan" || !isSignedIn || walkMode ? "contents" : "hidden"}>
               {isSignedIn && (
@@ -3253,7 +3277,7 @@ export function WalkPlannerApp({
                       wishlistRef.current.find((w) => w.id === s.id || haversineDistance(s.coordinates, w.coordinates) <= 40);
                     const stops = build.stops.map((s) => {
                       const w = savedFor(s);
-                      return w ? { ...s, id: w.id, coordinates: w.coordinates } : s;
+                      return w ? { ...s, id: w.id } : s; // keep the chat's coordinates: its checked route passes through them
                     });
                     const extraWishlist = wishlistRef.current.filter((w) => !stops.some((s) => s.id === w.id));
                     // Mid-walk: rebuild from where the walker is, with the time that is left — not from the chat's first start.
@@ -3273,7 +3297,7 @@ export function WalkPlannerApp({
                         radiusMeters: build.radiusMeters,
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
-                      { keepAttractions: [...stops, ...extraWishlist], fixedOrder: build.fixedOrder, presetGeometry: extraWishlist.length > 0 || stops.some((s, i) => s !== build.stops[i]) ? undefined : build.geometry, aiDecided: extraWishlist.length === 0, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhaseRef.current === "walking" },
+                      { keepAttractions: [...stops, ...extraWishlist], fixedOrder: build.fixedOrder, presetGeometry: extraWishlist.length > 0 ? undefined : build.geometry, aiDecided: extraWishlist.length === 0, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhaseRef.current === "walking" },
                     );
                   }}
                 />
@@ -3453,6 +3477,16 @@ export function WalkPlannerApp({
                     ⚠️ We couldn&apos;t draw the walking route for this plan, so
                     live walking isn&apos;t available right now.
                   </p>
+                </Card>
+              )}
+              {/* Everything else the planner relaxed, could not check, or could not honour — never silent. */}
+              {(walkPlan?.warnings ?? []).filter((w) => !w.includes("geometry")).length > 0 && (
+                <Card>
+                  <ul className="space-y-1 text-sm text-amber-700">
+                    {(walkPlan?.warnings ?? []).filter((w) => !w.includes("geometry")).map((w) => (
+                      <li key={w}>⚠️ {w}</li>
+                    ))}
+                  </ul>
                 </Card>
               )}
               <WalkRecordingPanel

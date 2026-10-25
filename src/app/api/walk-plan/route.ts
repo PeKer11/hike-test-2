@@ -724,7 +724,8 @@ export async function POST(request: Request): Promise<NextResponse> {
           if (returnToStart && !summary.closesLoop) {
             warnings.push("The route does not end back at the start.");
           }
-        } catch {
+        } catch (err) {
+          console.error("[walk-plan] route geometry failed:", err instanceof Error ? err.message : err);
           // Geometry is optional — don't fail the whole plan if ORS is unavailable
           warnings.push(
             "Could not fetch route geometry from ORS. Start Walk is disabled.",

@@ -2,7 +2,7 @@ import type { ProviderChoice } from "@/lib/llm/config";
 import { estimateCostMicros } from "@/lib/llm/pricing";
 import { callOpenAiTools, type ChatMessage } from "@/lib/llm/providers/openai-tools";
 import { TURN_ROUTING_CALLS } from "@/lib/assistant/route-check";
-import type { AssistantState, Candidate, WalkParams } from "@/lib/assistant/state";
+import { visitMinutes, type AssistantState, type Candidate, type WalkParams } from "@/lib/assistant/state";
 import { ASSISTANT_TOOLS, runTool } from "@/lib/assistant/tools";
 import type { Attraction, Coordinates } from "@/lib/types";
 import { makeBudget } from "@/lib/walk/routing-budget";
@@ -46,7 +46,7 @@ function toAttraction(c: Candidate, kept: Map<string, Attraction>): Attraction {
     name: c.name,
     coordinates: c.coordinates,
     category: c.category === "area" ? "landmark" : c.category,
-    avgVisitMinutes: c.category === "food" ? 45 : c.category === "museum" ? 60 : 30,
+    avgVisitMinutes: visitMinutes(c.category),
     tags: { source: "ai-builder", placeId: c.placeId },
   };
 }

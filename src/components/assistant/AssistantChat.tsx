@@ -8,6 +8,7 @@ import {
   type AssistantState,
   type BuildAction,
   type Candidate,
+  visitMinutes,
 } from "@/lib/assistant/state";
 import { createClient } from "@/lib/supabase/client";
 import type { AssistantDefaults } from "@/lib/assistant/defaults";
@@ -283,7 +284,7 @@ function toAttraction(c: Candidate): Attraction {
     name: c.name,
     coordinates: c.coordinates,
     category: c.category === "area" ? "landmark" : c.category,
-    avgVisitMinutes: c.category === "food" ? 45 : 30,
+    avgVisitMinutes: visitMinutes(c.category),
     tags: { source: "assistant", placeId: c.placeId },
   };
 }
