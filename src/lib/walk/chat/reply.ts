@@ -52,6 +52,7 @@ const T = {
     detour: "Take me there",
     drop: (name: string) => `Skip ${name}`,
     dropText: (name: string) => `I can drop ${name} to make the walk shorter.`,
+    whichDrop: "Which stop should I drop to make the walk shorter?",
     skipText: (name: string) => `I can skip ${name}.`,
     whichStop: "Which stop? Say its name.",
     noStops: "There are no stops left to change.",
@@ -71,6 +72,7 @@ const T = {
     detour: "קחו אותי לשם",
     drop: (name: string) => `לדלג על ${name}`,
     dropText: (name: string) => `אפשר לוותר על ${name} כדי לקצר את ההליכה.`,
+    whichDrop: "על איזו עצירה לוותר כדי לקצר את ההליכה?",
     skipText: (name: string) => `אפשר לדלג על ${name}.`,
     whichStop: "על איזו עצירה? אמרו את השם שלה.",
     noStops: "לא נשארו עצירות לשנות.",
@@ -125,6 +127,13 @@ export function resolveChat(intent: ParsedIntent, ctx: ChatContext, lang: ChatLa
     case "shorter": {
       if (ctx.stops.length >= 2) {
         const droppable = ctx.stops.filter((s) => !s.pinned);
+        // With several stops to choose from, the walker decides which one goes.
+        if (droppable.length > 1) {
+          return {
+            text: t.whichDrop,
+            actions: droppable.slice(0, 5).map((s) => ({ kind: "drop" as const, stopId: s.id, label: t.drop(s.name) })),
+          };
+        }
         const last = droppable[droppable.length - 1];
         if (last) {
           return {

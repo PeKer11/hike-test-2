@@ -32,15 +32,15 @@ describe("useWalkChat", () => {
     const { result } = setup(doFetch);
     act(() => result.current.send("make it shorter"));
     expect(doFetch).not.toHaveBeenCalled();
-    expect(last(result)).toContain("Carmel Market");
+    expect(last(result)).toContain("Which stop");
   });
 
   it("runs an action once and then uses it up", () => {
     const { result, onAction } = setup(reply(200, {}));
     act(() => result.current.send("shorter"));
     const msg = result.current.messages.at(-1)!;
-    act(() => result.current.runAction(msg.id, 0));
-    act(() => result.current.runAction(msg.id, 0));
+    act(() => result.current.runAction(msg.id, 1));
+    act(() => result.current.runAction(msg.id, 1));
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onAction.mock.calls[0][0]).toMatchObject({ kind: "drop", stopId: "b" });
     expect(result.current.messages.at(-1)!.used).toBe(true);

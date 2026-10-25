@@ -41,8 +41,13 @@ describe("resolveChat find", () => {
 });
 
 describe("resolveChat shorter", () => {
-  it("drops the last unvisited UNPINNED stop", () => {
+  it("lets the walker choose which unpinned stop to drop", () => {
     const r = resolveChat({ intent: "shorter" }, ctx([stop("a"), stop("b"), stop("c", true)]), "en");
+    expect(r.actions.map((a) => a.kind === "drop" && a.stopId)).toEqual(["a", "b"]);
+  });
+
+  it("proposes the only unpinned stop directly", () => {
+    const r = resolveChat({ intent: "shorter" }, ctx([stop("a", true), stop("b")]), "en");
     expect(r.actions).toHaveLength(1);
     expect(r.actions[0]).toMatchObject({ kind: "drop", stopId: "b" });
   });
