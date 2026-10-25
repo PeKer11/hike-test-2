@@ -1,11 +1,13 @@
 /**
  * Single source of truth for Traike pricing.
  *
- * The monetization model is tentative (hybrid freemium) and may change —
- * edit numbers/tiers here only, never inline in components.
+ * DRAFT packages (2026-10-25): prices and quotas come from the cost research in
+ * the vault (projects/hiking-ai.md, "TODO — pricing & quotas") and are not wired
+ * to billing or enforced yet. Edit numbers/tiers here only, never inline in
+ * components.
  */
 
-export const CITY_PRICE_USD = 9.99;
+export const CITY_PRICE_USD = 4.99;
 export const ANNUAL_PRICE_USD = 39.99;
 
 export interface PricingTier {
@@ -13,63 +15,59 @@ export interface PricingTier {
   name: string;
   price: string;
   priceNote: string;
-  tagline: string;
-  features: string[];
+  /** What the buyer gets, one short line each: [count, label]. */
+  quotas: [string, string][];
   cta: string;
   href: string;
   highlighted: boolean;
+  /** Glossy 3D accessory under /images/traike/3d. */
+  accessory: string;
 }
 
 export const PRICING_TIERS: PricingTier[] = [
   {
     id: "free",
-    name: "First Walk",
+    name: "First Steps",
     price: "Free",
-    priceNote: "no card, no catch",
-    tagline:
-      "Try Traike properly — your first personalized walk in any city, start to finish.",
-    features: [
-      "One full personalized walk",
-      "Real-time pace and interest adaptation",
-      "Local stories along the route",
-      "Works in any supported city",
+    priceNote: "every day",
+    quotas: [
+      ["1", "AI route a day"],
+      ["8", "chat messages"],
+      ["2", "top-rated searches"],
     ],
-    cta: "Start your first walk",
+    cta: "Start walking",
     href: "/app",
     highlighted: false,
+    accessory: "boot.png",
   },
   {
     id: "city",
     name: "City Pass",
     price: `$${CITY_PRICE_USD}`,
-    priceNote: "per city, yours forever",
-    tagline:
-      "Unlock unlimited walks in one city — ideal for a trip of a few days.",
-    features: [
-      "Unlimited walks in one city",
-      "Traike keeps learning your pace and taste",
-      "Re-route anytime mid-walk",
-      "Every walk saved to your journal",
+    priceNote: "7 days",
+    quotas: [
+      ["10", "AI routes"],
+      ["60", "chat messages"],
+      ["15", "top-rated searches"],
     ],
-    cta: "Unlock a city",
+    cta: "Get the pass",
     href: "/app",
     highlighted: true,
+    accessory: "pin.png",
   },
   {
     id: "annual",
-    name: "Annual Pass",
+    name: "Annual",
     price: `$${ANNUAL_PRICE_USD}`,
-    priceNote: "per year, every city",
-    tagline:
-      "For repeat travelers and locals who walk their own city — everything, everywhere.",
-    features: [
-      "Unlimited walks in every city",
-      "Your walking profile travels with you",
-      "New cities included as they launch",
-      "Priority access to new features",
+    priceNote: "per year",
+    quotas: [
+      ["12", "AI routes a month"],
+      ["150", "chat messages a month"],
+      ["40", "top-rated searches a month"],
     ],
-    cta: "Get the Annual Pass",
+    cta: "Go annual",
     href: "/app",
     highlighted: false,
+    accessory: "compass.png",
   },
 ];

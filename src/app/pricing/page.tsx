@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { SiteFooter } from "@/components/marketing/SiteFooter";
@@ -7,149 +8,124 @@ import { PRICING_TIERS } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Pricing — Traike",
-  description:
-    "Your first walk is free. Then pay per city, or get an annual pass for every city Traike knows.",
+  description: "Walk first, pay later. Start free, take a pass for a trip, or go annual.",
 };
 
 const FAQ = [
   {
-    q: "What counts as “one free walk”?",
-    a: "A complete personalized walk, start to finish, in any supported city — with the full experience: live adaptation, re-routing, and local stories. It’s the real product, not a demo.",
+    q: "What is a Traike route?",
+    a: "A walk built for you by the AI: your start, your time, your taste. Re-routing mid-walk is included.",
   },
   {
-    q: "Is the City Pass a subscription?",
-    a: "No. You pay once per city and it stays unlocked on your account — come back to Lisbon in two years and it’s still yours.",
+    q: "Does the free plan ever expire?",
+    a: "No. The daily allowance simply renews every day.",
   },
   {
-    q: "How does the personalization actually work?",
-    a: "Traike’s AI engine learns your walking pace, how long you linger at different kinds of places, and what you skip — then uses that profile to build and continuously reshape each route. Your profile stays on your device.",
-  },
-  {
-    q: "Will these prices change?",
-    a: "We’re in early access, so pricing may evolve — but anything you’ve already unlocked stays unlocked at the price you paid.",
+    q: "Can prices change?",
+    a: "We're in early access. Anything you've already bought keeps its price.",
   },
 ];
+
+function QuotaIcon({ index }: { index: number }) {
+  const paths = [
+    <path key="r" d="M5 19c4 0 3-6 7-6s3-8 7-8M5 19h.01M19 5h.01" />,
+    <path key="c" d="M4 6h16v10H9l-5 4V6z" />,
+    <path key="s" d="m12 4 2.4 5 5.6.8-4 3.9.9 5.6-4.9-2.6-4.9 2.6.9-5.6-4-3.9 5.6-.8z" />,
+  ];
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0" aria-hidden>
+      {paths[index]}
+    </svg>
+  );
+}
 
 export default function PricingPage() {
   return (
     <div className="min-h-screen bg-cream font-brand text-charcoal">
       <SiteHeader />
 
-      <section className="py-16 md:py-24">
-        <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
-          <h1 className="font-display text-4xl font-bold text-forest md:text-5xl">
-            Try it first. Properly.
-          </h1>
-          <p className="mt-4 max-w-lg text-lg text-charcoal/75">
-            Your first walk is the full experience, free. If the city clicks
-            with you, unlock it — or take Traike everywhere.
-          </p>
+      <section className="relative isolate overflow-hidden">
+        <Image
+          src="/images/hub-mountain-lake-sunset.png"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          aria-hidden
+          className="-z-20 object-cover object-center"
+        />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-cream/90 via-cream/55 to-cream" />
 
-          <div className="mt-12 grid gap-6 md:grid-cols-3 md:gap-8">
+        <div className="mx-auto max-w-[1200px] px-4 pb-24 pt-16 sm:px-6 md:pt-24">
+          <h1 className="text-center font-display text-5xl font-bold text-forest md:text-7xl">
+            Walk first. Pay later.
+          </h1>
+
+          <div className="mt-32 grid items-stretch gap-x-8 gap-y-24 md:grid-cols-3">
             {PRICING_TIERS.map((tier) => (
               <div
                 key={tier.id}
-                className={
+                className={`relative flex flex-col rounded-[28px] px-8 pb-8 pt-28 ${
                   tier.highlighted
-                    ? "flex flex-col rounded-xl bg-forest p-8 text-cream shadow-[0_4px_20px_rgba(30,61,47,0.25)]"
-                    : "flex flex-col rounded-xl bg-white p-8 shadow-[0_4px_20px_rgba(30,61,47,0.12)]"
-                }
+                    ? "bg-forest text-cream shadow-[0_24px_60px_rgba(30,61,47,0.45)] md:-translate-y-4"
+                    : "bg-white/90 text-charcoal shadow-[0_16px_44px_rgba(30,61,47,0.18)] backdrop-blur"
+                }`}
               >
-                {tier.highlighted && (
-                  <span className="mb-4 self-start rounded-full bg-terra px-3 py-1 text-xs font-bold uppercase tracking-wide text-cream">
-                    Most popular
-                  </span>
-                )}
-                <h2
-                  className={`text-xl font-semibold ${tier.highlighted ? "text-cream" : "text-forest"}`}
-                >
+                <Image
+                  src={`/images/traike/3d/${tier.accessory}`}
+                  alt=""
+                  width={640}
+                  height={640}
+                  aria-hidden
+                  className="pointer-events-none absolute -top-20 left-1/2 h-44 w-44 -translate-x-1/2 object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,0.28)]"
+                />
+                <h2 className={`text-center text-lg font-semibold ${tier.highlighted ? "text-cream/80" : "text-forest/70"}`}>
                   {tier.name}
                 </h2>
-                <p className="mt-4 flex items-baseline gap-2">
-                  <span
-                    className={`font-display text-4xl font-bold ${tier.highlighted ? "text-cream" : "text-forest"}`}
-                  >
-                    {tier.price}
-                  </span>
-                  <span
-                    className={`text-sm ${tier.highlighted ? "text-cream/70" : "text-charcoal/60"}`}
-                  >
+                <p className="mt-2 text-center">
+                  <span className="font-display text-6xl font-light">{tier.price}</span>
+                  <span className={`ml-2 text-sm ${tier.highlighted ? "text-cream/60" : "text-charcoal/50"}`}>
                     {tier.priceNote}
                   </span>
                 </p>
-                <p
-                  className={`mt-4 leading-relaxed ${tier.highlighted ? "text-cream/85" : "text-charcoal/75"}`}
-                >
-                  {tier.tagline}
-                </p>
-                <ul className="mt-6 flex flex-col gap-3 text-sm">
-                  {tier.features.map((feature) => (
-                    <li key={feature} className="flex gap-2.5">
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        strokeWidth={1.5}
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className={`mt-0.5 h-4 w-4 shrink-0 ${tier.highlighted ? "text-skysoft" : "text-terra"}`}
-                        aria-hidden
-                      >
-                        <path d="m5 13 4 4L19 7" />
-                      </svg>
-                      <span
-                        className={
-                          tier.highlighted ? "text-cream/90" : "text-charcoal/80"
-                        }
-                      >
-                        {feature}
+                <ul className="mt-8 flex flex-col gap-4">
+                  {tier.quotas.map(([count, label], i) => (
+                    <li key={label} className="flex items-center gap-3">
+                      <span className={tier.highlighted ? "text-skysoft" : "text-terra"}>
+                        <QuotaIcon index={i} />
                       </span>
+                      <span className="font-display text-3xl font-light">{count}</span>
+                      <span className={`text-sm ${tier.highlighted ? "text-cream/80" : "text-charcoal/70"}`}>{label}</span>
                     </li>
                   ))}
                 </ul>
                 <Link
                   href={tier.href}
-                  className={
+                  className={`mt-10 rounded-full px-6 py-3.5 text-center font-bold transition-colors ${
                     tier.highlighted
-                      ? "mt-8 rounded-[10px] bg-terra px-6 py-3 text-center font-bold text-cream shadow-[0_4px_20px_rgba(0,0,0,0.2)] transition-colors hover:bg-terra/90"
-                      : "mt-8 rounded-[10px] bg-terra/10 px-6 py-3 text-center font-bold text-terra transition-colors hover:bg-terra/20"
-                  }
+                      ? "bg-terra text-cream shadow-[0_8px_24px_rgba(193,95,60,0.5)] hover:bg-terra/90"
+                      : "bg-terra/10 text-terra hover:bg-terra/20"
+                  }`}
                 >
                   {tier.cta}
                 </Link>
               </div>
             ))}
           </div>
-
-          <p className="mt-8 text-sm text-charcoal/55">
-            Early-access pricing — the model may evolve, but whatever you
-            unlock stays yours.
-          </p>
         </div>
       </section>
 
-      {/* FAQ */}
-      <section className="bg-skysoft/25 py-16 md:py-24">
-        <div className="mx-auto max-w-[760px] px-4 sm:px-6">
-          <h2 className="font-display text-3xl font-bold text-forest">
-            Questions people ask
-          </h2>
-          <dl className="mt-10 flex flex-col gap-8">
-            {FAQ.map((item) => (
-              <div key={item.q}>
-                <dt className="text-lg font-semibold text-forest">{item.q}</dt>
-                <dd className="mt-2 leading-relaxed text-charcoal/75">
-                  {item.a}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <Link
-            href="/app"
-            className="mt-12 inline-block rounded-[10px] bg-terra px-7 py-3.5 font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90"
-          >
-            Start your first walk — free
-          </Link>
+      <section className="pb-20">
+        <div className="mx-auto max-w-[640px] px-4 sm:px-6">
+          {FAQ.map((item) => (
+            <details key={item.q} className="group border-b border-forest/15 py-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between font-semibold text-forest">
+                {item.q}
+                <span className="text-terra transition-transform group-open:rotate-45">+</span>
+              </summary>
+              <p className="mt-3 leading-relaxed text-charcoal/75">{item.a}</p>
+            </details>
+          ))}
         </div>
       </section>
 

@@ -17,23 +17,26 @@ export default async function LoginPage({
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-cream p-4 font-brand text-charcoal">
-      {/* Terracotta studio gradient instead of the landing-page photo: the auth
-          pages should feel like brand surface, not a second marketing hero. It
-          needs only a light blur (it has no detail to hide, just a faint
-          cyclorama seam) and a heavier cream wash, since the source is far more
-          saturated than the photo it replaced. Its highlight sits dead centre,
-          so the warm glow lands behind the card. */}
+      {/* Photo background under a cream wash, one glossy 3D accessory on the card's corner. */}
       <Image
-        src="/images/auth-terra-gradient.jpg"
+        src="/images/hub-mountain-lake-sunset.png"
         alt=""
         fill
         priority
         sizes="100vw"
         aria-hidden
-        className="scale-105 object-cover object-center blur-sm"
+        className="scale-105 object-cover object-center"
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-cream/86 via-cream/72 to-cream/92" />
+      <div className="absolute inset-0 bg-gradient-to-b from-cream/80 via-cream/45 to-cream/85" />
       <div className="relative w-full max-w-sm">
+        <Image
+          src="/images/traike/3d/compass.png"
+          alt=""
+          width={640}
+          height={640}
+          aria-hidden
+          className="pointer-events-none absolute -right-10 -top-24 z-10 h-36 w-36 object-contain drop-shadow-[0_16px_20px_rgba(0,0,0,0.3)]"
+        />
         <AuthForm mode="login" initialError={error} />
       </div>
     </main>
