@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 import { fetchAttractionsResilient as fetchAttractions } from "@/lib/attractions/resilient-attractions";
 import {
   MAX_WALK_STOPS,
@@ -377,7 +378,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const origin = { lat, lng };
-    const requestedPace = body.walkingPaceMinPerKm ?? 15;
+    const requestedPace = body.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM;
     const walkingPaceMinPerKm =
       Number.isFinite(requestedPace) && requestedPace > 0 ? requestedPace : 15;
     // Clamp the Overpass search radius — an unbounded value from the client

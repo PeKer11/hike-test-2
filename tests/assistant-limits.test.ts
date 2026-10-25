@@ -37,7 +37,7 @@ describe("assistant limits", () => {
     const run = await runTool("estimate_walk", JSON.stringify({ stop_ids: ["c1", "c2"] }), base);
     const est = JSON.parse(run.output);
     expect(est.walkKm).toBe(3.5);
-    expect(est.walkMin).toBe(44); // 3.5 km x 12.5 min/km
+    expect(est.walkMin).toBe(53); // 3.5 km x 15 min/km
     expect(est.visitMin).toBe(70); // park 25 + food 45
   });
 

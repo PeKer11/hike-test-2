@@ -1,5 +1,7 @@
 import "server-only";
 
+import { blendedPace, sanitizePaceByEnv } from "@/lib/preferences/companion-memory";
+import { clampPace, MIN_LEARNED_WALKS } from "@/lib/walk/pace";
 import { extractCategoryPreferences } from "@/lib/api/gemini-client";
 import type { LlmCallContext } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
@@ -317,7 +319,7 @@ export async function getProfileDefaults(
     const [profile, preferences] = await Promise.all([
       supabase
         .from("profiles")
-        .select("walking_pace_min_per_km, session_count")
+        .select("walking_pace_min_per_km, session_count, pace_by_env")
         .eq("id", userId)
         .maybeSingle(),
       getCategoryPreferences(supabase, userId),
@@ -341,9 +343,15 @@ export async function getProfileDefaults(
     // through it — so parse and re-check rather than trusting the shape.
     const pace = Number(data.walking_pace_min_per_km);
 
+    // The pace learned from finished walks (once there are a couple) beats the stored column, which nothing writes.
+    const learnedByEnv = sanitizePaceByEnv((data as Record<string, unknown>).pace_by_env);
+    const learnedWalks = Object.values(learnedByEnv).reduce((sum, p) => sum + (p?.n ?? 0), 0);
+    const learned = learnedWalks >= MIN_LEARNED_WALKS ? blendedPace(learnedByEnv) : null;
+
     return {
       walkingPaceMinPerKm:
-        Number.isFinite(pace) && pace > 0 && pace <= 60 ? pace : null,
+        learned !== null && Number.isFinite(learned) ? Math.round(clampPace(learned) * 10) / 10
+        : Number.isFinite(pace) && pace > 0 && pace <= 60 ? pace : null,
       preferredCategories,
     };
   } catch {

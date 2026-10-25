@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 import {
   callerKey,
   overpassRateLimiter,
@@ -54,7 +55,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const radiusMeters = Number.isFinite(requestedRadius)
       ? Math.min(Math.max(requestedRadius, 100), 10_000)
       : 2000;
-    const requestedPace = body.walkingPaceMinPerKm ?? 15;
+    const requestedPace = body.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM;
     const walkingPaceMinPerKm =
       Number.isFinite(requestedPace) && requestedPace > 0 ? requestedPace : 15;
     const origin = { lat, lng };

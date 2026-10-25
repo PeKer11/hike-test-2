@@ -21,8 +21,7 @@ export interface WalkParams {
   viaStreets?: string[];
 }
 
-/** Average adult walking pace (~4.8 km/h) until we have learned the walker's own. */
-export const DEFAULT_PACE_MIN_PER_KM = 12.5;
+export { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 
 /** Minutes spent at a stop, by kind of place. */
 export function visitMinutes(category: string): number {

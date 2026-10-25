@@ -777,7 +777,7 @@ export async function runTool(
         return { output: JSON.stringify({ error: "limits not asked yet: call ask_limits first" }), state };
       }
       // A walk this long is a wrong start point or a wrong place, not a request: say so instead of building it.
-      const plausibleKm = Math.max(MAX_PLAUSIBLE_WALK_KM, state.params.maxWalkKm ?? 0, state.params.timeMinutes ? (state.params.timeMinutes / (state.params.paceMinPerKm ?? 12)) : 0);
+      const plausibleKm = Math.max(MAX_PLAUSIBLE_WALK_KM, state.params.maxWalkKm ?? 0, state.params.timeMinutes ? (state.params.timeMinutes / (state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM)) : 0);
       if (judged.verdict.walkKm > plausibleKm) {
         return { output: JSON.stringify({ error: `this walk is ${Math.round(judged.verdict.walkKm)} km: too long to walk. Check the start point (${state.origin.lat.toFixed(4)},${state.origin.lng.toFixed(4)}) and the places, and tell the walker.`, verdict: judged.verdict }), state };
       }

@@ -54,6 +54,7 @@ import {
 } from "@/lib/hooks";
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
+import { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 import { visitMinutes } from "@/lib/assistant/state";
 import type { WalkSettings } from "@/lib/types/walk-settings";
 import { downloadCsv, downloadGpx } from "@/lib/walk/gpx-exporter";
@@ -596,7 +597,7 @@ export function WalkPlannerApp({
     walkTrackerRef.current.updateGeometry(spliced);
     discoveryRef.current?.setRoute(
       spliced,
-      1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? 15),
+      1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM),
       walkInputRef.current?.preferredCategories ?? [],
     );
     void discoveryRef.current?.ensureCovered(spliced, atMs);
@@ -1568,7 +1569,7 @@ export function WalkPlannerApp({
     walkTrackerRef.current.updateGeometry(spliced);
     discovery.setRoute(
       spliced,
-      1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? 15),
+      1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM),
       walkInputRef.current?.preferredCategories ?? [],
     );
     void discovery.ensureCovered(spliced, fix.timestamp);
@@ -1821,7 +1822,7 @@ export function WalkPlannerApp({
       // only for a stretch the old scan did not cover (usually none: 0 requests).
       discoveryRef.current?.setRoute(
         spliced,
-        1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? 15),
+        1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM),
         walkInputRef.current?.preferredCategories ?? [],
       );
       void discoveryRef.current?.ensureCovered(spliced, fix.timestamp);
@@ -2007,7 +2008,7 @@ export function WalkPlannerApp({
     // route, and only geometry the earlier scans do not cover is scanned.
     discovery.setRoute(
       walkGeometryRef.current,
-      1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? 15),
+      1000 / (walkInputRef.current?.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM),
       walkInputRef.current?.preferredCategories ?? [],
     );
     discovery.addPlanStops(attractions);
@@ -2192,7 +2193,7 @@ export function WalkPlannerApp({
           deviation.closestPointOnRoute,
         );
         const planSpeedMps =
-          1000 / (60 * (walkInputRef.current?.walkingPaceMinPerKm ?? 15));
+          1000 / (60 * (walkInputRef.current?.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM));
         const measuredKmh = speedEstimatorRef.current?.current(update.timestamp);
         const eligible = discovery.eligible({
           alongM,
@@ -2295,7 +2296,7 @@ export function WalkPlannerApp({
           walkGeometryRef.current,
           onPositionUpdate,
           attractions,
-          walkInputRef.current?.walkingPaceMinPerKm ?? 15,
+          walkInputRef.current?.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM,
         )
       : new WalkTracker(onPositionUpdate, onGpsError, attractions, walkGeometryRef.current);
     walkTrackerRef.current = tracker;
@@ -2709,7 +2710,7 @@ export function WalkPlannerApp({
       };
     } else if (selectedCallout) {
       // The walker asked about this place: it outranks everything but itself.
-      const placePaceMin = walkInputRef.current?.walkingPaceMinPerKm ?? 15;
+      const placePaceMin = walkInputRef.current?.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM;
       const calloutPlace = selectedCallout.place;
       const calloutItem = discoveryRef.current?.collection.items.get(calloutPlace.id);
       const remainingWalkMin =
