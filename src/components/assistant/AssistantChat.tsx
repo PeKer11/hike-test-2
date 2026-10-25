@@ -58,6 +58,8 @@ interface AssistantChatProps {
   /** Places the chat has found, shown as pins on the map. */
   onPlacesChange: (places: Attraction[]) => void;
   onBuild: (build: AssistantBuild) => void;
+  /** Names of saved places the walker queued for this walk; the assistant must include them. */
+  queuedNames?: string[];
   /** A place name in the chat was tapped: bring it into view on the map. */
   onFocusPlace: (coordinates: Coordinates) => void;
   /** A walk has been built and can be started. */
@@ -284,7 +286,9 @@ function toAttraction(c: Candidate): Attraction {
   };
 }
 
-export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onFocusPlace, walkReady, onStart, onSetOrigin }: AssistantChatProps) {
+export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, queuedNames, onFocusPlace, walkReady, onStart, onSetOrigin }: AssistantChatProps) {
+  const queuedRef = useRef(queuedNames ?? []);
+  queuedRef.current = queuedNames ?? [];
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
@@ -382,7 +386,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, onF
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, message: typed, origin, defaults, ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) }),
+        body: JSON.stringify({ chatId, message: typed, origin, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) }),
       });
       const data = (await response.json()) as AssistantReply;
       if (!response.ok) {

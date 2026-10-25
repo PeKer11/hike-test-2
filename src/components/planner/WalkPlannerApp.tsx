@@ -3176,6 +3176,7 @@ export function WalkPlannerApp({
                   origin={currentPosition ?? mapClickedCoords ?? null}
                   isBuilding={isWalkPlanLoading}
                   onPlacesChange={setPreviewPlaces}
+                  queuedNames={wishlist.map((w) => w.name)}
                   onFocusPlace={(coordinates) => focusOn(coordinates, 17)}
                   walkReady={walkPhase === "planned"}
                   onSetOrigin={(coordinates) => {
@@ -3190,7 +3191,10 @@ export function WalkPlannerApp({
                     setCurrentPosition(build.origin);
                     focusOn(build.origin, 14);
                     // Queued saved places aren't on the chat's preset line, so re-route instead of reusing it.
-                    const extraWishlist = wishlistRef.current.filter((w) => !build.stops.some((s) => s.id === w.id));
+                    // The chat may already have found a queued place under its own id, so compare by position too.
+                    const extraWishlist = wishlistRef.current.filter(
+                      (w) => !build.stops.some((s) => s.id === w.id || (Math.abs(s.coordinates.lat - w.coordinates.lat) < 0.002 && Math.abs(s.coordinates.lng - w.coordinates.lng) < 0.002)),
+                    );
                     void handleBuildWalk(
                       {
                         origin: build.origin,

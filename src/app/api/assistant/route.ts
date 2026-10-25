@@ -30,12 +30,27 @@ interface AssistantRequest {
   /** Where the walker is now (GPS or map pin); only used while no start is set. */
   origin?: unknown;
   limits?: unknown;
+  /** Names of saved places the walker queued for this walk. */
+  queued?: unknown;
   defaults?: unknown;
   /** Screenshots/photos the walker attached, as data URLs. Seen by the model only, never stored. */
   images?: unknown;
 }
 
 const MAX_IMAGES = 5;
+
+/** The walker queued these saved places for this walk: they are stops they chose, not suggestions. */
+function queuedNote(value: unknown): string {
+  if (!Array.isArray(value)) return "";
+  const names = value
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.replace(/[\r\n;]+/g, " ").trim().slice(0, 60))
+    .filter(Boolean)
+    .slice(0, 8);
+  return names.length
+    ? `\nThe walker already queued these saved places as stops for this walk: ${names.join("; ")}. Look each up with search_place and include it in the proposed stops without asking again.`
+    : "";
+}
 const MAX_IMAGE_CHARS = 1_500_000;
 const IMAGE_URL = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
 
@@ -163,7 +178,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   const memoryNote =
     (facts.length
       ? `\nWhat you already remember about this walker (use it, do not ask again): ${facts.map((f) => f.text).join("; ")}.`
-      : "") + placesNote(savedPlaces);
+      : "") +
+    placesNote(savedPlaces) +
+    queuedNote(body.queued);
   const origin = parseOrigin(body.origin);
   if (origin && !state.origin) state = { ...state, origin };
   // Answers from the tap-to-choose limits boxes: null / missing = no limit.
