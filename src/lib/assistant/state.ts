@@ -41,6 +41,8 @@ export interface Candidate {
   /** Google rating and the number of ratings behind it (assistant nearby search only; never shown on the map). */
   rating?: number;
   ratingCount?: number;
+  /** False when Google says it is closed right now (a hint for the model, not a hard filter). */
+  openNow?: boolean;
 }
 
 const RATING_PRIOR = 4.0;

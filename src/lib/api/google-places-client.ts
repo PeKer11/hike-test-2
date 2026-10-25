@@ -10,8 +10,9 @@ const SEARCH_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby"
 // asked for only where they are used (the assistant's nearby search), and
 // GOOGLE_PLACES_RATINGS=0 turns them off. They only ever order results: Google's
 // terms keep ratings off a non-Google map and forbid storing them.
-const FIELD_MASK = "places.id,places.displayName,places.location,places.primaryType,places.types";
-const RATING_FIELDS = ",places.rating,places.userRatingCount";
+// businessStatus is Pro-tier: permanently/temporarily closed places are dropped. openNow is Enterprise like the ratings, so it rides with them.
+const FIELD_MASK = "places.id,places.displayName,places.location,places.primaryType,places.types,places.businessStatus";
+const RATING_FIELDS = ",places.rating,places.userRatingCount,places.currentOpeningHours.openNow";
 
 function ratingsEnabled(): boolean {
   return process.env.GOOGLE_PLACES_RATINGS !== "0";
@@ -45,6 +46,8 @@ export interface GooglePlace {
   /** Google rating (1-5) and how many ratings it rests on; only when asked for and Google has them. */
   rating?: number;
   ratingCount?: number;
+  /** False when Google says the place is closed right now; absent when unknown (only asked for with ratings). */
+  openNow?: boolean;
 }
 
 interface RawPlace {
@@ -55,6 +58,8 @@ interface RawPlace {
   types?: string[];
   rating?: number;
   userRatingCount?: number;
+  businessStatus?: string;
+  currentOpeningHours?: { openNow?: boolean };
 }
 
 let usageDay = "";
@@ -105,6 +110,7 @@ async function post(url: string, body: unknown, withRatings = false): Promise<Go
     const lat = p.location?.latitude;
     const lng = p.location?.longitude;
     if (!p.id || !p.displayName?.text || typeof lat !== "number" || typeof lng !== "number") continue;
+    if (p.businessStatus === "CLOSED_PERMANENTLY" || p.businessStatus === "CLOSED_TEMPORARILY") continue;
     places.push({
       placeId: p.id,
       name: p.displayName.text,
@@ -112,6 +118,7 @@ async function post(url: string, body: unknown, withRatings = false): Promise<Go
       primaryType: p.primaryType ?? null,
       types: p.types ?? [],
       ...(typeof p.rating === "number" && typeof p.userRatingCount === "number" ? { rating: p.rating, ratingCount: p.userRatingCount } : {}),
+      ...(typeof p.currentOpeningHours?.openNow === "boolean" ? { openNow: p.currentOpeningHours.openNow } : {}),
     });
   }
   return places;

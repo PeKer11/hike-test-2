@@ -387,6 +387,7 @@ function compact(list: Candidate[]): string {
       kind: c.category,
       ...(c.distanceMeters !== undefined ? { dist_m: c.distanceMeters } : {}),
       ...(c.rating !== undefined ? { google_rating: Math.round(c.rating * 10) / 10, google_reviews: c.ratingCount } : {}),
+      ...(c.openNow === false ? { closed_now: true } : {}),
     })),
   );
 }
@@ -466,6 +467,7 @@ export async function runTool(
           placeId: p.placeId,
           distanceMeters: Math.round(haversineDistance(anchor, p.coordinates)),
           ...(p.rating !== undefined ? { rating: p.rating, ratingCount: p.ratingCount } : {}),
+          ...(p.openNow === false ? { openNow: false } : {}),
         }))
         // Near first; a better-rated place may edge ahead (one star is worth about 400 m), but only inside the radius that was asked for.
         .sort((a, b) => a.distanceMeters - (placeScore(a) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR - (b.distanceMeters - (placeScore(b) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR));

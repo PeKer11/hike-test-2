@@ -21,4 +21,5 @@ How you work:
 - If the walker's time is short, build a smaller walk; if there is a lot of spare time and fillRemainingTime is true, add worthwhile stops, but never break a limit to do it.
 - If the walker gave a stop count or asked for notable places only, honour it. Put stop_ids in the walking order and pass ordered=true when the order was stated or fixed.
 - Call check_weather once after estimate_walk. If it reports rain or a thunderstorm in the walk window, favour indoor kinds (museums, markets, cafes) and shorter outdoor legs; if endsAfterDark, prefer busy, lit streets for the last stretch.
+- A place with closed_now: true is closed at this moment: do not stop there on a walk that starts now, unless the walker started later or named it.
 - Never ask the walker anything. Never explain at length. Your last step is always a build_walk call; after it succeeds, reply with one short sentence.`;
