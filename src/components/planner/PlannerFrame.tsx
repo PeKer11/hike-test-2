@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import type { AttractionCategory } from "@/lib/types";
 
@@ -46,6 +46,24 @@ function IconFullscreenExit({ className }: { className?: string }) {
   );
 }
 
+// A phone has no room for a planner boxed inside a scrolling page, so below
+// Tailwind's `sm` it is always the full-viewport version.
+const PHONE_QUERY = "(max-width: 639px)";
+
+function subscribePhone(onChange: () => void) {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function useIsPhone() {
+  return useSyncExternalStore(
+    subscribePhone,
+    () => window.matchMedia(PHONE_QUERY).matches,
+    () => false,
+  );
+}
+
 interface PlannerFrameProps {
   /**
    * The signed-in walker's saved profile, read on the server by the page above.
@@ -71,7 +89,9 @@ export function PlannerFrame({
   suggestedPace = null,
   suggestedCategories = null,
 }: PlannerFrameProps = {}) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpandedChoice, setIsExpanded] = useState(false);
+  const isPhone = useIsPhone();
+  const isExpanded = isExpandedChoice || isPhone;
 
   // Esc collapses, the same reflex a real fullscreen player trains.
   useEffect(() => {
@@ -108,9 +128,10 @@ export function PlannerFrame({
         suggestedCategories={suggestedCategories}
       />
 
+      {!isPhone && (
       <button
         type="button"
-        onClick={() => setIsExpanded((value) => !value)}
+        onClick={() => setIsExpanded(!isExpandedChoice)}
         aria-pressed={isExpanded}
         aria-label={isExpanded ? "Collapse the planner" : "Expand the planner"}
         title={isExpanded ? "Collapse the planner (Esc)" : "Expand the planner"}
@@ -128,6 +149,7 @@ export function PlannerFrame({
           <IconFullscreen className="h-4 w-4" />
         )}
       </button>
+      )}
     </div>
   );
 }

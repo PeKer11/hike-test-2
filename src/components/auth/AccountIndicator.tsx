@@ -20,10 +20,10 @@ export async function AccountIndicator() {
   } = await supabase.auth.getUser();
 
   return (
-    <div className="pointer-events-auto fixed right-3 top-3 z-[1000] flex items-center gap-2 rounded-md border border-charcoal/10 bg-white/95 px-3 py-1.5 text-xs shadow-sm">
+    <div className="pointer-events-auto fixed right-3 top-3 z-[1000] max-sm:top-[66px] flex items-center gap-2 rounded-md border border-charcoal/10 bg-white/95 px-3 py-1.5 text-xs shadow-sm">
       {user ? (
         <>
-          <span className="max-w-[160px] truncate text-charcoal/70">
+          <span className="max-w-[160px] truncate max-sm:hidden text-charcoal/70">
             {user.email}
           </span>
           <LogoutButton />
