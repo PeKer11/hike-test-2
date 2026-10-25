@@ -949,6 +949,8 @@ export function WalkPlannerApp({
       heading?: number;
       /** Walk again: this build is another run of an existing saved walk, not a new history entry. */
       existingWalkId?: string;
+      /** The stops were already chosen by the AI (the chat); skip the AI builder. */
+      aiDecided?: boolean;
     },
   ) => {
     if (options?.routeRules !== undefined) routeRulesRef.current = options.routeRules;
@@ -1040,6 +1042,53 @@ export function WalkPlannerApp({
     }, WALK_PLAN_SLOW_AFTER_MS);
 
     try {
+      // The AI decides the stops and their order; the planner below only measures that walk.
+      // Skipped for a replay of a saved walk and for a route the chat's AI already built.
+      let aiStops: Attraction[] | undefined;
+      let aiGeometry: Coordinates[] | undefined;
+      if (isSignedIn && !options?.existingWalkId && !options?.presetGeometry && !options?.aiDecided) {
+        const chosenByWalker = !options?.autoResume && keepAttractions ? keepAttractions.map((a) => a.id) : [];
+        const reason = options?.autoResume
+          ? "re-plan in the middle of the walk: the walker is at the start point given, and the limits are what is left"
+          : keepAttractions
+            ? "the walker changed the stops of the walk; the listed stops are their choice"
+            : "a new walk";
+        const aiRes = await fetch("/api/ai-walk-plan", {
+          method: "POST",
+          signal: controller.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            origin: input.origin,
+            reason,
+            availableMinutes: input.availableMinutes,
+            walkingPaceMinPerKm: input.walkingPaceMinPerKm,
+            radiusMeters: input.radiusMeters,
+            maxEndDistanceMeters: input.maxEndDistanceFromOriginMeters,
+            routeRules: routeRulesRef.current,
+            keep: keepAttractions,
+            pinnedIds: [...new Set([...activePinnedIds, ...chosenByWalker])],
+            visitedIds: [...visitedIds],
+            preferredCategories: input.preferredCategories,
+            stopCount: promptStopCount ?? undefined,
+            notableOnly: promptNotableOnly,
+            heading: options?.heading,
+            fillRemainingTime: options?.fillRemainingTime ?? false,
+          }),
+        });
+        const ai = (await aiRes.json().catch(() => ({}))) as { stops?: Attraction[]; geometry?: Coordinates[] | null; error?: string };
+        if (requestId !== buildWalkRequestIdRef.current) return;
+        if (!aiRes.ok || !ai.stops?.length) {
+          if (snapshot) {
+            revertToSnapshot(snapshot);
+            setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
+          } else {
+            setWalkPlanError(ai.error ?? "The AI could not build a walk that fits.");
+          }
+          return;
+        }
+        aiStops = ai.stops;
+        aiGeometry = ai.geometry ?? undefined;
+      }
       const res = await fetch("/api/walk-plan", {
         method: "POST",
         signal: controller.signal,
@@ -1053,9 +1102,9 @@ export function WalkPlannerApp({
           maxEndDistanceFromOriginMeters: input.maxEndDistanceFromOriginMeters,
           endAnchor: input.endAnchor,
           preferredCategories: input.preferredCategories,
-          explicitAttractions: keepAttractions,
-          fixedOrder: options?.fixedOrder === true ? true : undefined,
-          presetGeometry: options?.presetGeometry,
+          explicitAttractions: aiStops ?? keepAttractions,
+          fixedOrder: aiStops || options?.fixedOrder === true ? true : undefined,
+          presetGeometry: aiGeometry ?? options?.presetGeometry,
           ...routeRulesRef.current,
           pinnedAttractionIds: activePinnedIds,
           fillRemainingTime: options?.fillRemainingTime ?? false,
@@ -3203,7 +3252,7 @@ export function WalkPlannerApp({
                         radiusMeters: build.radiusMeters,
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
-                      { keepAttractions: [...build.stops, ...extraWishlist], fixedOrder: build.fixedOrder, presetGeometry: extraWishlist.length > 0 ? undefined : build.geometry, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhase === "walking" },
+                      { keepAttractions: [...build.stops, ...extraWishlist], fixedOrder: build.fixedOrder, presetGeometry: extraWishlist.length > 0 ? undefined : build.geometry, aiDecided: extraWishlist.length === 0, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhase === "walking" },
                     );
                   }}
                 />
