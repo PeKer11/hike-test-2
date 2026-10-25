@@ -193,7 +193,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     (body.walking === true ? "\nThe walker is in the middle of a walk, at the start point given. Plan from here, and never propose places they already passed." : "");
   const origin = parseOrigin(body.origin);
   // Mid-walk the walker has moved: plan from here, not from where the chat first started.
-  if (origin && (!state.origin || body.walking === true)) state = { ...state, origin };
+  // The client always sends the start it shows (and mirrors any start the model sets), so the last explicit pick wins.
+  if (origin) state = { ...state, origin };
   // Answers from the tap-to-choose limits boxes: null / missing = no limit.
   if (typeof body.limits === "object" && body.limits !== null) {
     const l = body.limits as Record<string, unknown>;

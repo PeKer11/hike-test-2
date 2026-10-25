@@ -400,6 +400,9 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
         return;
       }
       setChatId(data.chatId);
+      // The model can move the start (set_start); the box and map must follow, or the next message would undo it.
+      const so = data.state.origin;
+      if (so && !walkingRef.current && (!origin || Math.abs(so.lat - origin.lat) > 1e-6 || Math.abs(so.lng - origin.lng) > 1e-6)) onSetOrigin(so);
       setMessages((m) => [...m, { role: "assistant", content: data.reply }]);
       setPlaces(data.state.candidates);
       onPlacesChange(mentionedPlaces(data.reply, data.state.candidates).map(toAttraction));

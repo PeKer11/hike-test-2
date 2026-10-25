@@ -73,7 +73,7 @@ export async function runAssistantTurn(
         state.candidates.map((c) => ({ id: c.id, name: c.name, kind: c.category })),
       )}`
     : "";
-  const facts = `\nStart point set: ${state.origin ? "yes" : "no"}. Limits settled: ${state.limitsSettled ? "yes" : "no"}. Limits so far: ${JSON.stringify(state.params)} (a missing field means no limit).`;
+  const facts = `\nStart point: ${state.origin ? `${state.origin.lat.toFixed(5)},${state.origin.lng.toFixed(5)}` : "not set"}. Limits settled: ${state.limitsSettled ? "yes" : "no"}. Limits so far: ${JSON.stringify(state.params)} (a missing field means no limit).`;
   const messages: ChatMessage[] = [
     {
       role: "system",
