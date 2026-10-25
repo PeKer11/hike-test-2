@@ -3186,6 +3186,8 @@ export function WalkPlannerApp({
                   onBuild={(build: AssistantBuild) => {
                     setCurrentPosition(build.origin);
                     focusOn(build.origin, 14);
+                    // Queued saved places aren't on the chat's preset line, so re-route instead of reusing it.
+                    const extraWishlist = wishlist.filter((w) => !build.stops.some((s) => s.id === w.id));
                     void handleBuildWalk(
                       {
                         origin: build.origin,
@@ -3194,7 +3196,7 @@ export function WalkPlannerApp({
                         radiusMeters: build.radiusMeters,
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
-                      { keepAttractions: [...build.stops, ...wishlist.filter((w) => !build.stops.some((s) => s.id === w.id))], fixedOrder: build.fixedOrder, presetGeometry: build.geometry, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhase === "walking" },
+                      { keepAttractions: [...build.stops, ...extraWishlist], fixedOrder: build.fixedOrder, presetGeometry: extraWishlist.length > 0 ? undefined : build.geometry, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhase === "walking" },
                     );
                   }}
                 />

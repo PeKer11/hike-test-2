@@ -1,7 +1,7 @@
 "use client";
 
 import { APIProvider, ControlPosition, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStopMarkers } from "@/components/map/GoogleMarkers";
 import { GoogleRecommendedLayer } from "@/components/map/GoogleRecommendedLayer";
@@ -50,8 +50,12 @@ function Line({ path, color, weight, opacity, zIndex, dashed = false }: LineProp
 
 function Viewport({ center, zoom, focusTick = 0 }: { center: Coordinates; zoom: number; focusTick?: number }) {
   const map = useMap();
+  const lastTick = useRef<number | null>(null);
+  // Move the camera only on an explicit focus request, so unrelated re-renders never snap the map back.
   useEffect(() => {
-    map?.moveCamera({ center, zoom });
+    if (!map || lastTick.current === focusTick) return;
+    lastTick.current = focusTick;
+    map.moveCamera({ center, zoom });
   }, [map, center, zoom, focusTick]);
   return null;
 }
