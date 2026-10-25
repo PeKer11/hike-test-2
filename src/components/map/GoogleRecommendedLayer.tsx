@@ -134,7 +134,7 @@ const goldStar = (
  * places around the map centre (rating + number of reviews), with Wikidata notable places and Traike-user
  * recommendations as the secondary "Recommended" layer. Google data is shown only on this Google map.
  */
-export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddToWalk?: (place: Attraction) => void; addedIds?: string[] }) {
+export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = false }: { compact?: boolean; onAddToWalk?: (place: Attraction) => void; addedIds?: string[] }) {
   const map = useMap();
   const placesLib = useMapsLibrary("places");
   const [top, setTop] = useState<Item[]>([]);
@@ -288,7 +288,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddTo
     <>
       <MapControl position={ControlPosition.TOP_RIGHT}>
         {/* Right-aligned and capped so it never reaches the Map/Satellite switch on the left; sm:mr clears the fixed account pill so both share one row. */}
-        <div className="flex max-w-[min(640px,60vw)] flex-col-reverse items-end gap-2 p-2.5 sm:mr-[270px]">
+        <div className={`flex max-w-[min(640px,60vw)] gap-2 p-2.5 ${compact ? "flex-col-reverse items-end" : "flex-wrap items-center justify-end sm:mr-[270px]"}`}>
           {top.length ? (
             <div className="pointer-events-none flex flex-wrap justify-end gap-x-2 rounded bg-white/85 px-2 py-1 text-xs text-charcoal shadow">
               {Object.values(GROUPS).map((g) => (

@@ -3803,6 +3803,7 @@ export function WalkPlannerApp({
           // hand-drawn waypoints whose ids no pin means anything against.
           onTogglePin={walkPlan ? toggleAttractionPin : undefined}
           hudInset={walkMode}
+          compactControls={!isExpanded}
           extraAttribution={walkMode && companion.attribution ? [companion.attribution] : undefined}
           callouts={walkMode ? callouts : undefined}
           onCalloutSelect={walkMode ? setSelectedCallout : undefined}

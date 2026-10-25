@@ -40,6 +40,8 @@ export interface MapViewProps {
   onTogglePin?: (waypointId: string) => void;
   /** A walk HUD covers the map's bottom edge: keep the attribution above it. */
   hudInset?: boolean;
+  /** Embedded (not full-screen) frame: map overlays keep clear of the Map/Satellite switch. */
+  compactControls?: boolean;
   /** Places the walker is being told about right now (walking only). */
   callouts?: Announcement[];
   onCalloutSelect?: (announcement: Announcement) => void;
