@@ -32,6 +32,8 @@ interface AssistantRequest {
   limits?: unknown;
   /** Names of saved places the walker queued for this walk. */
   queued?: unknown;
+  /** True while a walk is in progress: origin is the walker's live position and replaces the chat's start. */
+  walking?: unknown;
   defaults?: unknown;
   /** Screenshots/photos the walker attached, as data URLs. Seen by the model only, never stored. */
   images?: unknown;
@@ -43,12 +45,19 @@ const MAX_IMAGES = 5;
 function queuedNote(value: unknown): string {
   if (!Array.isArray(value)) return "";
   const names = value
-    .filter((v): v is string => typeof v === "string")
-    .map((v) => v.replace(/[\r\n;]+/g, " ").trim().slice(0, 60))
+    .map((v) => {
+      if (typeof v === "string") return v;
+      if (typeof v !== "object" || v === null) return "";
+      const { name, coordinates: c } = v as { name?: unknown; coordinates?: { lat?: unknown; lng?: unknown } };
+      if (typeof name !== "string") return "";
+      const at = typeof c?.lat === "number" && typeof c?.lng === "number" ? ` (exact spot ${c.lat.toFixed(5)},${c.lng.toFixed(5)})` : "";
+      return name + at;
+    })
+    .map((v) => v.replace(/[\r\n;]+/g, " ").trim().slice(0, 100))
     .filter(Boolean)
     .slice(0, 8);
   return names.length
-    ? `\nThe walker already queued these saved places as stops for this walk: ${names.join("; ")}. Look each up with search_place and include it in the proposed stops without asking again.`
+    ? `\nThe walker already queued these saved places as stops for this walk: ${names.join("; ")}. Look each up with search_place and include it in the proposed stops without asking again. When a search returns several similar places (a theatre, a square, an archive), pick the one closest to the exact spot given, not the best-known one.`
     : "";
 }
 const MAX_IMAGE_CHARS = 1_500_000;
@@ -180,9 +189,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       ? `\nWhat you already remember about this walker (use it, do not ask again): ${facts.map((f) => f.text).join("; ")}.`
       : "") +
     placesNote(savedPlaces) +
-    queuedNote(body.queued);
+    queuedNote(body.queued) +
+    (body.walking === true ? "\nThe walker is in the middle of a walk, at the start point given. Plan from here, and never propose places they already passed." : "");
   const origin = parseOrigin(body.origin);
-  if (origin && !state.origin) state = { ...state, origin };
+  // Mid-walk the walker has moved: plan from here, not from where the chat first started.
+  if (origin && (!state.origin || body.walking === true)) state = { ...state, origin };
   // Answers from the tap-to-choose limits boxes: null / missing = no limit.
   if (typeof body.limits === "object" && body.limits !== null) {
     const l = body.limits as Record<string, unknown>;

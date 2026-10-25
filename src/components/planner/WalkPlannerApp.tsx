@@ -493,6 +493,10 @@ export function WalkPlannerApp({
   // flipping back to the form for the length of an ORS/Overpass request.
   const [rebuildingMidWalk, setRebuildingMidWalk] = useState(false);
   const walkMode = walkPhase === "walking" || rebuildingMidWalk;
+  const [chatOpen, setChatOpen] = useState(false);
+  // The chat's onBuild closure can be older than the walk it reports on (replies take many seconds).
+  const walkPhaseRef = useRef(walkPhase);
+  walkPhaseRef.current = walkPhase;
   // The planning form is hidden while walking; this opens it as a bottom sheet.
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   // Live-walk instruments. Refs, not state: they are fed on every fix, and only
@@ -1046,7 +1050,7 @@ export function WalkPlannerApp({
       // Skipped for a replay of a saved walk and for a route the chat's AI already built.
       let aiStops: Attraction[] | undefined;
       let aiGeometry: Coordinates[] | undefined;
-      if (isSignedIn && !options?.existingWalkId && !options?.presetGeometry && !options?.aiDecided) {
+      if (isSignedIn && !options?.existingWalkId && !options?.presetGeometry && !options?.aiDecided && !options?.autoResume) {
         const chosenByWalker = !options?.autoResume && keepAttractions ? keepAttractions.map((a) => a.id) : [];
         const reason = options?.autoResume
           ? "re-plan in the middle of the walk: the walker is at the start point given, and the limits are what is left"
@@ -1130,6 +1134,10 @@ export function WalkPlannerApp({
         } else {
           setWalkPlanError(data.error ?? "Failed to build walk plan.");
         }
+      } else if (snapshot && (data.orderedAttractions.length === 0 || (data.geometry?.length ?? 0) < 2)) {
+        // A route with no stops or no line would drop the walker out of the walk; keep the one they were on.
+        revertToSnapshot(snapshot);
+        setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
       } else {
         showPlan(data, data.geometry ?? [], options?.autoResume === true);
         // A walk the walker asked for is saved as "planned"; automatic rebuilds are the same walk.
@@ -3201,8 +3209,8 @@ export function WalkPlannerApp({
             </>
           ) : !isAdvancedOpen || plannerMode === "walk-companion" ? (
             <>
-              {isSignedIn && walkPhase !== "walking" && <SideTabs value={sideTab} onChange={setSideTab} friendsBadge={sideTab === "friends" ? 0 : friendRequests} />}
-              {isSignedIn && walkPhase !== "walking" && sideTab === "walks" && (
+              {isSignedIn && !walkMode && <SideTabs value={sideTab} onChange={setSideTab} friendsBadge={sideTab === "friends" ? 0 : friendRequests} />}
+              {isSignedIn && !walkMode && sideTab === "walks" && (
                 <MyWalksPanel
                   isSignedIn={isSignedIn}
                   refreshKey={walksVersion}
@@ -3213,19 +3221,21 @@ export function WalkPlannerApp({
                   }}
                 />
               )}
-              {isSignedIn && walkPhase !== "walking" && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}
-              {isSignedIn && walkPhase !== "walking" && sideTab === "friends" && <FriendsPanel expanded />}
+              {isSignedIn && !walkMode && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}
+              {isSignedIn && !walkMode && sideTab === "friends" && <FriendsPanel expanded />}
               {/* "contents" keeps the plan column's layout; hidden keeps the chat and form mounted. */}
-              <div className={sideTab === "plan" || !isSignedIn || walkPhase === "walking" ? "contents" : "hidden"}>
+              <div className={sideTab === "plan" || !isSignedIn || walkMode ? "contents" : "hidden"}>
               {isSignedIn && (
                 // Stays mounted while walking so the conversation continues; collapsed then, so it never pushes End Walk down.
-                <details className={walkPhase === "walking" ? "rounded-tk-card bg-tk-card shadow-tk-card" : "[&>summary]:hidden"} open={walkPhase !== "walking" || undefined}>
+                <details className={walkMode ? "rounded-tk-card bg-tk-card shadow-tk-card" : "[&>summary]:hidden"} open={!walkMode || chatOpen}
+                  onToggle={(e) => { if (walkMode) setChatOpen(e.currentTarget.open); }}>
                 <summary className="cursor-pointer px-4 py-2.5 font-brand text-sm font-semibold text-tk-ink">Chat with Traike · re-plan</summary>
                 <AssistantChat
                   origin={currentPosition ?? mapClickedCoords ?? null}
                   isBuilding={isWalkPlanLoading}
                   onPlacesChange={setPreviewPlaces}
-                  queuedNames={wishlist.map((w) => w.name)}
+                  queuedPlaces={wishlist.map((w) => ({ name: w.name, coordinates: w.coordinates }))}
+                  walking={walkMode}
                   onFocusPlace={(coordinates) => focusOn(coordinates, 17)}
                   walkReady={walkPhase === "planned"}
                   onSetOrigin={(coordinates) => {
@@ -3237,13 +3247,24 @@ export function WalkPlannerApp({
                     setStartRequested(true);
                   }}
                   onBuild={(build: AssistantBuild) => {
+                    // The chat may have found a queued place under its own id and a different name; hand it
+                    // back the saved place's identity so the planner and the picker know it is that place.
+                    const savedFor = (s: Attraction) =>
+                      wishlistRef.current.find((w) => w.id === s.id || haversineDistance(s.coordinates, w.coordinates) <= 40);
+                    const stops = build.stops.map((s) => {
+                      const w = savedFor(s);
+                      return w ? { ...s, id: w.id, coordinates: w.coordinates } : s;
+                    });
+                    const extraWishlist = wishlistRef.current.filter((w) => !stops.some((s) => s.id === w.id));
+                    // Mid-walk: rebuild from where the walker is, with the time that is left — not from the chat's first start.
+                    const midWalk = walkPhaseRef.current === "walking" ? midWalkRebuildState() : null;
+                    if (midWalk) {
+                      const { input, options } = buildOptionRebuildRequest(midWalk, [...stops, ...extraWishlist]);
+                      void handleBuildWalk(input, { ...options, fixedOrder: build.fixedOrder, aiDecided: true, routeRules: build.routeRules });
+                      return;
+                    }
                     setCurrentPosition(build.origin);
                     focusOn(build.origin, 14);
-                    // Queued saved places aren't on the chat's preset line, so re-route instead of reusing it.
-                    // The chat may already have found a queued place under its own id, so compare by position too.
-                    const extraWishlist = wishlistRef.current.filter(
-                      (w) => !build.stops.some((s) => s.id === w.id || (Math.abs(s.coordinates.lat - w.coordinates.lat) < 0.002 && Math.abs(s.coordinates.lng - w.coordinates.lng) < 0.002)),
-                    );
                     void handleBuildWalk(
                       {
                         origin: build.origin,
@@ -3252,14 +3273,14 @@ export function WalkPlannerApp({
                         radiusMeters: build.radiusMeters,
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
-                      { keepAttractions: [...build.stops, ...extraWishlist], fixedOrder: build.fixedOrder, presetGeometry: extraWishlist.length > 0 ? undefined : build.geometry, aiDecided: extraWishlist.length === 0, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhase === "walking" },
+                      { keepAttractions: [...stops, ...extraWishlist], fixedOrder: build.fixedOrder, presetGeometry: extraWishlist.length > 0 || stops.some((s, i) => s !== build.stops[i]) ? undefined : build.geometry, aiDecided: extraWishlist.length === 0, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhaseRef.current === "walking" },
                     );
                   }}
                 />
                 </details>
               )}
-              {isSignedIn && walkPhase !== "walking" && <SavedPlacePicker addedIds={wishlist.map((w) => w.id)} inWalkIds={(walkPlan?.orderedAttractions ?? []).map((a) => a.id)} onAdd={addSavedPlacesToWalk} />}
-              {walkPhase !== "walking" && !isSignedIn && (
+              {isSignedIn && !walkMode && <SavedPlacePicker addedIds={wishlist.map((w) => w.id)} inWalkIds={(walkPlan?.orderedAttractions ?? []).map((a) => a.id)} onAdd={addSavedPlacesToWalk} />}
+              {!walkMode && !isSignedIn && (
                 <PlacePromptPanel
                   nearLocation={currentPosition ?? mapClickedCoords}
                   acceptedAttractions={promptAttractions}

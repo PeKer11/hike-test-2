@@ -58,8 +58,10 @@ interface AssistantChatProps {
   /** Places the chat has found, shown as pins on the map. */
   onPlacesChange: (places: Attraction[]) => void;
   onBuild: (build: AssistantBuild) => void;
-  /** Names of saved places the walker queued for this walk; the assistant must include them. */
-  queuedNames?: string[];
+  /** Saved places the walker queued for this walk; the assistant must include them. */
+  queuedPlaces?: { name: string; coordinates: Coordinates }[];
+  /** A walk is in progress: the chat plans from where the walker is now, not the original start. */
+  walking?: boolean;
   /** A place name in the chat was tapped: bring it into view on the map. */
   onFocusPlace: (coordinates: Coordinates) => void;
   /** A walk has been built and can be started. */
@@ -286,9 +288,11 @@ function toAttraction(c: Candidate): Attraction {
   };
 }
 
-export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, queuedNames, onFocusPlace, walkReady, onStart, onSetOrigin }: AssistantChatProps) {
-  const queuedRef = useRef(queuedNames ?? []);
-  queuedRef.current = queuedNames ?? [];
+export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, queuedPlaces, walking, onFocusPlace, walkReady, onStart, onSetOrigin }: AssistantChatProps) {
+  const queuedRef = useRef(queuedPlaces ?? []);
+  queuedRef.current = queuedPlaces ?? [];
+  const walkingRef = useRef(walking ?? false);
+  walkingRef.current = walking ?? false;
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
@@ -373,7 +377,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
     const typed = override?.message ?? [...THEMES.filter((t) => themes.includes(t.label)).map((t) => t.message), text.trim()].filter(Boolean).join(". ");
     const sentImages = override ? [] : images;
     const message = typed || (sentImages.length ? "🖼" : "");
-    if (!message || pending) return;
+    if (!message || pending || isBuilding) return;
     setLimitsOpen(false);
     setChoices([]);
     if (!override) {
@@ -388,7 +392,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, message: typed, origin, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) }),
+        body: JSON.stringify({ chatId, message: typed, origin, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) }),
       });
       const data = (await response.json()) as AssistantReply;
       if (!response.ok) {
