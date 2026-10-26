@@ -179,6 +179,8 @@ interface PlanSnapshot {
   input: WalkCompanionInput;
   geometry: Coordinates[];
   startTime: number;
+  /** The route rules (stroller/wheelchair access) the plan was built with, restored on undo. */
+  routeRules?: AssistantBuild["routeRules"];
 }
 
 /* Iconoir-style glyph (1.5px stroke, round caps) — DESIGN.md forbids icon
@@ -960,6 +962,7 @@ export function WalkPlannerApp({
       aiDecided?: boolean;
     },
   ) => {
+    const rulesBefore = routeRulesRef.current; // for the undo snapshot: the rules the current plan was built with
     if (options?.routeRules !== undefined) routeRulesRef.current = options.routeRules;
     else if (options?.keepAttractions === undefined) routeRulesRef.current = undefined;
     setActiveAccess((routeRulesRef.current as { access?: unknown } | undefined)?.access);
@@ -972,6 +975,7 @@ export function WalkPlannerApp({
             input: walkInputRef.current,
             geometry: walkGeometryRef.current,
             startTime: walkStartTimeRef.current,
+            routeRules: rulesBefore,
           }
         : null;
     if (snapshot) {
@@ -2365,6 +2369,8 @@ export function WalkPlannerApp({
     walkInputRef.current = { ...snapshot.input, origin: resumePosition };
     setLastWalkInput(walkInputRef.current);
     walkStartTimeRef.current = snapshot.startTime;
+    routeRulesRef.current = snapshot.routeRules;
+    setActiveAccess((snapshot.routeRules as { access?: unknown } | undefined)?.access);
     latestPaceUpdateRef.current = null;
     setPinnedTimeWarning(null);
     setPreviousPlan(null);
@@ -2522,6 +2528,7 @@ export function WalkPlannerApp({
         input: walkInputRef.current,
         geometry: walkGeometryRef.current,
         startTime: walkStartTimeRef.current,
+        routeRules: routeRulesRef.current,
       };
       setPreviousPlan((prev) => prev ?? snapshot);
     }

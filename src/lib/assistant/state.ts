@@ -126,8 +126,9 @@ export interface BuildAction {
 }
 
 /** The zone every clock rule reads: the place's own offset when Google gave one and it differs from the walker's browser zone. */
-export function zoneOf(params: Pick<WalkParams, "timeZone" | "placeOffsetMin">, atMs: number = Date.now()): string | undefined {
+export function zoneOf(params: Pick<WalkParams, "timeZone" | "placeOffsetMin">, nowMs: number = Date.now()): string | undefined {
   if (params.placeOffsetMin === undefined) return params.timeZone;
-  const browser = params.timeZone ? tzOffsetMin(params.timeZone, atMs) : null;
+  // The place offset was read now, so compare it with the browser offset now; comparing at a walk start past a DST change would wrongly pick a fixed zone.
+  const browser = params.timeZone ? tzOffsetMin(params.timeZone, nowMs) : null;
   return browser === params.placeOffsetMin && params.timeZone ? params.timeZone : fixedZone(params.placeOffsetMin);
 }

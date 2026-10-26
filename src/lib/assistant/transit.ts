@@ -29,5 +29,5 @@ export async function withTransitBack(verdict: Verdict, endAt: Coordinates, orig
 }
 
 function hhmm(ms: number, params: WalkParams, startAt: number): string {
-  return formatClock(ms, (zoneOf(params, startAt) ? tzOffsetMin(zoneOf(params, startAt)!, startAt) : null) ?? 0);
+  return formatClock(ms, (zoneOf(params) ? tzOffsetMin(zoneOf(params)!, startAt) : null) ?? 0);
 }

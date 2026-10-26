@@ -197,7 +197,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     } else {
       coordinates = [origin as Coordinates, ...req.stops, ...(end ? [end] : [])];
     }
-    const merged = { ...(mode?.options ?? {}), ...(ors ?? {}), ...extra };
+    const base = (mode?.options ?? {}) as Record<string, unknown>;
+    // Keep the access restrictions: the round-trip's own profile_params must be merged in, not replace them (and "green" is skipped when restrictions are set).
+    const baseParams = (base.profile_params ?? {}) as Record<string, unknown>;
+    const orsParams = (ors?.profile_params ?? {}) as Record<string, unknown>;
+    const params = baseParams.restrictions ? { ...orsParams, ...baseParams, weightings: undefined } : { ...orsParams, ...baseParams };
+    if (params.weightings === undefined) delete params.weightings;
+    const merged: Record<string, unknown> = { ...base, ...(ors ?? {}), ...extra };
+    if (Object.keys(params).length > 0) merged.profile_params = params;
 
     try {
       const result = await getDirections({

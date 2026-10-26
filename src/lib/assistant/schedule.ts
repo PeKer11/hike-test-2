@@ -12,7 +12,7 @@ export function scheduleFor(params: WalkParams, stops: Candidate[], t: Timeline)
     stops: stops.map((c) => ({ id: c.id, name: c.name, category: c.category, hours: c.hours })),
     plans: params.stops,
     startAt,
-    timeZone: zoneOf(params, startAt),
+    timeZone: zoneOf(params),
     endBy: params.endBy,
     meals: params.meals,
     order: params.order,

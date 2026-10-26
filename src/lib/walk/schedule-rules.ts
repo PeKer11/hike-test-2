@@ -35,7 +35,9 @@ const MIN = 60000;
 /** Clock time of each stop for the verdict ("HH:MM"). */
 /** A clock time earlier than the start belongs to the next day when the walk runs past midnight (start 23:30, "before 00:30"). */
 function afterStart(at: number | null, startAt: number, endAt: number): number | null {
-  return at !== null && at < startAt && at + 24 * 60 * MIN <= endAt ? at + 24 * 60 * MIN : at;
+  // Roll to the next day only when that occurrence is near the walk (within 12 h of the start, or inside the walk); "07:00" for an 08:00 start stays in the past.
+  const next = at === null ? null : at + 24 * 60 * MIN;
+  return at !== null && next !== null && at < startAt && next - startAt <= Math.max(12 * 60 * MIN, endAt - startAt) ? next : at;
 }
 
 export function scheduleOf(i: Pick<ScheduleInput, "timeline" | "startAt" | "timeZone">): Array<{ id: string; arrive: string; leave: string }> | undefined {
@@ -106,7 +108,7 @@ export function scheduleRules(i: ScheduleInput): RuleResult[] {
   if (i.endBy) {
     const raw = localTimeOnDay(i.endBy, tz, i.startAt);
     // "by 00:30" after a 21:00 start means the next night.
-    const limit = raw !== null && raw < i.startAt ? raw + 24 * 60 * MIN : raw;
+    const limit = afterStart(raw, i.startAt, i.startAt + i.timeline.totalMin * MIN);
     if (limit === null) rules.push({ rule: "end_by", status: "not_checked", detail: `could not read "${i.endBy}"` });
     else {
       const end = i.startAt + i.timeline.totalMin * MIN;

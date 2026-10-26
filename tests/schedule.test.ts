@@ -77,6 +77,12 @@ describe("scheduleRules", () => {
     expect(r.find((x) => x.rule === "end_by")?.status).toBe("not_met"); // 10:00 + 120 min
     expect(r.find((x) => x.rule === "stop_time")?.status).toBe("not_met"); // b at 10:45
   });
+  it("end_by reads the nearest occurrence of the clock time", () => {
+    const start = Date.UTC(2026, 9, 26, 6, 0); // 08:00 local, walk ends 10:00
+    expect(scheduleRules({ ...base, startAt: start, endBy: "07:00" }).find((x) => x.rule === "end_by")?.status).toBe("not_met"); // earlier today, not tomorrow
+    const night = Date.UTC(2026, 9, 26, 19, 0); // 21:00 local, ends 23:00
+    expect(scheduleRules({ ...base, startAt: night, endBy: "00:30" }).find((x) => x.rule === "end_by")?.status).toBe("met"); // next night
+  });
   it("meal needs a food stop inside the window", () => {
     const start = Date.UTC(2026, 9, 26, 9, 0); // 11:00
     expect(scheduleRules({ ...base, startAt: start, meals: [{ from: "12:00", to: "14:00", minutes: 45 }] }).find((x) => x.rule === "meal")?.status).toBe("met");

@@ -19,10 +19,14 @@ function parseOrsError(errorText: string, status: number): string {
 
   try {
     const parsedError = JSON.parse(errorText) as {
-      error?: { message?: string };
+      error?: { message?: string; code?: number } | string;
       message?: string;
     };
-    const errorMessage = parsedError.error?.message ?? parsedError.message;
+    // ORS sends route-not-found (2009) and point-not-found (2010) as HTTP 404, so the code must win over the 404 branch below.
+    const code = typeof parsedError.error === "object" ? parsedError.error?.code : undefined;
+    if (code === 2009) return "No valid route could be found with these constraints. Try relaxing the constraints.";
+    if (code === 2010) return "One or more waypoints are too far from a walkable road or trail. Move them closer to a path and try again.";
+    const errorMessage = (typeof parsedError.error === "object" ? parsedError.error?.message : parsedError.error) ?? parsedError.message;
 
     if (errorMessage) {
       normalizedError = errorMessage.toLowerCase();

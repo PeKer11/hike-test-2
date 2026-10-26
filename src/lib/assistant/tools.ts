@@ -555,6 +555,7 @@ export async function runTool(
       .filter((c) => c.hours?.utcOffsetMin !== undefined)
       .sort((a, b) => haversineDistance(state.origin!, a.coordinates) - haversineDistance(state.origin!, b.coordinates))[0];
     if (near && haversineDistance(state.origin, near.coordinates) < 30000) state.params.placeOffsetMin = near.hours!.utcOffsetMin;
+    else delete state.params.placeOffsetMin; // the origin moved away from the city the old offset came from
   }
   let args: Record<string, unknown> = {};
   try {
