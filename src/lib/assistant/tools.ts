@@ -936,8 +936,11 @@ export async function runTool(
         const r = await routeAndJudge(origin, stops, state.params, [], { alternatives: false, orderSearch: false, budget, env });
         if (r.verdict.unavailable) break; // no route could be built (budget or router): more sets will not help
         routed += 1;
+        if (settled(r.verdict)) {
+          best = { stops, verdict: r.verdict };
+          break;
+        }
         if (!best || score(r.verdict) < score(best.verdict)) best = { stops, verdict: r.verdict };
-        if (settled(r.verdict)) break;
       }
       if (!best) return { output: JSON.stringify({ error: scored.length ? "routes could not be built just now; try again in a minute" : "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
       // The chosen set gets the full check: best visiting order and, if it still breaks a rule, the alternatives.

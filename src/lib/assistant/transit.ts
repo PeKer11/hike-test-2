@@ -9,6 +9,7 @@ export async function withTransitBack(verdict: Verdict, endAt: Coordinates, orig
   if (!params.transit?.back || verdict.unavailable) return verdict;
   const startAt = params.startAt && params.startAt > Date.now() - 6 * 3600000 ? params.startAt : undefined;
   const rule = (r: Verdict["rules"][number]): Verdict => ({ ...verdict, rules: [...verdict.rules, r], ok: verdict.ok && r.status === "met", broken: verdict.broken || r.status === "not_met" });
+  if (params.endDistanceKm === 0) return rule({ rule: "transit", status: "not_met", detail: "a loop already brings the walker back to the start: a ride home conflicts with it" });
   if (startAt === undefined) return rule({ rule: "transit", status: "not_checked", dataGap: true, detail: "the start time is not known, so the timetable was not checked" });
   const walkEnd = startAt + verdict.totalMin * 60000;
   try {
