@@ -7,7 +7,7 @@ import { inSafetyCoverage, parseWarnings, SAFETY_ATTRIBUTION, SAFETY_FEED_URL, w
 import { assessWalkWindow, endsAfterDark, FORECAST_ATTRIBUTION, forecastUrl, nextDryStart, parseForecast, parseSunrises, parseSunsets, suggestStart } from "@/lib/weather/forecast";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
-import { ACCESS_PROFILES, isAccess } from "@/lib/walk/access";
+import { ACCESS_PROFILES, isAccess, routeModeFor } from "@/lib/walk/access";
 import { formatClock, localTimeOnDay, nextLocalTime, parseHHMM, tzOffsetMin } from "@/lib/walk/clock";
 import { bestOrderWithRules, type StopOrder } from "@/lib/walk/stop-order";
 import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
@@ -894,7 +894,8 @@ export async function runTool(
       let approx = false;
       try {
         if (matrixCoolingDown()) throw new Error("matrix cooling down");
-        const m = await getMatrix({ locations: spots.map(toOrsCoord) } as Parameters<typeof getMatrix>[0]);
+        // A wheelchair walker gets the wheelchair matrix, so places it cannot reach (null pairs) drop out before any real routing.
+        const m = await getMatrix({ locations: spots.map(toOrsCoord), profile: routeModeFor(state.params.access)?.profile } as Parameters<typeof getMatrix>[0]);
         full = m.distances as number[][];
       } catch (err) {
         // Matrix quota used up or service down: straight lines x1.3 order the sets; the real routes below are still checked.
@@ -956,10 +957,17 @@ export async function runTool(
       const score = (v: Verdict) => v.rules.filter((r) => r.status === "not_met").length * 100 + brokenKm(v);
       let best: { stops: Candidate[]; verdict: Verdict } | null = null;
       let routed = 0;
+      let noRoute = 0;
       for (const { idx } of scored.slice(0, SEARCH_ROUTE_BUDGET)) {
         const stops = idx.map((i) => all[i - 1]);
         const r = await routeAndJudge(origin, stops, state.params, [], { alternatives: false, orderSearch: false, budget, env });
-        if (r.verdict.unavailable) break; // no route could be built (budget or router): more sets will not help
+        if (r.verdict.unavailable) {
+          if (r.verdict.noRoute) {
+            noRoute += 1;
+            continue;
+          } // the router answered "no route" for this set: another set may work
+          break; // no route could be built (budget or router down): more sets will not help
+        }
         routed += 1;
         if (settled(r.verdict)) {
           best = { stops, verdict: r.verdict };
@@ -967,7 +975,7 @@ export async function runTool(
         }
         if (!best || score(r.verdict) < score(best.verdict)) best = { stops, verdict: r.verdict };
       }
-      if (!best) return { output: JSON.stringify({ error: scored.length ? "routes could not be built just now; try again in a minute" : "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
+      if (!best) return { output: JSON.stringify({ error: noRoute > 0 && routed === 0 ? "the router found no route for any set of these places; try other places or a different area" : scored.length ? "routes could not be built just now; try again in a minute" : "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
       // The chosen set gets the full check: best visiting order and, if it still breaks a rule, the alternatives.
       let judged = await routeAndJudge(origin, best.stops, state.params, pool, { env, budget });
       if (state.params.transit?.back && !judged.verdict.unavailable) {

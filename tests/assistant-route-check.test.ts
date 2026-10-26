@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Coordinates } from "@/lib/types";
+import { OrsNoRouteError } from "@/lib/walk/ors-errors";
 
 const p = (lat: number, lng: number): Coordinates => ({ lat, lng });
 const origin = p(32, 34);
@@ -25,7 +26,9 @@ vi.mock("@/lib/walk/forbidden-ways", async (orig) => ({
   }),
 }));
 vi.mock("@/lib/api/ors-client", () => ({
-  getMatrix: vi.fn(async () => ({ distances: [[0, 1100, 3000], [1100, 0, 2500], [3000, 2500, 0]] })),
+  getMatrix: vi.fn(async (req: { locations: unknown[] }) => ({
+    distances: req.locations.length === 3 ? [[0, 1100, 3000], [1100, 0, 2500], [3000, 2500, 0]] : req.locations.map((_, i) => req.locations.map((__, j) => Math.abs(i - j) * 1000)),
+  })),
 }));
 
 import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
@@ -148,6 +151,18 @@ describe("route check", () => {
     expect(r.out.startKnown).toBe(true);
     expect(r.out.issues.some((i: { kind: string }) => i.kind === "thunderstorm")).toBe(true);
     expect(r.out.recommendation).toMatchObject({ at: expect.any(String) });
+  });
+
+  it("find_clean_walk tries another set when the router has no route for one of them", async () => {
+    const st = state({ timeMinutes: 600, endDistanceKm: 0 });
+    st.candidates.push({ id: "c3", name: "C", coordinates: p(32.02, 34.02), category: "museum", placeId: "c" });
+    route = async (w) => {
+      if (w.some((x) => x.lat === north.lat && x.lng === north.lng)) throw new OrsNoRouteError("No valid route");
+      return square;
+    };
+    const r = await call("find_clean_walk", { count: 2 }, st);
+    expect(r.out.error).toBeUndefined();
+    expect([...r.out.stop_ids].sort()).toEqual(["c2", "c3"]);
   });
 
   it("clear removes a rule the walker gives up", async () => {

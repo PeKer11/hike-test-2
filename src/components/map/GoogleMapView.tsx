@@ -92,7 +92,7 @@ export default function GoogleMapView({
   addedIds,
 }: MapViewProps) {
   const credits = [
-    "Route: © OpenStreetMap contributors · openrouteservice",
+    "Route: © openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors",
     ...(callouts?.some((a) => a.place.verification === "detected") ? [WORLDCOVER_ATTRIBUTION] : []),
     ...(extraAttribution ?? []),
   ];

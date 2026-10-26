@@ -209,7 +209,7 @@ export async function routeAndJudge(
       const rules = [{ rule: "no_steps" as const, status: "not_met" as const, detail: `no ${params.access} route reaches these places (${err.message})` }, ...base.rules];
       return { verdict: { ...base, unavailable: undefined, ok: false, broken: true, rules }, orderIds: order.map((s) => s.id) };
     }
-    if (!main) return { verdict: unavailableVerdict(params, why), orderIds: order.map((s) => s.id) };
+    if (!main) return { verdict: { ...unavailableVerdict(params, why), ...(err instanceof OrsNoRouteError ? { noRoute: true } : {}) }, orderIds: order.map((s) => s.id) };
   }
   const verdict = main as Verdict;
   const result: Judged = { verdict, orderIds: best.map((s) => s.id), geometry: mainGeometry };

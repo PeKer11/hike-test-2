@@ -30,6 +30,8 @@ export interface Verdict {
   broken: boolean;
   /** True when no route could be built, so nothing was measured. */
   unavailable?: boolean;
+  /** With `unavailable`: the router answered that there is no route between these places (this set fails, the router is fine). */
+  noRoute?: boolean;
   rules: RuleResult[];
   walkKm: number;
   walkMin: number;

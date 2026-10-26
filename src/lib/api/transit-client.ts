@@ -35,8 +35,16 @@ export function parseItinerary(json: unknown): TransitLeg | null {
   return { departMs, arriveMs, lines, transfers: it.transfers ?? 0 };
 }
 
+/**
+ * Transitous' usage policy (transitous.org/api, read 2026-10-26) allows only open-source, non-commercial apps and says
+ * commercial use is not allowed. Traike is a product, so the live call stays off until a data source with commercial
+ * terms replaces it (or Transitous agrees in writing); set TRANSIT_ENABLED=1 only for local development.
+ */
+export class TransitDisabledError extends Error {}
+
 /** Fastest-arrival ride from one point to another, leaving at or after `departMs`. Null when no service; throws when the service is down. */
 export async function planTransit(from: Coordinates, to: Coordinates, departMs: number, contact = process.env.APP_CONTACT ?? "traike"): Promise<TransitLeg | null> {
+  if (process.env.TRANSIT_ENABLED !== "1") throw new TransitDisabledError("public transport lookups are switched off");
   const url = `${BASE}?fromPlace=${from.lat},${from.lng}&toPlace=${to.lat},${to.lng}&time=${new Date(departMs).toISOString()}&numItineraries=1`;
   const res = await fetch(url, { headers: { "User-Agent": `Traike (${contact})` }, cache: "no-store", signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`Transitous ${res.status}`);

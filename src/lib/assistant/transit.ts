@@ -1,4 +1,4 @@
-import { planTransit, TRANSIT_ATTRIBUTION } from "@/lib/api/transit-client";
+import { planTransit, TRANSIT_ATTRIBUTION, TransitDisabledError } from "@/lib/api/transit-client";
 import { formatClock, tzOffsetMin } from "@/lib/walk/clock";
 import type { Coordinates } from "@/lib/types";
 import type { Verdict } from "@/lib/walk/rule-verdict";
@@ -23,7 +23,8 @@ export async function withTransitBack(verdict: Verdict, endAt: Coordinates, orig
       detail: `${leg.lines.join(" + ") || "transit"} leaves ${hhmm(leg.departMs, params, startAt)}, back at the start ${hhmm(leg.arriveMs, params, startAt)} (${extra} min after the walk ends, waiting included). Timetable data, no live delays. ${TRANSIT_ATTRIBUTION}`,
     };
     return { ...rule(r), transitMin: extra };
-  } catch {
+  } catch (err) {
+    if (err instanceof TransitDisabledError) return rule({ rule: "transit", status: "not_checked", dataGap: true, detail: "public transport timetables are not available in the app yet, so the ride home was not checked" });
     return rule({ rule: "transit", status: "not_checked", dataGap: true, detail: "the public transport service did not answer" });
   }
 }
