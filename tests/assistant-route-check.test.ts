@@ -132,6 +132,24 @@ describe("route check", () => {
     expect(est.out.verdict.rules.find((r: { rule: string }) => r.rule === "open_hours").status).toBe("not_met");
   });
 
+  it("check_weather uses the start set by set_clock and returns one recommendation", async () => {
+    const iso = (ms: number) => new Date(ms).toISOString().slice(0, 16);
+    const base = Date.now();
+    const time = Array.from({ length: 72 }, (_, i) => iso(base + i * 3_600_000));
+    const code = time.map((_, i) => (i >= 2 && i <= 4 ? 95 : 0));
+    const zeros = time.map(() => 0);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      hourly: { time, apparent_temperature: time.map(() => 20), precipitation_probability: zeros, precipitation: zeros, wind_gusts_10m: zeros, weather_code: code },
+      daily: { time: [iso(base).slice(0, 10)], sunrise: [iso(base - 40 * 3_600_000)], sunset: [iso(base + 40 * 3_600_000)] },
+    }))));
+    const st = state({ startAt: base + 2.5 * 3_600_000, timeMinutes: 120 });
+    const r = await call("check_weather", { start_in_hours: 0, duration_minutes: 120 }, st);
+    vi.unstubAllGlobals();
+    expect(r.out.startKnown).toBe(true);
+    expect(r.out.issues.some((i: { kind: string }) => i.kind === "thunderstorm")).toBe(true);
+    expect(r.out.recommendation).toMatchObject({ at: expect.any(String) });
+  });
+
   it("clear removes a rule the walker gives up", async () => {
     const st = state({ noRepeat: true, avoidStreets: ["x"], endDistanceKm: 0 });
     const r = await call("set_walk_params", { clear: ["no_repeat", "avoid_streets"] }, st);

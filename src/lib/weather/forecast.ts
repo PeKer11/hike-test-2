@@ -36,7 +36,7 @@ export function forecastUrl(lat: number, lng: number): string {
     longitude: String(lng),
     hourly: "apparent_temperature,precipitation_probability,precipitation,wind_gusts_10m,weather_code",
     forecast_hours: "72",
-    daily: "sunset",
+    daily: "sunrise,sunset",
     timezone: "auto",
   });
   return `https://api.open-meteo.com/v1/forecast?${q.toString()}`;
@@ -136,4 +136,65 @@ export function endsAfterDark(hours: ForecastHour[], sunsets: Record<string, str
   if (!sunset) return false;
   const endMs = Date.parse(`${start.time}:00Z`) + durationMin * 60_000;
   return endMs > Date.parse(`${sunset}:00Z`);
+}
+
+/** Local sunrise ("2026-10-25T06:12") for each date in the forecast, keyed "2026-10-25". */
+export function parseSunrises(json: unknown): Record<string, string> {
+  const daily = ((json as { daily?: { time?: unknown; sunrise?: unknown } } | null)?.daily ?? {}) as { time?: unknown; sunrise?: unknown };
+  const out: Record<string, string> = {};
+  if (Array.isArray(daily.time) && Array.isArray(daily.sunrise)) {
+    daily.time.forEach((d, i) => {
+      const sun = (daily.sunrise as unknown[])[i];
+      if (typeof d === "string" && typeof sun === "string") out[d] = sun;
+    });
+  }
+  return out;
+}
+
+export interface StartSuggestion {
+  /** Hours from the first forecast hour. */
+  startInHours: number;
+  at: string;
+  date: string;
+  /** Set when no full-length walk fits: the longest walk (minutes) that is dry and ends before sunset from this start. */
+  shorterMin?: number;
+}
+
+const DARK_MARGIN_MIN = 15;
+
+/** Dry, in daylight (after sunrise, ending DARK_MARGIN_MIN before sunset) for a walk of `durationMin` starting at forecast hour `h`. */
+function fitsDaylight(hours: ForecastHour[], sunsets: Record<string, string>, sunrises: Record<string, string>, h: number, durationMin: number): boolean {
+  const start = hours[h];
+  if (!start) return false;
+  const rise = sunrises[start.time.slice(0, 10)];
+  if (rise && start.time < rise) return false;
+  if (assessWalkWindow(hours, h, durationMin).some((i) => i.kind === "rain" || i.kind === "thunderstorm")) return false;
+  return !endsAfterDark(hours, sunsets, h, durationMin + DARK_MARGIN_MIN);
+}
+
+/**
+ * A better start hour when the walk at `preferredIdx` is wet or ends after dark: the fitting start nearest the preferred
+ * one (earlier or later). When none fits the full length, the best start with the longest walk that does. Null when the
+ * preferred start is already fine, or nothing in the forecast helps.
+ */
+export function suggestStart(hours: ForecastHour[], sunsets: Record<string, string>, sunrises: Record<string, string>, durationMin: number, preferredIdx: number): StartSuggestion | null {
+  const pref = Math.max(0, Math.floor(preferredIdx));
+  if (fitsDaylight(hours, sunsets, sunrises, pref, durationMin)) return null;
+  const make = (h: number, shorterMin?: number): StartSuggestion => ({ startInHours: h, at: hours[h].time.slice(11, 16), date: hours[h].time.slice(0, 10), ...(shorterMin ? { shorterMin } : {}) });
+  let best: number | null = null;
+  for (let h = 0; h < hours.length; h++) {
+    if (!fitsDaylight(hours, sunsets, sunrises, h, durationMin)) continue;
+    if (best === null || Math.abs(h - pref) < Math.abs(best - pref)) best = h;
+  }
+  if (best !== null) return make(best);
+  // No full-length window: find the start that allows the longest walk (steps of 30 min), nearest the preferred one on ties.
+  let pick: { h: number; min: number } | null = null;
+  for (let h = 0; h < hours.length; h++) {
+    for (let d = Math.floor(durationMin / 30) * 30 - 30; d >= 60; d -= 30) {
+      if (!fitsDaylight(hours, sunsets, sunrises, h, d)) continue;
+      if (!pick || d > pick.min || (d === pick.min && Math.abs(h - pref) < Math.abs(pick.h - pref))) pick = { h, min: d };
+      break;
+    }
+  }
+  return pick ? make(pick.h, pick.min) : null;
 }

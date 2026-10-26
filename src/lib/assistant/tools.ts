@@ -4,7 +4,7 @@ import type { AttractionCategory, Coordinates } from "@/lib/types";
 import { appUserAgent } from "@/lib/api/http-identity";
 import { HAZARD_ATTRIBUTION, HAZARD_RADIUS_KM, hazardUrl, parseHazardCounts, seasonalNotes } from "@/lib/safety/nature-hazards";
 import { inSafetyCoverage, parseWarnings, SAFETY_ATTRIBUTION, SAFETY_FEED_URL, warningsAt } from "@/lib/safety/meteoalarm";
-import { assessWalkWindow, endsAfterDark, FORECAST_ATTRIBUTION, forecastUrl, nextDryStart, parseForecast, parseSunsets } from "@/lib/weather/forecast";
+import { assessWalkWindow, endsAfterDark, FORECAST_ATTRIBUTION, forecastUrl, nextDryStart, parseForecast, parseSunrises, parseSunsets, suggestStart } from "@/lib/weather/forecast";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 import { ACCESS_PROFILES, isAccess } from "@/lib/walk/access";
@@ -531,6 +531,12 @@ function compact(list: Candidate[]): string {
 /** Longer than this is almost certainly a wrong start or place, not a walk. */
 const MAX_PLAUSIBLE_WALK_KM = 30;
 
+/** "today" / "tomorrow" / the ISO date, relative to the first forecast day. */
+function dayLabel(todayIso: string, dateIso: string): string {
+  const diff = Math.round((Date.parse(`${dateIso}T00:00:00Z`) - Date.parse(`${todayIso}T00:00:00Z`)) / 86_400_000);
+  return diff === 0 ? "today" : diff === 1 ? "tomorrow" : dateIso;
+}
+
 export async function runTool(
   name: string,
   rawArgs: string,
@@ -988,7 +994,9 @@ export async function runTool(
 
     if (name === "check_weather") {
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
-      const startIn = typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 60) : 0;
+      // The start the walker set (set_clock) wins over the model's argument: the forecast must cover the hours they really walk.
+      const startKnown = typeof state.params.startAt === "number";
+      const startIn = startKnown ? Math.min(60, Math.max(0, Math.floor((state.params.startAt! - Date.now()) / 3_600_000))) : typeof args.start_in_hours === "number" && args.start_in_hours >= 0 ? Math.min(args.start_in_hours, 60) : 0;
       const minutes = typeof args.duration_minutes === "number" && args.duration_minutes > 0 ? args.duration_minutes : (state.params.timeMinutes ?? 120);
       try {
         const res = await fetch(forecastUrl(state.origin.lat, state.origin.lng), { headers: { "User-Agent": appUserAgent() }, signal: AbortSignal.timeout(6_000) });
@@ -999,8 +1007,13 @@ export async function runTool(
         const issues = assessWalkWindow(hours, startIn, minutes);
         const wet = issues.some((i) => i.kind === "rain" || i.kind === "thunderstorm");
         const dryStart = wet ? nextDryStart(hours, minutes, startIn + 1, hours.length - 1) : null;
-        const dark = endsAfterDark(hours, parseSunsets(body), startIn, minutes);
-        return { output: JSON.stringify({ ok: issues.length === 0, checkedHours: Math.min(Math.ceil(minutes / 60), Math.max(0, hours.length - Math.floor(startIn))), issues, ...(wet ? { nextDryStartInHours: dryStart, ...(dryStart !== null ? { nextDryStartAt: hours[dryStart].time.slice(11, 16) } : {}), hint: dryStart === null ? "no dry window in the forecast (about 3 days): say so" : "offer to start later at that time, or pick indoor places" } : {}), ...(dark ? { endsAfterDark: true, note: "the walk ends after sunset: say so and prefer lit, busy streets" } : {}), attribution: FORECAST_ATTRIBUTION }), state };
+        const sunsets = parseSunsets(body);
+        const dark = endsAfterDark(hours, sunsets, startIn, minutes);
+        const better = wet || dark ? suggestStart(hours, sunsets, parseSunrises(body), minutes, startIn) : null;
+        const recommendation = better
+          ? { at: better.at, day: dayLabel(hours[0].time.slice(0, 10), better.date), ...(better.shorterMin ? { shorterMin: better.shorterMin } : {}), sunset: sunsets[better.date]?.slice(11, 16), avoids: [...(wet ? ["rain/thunderstorm"] : []), ...(dark ? ["finishing after sunset"] : [])] }
+          : undefined;
+        return { output: JSON.stringify({ ok: issues.length === 0, startKnown, ...(recommendation ? { recommendation, next: "propose this recommendation in ONE sentence (start time, why, sunset) plus at most one alternative (shorterMin), then ask one question; do not list the issues separately" } : {}), checkedHours: Math.min(Math.ceil(minutes / 60), Math.max(0, hours.length - Math.floor(startIn))), issues, ...(wet ? { nextDryStartInHours: dryStart, ...(dryStart !== null ? { nextDryStartAt: hours[dryStart].time.slice(11, 16) } : {}), ...(recommendation ? {} : { hint: dryStart === null ? "no dry window in the forecast (about 3 days): say so" : "offer to start later at that time, or pick indoor places" }) } : {}), ...(dark ? { endsAfterDark: true, ...(recommendation ? {} : { note: "the walk ends after sunset: say so and prefer lit, busy streets" }) } : {}), attribution: FORECAST_ATTRIBUTION }), state };
       } catch {
         return { output: JSON.stringify({ error: "forecast unavailable: say the weather was not checked" }), state };
       }
