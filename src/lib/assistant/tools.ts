@@ -846,14 +846,21 @@ export async function runTool(
       } else if (needsRouteCheck(state.params)) {
         judged = await routeAndJudge(state.origin, est.order, state.params, state.candidates, { orderSearch: !ordered, budget });
       } else {
-        judged = {
+        // No route rule needs routing, but one route still gives the real distance and the climbing.
+        let routed: Judged | null = null;
+        try {
+          routed = await routeAndJudge(state.origin, est.order, state.params, [], { alternatives: false, orderSearch: false, budget });
+        } catch {
+          routed = null;
+        }
+        judged = routed && !routed.verdict.unavailable ? routed : {
           verdict: makeVerdict(limitRules(state.params, est.walkKm, est.walkMin, est.visitMin, est.approx), est.walkKm, est.walkMin, est.visitMin),
           orderIds: est.order.map((s) => s.id),
         };
       }
       if (!cached) state.checks = rememberCheck(state, picked.map((c) => c.id), ordered, judged);
       if (name === "estimate_walk") {
-        return { output: JSON.stringify({ walkKm: judged.verdict.walkKm, walkMin: judged.verdict.walkMin, visitMin: judged.verdict.visitMin, totalMin: judged.verdict.totalMin, legs: est.legs, ...(est.ignored.length ? { stop_plan_ignored: est.ignored } : {}), verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
+        return { output: JSON.stringify({ walkKm: judged.verdict.walkKm, walkMin: judged.verdict.walkMin, ...(judged.verdict.climbMin !== undefined ? { climbMin: judged.verdict.climbMin } : {}), visitMin: judged.verdict.visitMin, totalMin: judged.verdict.totalMin, legs: est.legs, ...(est.ignored.length ? { stop_plan_ignored: est.ignored } : {}), verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
       }
       if (!state.limitsSettled) {
         return { output: JSON.stringify({ error: "limits not asked yet: call ask_limits first" }), state };

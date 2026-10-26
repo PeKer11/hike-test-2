@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dwellMinutes, legKmsFromGeometry, legPace, timeline } from "@/lib/walk/timing";
+import { climbMinutes, dwellMinutes, legKmsFromGeometry, legPace, timeline } from "@/lib/walk/timing";
 
 const stops = [
   { id: "a", visitMin: 30 },
@@ -55,5 +55,24 @@ describe("legKmsFromGeometry", () => {
     expect(legs).toHaveLength(2);
     expect(legs[0]).toBeCloseTo(0.333, 2);
     expect(legs[1]).toBeCloseTo(0.778, 2);
+  });
+});
+
+describe("climbMinutes", () => {
+  it("is Naismith scaled to the pace, with a 5 m/km noise floor", () => {
+    expect(climbMinutes(120, 0, 12)).toBeCloseTo(12);
+    expect(climbMinutes(120, 0, 15)).toBeCloseTo(15);
+    expect(climbMinutes(10, 2, 12)).toBe(0);
+    expect(climbMinutes(30, 2, 12)).toBeCloseTo(2);
+  });
+
+  it("adds climbing per leg to the timeline, only when every leg has a height", () => {
+    const flat = timeline(stops, [1, 2], undefined, 15, null);
+    expect(flat.climbKnown).toBe(false);
+    const hill = timeline(stops, [1, 2], undefined, 15, [0, 80]);
+    expect(hill.climbKnown).toBe(true);
+    expect(hill.climbMin).toBeCloseTo(climbMinutes(80, 2, 15));
+    expect(hill.walkMin).toBeCloseTo(45 + hill.climbMin);
+    expect(timeline(stops, [1, 2], undefined, 15, [10]).climbKnown).toBe(false);
   });
 });

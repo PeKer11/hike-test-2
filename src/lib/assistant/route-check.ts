@@ -141,6 +141,7 @@ export async function routeAndJudge(
       visitMin: t.visitMin,
       // Per-leg pace and climbing change the walking time; without either it is the whole route at one pace, as before.
       ...((params.stops && Object.keys(params.stops).length) || t.climbKnown ? { walkMin: t.walkMin } : {}),
+      ...(t.climbKnown ? { climbMin: t.climbMin } : {}),
     });
     return { verdict, stops, geometry: clean.geometry };
   }

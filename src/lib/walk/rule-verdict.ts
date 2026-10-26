@@ -31,6 +31,8 @@ export interface Verdict {
   walkMin: number;
   visitMin: number;
   totalMin: number;
+  /** Minutes of walking added by climbing (already inside walkMin); absent when heights are unknown. */
+  climbMin?: number;
 }
 
 /** The walker's rules, as far as the verdict needs them (a subset of WalkParams). */
@@ -75,7 +77,7 @@ export function limitRules(params: VerdictParams, walkKm: number, walkMin: numbe
   return rules;
 }
 
-export function makeVerdict(rules: RuleResult[], walkKm: number, walkMin: number, visitMin: number): Verdict {
+export function makeVerdict(rules: RuleResult[], walkKm: number, walkMin: number, visitMin: number, climbMin?: number): Verdict {
   return {
     ok: rules.every((r) => r.status === "met"),
     broken: rules.some((r) => r.status === "not_met"),
@@ -84,6 +86,7 @@ export function makeVerdict(rules: RuleResult[], walkKm: number, walkMin: number
     walkMin: Math.round(walkMin),
     visitMin: Math.round(visitMin),
     totalMin: Math.round(walkMin + visitMin),
+    ...(climbMin !== undefined ? { climbMin: Math.round(climbMin) } : {}),
   };
 }
 
@@ -103,6 +106,8 @@ export interface VerdictInput {
   visitMin: number;
   /** Walking minutes when legs have their own pace; otherwise km x paceMinPerKm. */
   walkMin?: number;
+  /** Climbing minutes inside `walkMin`; undefined when heights are unknown. */
+  climbMin?: number;
 }
 
 /** Every rule against one real route. Pure: no network. "not_checked" is decided here and nowhere else. */
@@ -190,8 +195,16 @@ export function evaluateRoute(input: VerdictInput): Verdict {
     else rules.push({ rule: "via_streets", status: "not_checked", detail: `${street}: not confirmed (the street was not found on the map, so a different spelling cannot be ruled out)` });
   }
 
-  rules.push(...limitRules(params, walkKm, walkMin, input.visitMin));
-  return makeVerdict(rules, walkKm, walkMin, input.visitMin);
+  const limits = limitRules(params, walkKm, walkMin, input.visitMin);
+  // Without heights the time may be short by the climbing: near the limit that is not a clean "met".
+  for (const r of limits) {
+    if (r.rule === "time" && r.status === "met" && input.climbMin === undefined && r.limit && (r.value ?? 0) >= r.limit * 0.85) {
+      r.status = "partial";
+      r.detail = "climbing is not included (no height data) and the walk is close to the time limit";
+    }
+  }
+  rules.push(...limits);
+  return makeVerdict(rules, walkKm, walkMin, input.visitMin, input.climbMin);
 }
 
 /** What the walker is told when a route could not be built at all: every rule is unchecked, never met. */
