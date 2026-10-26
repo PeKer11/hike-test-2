@@ -5,6 +5,8 @@ import { fetchForbiddenWays, matchesStreet, type ForbiddenWay } from "@/lib/walk
 import type { Boundary } from "@/lib/walk/loop-search";
 import { isRouteCached, orsRoute, routeDetail } from "@/lib/walk/ors-route";
 import { BudgetExceeded, budgeted, makeBudget, type RoutingBudget } from "@/lib/walk/routing-budget";
+import type { AvoidPolygons } from "@/lib/walk/clean-route";
+import { ACCESS_PROFILES } from "@/lib/walk/access";
 import { satisfies } from "@/lib/walk/stop-order";
 import { scheduleFor } from "./schedule";
 import { brokenKm, brokenRules, evaluateRoute, unavailableVerdict, type RuleId, type Verdict } from "@/lib/walk/rule-verdict";
@@ -41,7 +43,7 @@ export interface Judged {
 
 /** True when the walker's rules need a real route to be checked (limits alone are checked on the estimate). */
 export function needsRouteCheck(params: WalkParams): boolean {
-  return params.endDistanceKm === 0 || params.noRepeat === true || Boolean(params.avoidStreets?.length) || params.avoidDangerous === true || Boolean(params.stayInArea) || Boolean(params.viaStreets?.length);
+  return params.endDistanceKm === 0 || params.noRepeat === true || Boolean(params.avoidStreets?.length) || params.avoidDangerous === true || Boolean(params.stayInArea) || Boolean(params.viaStreets?.length) || Boolean(params.access);
 }
 
 /** Map data fetched once per check and shared by every route tried. */
@@ -104,9 +106,11 @@ export async function routeAndJudge(
   opts: { alternatives?: boolean; orderSearch?: boolean; budget?: RoutingBudget; env?: CheckEnv } = {},
 ): Promise<Judged> {
   const budget = opts.budget ?? makeBudget(TURN_ROUTING_CALLS);
-  const route = budgeted(orsRoute, budget, isRouteCached);
+  const profile = params.access ? ACCESS_PROFILES[params.access] : undefined;
+  const mode = profile?.mode;
+  const route = budgeted((w: Candidate["coordinates"][], a: AvoidPolygons | null) => orsRoute(w, a, mode), budget, (w, a) => isRouteCached(w, a, mode));
   const loop = params.endDistanceKm === 0;
-  const pace = params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM;
+  const pace = (params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM) * (profile?.paceFactor ?? 1);
   const streets = params.avoidStreets ?? [];
   const env = opts.env ?? (await loadEnv(origin, params));
 
@@ -129,7 +133,7 @@ export async function routeAndJudge(
       legKms,
       params.stops,
       pace,
-      heights && heights.length === legKms.length ? heights.map((l) => l.ascentM) : null,
+      heights && heights.length === legKms.length ? heights.map((l) => l.ascentM * (profile?.climbFactor ?? 1)) : null,
       params.breaks,
     );
     const sched = scheduleFor(params, stops, t);
@@ -144,6 +148,8 @@ export async function routeAndJudge(
       paceMinPerKm: pace,
       visitMin: t.visitMin + t.restMin,
       extraRules: sched.rules,
+      access: params.access,
+      maxGradePct: params.maxGradePct,
       // Per-leg pace and climbing change the walking time; without either it is the whole route at one pace, as before.
       ...((params.stops && Object.keys(params.stops).length) || t.climbKnown ? { walkMin: t.walkMin } : {}),
       ...(t.climbKnown ? { climbMin: t.climbMin } : {}),

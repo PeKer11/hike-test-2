@@ -1,12 +1,14 @@
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
+import type { Access } from "./access";
+import { accessRules } from "./access-rules";
 import { ACCEPTABLE_BAD_KM } from "./clean-route";
 import { matchesStreet, type ForbiddenWay } from "./forbidden-ways";
 import { insideBoundary, outsideKm, type Boundary } from "./loop-search";
 import { analyzeRoute } from "./route-quality";
 import type { RouteDetail } from "./ors-route";
 
-export type RuleId = "no_repeat" | "stay_in_area" | "avoid_streets" | "avoid_dangerous" | "via_streets" | "loop" | "end_distance" | "time" | "max_walk" | "open_hours" | "stop_time" | "end_by" | "meal" | "stop_order";
+export type RuleId = "no_repeat" | "stay_in_area" | "avoid_streets" | "avoid_dangerous" | "via_streets" | "loop" | "end_distance" | "time" | "max_walk" | "open_hours" | "stop_time" | "end_by" | "meal" | "stop_order" | "no_steps" | "max_grade" | "surface" | "accessible_stops";
 /** met = checked and fine; not_met = checked and broken; partial = checked only in part; not_checked = no data to check with. */
 export type RuleStatus = "met" | "not_met" | "partial" | "not_checked";
 
@@ -116,6 +118,9 @@ export interface VerdictInput {
   climbMin?: number;
   /** Rules decided outside the route (opening hours, order, clock). */
   extraRules?: RuleResult[];
+  /** Stroller / wheelchair: steps, slope and surface are checked on the route. */
+  access?: Access;
+  maxGradePct?: number;
 }
 
 /** Every rule against one real route. Pure: no network. "not_checked" is decided here and nowhere else. */
@@ -211,6 +216,7 @@ export function evaluateRoute(input: VerdictInput): Verdict {
       r.detail = "climbing is not included (no height data) and the walk is close to the time limit";
     }
   }
+  if (input.access) rules.push(...accessRules(detail, input.access, walkKm, input.maxGradePct));
   rules.push(...limits, ...(input.extraRules ?? []));
   return makeVerdict(rules, walkKm, walkMin, input.visitMin, input.climbMin);
 }
@@ -246,5 +252,5 @@ export function brokenKm(v: Verdict): number {
     if (r.rule === "via_streets" || r.rule === "loop") return 0.5;
     return r.value ?? 0;
   };
-  return v.rules.filter((r) => r.status === "not_met" && !["time", "max_walk", "open_hours", "stop_time", "end_by", "meal", "stop_order"].includes(r.rule)).reduce((a, r) => a + amount(r), 0);
+  return v.rules.filter((r) => r.status === "not_met" && !["time", "max_walk", "open_hours", "stop_time", "end_by", "meal", "stop_order", "accessible_stops"].includes(r.rule)).reduce((a, r) => a + amount(r), 0);
 }

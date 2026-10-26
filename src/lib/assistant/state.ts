@@ -33,9 +33,13 @@ export interface WalkParams {
   meals?: MealWindow[];
   /** Order of the stops (first, last, ends at, a before b). */
   order?: StopOrder;
+  /** Stroller or wheelchair: routes avoid steps and steep slopes, and the pace is slower. */
+  access?: Access;
+  maxGradePct?: number;
 }
 
 export { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
+import type { Access } from "@/lib/walk/access";
 import type { MealWindow } from "@/lib/walk/schedule-rules";
 import type { StopOrder } from "@/lib/walk/stop-order";
 import type { BreakPlan, StopPlan } from "@/lib/walk/timing";
@@ -61,6 +65,8 @@ export interface Candidate {
   openNow?: boolean;
   /** Weekly opening hours (Google), for the opening-hours check. */
   hours?: WeeklyHours;
+  /** Google says the entrance is step-free (true) or not (false); absent when unknown. */
+  wheelchairEntrance?: boolean;
 }
 
 const RATING_PRIOR = 4.0;

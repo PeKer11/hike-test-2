@@ -25,7 +25,9 @@ import {
   haversineDistance,
 } from "@/lib/utils/geo";
 import { buildCleanRoute } from "@/lib/walk/clean-route";
-import { orsRoute } from "@/lib/walk/ors-route";
+import { isAccess, routeModeFor } from "@/lib/walk/access";
+import { accessRules } from "@/lib/walk/access-rules";
+import { orsRoute, routeDetail } from "@/lib/walk/ors-route";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
 import { outsideKm } from "@/lib/walk/loop-search";
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
@@ -72,6 +74,9 @@ interface WalkPlanApiRequest {
   stayInArea?: string;
   /** Minutes of rest the assistant planned into the walk. */
   restMinutes?: number;
+  /** Stroller or wheelchair routing. */
+  access?: unknown;
+  maxGradePct?: unknown;
   pinnedAttractionIds?: string[];
   /**
    * How many stops the walker asked for in words ("bring me 3 famous places").
@@ -710,6 +715,8 @@ export async function POST(request: Request): Promise<NextResponse> {
             ? body.avoidStreets.filter((x): x is string => typeof x === "string").slice(0, 10)
             : [];
           const avoidDangerous = body.avoidDangerous === true;
+          const access = isAccess(body.access) ? body.access : undefined;
+          const accessMode = routeModeFor(access);
           let forbiddenLookupFailed = false;
           const forbidden =
             avoidStreets.length || avoidDangerous
@@ -726,7 +733,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             waypoints,
             noRepeat: body.noRepeat === true,
             forbiddenWays: forbidden.map((w) => w.path),
-            route: orsRoute,
+            route: (w, a) => orsRoute(w, a, accessMode),
           });
           geometry = clean.geometry;
           const { endGapM, closesLoop, repeatedKm, forbiddenKm } = clean.quality;
@@ -745,6 +752,15 @@ export async function POST(request: Request): Promise<NextResponse> {
             else {
               const out = outsideKm(clean.geometry, boundary);
               if (out > 0.1) warnings.push(`${out} km of the route is outside ${area}.`);
+            }
+          }
+          if (access) {
+            const detail = routeDetail(clean.geometry);
+            const km = clean.geometry.reduce((acc, p, i) => acc + (i ? haversineDistance(clean.geometry[i - 1], p) : 0), 0) / 1000;
+            const grade = typeof body.maxGradePct === "number" && body.maxGradePct > 0 && body.maxGradePct <= 30 ? body.maxGradePct : undefined;
+            for (const r of accessRules(detail, access, km, grade)) {
+              if (r.status === "not_met") warnings.push(`${r.detail ?? r.rule} (${access} route).`);
+              else if (r.status === "not_checked" || r.status === "partial") warnings.push(`Not fully checked for a ${access}: ${r.rule} (${r.detail ?? "no data"}).`);
             }
           }
           if (returnToStart && !summary.closesLoop) {

@@ -7,6 +7,7 @@ import { inSafetyCoverage, parseWarnings, SAFETY_ATTRIBUTION, SAFETY_FEED_URL, w
 import { assessWalkWindow, endsAfterDark, FORECAST_ATTRIBUTION, forecastUrl, nextDryStart, parseForecast, parseSunsets } from "@/lib/weather/forecast";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
+import { ACCESS_PROFILES, isAccess } from "@/lib/walk/access";
 import { formatClock, nextLocalTime, parseHHMM, tzOffsetMin } from "@/lib/walk/clock";
 import { bestOrderWithRules, type StopOrder } from "@/lib/walk/stop-order";
 import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
@@ -211,7 +212,9 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
           avoid_streets: { type: "array", items: { type: "string" }, description: "street names the walker does not want to walk along, exactly as they wrote them" },
           via_streets: { type: "array", items: { type: "string" }, description: "streets the walker wants the walk to go along; used by find_clean_walk" },
           stay_in_area: { type: "string", description: "town the whole walk must stay inside, with country, e.g. 'Caesarea, Israel'; the server checks the real route against its boundary" },
-          clear: { type: "array", items: { type: "string", enum: ["no_repeat", "stay_in_area", "avoid_streets", "avoid_dangerous", "via_streets", "time", "max_walk", "loop", "end_distance"] }, description: "rules the walker gives up: they are removed" },
+          access: { type: "string", enum: ["stroller", "wheelchair", "none"], description: "how the walker moves: a stroller or a wheelchair gets routes without steps and steep slopes, and a slower pace; the server checks steps, slope and surface on the real route" },
+          max_grade_pct: { type: "number", description: "steepest slope the walker accepts, in percent (default 8 stroller, 6 wheelchair)" },
+          clear: { type: "array", items: { type: "string", enum: ["no_repeat", "stay_in_area", "avoid_streets", "avoid_dangerous", "via_streets", "time", "max_walk", "loop", "end_distance", "access", "max_grade"] }, description: "rules the walker gives up: they are removed" },
           avoid_dangerous: { type: "boolean", description: "true when the walker wants to avoid dangerous roads; the server finds them from OpenStreetMap (fast roads, no sidewalk)" },
         },
         additionalProperties: false,
@@ -417,14 +420,14 @@ async function estimateWalk(
   ordered = false,
   loop = false,
   plans?: WalkParams["stops"],
-  extra?: { order?: StopOrder; breaks?: BreakPlan; startAt?: number; timeZone?: string },
+  extra?: { order?: StopOrder; breaks?: BreakPlan; startAt?: number; timeZone?: string; access?: WalkParams["access"] },
 ): Promise<Estimate> {
   const points = [origin, ...stops.map((s) => s.coordinates)];
   let dist: number[][];
   let approx = false;
   try {
     if (matrixCoolingDown()) throw new Error("matrix cooling down");
-    const m = await getMatrix({ locations: points.map(toOrsCoord) } as Parameters<typeof getMatrix>[0]);
+    const m = await getMatrix({ locations: points.map(toOrsCoord), ...(extra?.access ? { profile: ACCESS_PROFILES[extra.access].mode.profile } : {}) } as Parameters<typeof getMatrix>[0]);
     dist = m.distances as number[][];
     if (!dist?.length) throw new Error("empty");
   } catch (err) {
@@ -477,6 +480,7 @@ function addCandidates(state: AssistantState, found: Candidate[]): Candidate[] {
     const existing = known.get(c.placeId);
     if (existing) {
       if (!existing.hours && c.hours) existing.hours = c.hours;
+      if (existing.wheelchairEntrance === undefined && c.wheelchairEntrance !== undefined) existing.wheelchairEntrance = c.wheelchairEntrance;
       if (existing.rating === undefined && c.rating !== undefined) {
         existing.rating = c.rating;
         existing.ratingCount = c.ratingCount;
@@ -590,6 +594,7 @@ export async function runTool(
           ...(p.rating !== undefined ? { rating: p.rating, ratingCount: p.ratingCount } : {}),
           ...(p.openNow === false ? { openNow: false } : {}),
           ...(p.hours ? { hours: p.hours } : {}),
+          ...(p.wheelchairEntrance !== undefined ? { wheelchairEntrance: p.wheelchairEntrance } : {}),
         }))
         // Near first; a better-rated place may edge ahead (one star is worth about 400 m), but only inside the radius that was asked for.
         .sort((a, b) => a.distanceMeters - (placeScore(a) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR - (b.distanceMeters - (placeScore(b) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR));
@@ -735,6 +740,10 @@ export async function runTool(
         const via = args.via_streets.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim().slice(0, 60));
         state.params.viaStreets = [...new Set([...(state.params.viaStreets ?? []), ...via])].slice(0, 4);
       }
+      if (isAccess(args.access)) state.params.access = args.access;
+      else if (args.access === "none") delete state.params.access;
+      const grade = num(args.max_grade_pct);
+      if (grade && grade <= 30) state.params.maxGradePct = grade;
       if (typeof args.stay_in_area === "string" && args.stay_in_area.trim()) state.params.stayInArea = args.stay_in_area.trim().slice(0, 80);
       if (Array.isArray(args.avoid_streets)) {
         const streets = args.avoid_streets.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim().slice(0, 60));
@@ -751,6 +760,8 @@ export async function runTool(
         else if (rule === "time_minutes" || rule === "time") delete state.params.timeMinutes;
         else if (rule === "max_walk_km" || rule === "max_walk") delete state.params.maxWalkKm;
         else if (rule === "loop" || rule === "end_distance") delete state.params.endDistanceKm;
+        else if (rule === "access") delete state.params.access;
+        else if (rule === "max_grade") delete state.params.maxGradePct;
         else {
           ignored.push(String(rule));
           continue;
@@ -988,7 +999,7 @@ export async function runTool(
       if (picked.length === 0) return { output: JSON.stringify({ error: "no valid stop ids" }), state };
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       const ordered = args.ordered === true;
-      const est = await estimateWalk(state.origin, picked, state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM, ordered, state.params.endDistanceKm === 0, state.params.stops, { order: state.params.order, breaks: state.params.breaks, startAt: state.params.startAt, timeZone: state.params.timeZone });
+      const est = await estimateWalk(state.origin, picked, (state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM) * (state.params.access ? ACCESS_PROFILES[state.params.access].paceFactor : 1), ordered, state.params.endDistanceKm === 0, state.params.stops, { order: state.params.order, breaks: state.params.breaks, startAt: state.params.startAt, timeZone: state.params.timeZone, access: state.params.access });
       // One verdict per set of stops: build_walk reuses what estimate_walk / find_clean_walk already checked.
       const cached = name === "build_walk" ? state.checks?.find((c) => c.key === checkKey(picked.map((c2) => c2.id), state.params, ordered)) : undefined;
       let judged: Judged;

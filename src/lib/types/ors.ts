@@ -2,7 +2,7 @@ export type OrsCoordinate = [number, number];
 
 export interface OrsDirectionsRequest {
   coordinates: OrsCoordinate[];
-  profile?: "foot-walking" | "foot-hiking" | "cycling-regular" | "driving-car";
+  profile?: "foot-walking" | "foot-hiking" | "wheelchair" | "cycling-regular" | "driving-car";
   instructions?: boolean;
   /** ORS extra_info keys, e.g. "waytype". */
   extra_info?: string[];
@@ -48,7 +48,7 @@ export interface OrsDirectionsResponse {
 
 export interface OrsMatrixRequest {
   locations: OrsCoordinate[];
-  profile?: "foot-walking" | "foot-hiking" | "cycling-regular" | "driving-car";
+  profile?: "foot-walking" | "foot-hiking" | "wheelchair" | "cycling-regular" | "driving-car";
 }
 
 export interface OrsMatrixResponse {
@@ -67,7 +67,7 @@ export interface OrsOptimizationJob {
 
 export interface OrsOptimizationVehicle {
   id: number;
-  profile: "foot-walking" | "foot-hiking" | "cycling-regular" | "driving-car";
+  profile: "foot-walking" | "foot-hiking" | "wheelchair" | "cycling-regular" | "driving-car";
   start?: OrsCoordinate;
   end?: OrsCoordinate;
   max_distance?: number;

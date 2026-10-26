@@ -1,4 +1,5 @@
 import { scheduleOf, scheduleRules } from "@/lib/walk/schedule-rules";
+import { stopAccessRules } from "@/lib/walk/access-rules";
 import type { RuleResult, Verdict } from "@/lib/walk/rule-verdict";
 import type { Timeline } from "@/lib/walk/timing";
 import type { Candidate, WalkParams } from "./state";
@@ -16,5 +17,6 @@ export function scheduleFor(params: WalkParams, stops: Candidate[], t: Timeline)
     meals: params.meals,
     order: params.order,
   };
-  return { rules: scheduleRules(input), schedule: scheduleOf(input) };
+  const access = params.access ? stopAccessRules(stops, params.access) : [];
+  return { rules: [...scheduleRules(input), ...access], schedule: scheduleOf(input) };
 }

@@ -269,6 +269,9 @@ export async function getDirections(
   const canFallBack =
     !request.options?.round_trip &&
     !request.options?.avoid_polygons &&
+    // OSRM knows neither stairs nor slopes: a stroller or wheelchair route must come from ORS or fail.
+    !request.options?.avoid_features &&
+    !request.options?.profile_params &&
     (profile === "foot-walking" || profile === "foot-hiking");
   if (!canFallBack) return ors;
 

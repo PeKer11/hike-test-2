@@ -17,6 +17,7 @@ import type { AssistantDefaults } from "@/lib/assistant/defaults";
 import { AssistantSettings, PACE_PRESETS, useAssistantDefaults } from "./AssistantSettings";
 import { StartLocationPicker } from "./StartLocationPicker";
 import type { Attraction, Coordinates } from "@/lib/types";
+import { ACCESS_PROFILES } from "@/lib/walk/access";
 
 interface Message {
   role: "user" | "assistant";
@@ -49,7 +50,7 @@ export interface AssistantBuild {
   /** The walker stated an order: visit the stops exactly as listed. */
   fixedOrder?: boolean;
   /** Route rules the walker stated; sent with every (re)build of this walk. */
-  routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean; stayInArea?: string; restMinutes?: number };
+  routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean; stayInArea?: string; restMinutes?: number; access?: "stroller" | "wheelchair"; maxGradePct?: number };
   /** The route the assistant checked: the planner shows this one for this build. */
   geometry?: Coordinates[];
 }
@@ -425,7 +426,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
         onBuild({
           origin: data.action.origin,
           availableMinutes: params.timeMinutes ?? NO_LIMIT_MINUTES,
-          walkingPaceMinPerKm: params.paceMinPerKm ?? DEFAULT_PACE,
+          walkingPaceMinPerKm: (params.paceMinPerKm ?? DEFAULT_PACE) * (params.access ? ACCESS_PROFILES[params.access].paceFactor : 1),
           radiusMeters: (params.radiusKm ?? NO_LIMIT_RADIUS_KM) * 1000,
           maxEndDistanceFromOriginMeters:
             params.endDistanceKm === undefined ? undefined : params.endDistanceKm * 1000,
@@ -438,6 +439,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             avoidDangerous: params.avoidDangerous,
             stayInArea: params.stayInArea,
             ...(data.action.restMin ? { restMinutes: data.action.restMin } : {}),
+            ...(params.access ? { access: params.access, ...(params.maxGradePct ? { maxGradePct: params.maxGradePct } : {}) } : {}),
           },
         });
       }

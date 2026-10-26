@@ -12,7 +12,7 @@ const SEARCH_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby"
 // GOOGLE_PLACES_RATINGS=0 turns them off. They only ever order results: Google's
 // terms keep ratings off a non-Google map and forbid storing them.
 // businessStatus is Pro-tier: permanently/temporarily closed places are dropped. openNow is Enterprise like the ratings, so it rides with them.
-const FIELD_MASK = "places.id,places.displayName,places.location,places.primaryType,places.types,places.businessStatus,places.utcOffsetMinutes";
+const FIELD_MASK = "places.id,places.displayName,places.location,places.primaryType,places.types,places.businessStatus,places.utcOffsetMinutes,places.accessibilityOptions.wheelchairAccessibleEntrance";
 const RATING_FIELDS = ",places.rating,places.userRatingCount,places.currentOpeningHours";
 
 function ratingsEnabled(): boolean {
@@ -51,6 +51,8 @@ export interface GooglePlace {
   openNow?: boolean;
   /** Weekly opening hours (same request as openNow). */
   hours?: WeeklyHours;
+  /** Google's flag for a step-free entrance; absent when unknown. */
+  wheelchairEntrance?: boolean;
 }
 
 interface RawPlace {
@@ -64,6 +66,7 @@ interface RawPlace {
   businessStatus?: string;
   currentOpeningHours?: { openNow?: boolean; periods?: Array<{ open?: { day?: number; hour?: number; minute?: number }; close?: { day?: number; hour?: number; minute?: number } }> };
   utcOffsetMinutes?: number;
+  accessibilityOptions?: { wheelchairAccessibleEntrance?: boolean };
 }
 
 let usageDay = "";
@@ -123,6 +126,7 @@ async function post(url: string, body: unknown, withRatings = false): Promise<Go
       types: p.types ?? [],
       ...(typeof p.rating === "number" && typeof p.userRatingCount === "number" ? { rating: p.rating, ratingCount: p.userRatingCount } : {}),
       ...(typeof p.currentOpeningHours?.openNow === "boolean" ? { openNow: p.currentOpeningHours.openNow } : {}),
+      ...(typeof p.accessibilityOptions?.wheelchairAccessibleEntrance === "boolean" ? { wheelchairEntrance: p.accessibilityOptions.wheelchairAccessibleEntrance } : {}),
       ...(hoursFromGoogle(p.currentOpeningHours, p.utcOffsetMinutes) ? { hours: hoursFromGoogle(p.currentOpeningHours, p.utcOffsetMinutes) } : {}),
     });
   }
