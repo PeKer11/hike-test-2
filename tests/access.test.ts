@@ -25,7 +25,7 @@ describe("accessRules", () => {
     expect(accessRules(detail({ grades: [{ path: line(0.3), cls: 2 }] }), "wheelchair", 2)[1].status).toBe("met");
   });
   it("the walker's own grade limit wins", () => {
-    expect(accessRules(detail({ grades: [{ path: line(0.3), cls: 3 }] }), "wheelchair", 2, 10)[1].status).toBe("met");
+    expect(accessRules(detail({ grades: [{ path: line(0.3), cls: 3 }] }), "wheelchair", 2, 11)[1].status).toBe("met");
   });
   it("rough surface is not_met; mostly unknown surface is partial with a data gap", () => {
     expect(accessRules(detail({ surfaces: [{ path: line(0.4), code: 11 }] }), "wheelchair", 2)[2].status).toBe("not_met");

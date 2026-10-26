@@ -135,3 +135,12 @@ describe("settled", () => {
     expect(settled(v([{ rule: "time", status: "partial" }]))).toBe(false);
   });
 });
+
+describe("review fixes", () => {
+  it("last: kind:food points at the last food stop, and last + end_at are both checked", () => {
+    const seq = [{ id: "a", category: "food" }, { id: "b", category: "park" }, { id: "c", category: "food" }];
+    expect(satisfies(seq, { last: "kind:food" })).toBe(true);
+    expect(satisfies([seq[0], seq[2], seq[1]], { last: "kind:food" })).toBe(false);
+    expect(satisfies(seq, { last: "c", endAt: "b" })).toBe(false);
+  });
+});

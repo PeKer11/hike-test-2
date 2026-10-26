@@ -695,7 +695,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     let geometry: Coordinates[] | undefined;
     let routeQuality: Pick<RouteQuality, "endGapM" | "closesLoop" | "repeatedKm" | "forbiddenKm"> | undefined;
 
-    const preset = usablePresetGeometry(body.presetGeometry, origin, body.fixedOrder === true && hasExplicit);
+    // A stroller / wheelchair walk is always routed here with its own router mode: a preset may come from a builder that did not know.
+    const preset = isAccess(body.access) ? null : usablePresetGeometry(body.presetGeometry, origin, body.fixedOrder === true && hasExplicit);
     if (preset) {
       geometry = preset;
       routeQuality = analyzeRoute(preset, []);

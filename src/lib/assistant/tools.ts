@@ -677,6 +677,9 @@ export async function runTool(
       if (order.endAt && state.params.endDistanceKm === 0) {
         return { output: JSON.stringify({ error: "end_at conflicts with a loop (back at the start): ask the walker which one they want, then clear the other with set_walk_params clear [loop] or set_stop_order clear" }), state };
       }
+      if (order.endAt && order.last && order.endAt !== order.last) {
+        return { output: JSON.stringify({ error: "last and end_at name different stops: the walk can only end at one. Ask which, then clear with set_stop_order clear" }), state };
+      }
       if (bad.length && !order.first && !order.last && !order.endAt && !order.before?.length) return { output: JSON.stringify({ error: `unknown ref: ${bad.join(", ")}` }), state };
       state.params.order = order;
       return { output: JSON.stringify({ ok: true, order, ...(bad.length ? { unknown_refs: bad } : {}), next: "call estimate_walk again" }), state };
@@ -748,6 +751,9 @@ export async function runTool(
       const e = typeof args.end_distance_km === "number" && args.end_distance_km >= 0 ? args.end_distance_km : undefined;
       const p = num(args.pace_min_per_km);
       const w = num(args.max_walk_km);
+      if (e === 0 && (state.params.order?.endAt || state.params.transit?.back)) {
+        return { output: JSON.stringify({ error: "a loop (back at the start) conflicts with end_at / the ride home: ask the walker which one they want, then clear the other first" }), state };
+      }
       if (w) state.params.maxWalkKm = w;
       state.limitsSettled = true;
       if (t) state.params.timeMinutes = t;
@@ -871,7 +877,7 @@ export async function runTool(
         approx = true;
         full = spots.map((a) => spots.map((b) => haversineDistance(a, b) * 1.3));
       }
-      const pace = state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM;
+      const pace = (state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM) * (state.params.access ? ACCESS_PROFILES[state.params.access].paceFactor : 1);
       const { timeMinutes, maxWalkKm } = state.params;
       // Every combination of the pool, ordered as a loop; keep those within the limits, most spread out first.
       const scored: Array<{ idx: number[]; spacing: number; rating: number }> = [];
@@ -879,7 +885,9 @@ export async function runTool(
       const consider = (chosen: number[]) => {
         const idx = [...must.map((_, i) => i + 1), ...chosen.map((i) => i + 1 + must.length)];
         const sub = [0, ...idx].map((a) => [0, ...idx].map((b) => full[a]?.[b] ?? Infinity));
-        const order = bestOrder(sub, loop).map((i) => idx[i - 1]);
+        const stopsHere = idx.map((i) => all[i - 1]);
+        const rawOrder = (state.params.order ? bestOrderWithRules(sub, loop && !state.params.order.endAt, stopsHere, state.params.order) : null) ?? bestOrder(sub, loop);
+        const order = rawOrder.map((i) => idx[i - 1]);
         let at = 0;
         let meters = 0;
         const legKms: number[] = [];
@@ -894,7 +902,7 @@ export async function runTool(
           meters += back;
           legKms.push(back / 1000);
         }
-        const t = timeline(order.map((i) => ({ id: all[i - 1].id, visitMin: visitMinutes(all[i - 1].category) })), legKms, state.params.stops, pace);
+        const t = timeline(order.map((i) => ({ id: all[i - 1].id, visitMin: visitMinutes(all[i - 1].category) })), legKms, state.params.stops, pace, null, state.params.breaks);
         const over = Math.max(maxWalkKm ? meters / (maxWalkKm * 1100) : 0, timeMinutes ? t.totalMin / timeMinutes : 0);
         if (over > 1) {
           // Nothing may fit: keep the set that overshoots least, so the walker is shown real numbers instead of "impossible".
@@ -933,7 +941,11 @@ export async function runTool(
       }
       if (!best) return { output: JSON.stringify({ error: scored.length ? "routes could not be built just now; try again in a minute" : "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
       // The chosen set gets the full check: best visiting order and, if it still breaks a rule, the alternatives.
-      const judged = await routeAndJudge(origin, best.stops, state.params, pool, { env, budget });
+      let judged = await routeAndJudge(origin, best.stops, state.params, pool, { env, budget });
+      if (state.params.transit?.back && !judged.verdict.unavailable) {
+        const last = [...best.stops, ...pool].find((c) => c.id === judged.orderIds[judged.orderIds.length - 1]);
+        if (last) judged = { ...judged, verdict: await withTransitBack(judged.verdict, last.coordinates, origin, state.params) };
+      }
       state.checks = rememberCheck(state, best.stops.map((s) => s.id), false, judged);
       const byId = new Map(best.stops.map((s) => [s.id, s.name]));
       return {
@@ -1037,17 +1049,24 @@ export async function runTool(
         }
         const sched = scheduleFor(state.params, est.order, est.t);
         judged = routed && !routed.verdict.unavailable ? routed : {
-          verdict: { ...makeVerdict([...limitRules(state.params, est.walkKm, est.walkMin, est.visitMin, est.approx), ...sched.rules], est.walkKm, est.walkMin, est.visitMin), ...(sched.schedule ? { schedule: sched.schedule } : {}) },
+          verdict: { ...makeVerdict([...limitRules(state.params, est.walkKm, est.walkMin, est.visitMin, est.approx), ...sched.rules], est.walkKm, est.walkMin, est.visitMin), ...(sched.schedule ? { schedule: sched.schedule } : {}), ...(est.t.restMin ? { restMin: Math.round(est.t.restMin) } : {}) },
           orderIds: est.order.map((s) => s.id),
         };
       }
-      if (state.params.transit?.back && state.origin && !judged.verdict.unavailable) {
+      if (judged.verdict.unavailable) {
+        // No route: the clock, order and access rules still need an answer; they never read "met" without a route.
+        const sched = scheduleFor(state.params, est.order, est.t);
+        const gap = state.params.access ? (["no_steps", "max_grade", "surface"] as const).map((rule) => ({ rule, status: "not_checked" as const, dataGap: true as const, detail: "no route to check" })) : [];
+        const rules = [...judged.verdict.rules, ...sched.rules, ...gap];
+        judged = { ...judged, verdict: { ...judged.verdict, rules, broken: rules.some((r) => r.status === "not_met"), ...(sched.schedule ? { schedule: sched.schedule } : {}), ...(est.t.restMin ? { restMin: Math.round(est.t.restMin) } : {}) } };
+      }
+      if (state.params.transit?.back && state.origin && !judged.verdict.unavailable && !judged.verdict.rules.some((r) => r.rule === "transit")) {
         const last = state.candidates.find((c) => c.id === judged.orderIds[judged.orderIds.length - 1]);
         if (last) judged = { ...judged, verdict: await withTransitBack(judged.verdict, last.coordinates, state.origin, state.params) };
       }
       if (!cached) state.checks = rememberCheck(state, picked.map((c) => c.id), ordered, judged);
       if (name === "estimate_walk") {
-        return { output: JSON.stringify({ walkKm: judged.verdict.walkKm, walkMin: judged.verdict.walkMin, ...(judged.verdict.climbMin !== undefined ? { climbMin: judged.verdict.climbMin } : {}), visitMin: judged.verdict.visitMin, totalMin: judged.verdict.totalMin, legs: est.legs, ...(est.ignored.length ? { stop_plan_ignored: est.ignored } : {}), verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
+        return { output: JSON.stringify({ walkKm: judged.verdict.walkKm, walkMin: judged.verdict.walkMin, ...(judged.verdict.climbMin !== undefined ? { climbMin: judged.verdict.climbMin } : {}), visitMin: judged.verdict.visitMin, totalMin: judged.verdict.totalMin, legs: est.legs.map((l, i) => { const at = judged.verdict.schedule?.find((x) => x.id === est.order[i]?.id)?.arrive; return at ? { ...l, arrive: at } : l; }), ...(est.ignored.length ? { stop_plan_ignored: est.ignored } : {}), verdict: judged.verdict, ...(judged.alternatives?.length ? { alternatives: judged.alternatives } : {}) }), state };
       }
       if (!state.limitsSettled) {
         return { output: JSON.stringify({ error: "limits not asked yet: call ask_limits first" }), state };

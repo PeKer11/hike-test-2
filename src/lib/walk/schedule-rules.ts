@@ -96,7 +96,9 @@ export function scheduleRules(i: ScheduleInput): RuleResult[] {
   }
 
   if (i.endBy) {
-    const limit = localTimeOnDay(i.endBy, tz, i.startAt);
+    const raw = localTimeOnDay(i.endBy, tz, i.startAt);
+    // "by 00:30" after a 21:00 start means the next night.
+    const limit = raw !== null && raw < i.startAt ? raw + 24 * 60 * MIN : raw;
     if (limit === null) rules.push({ rule: "end_by", status: "not_checked", detail: `could not read "${i.endBy}"` });
     else {
       const end = i.startAt + i.timeline.totalMin * MIN;
@@ -106,7 +108,9 @@ export function scheduleRules(i: ScheduleInput): RuleResult[] {
 
   for (const meal of i.meals ?? []) {
     const from = localTimeOnDay(meal.from, tz, i.startAt);
-    const to = localTimeOnDay(meal.to, tz, i.startAt);
+    const rawTo = localTimeOnDay(meal.to, tz, i.startAt);
+    // A window that crosses midnight ends on the next day.
+    const to = rawTo !== null && from !== null && rawTo < from ? rawTo + 24 * 60 * MIN : rawTo;
     if (from === null || to === null) {
       rules.push({ rule: "meal", status: "not_checked", detail: `could not read ${meal.from}-${meal.to}` });
       continue;

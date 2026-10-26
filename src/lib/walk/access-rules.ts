@@ -9,10 +9,13 @@ const pathKm = (path: Coordinates[]): number => path.reduce((a, p, i) => a + (i 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /** ORS steepness class -> [lowest, highest] grade in percent covered by the class (up or down). */
-const GRADE_CLASS: Record<number, [number, number]> = { 1: [1, 3], 2: [4, 6], 3: [7, 9], 4: [10, 15], 5: [16, Infinity] };
+const GRADE_CLASS: Record<number, [number, number]> = { 1: [1, 3], 2: [4, 6], 3: [7, 11], 4: [12, 15], 5: [16, Infinity] };
 
 /** ORS surface codes that a wheel does badly on. */
 const ROUGH_SURFACE = new Set([2, 5, 10, 11, 12, 13, 15, 16, 17, 18]);
+
+/** Slope tolerance in km: a wheelchair cannot absorb a 50 m wall the way a street rule can. */
+const GRADE_TOLERANCE_KM = 0.02;
 
 /** Share of the route with no surface data above which the surface rule is only partial. */
 const UNKNOWN_SURFACE_SHARE = 0.2;
@@ -38,8 +41,8 @@ export function accessRules(detail: RouteDetail | undefined, access: Access, rou
       else if (hi > limit) straddle += pathKm(g.path);
     }
     over = round2(over);
-    if (over > ACCEPTABLE_BAD_KM) rules.push({ rule: "max_grade", status: "not_met", value: over, limit, detail: `${over} km steeper than ${limit}%` });
-    else if (straddle > ACCEPTABLE_BAD_KM) rules.push({ rule: "max_grade", status: "partial", value: round2(straddle), limit, detail: `${round2(straddle)} km are on slopes that may be close to ${limit}% (the router reports slope classes)` });
+    if (over > GRADE_TOLERANCE_KM) rules.push({ rule: "max_grade", status: "not_met", value: over, limit, detail: `${over} km steeper than ${limit}%` });
+    else if (straddle > GRADE_TOLERANCE_KM) rules.push({ rule: "max_grade", status: "partial", value: round2(straddle), limit, detail: `${round2(straddle)} km are on slopes that may be close to ${limit}% (the router reports slope classes)` });
     else rules.push({ rule: "max_grade", status: "met", limit });
   }
 

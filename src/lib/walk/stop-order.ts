@@ -19,6 +19,12 @@ function resolve(ref: string, stops: OrderStop[]): number {
   return stops.findIndex((s) => s.id === ref);
 }
 
+/** Like `resolve`, but a "kind:" ref points at the LAST stop of that kind (for "ends at / last is a cafe"). */
+function resolveLast(ref: string, stops: OrderStop[]): number {
+  if (ref.startsWith("kind:")) return stops.map((s) => s.category).lastIndexOf(ref.slice(5));
+  return stops.findIndex((s) => s.id === ref);
+}
+
 /** Refs that do not match any stop of the walk. */
 export function unresolvedRefs(order: StopOrder | undefined, stops: OrderStop[]): string[] {
   if (!order) return [];
@@ -32,8 +38,11 @@ export function satisfies(sequence: OrderStop[], order: StopOrder | undefined): 
   const at = (ref?: string) => (ref ? resolve(ref, sequence) : -1);
   const n = sequence.length;
   if (order.first && at(order.first) > -1 && at(order.first) !== 0) return false;
-  const lastRef = order.endAt ?? order.last;
-  if (lastRef && at(lastRef) > -1 && at(lastRef) !== n - 1) return false;
+  for (const ref of [order.endAt, order.last]) {
+    if (!ref) continue;
+    const k = resolveLast(ref, sequence);
+    if (k > -1 && k !== n - 1) return false;
+  }
   for (const [a, b] of order.before ?? []) {
     const ia = at(a);
     const ib = at(b);
@@ -83,7 +92,7 @@ export function bestOrderWithRules(dist: number[][], loop: boolean, stops: Order
   let at = 0;
   while (left.size) {
     const candidates = [...left].filter((i) => {
-      if (left.size > 1 && order && ((order.last && resolve(order.last, stops) === i - 1) || (order.endAt && resolve(order.endAt, stops) === i - 1))) return false;
+      if (left.size > 1 && order && ((order.last && resolveLast(order.last, stops) === i - 1) || (order.endAt && resolveLast(order.endAt, stops) === i - 1))) return false;
       return !(order?.before ?? []).some(([a, b]) => resolve(b, stops) === i - 1 && left.has(resolve(a, stops) + 1) && resolve(a, stops) > -1);
     });
     const pool = placed.length === 0 && order?.first && resolve(order.first, stops) > -1 ? [resolve(order.first, stops) + 1] : candidates;

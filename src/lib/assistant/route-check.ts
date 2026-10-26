@@ -20,6 +20,20 @@ export const TURN_ROUTING_CALLS = 35;
 const ORDERS_TRIED = 4;
 const MAX_ALTERNATIVES = 3;
 
+/** Rules that set_walk_params clear cannot remove: the tool call that does. */
+const GIVE_UP_WITH: Partial<Record<RuleId, string>> = {
+  open_hours: "set_clock clear",
+  end_by: "set_clock clear",
+  stop_time: "set_stop_plan clear_ids",
+  meal: "set_breaks clear",
+  stop_order: "set_stop_order clear",
+  transit: "set_transit back false",
+  no_steps: "set_walk_params access none",
+  max_grade: "set_walk_params access none",
+  surface: "set_walk_params access none",
+  accessible_stops: "set_walk_params access none",
+};
+
 /** Another way to finish the walk when the current one breaks a rule; numbers are from a real route. */
 export interface Alternative {
   option: string;
@@ -200,7 +214,7 @@ export async function routeAndJudge(
   // Keeping this very route and giving up one rule costs no further routing.
   for (const rule of broken) {
     const left = broken.filter((r) => r !== rule);
-    alts.push({ option: `keep this route and give up: ${rule}`, stop_ids: result.orderIds, rulesBroken: left, ...summary(verdict), km: brokenKm(verdict) });
+    alts.push({ option: `keep this route and give up: ${rule}${GIVE_UP_WITH[rule] ? ` (${GIVE_UP_WITH[rule]})` : ""}`, stop_ids: result.orderIds, rulesBroken: left, ...summary(verdict), km: brokenKm(verdict) });
   }
   try {
     if (best.length > 1) {
