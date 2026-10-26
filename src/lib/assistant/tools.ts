@@ -496,6 +496,7 @@ function addCandidates(state: AssistantState, found: Candidate[]): Candidate[] {
   for (const c of found) {
     const existing = known.get(c.placeId);
     if (existing) {
+      if (!c.placeId.startsWith("via:")) existing.fetchedAt = Date.now();
       if (!existing.hours && c.hours) existing.hours = c.hours;
       if (existing.wheelchairEntrance === undefined && c.wheelchairEntrance !== undefined) existing.wheelchairEntrance = c.wheelchairEntrance;
       if (existing.rating === undefined && c.rating !== undefined) {
@@ -505,7 +506,7 @@ function addCandidates(state: AssistantState, found: Candidate[]): Candidate[] {
       result.push(existing);
       continue;
     }
-    const withId = { ...c, id: `c${++next}` };
+    const withId = { ...c, id: `c${++next}`, ...(c.placeId.startsWith("via:") ? {} : { fetchedAt: Date.now() }) };
     state.candidates.push(withId);
     known.set(c.placeId, withId);
     result.push(withId);

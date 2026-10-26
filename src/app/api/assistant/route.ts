@@ -8,7 +8,7 @@ import {
 } from "@/lib/assistant/summary";
 import { defaultParams, parseDefaults, tasteNote } from "@/lib/assistant/defaults";
 import { tzOffsetMin } from "@/lib/walk/clock";
-import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
+import { EMPTY_STATE, expireCandidates, type AssistantState } from "@/lib/assistant/state";
 import { getPreferredCategoryWeights, getProfileDefaults } from "@/lib/preferences/preference-store";
 import { runAssistantTurn, type TurnMessage } from "@/lib/assistant/turn";
 import { selectFactsForPrompt } from "@/lib/preferences/fact-extractor";
@@ -86,7 +86,7 @@ function asState(raw: unknown): AssistantState {
   return {
     origin: s.origin ?? null,
     params: s.params ?? {},
-    candidates: Array.isArray(s.candidates) ? s.candidates : [],
+    candidates: Array.isArray(s.candidates) ? expireCandidates(s.candidates, Date.now()) : [],
     chosen: Array.isArray(s.chosen) ? s.chosen : [],
     limitsSettled: s.limitsSettled === true,
   };

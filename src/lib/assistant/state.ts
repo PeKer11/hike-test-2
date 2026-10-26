@@ -72,6 +72,25 @@ export interface Candidate {
   hours?: WeeklyHours;
   /** Google says the entrance is step-free (true) or not (false); absent when unknown. */
   wheelchairEntrance?: boolean;
+  /** When the Google data above was fetched (epoch ms); see expireCandidates. */
+  fetchedAt?: number;
+}
+
+const GOOGLE_CONTENT_TTL_MS = 24 * 60 * 60 * 1000;
+const GOOGLE_COORDS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Google's terms: only place_id may be kept; lat/lng at most 30 days; other Places content (rating, hours,
+ * accessibility) is not cacheable, so it is kept only for the day's chat and the place is dropped after 30 days.
+ */
+export function expireCandidates(candidates: Candidate[], now: number): Candidate[] {
+  return candidates
+    .filter((c) => c.fetchedAt === undefined || now - c.fetchedAt < GOOGLE_COORDS_TTL_MS)
+    .map((c) => {
+      if (c.fetchedAt === undefined || now - c.fetchedAt < GOOGLE_CONTENT_TTL_MS) return c;
+      const { rating, ratingCount, openNow, hours, wheelchairEntrance, ...rest } = c;
+      return rest;
+    });
 }
 
 const RATING_PRIOR = 4.0;
