@@ -7,15 +7,19 @@ import { inSafetyCoverage, parseWarnings, SAFETY_ATTRIBUTION, SAFETY_FEED_URL, w
 import { assessWalkWindow, endsAfterDark, FORECAST_ATTRIBUTION, forecastUrl, nextDryStart, parseForecast, parseSunsets } from "@/lib/weather/forecast";
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
+import { formatClock, nextLocalTime, parseHHMM, tzOffsetMin } from "@/lib/walk/clock";
+import { bestOrderWithRules, type StopOrder } from "@/lib/walk/stop-order";
 import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
 import { searchPlaces } from "@/lib/api/nominatim-client";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
 import { makeBudget, matrixCoolingDown, noteMatrixError, type RoutingBudget } from "@/lib/walk/routing-budget";
-import { brokenKm, limitRules, makeVerdict, type RuleResult, type Verdict } from "@/lib/walk/rule-verdict";
+import { brokenKm, limitRules, makeVerdict, settled, type RuleResult, type Verdict } from "@/lib/walk/rule-verdict";
 import { clampPace } from "@/lib/walk/pace";
-import { legPace, MAX_DWELL_MIN, timeline, type StopPlan } from "@/lib/walk/timing";
+import { legPace, MAX_DWELL_MIN, timeline, type BreakPlan, type StopPlan, type Timeline } from "@/lib/walk/timing";
 import { formatRecalledWalks, type LoadWalks } from "./recall-walks";
+import { scheduleFor } from "./schedule";
+import { scheduleOf } from "@/lib/walk/schedule-rules";
 import { loadEnv, needsRouteCheck, routeAndJudge, TURN_ROUTING_CALLS, type Judged } from "./route-check";
 
 import {
@@ -107,12 +111,70 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
                 dwell_min: { type: "number" },
                 pace: { type: "string", enum: ["brisk", "normal", "stroll"] },
                 pace_min_per_km: { type: "number" },
+                arrive_after: { type: "string", description: "\"HH:MM\": not before this clock time" },
+                arrive_before: { type: "string", description: "\"HH:MM\": not after this clock time" },
               },
               required: ["id"],
               additionalProperties: false,
             },
           },
           clear_ids: { type: "array", items: { type: "string" }, description: "ids whose plan to remove" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_stop_order",
+      description:
+        "Order wishes for the stops. Each ref is a candidate id, or \"kind:food\" / \"kind:park\" (the first stop of that kind). first / last = that stop opens / closes the walk; end_at = the walk ends there (not a loop); before = pairs where a comes before b (\"cafe before the park\"). clear removes all order wishes. The server keeps this order and says if it is not met.",
+      parameters: {
+        type: "object",
+        properties: {
+          first: { type: "string" },
+          last: { type: "string" },
+          end_at: { type: "string" },
+          before: { type: "array", items: { type: "object", properties: { a: { type: "string" }, b: { type: "string" } }, required: ["a", "b"], additionalProperties: false } },
+          clear: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_breaks",
+      description:
+        "Rest time inside the walk: rest_min minutes after every rest_every_min minutes or rest_every_km km walked without a stop (a stop at least that long counts as a rest). Meals: windows (from/to \"HH:MM\") that must hold a food stop of at least `minutes`. clear removes breaks and meals.",
+      parameters: {
+        type: "object",
+        properties: {
+          rest_min: { type: "number" },
+          rest_every_min: { type: "number" },
+          rest_every_km: { type: "number" },
+          meals: { type: "array", items: { type: "object", properties: { from: { type: "string" }, to: { type: "string" }, minutes: { type: "number" } }, required: ["from", "to", "minutes"], additionalProperties: false } },
+          clear: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_clock",
+      description:
+        "When the walk starts and must end, so opening hours and clock wishes can be checked. start_time \"HH:MM\" (walker's local time, today or the next time it shows) or start_in_hours (0 = now). end_by \"HH:MM\". Per-stop windows go to set_stop_plan (arrive_after / arrive_before). clear removes the start time and end_by.",
+      parameters: {
+        type: "object",
+        properties: {
+          start_time: { type: "string" },
+          start_in_hours: { type: "number" },
+          end_by: { type: "string" },
+          clear: { type: "boolean" },
         },
         additionalProperties: false,
       },
@@ -323,7 +385,9 @@ interface Estimate {
   walkMin: number;
   visitMin: number;
   totalMin: number;
-  legs: Array<{ to: string; km: number; min: number; pace: number }>;
+  legs: Array<{ to: string; km: number; min: number; pace: number; arrive?: string; rest_min?: number }>;
+  /** The timeline of this walk (clock times, rests). */
+  t: Timeline;
   /** Stop plans that name a stop not in this walk. */
   ignored: string[];
   /** The stops in the order they are walked (not shown to the model). */
@@ -353,6 +417,7 @@ async function estimateWalk(
   ordered = false,
   loop = false,
   plans?: WalkParams["stops"],
+  extra?: { order?: StopOrder; breaks?: BreakPlan; startAt?: number; timeZone?: string },
 ): Promise<Estimate> {
   const points = [origin, ...stops.map((s) => s.coordinates)];
   let dist: number[][];
@@ -367,7 +432,8 @@ async function estimateWalk(
     approx = true;
     dist = points.map((a) => points.map((b) => haversineDistance(a, b) * 1.3));
   }
-  const sequence = ordered ? stops.map((_, i) => i + 1) : bestOrder(dist, loop);
+  const ruled = !ordered && extra?.order ? bestOrderWithRules(dist, loop && !extra.order.endAt, stops.map((s) => ({ id: s.id, category: s.category })), extra.order) : null;
+  const sequence = ordered ? stops.map((_, i) => i + 1) : (ruled ?? bestOrder(dist, loop));
   let at = 0;
   const legs: Estimate["legs"] = [];
   const visited: Candidate[] = [];
@@ -388,10 +454,15 @@ async function estimateWalk(
     legMeters.push(back);
   }
   const walkKm = Math.round(meters / 100) / 10;
-  const t = timeline(visited.map((s) => ({ id: s.id, visitMin: visitMinutes(s.category) })), legMeters.map((m) => m / 1000), plans, pace);
+  const t = timeline(visited.map((s) => ({ id: s.id, visitMin: visitMinutes(s.category) })), legMeters.map((m) => m / 1000), plans, pace, null, extra?.breaks);
   const walkMin = Math.round(t.walkMin);
-  const visitMin = Math.round(t.visitMin);
-  return { walkKm, walkMin, visitMin, totalMin: walkMin + visitMin, legs, order: visited, approx, ignored: t.ignored };
+  const visitMin = Math.round(t.visitMin + t.restMin);
+  const sched = extra ? scheduleOf({ timeline: t, startAt: extra.startAt, timeZone: extra.timeZone }) : undefined;
+  legs.forEach((l, i) => {
+    if (sched?.[i]) l.arrive = sched[i].arrive;
+    if (t.legs[i]?.restMin) l.rest_min = t.legs[i].restMin;
+  });
+  return { walkKm, walkMin, visitMin, totalMin: walkMin + visitMin, legs, t, order: visited, approx, ignored: t.ignored };
 }
 
 function num(value: unknown): number | undefined {
@@ -405,6 +476,7 @@ function addCandidates(state: AssistantState, found: Candidate[]): Candidate[] {
   for (const c of found) {
     const existing = known.get(c.placeId);
     if (existing) {
+      if (!existing.hours && c.hours) existing.hours = c.hours;
       if (existing.rating === undefined && c.rating !== undefined) {
         existing.rating = c.rating;
         existing.ratingCount = c.ratingCount;
@@ -517,6 +589,7 @@ export async function runTool(
           distanceMeters: Math.round(haversineDistance(anchor, p.coordinates)),
           ...(p.rating !== undefined ? { rating: p.rating, ratingCount: p.ratingCount } : {}),
           ...(p.openNow === false ? { openNow: false } : {}),
+          ...(p.hours ? { hours: p.hours } : {}),
         }))
         // Near first; a better-rated place may edge ahead (one star is worth about 400 m), but only inside the radius that was asked for.
         .sort((a, b) => a.distanceMeters - (placeScore(a) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR - (b.distanceMeters - (placeScore(b) - RATING_PRIOR_SCORE) * RATING_M_PER_STAR));
@@ -548,6 +621,10 @@ export async function runTool(
         } else if (e.pace === "brisk" || e.pace === "normal" || e.pace === "stroll") {
           plan.pace = e.pace;
         }
+        for (const [key, field] of [["arrive_after", "arriveAfter"], ["arrive_before", "arriveBefore"]] as const) {
+          const v = e[key];
+          if (typeof v === "string" && parseHHMM(v) !== null) plan[field] = v.trim();
+        }
         plans[id] = plan;
       }
       for (const id of Array.isArray(args.clear_ids) ? args.clear_ids : []) if (typeof id === "string") delete plans[id];
@@ -557,6 +634,80 @@ export async function runTool(
       if (Object.keys(plans).length) state.params.stops = plans;
       else delete state.params.stops;
       return { output: JSON.stringify({ ok: true, plans: state.params.stops ?? {}, ...(unknown.length ? { unknown_ids: unknown } : {}), ...(clamped.length ? { clamped } : {}), next: "call estimate_walk again to see the new times" }), state };
+    }
+
+    if (name === "set_stop_order") {
+      if (args.clear === true) {
+        delete state.params.order;
+        return { output: JSON.stringify({ ok: true, order: null }), state };
+      }
+      const known = (ref: unknown): ref is string => typeof ref === "string" && (ref.startsWith("kind:") || state.candidates.some((c) => c.id === ref));
+      const order: StopOrder = { ...state.params.order };
+      const bad: string[] = [];
+      for (const [key, field] of [["first", "first"], ["last", "last"], ["end_at", "endAt"]] as const) {
+        const v = args[key];
+        if (v === undefined) continue;
+        if (known(v)) order[field] = v;
+        else bad.push(String(v));
+      }
+      if (Array.isArray(args.before)) {
+        const pairs = args.before.flatMap((raw) => {
+          const e = raw as Record<string, unknown>;
+          if (known(e.a) && known(e.b) && e.a !== e.b) return [[e.a, e.b] as [string, string]];
+          bad.push(`${String(e.a)}/${String(e.b)}`);
+          return [];
+        });
+        order.before = [...(order.before ?? []), ...pairs].slice(0, 8);
+      }
+      if (order.endAt && state.params.endDistanceKm === 0) {
+        return { output: JSON.stringify({ error: "end_at conflicts with a loop (back at the start): ask the walker which one they want, then clear the other with set_walk_params clear [loop] or set_stop_order clear" }), state };
+      }
+      if (bad.length && !order.first && !order.last && !order.endAt && !order.before?.length) return { output: JSON.stringify({ error: `unknown ref: ${bad.join(", ")}` }), state };
+      state.params.order = order;
+      return { output: JSON.stringify({ ok: true, order, ...(bad.length ? { unknown_refs: bad } : {}), next: "call estimate_walk again" }), state };
+    }
+
+    if (name === "set_breaks") {
+      if (args.clear === true) {
+        delete state.params.breaks;
+        delete state.params.meals;
+        return { output: JSON.stringify({ ok: true, breaks: null }), state };
+      }
+      const rest = num(args.rest_min);
+      const everyMin = num(args.rest_every_min);
+      const everyKm = num(args.rest_every_km);
+      if (rest && (everyMin || everyKm)) state.params.breaks = { minutes: Math.min(rest, 120), ...(everyMin ? { everyMin } : {}), ...(everyKm ? { everyKm } : {}) };
+      else if (rest || everyMin || everyKm) return { output: JSON.stringify({ error: "a rest needs rest_min and rest_every_min or rest_every_km" }), state };
+      if (Array.isArray(args.meals)) {
+        const meals = args.meals.flatMap((raw) => {
+          const e = raw as Record<string, unknown>;
+          const minutes = num(e.minutes);
+          return typeof e.from === "string" && typeof e.to === "string" && parseHHMM(e.from) !== null && parseHHMM(e.to) !== null && minutes ? [{ from: e.from.trim(), to: e.to.trim(), minutes: Math.min(minutes, 240) }] : [];
+        });
+        if (meals.length) state.params.meals = meals.slice(0, 4);
+      }
+      return { output: JSON.stringify({ ok: true, breaks: state.params.breaks ?? null, meals: state.params.meals ?? [], next: "call estimate_walk again" }), state };
+    }
+
+    if (name === "set_clock") {
+      if (args.clear === true) {
+        delete state.params.startAt;
+        delete state.params.endBy;
+        return { output: JSON.stringify({ ok: true, startAt: null }), state };
+      }
+      const tz = state.params.timeZone;
+      if (typeof args.start_in_hours === "number" && args.start_in_hours >= 0 && args.start_in_hours < 72) state.params.startAt = Date.now() + Math.round(args.start_in_hours * 3600000);
+      else if (typeof args.start_time === "string") {
+        const at = tz ? nextLocalTime(args.start_time, tz, Date.now()) : null;
+        if (at === null) return { output: JSON.stringify({ error: tz ? `could not read start_time "${args.start_time}" (use HH:MM)` : "the walker's time zone is unknown: use start_in_hours" }), state };
+        state.params.startAt = at;
+      }
+      if (typeof args.end_by === "string") {
+        if (parseHHMM(args.end_by) === null) return { output: JSON.stringify({ error: "end_by must be HH:MM" }), state };
+        state.params.endBy = args.end_by.trim();
+      }
+      const off = state.params.startAt !== undefined && tz ? (tzOffsetMin(tz, state.params.startAt) ?? 0) : 0;
+      return { output: JSON.stringify({ ok: true, ...(state.params.startAt !== undefined ? { start: formatClock(state.params.startAt, off) } : {}), end_by: state.params.endBy ?? null, next: "call estimate_walk again" }), state };
     }
 
     if (name === "set_start") {
@@ -747,7 +898,7 @@ export async function runTool(
         if (r.verdict.unavailable) break; // no route could be built (budget or router): more sets will not help
         routed += 1;
         if (!best || score(r.verdict) < score(best.verdict)) best = { stops, verdict: r.verdict };
-        if (r.verdict.ok) break;
+        if (settled(r.verdict)) break;
       }
       if (!best) return { output: JSON.stringify({ error: scored.length ? "routes could not be built just now; try again in a minute" : "no set of places fits the time and distance limits; find more places or relax a limit", tried: scored.length }), state };
       // The chosen set gets the full check: best visiting order and, if it still breaks a rule, the alternatives.
@@ -837,7 +988,7 @@ export async function runTool(
       if (picked.length === 0) return { output: JSON.stringify({ error: "no valid stop ids" }), state };
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       const ordered = args.ordered === true;
-      const est = await estimateWalk(state.origin, picked, state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM, ordered, state.params.endDistanceKm === 0, state.params.stops);
+      const est = await estimateWalk(state.origin, picked, state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM, ordered, state.params.endDistanceKm === 0, state.params.stops, { order: state.params.order, breaks: state.params.breaks, startAt: state.params.startAt, timeZone: state.params.timeZone });
       // One verdict per set of stops: build_walk reuses what estimate_walk / find_clean_walk already checked.
       const cached = name === "build_walk" ? state.checks?.find((c) => c.key === checkKey(picked.map((c2) => c2.id), state.params, ordered)) : undefined;
       let judged: Judged;
@@ -853,8 +1004,9 @@ export async function runTool(
         } catch {
           routed = null;
         }
+        const sched = scheduleFor(state.params, est.order, est.t);
         judged = routed && !routed.verdict.unavailable ? routed : {
-          verdict: makeVerdict(limitRules(state.params, est.walkKm, est.walkMin, est.visitMin, est.approx), est.walkKm, est.walkMin, est.visitMin),
+          verdict: { ...makeVerdict([...limitRules(state.params, est.walkKm, est.walkMin, est.visitMin, est.approx), ...sched.rules], est.walkKm, est.walkMin, est.visitMin), ...(sched.schedule ? { schedule: sched.schedule } : {}) },
           orderIds: est.order.map((s) => s.id),
         };
       }
@@ -905,7 +1057,7 @@ export async function runTool(
       return {
         output: JSON.stringify({ built: true, building: stops.map((s) => s.name), ...(builtVerdict ? { verdict: builtVerdict } : {}), ...(notChecked.length ? { not_checked: notChecked } : {}) }),
         state,
-        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}), ...(builtGeometry ? { geometry: builtGeometry } : {}) },
+        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}), ...(builtGeometry ? { geometry: builtGeometry } : {}), ...(builtVerdict?.restMin ? { restMin: builtVerdict.restMin } : {}) },
       };
     }
   } catch (err) {

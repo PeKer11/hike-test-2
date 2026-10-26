@@ -6,7 +6,7 @@ import { insideBoundary, outsideKm, type Boundary } from "./loop-search";
 import { analyzeRoute } from "./route-quality";
 import type { RouteDetail } from "./ors-route";
 
-export type RuleId = "no_repeat" | "stay_in_area" | "avoid_streets" | "avoid_dangerous" | "via_streets" | "loop" | "end_distance" | "time" | "max_walk";
+export type RuleId = "no_repeat" | "stay_in_area" | "avoid_streets" | "avoid_dangerous" | "via_streets" | "loop" | "end_distance" | "time" | "max_walk" | "open_hours" | "stop_time" | "end_by" | "meal" | "stop_order";
 /** met = checked and fine; not_met = checked and broken; partial = checked only in part; not_checked = no data to check with. */
 export type RuleStatus = "met" | "not_met" | "partial" | "not_checked";
 
@@ -17,6 +17,8 @@ export interface RuleResult {
   value?: number;
   limit?: number;
   detail?: string;
+  /** partial / not_checked only because data is missing: other stops would not fix it. */
+  dataGap?: true;
 }
 
 export interface Verdict {
@@ -33,6 +35,10 @@ export interface Verdict {
   totalMin: number;
   /** Minutes of walking added by climbing (already inside walkMin); absent when heights are unknown. */
   climbMin?: number;
+  /** Rest minutes (inside visitMin). */
+  restMin?: number;
+  /** Clock time of arriving and leaving each stop, when the start time is known. */
+  schedule?: Array<{ id: string; arrive: string; leave: string }>;
 }
 
 /** The walker's rules, as far as the verdict needs them (a subset of WalkParams). */
@@ -108,6 +114,8 @@ export interface VerdictInput {
   walkMin?: number;
   /** Climbing minutes inside `walkMin`; undefined when heights are unknown. */
   climbMin?: number;
+  /** Rules decided outside the route (opening hours, order, clock). */
+  extraRules?: RuleResult[];
 }
 
 /** Every rule against one real route. Pure: no network. "not_checked" is decided here and nowhere else. */
@@ -203,8 +211,13 @@ export function evaluateRoute(input: VerdictInput): Verdict {
       r.detail = "climbing is not included (no height data) and the walk is close to the time limit";
     }
   }
-  rules.push(...limits);
+  rules.push(...limits, ...(input.extraRules ?? []));
   return makeVerdict(rules, walkKm, walkMin, input.visitMin, input.climbMin);
+}
+
+/** No rule is broken, and every rule is met or only lacks data (other stops would not help). */
+export function settled(v: Verdict): boolean {
+  return !v.unavailable && v.rules.every((r) => r.status === "met" || (r.dataGap && r.status !== "not_met"));
 }
 
 /** What the walker is told when a route could not be built at all: every rule is unchecked, never met. */
@@ -233,5 +246,5 @@ export function brokenKm(v: Verdict): number {
     if (r.rule === "via_streets" || r.rule === "loop") return 0.5;
     return r.value ?? 0;
   };
-  return v.rules.filter((r) => r.status === "not_met" && r.rule !== "time" && r.rule !== "max_walk").reduce((a, r) => a + amount(r), 0);
+  return v.rules.filter((r) => r.status === "not_met" && !["time", "max_walk", "open_hours", "stop_time", "end_by", "meal", "stop_order"].includes(r.rule)).reduce((a, r) => a + amount(r), 0);
 }

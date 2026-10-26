@@ -49,7 +49,7 @@ export interface AssistantBuild {
   /** The walker stated an order: visit the stops exactly as listed. */
   fixedOrder?: boolean;
   /** Route rules the walker stated; sent with every (re)build of this walk. */
-  routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean; stayInArea?: string };
+  routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean; stayInArea?: string; restMinutes?: number };
   /** The route the assistant checked: the planner shows this one for this build. */
   geometry?: Coordinates[];
 }
@@ -397,7 +397,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, message: typed, origin, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) }),
+        body: JSON.stringify({ chatId, message: typed, origin, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) }),
       });
       const data = (await response.json()) as AssistantReply;
       if (!response.ok) {
@@ -437,6 +437,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             avoidStreets: params.avoidStreets,
             avoidDangerous: params.avoidDangerous,
             stayInArea: params.stayInArea,
+            ...(data.action.restMin ? { restMinutes: data.action.restMin } : {}),
           },
         });
       }

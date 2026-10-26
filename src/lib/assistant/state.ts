@@ -1,4 +1,5 @@
 import type { AttractionCategory, Coordinates } from "@/lib/types";
+import type { WeeklyHours } from "@/lib/walk/opening-hours";
 import type { Verdict } from "@/lib/walk/rule-verdict";
 
 /** What the walker has said about the walk. Anything unset means "no limit". */
@@ -21,10 +22,23 @@ export interface WalkParams {
   viaStreets?: string[];
   /** Per-stop plans by candidate id: time to stay there, and how fast to walk the leg that arrives at it ("end" = the leg back). */
   stops?: Record<string, StopPlan>;
+  /** When the walk starts (epoch ms) and the walker's time zone; needed for opening hours and every clock rule. */
+  startAt?: number;
+  timeZone?: string;
+  /** The walk must be over by this clock time ("HH:MM", walker's zone). */
+  endBy?: string;
+  /** Rests: after so many minutes / km without a stop, for so long. */
+  breaks?: BreakPlan;
+  /** Meals that must fall inside a clock window. */
+  meals?: MealWindow[];
+  /** Order of the stops (first, last, ends at, a before b). */
+  order?: StopOrder;
 }
 
 export { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
-import type { StopPlan } from "@/lib/walk/timing";
+import type { MealWindow } from "@/lib/walk/schedule-rules";
+import type { StopOrder } from "@/lib/walk/stop-order";
+import type { BreakPlan, StopPlan } from "@/lib/walk/timing";
 
 /** Minutes spent at a stop, by kind of place. */
 export function visitMinutes(category: string): number {
@@ -45,6 +59,8 @@ export interface Candidate {
   ratingCount?: number;
   /** False when Google says it is closed right now (a hint for the model, not a hard filter). */
   openNow?: boolean;
+  /** Weekly opening hours (Google), for the opening-hours check. */
+  hours?: WeeklyHours;
 }
 
 const RATING_PRIOR = 4.0;
@@ -94,4 +110,6 @@ export interface BuildAction {
   ordered?: boolean;
   /** The route that was checked; the planner shows exactly this one when it is sent along. */
   geometry?: Coordinates[];
+  /** Minutes of rest planned into the walk. */
+  restMin?: number;
 }

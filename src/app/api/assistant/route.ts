@@ -7,6 +7,7 @@ import {
   summarizeConversation,
 } from "@/lib/assistant/summary";
 import { defaultParams, parseDefaults, tasteNote } from "@/lib/assistant/defaults";
+import { tzOffsetMin } from "@/lib/walk/clock";
 import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
 import { getPreferredCategoryWeights, getProfileDefaults } from "@/lib/preferences/preference-store";
 import { runAssistantTurn, type TurnMessage } from "@/lib/assistant/turn";
@@ -37,6 +38,8 @@ interface AssistantRequest {
   defaults?: unknown;
   /** Screenshots/photos the walker attached, as data URLs. Seen by the model only, never stored. */
   images?: unknown;
+  /** The walker's IANA time zone, for every clock rule. */
+  timeZone?: unknown;
 }
 
 const MAX_IMAGES = 5;
@@ -200,6 +203,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       spots: visitedSaved.flatMap((p) => (p.coordinates ? [p.coordinates] : [])),
     },
   };
+  if (typeof body.timeZone === "string" && tzOffsetMin(body.timeZone, Date.now()) !== null) state = { ...state, params: { ...state.params, timeZone: body.timeZone } };
   const origin = parseOrigin(body.origin);
   // Mid-walk the walker has moved: plan from here, not from where the chat first started.
   // The client always sends the start it shows (and mirrors any start the model sets), so the last explicit pick wins.

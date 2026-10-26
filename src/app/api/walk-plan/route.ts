@@ -70,6 +70,8 @@ interface WalkPlanApiRequest {
   avoidDangerous?: boolean;
   /** Stay inside this named town or area; the route is checked and a warning says how far it strays. */
   stayInArea?: string;
+  /** Minutes of rest the assistant planned into the walk. */
+  restMinutes?: number;
   pinnedAttractionIds?: string[];
   /**
    * How many stops the walker asked for in words ("bring me 3 famous places").
@@ -681,6 +683,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       seg.walkingMinutes += delta;
       plan.totalMinutes += delta;
     }
+
+    if (typeof body.restMinutes === "number" && Number.isFinite(body.restMinutes) && body.restMinutes > 0) plan.totalMinutes += Math.min(body.restMinutes, 600);
 
     // 4. Fetch ORS geometry for the ordered route (origin → attraction 1 → 2 → ...)
     let geometry: Coordinates[] | undefined;

@@ -5,6 +5,8 @@ import { fetchForbiddenWays, matchesStreet, type ForbiddenWay } from "@/lib/walk
 import type { Boundary } from "@/lib/walk/loop-search";
 import { isRouteCached, orsRoute, routeDetail } from "@/lib/walk/ors-route";
 import { BudgetExceeded, budgeted, makeBudget, type RoutingBudget } from "@/lib/walk/routing-budget";
+import { satisfies } from "@/lib/walk/stop-order";
+import { scheduleFor } from "./schedule";
 import { brokenKm, brokenRules, evaluateRoute, unavailableVerdict, type RuleId, type Verdict } from "@/lib/walk/rule-verdict";
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
 import { legKmsFromGeometry, timeline } from "@/lib/walk/timing";
@@ -128,7 +130,9 @@ export async function routeAndJudge(
       params.stops,
       pace,
       heights && heights.length === legKms.length ? heights.map((l) => l.ascentM) : null,
+      params.breaks,
     );
+    const sched = scheduleFor(params, stops, t);
     const verdict = evaluateRoute({
       geometry: clean.geometry,
       detail: routeDetail(clean.geometry),
@@ -138,11 +142,14 @@ export async function routeAndJudge(
       viaWays: env.viaWays,
       boundary: env.boundary,
       paceMinPerKm: pace,
-      visitMin: t.visitMin,
+      visitMin: t.visitMin + t.restMin,
+      extraRules: sched.rules,
       // Per-leg pace and climbing change the walking time; without either it is the whole route at one pace, as before.
       ...((params.stops && Object.keys(params.stops).length) || t.climbKnown ? { walkMin: t.walkMin } : {}),
       ...(t.climbKnown ? { climbMin: t.climbMin } : {}),
     });
+    if (t.restMin) verdict.restMin = Math.round(t.restMin);
+    if (sched.schedule) verdict.schedule = sched.schedule;
     return { verdict, stops, geometry: clean.geometry };
   }
 
@@ -157,7 +164,7 @@ export async function routeAndJudge(
     if (opts.orderSearch !== false && params.noRepeat && order.length >= 3 && order.length <= 6) {
       // Fewer broken rules first, then fewer broken kilometres.
       const bad = (v: Verdict) => brokenRules(v).length * 1000 + brokenKm(v);
-      for (const o of otherOrders(origin, order, loop).slice(0, ORDERS_TRIED)) {
+      for (const o of otherOrders(origin, order, loop).filter((o) => satisfies(o.map((c) => ({ id: c.id, category: c.category })), params.order)).slice(0, ORDERS_TRIED)) {
         if (bad(main) <= 0.05) break;
         const tried = await judge(o, 1);
         if (bad(tried.verdict) < bad(main)) {

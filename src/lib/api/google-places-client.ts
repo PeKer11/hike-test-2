@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { AttractionCategory, Coordinates } from "@/lib/types";
+import { hoursFromGoogle, type WeeklyHours } from "@/lib/walk/opening-hours";
 
 const SEARCH_TEXT_URL = "https://places.googleapis.com/v1/places:searchText";
 const SEARCH_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby";
@@ -11,8 +12,8 @@ const SEARCH_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby"
 // GOOGLE_PLACES_RATINGS=0 turns them off. They only ever order results: Google's
 // terms keep ratings off a non-Google map and forbid storing them.
 // businessStatus is Pro-tier: permanently/temporarily closed places are dropped. openNow is Enterprise like the ratings, so it rides with them.
-const FIELD_MASK = "places.id,places.displayName,places.location,places.primaryType,places.types,places.businessStatus";
-const RATING_FIELDS = ",places.rating,places.userRatingCount,places.currentOpeningHours.openNow";
+const FIELD_MASK = "places.id,places.displayName,places.location,places.primaryType,places.types,places.businessStatus,places.utcOffsetMinutes";
+const RATING_FIELDS = ",places.rating,places.userRatingCount,places.currentOpeningHours";
 
 function ratingsEnabled(): boolean {
   return process.env.GOOGLE_PLACES_RATINGS !== "0";
@@ -48,6 +49,8 @@ export interface GooglePlace {
   ratingCount?: number;
   /** False when Google says the place is closed right now; absent when unknown (only asked for with ratings). */
   openNow?: boolean;
+  /** Weekly opening hours (same request as openNow). */
+  hours?: WeeklyHours;
 }
 
 interface RawPlace {
@@ -59,7 +62,8 @@ interface RawPlace {
   rating?: number;
   userRatingCount?: number;
   businessStatus?: string;
-  currentOpeningHours?: { openNow?: boolean };
+  currentOpeningHours?: { openNow?: boolean; periods?: Array<{ open?: { day?: number; hour?: number; minute?: number }; close?: { day?: number; hour?: number; minute?: number } }> };
+  utcOffsetMinutes?: number;
 }
 
 let usageDay = "";
@@ -119,6 +123,7 @@ async function post(url: string, body: unknown, withRatings = false): Promise<Go
       types: p.types ?? [],
       ...(typeof p.rating === "number" && typeof p.userRatingCount === "number" ? { rating: p.rating, ratingCount: p.userRatingCount } : {}),
       ...(typeof p.currentOpeningHours?.openNow === "boolean" ? { openNow: p.currentOpeningHours.openNow } : {}),
+      ...(hoursFromGoogle(p.currentOpeningHours, p.utcOffsetMinutes) ? { hours: hoursFromGoogle(p.currentOpeningHours, p.utcOffsetMinutes) } : {}),
     });
   }
   return places;

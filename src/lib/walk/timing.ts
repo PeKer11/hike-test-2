@@ -4,9 +4,20 @@ import { haversineDistance } from "@/lib/utils/geo";
 import { clampPace, PACE_FACTOR, type PaceWord } from "./pace";
 
 /** What the walker said about one stop: how long to stay, and how fast to walk the leg that arrives at it ("end" = the leg back to the start). */
+export interface BreakPlan {
+  /** Rest after this many minutes / km walked without a stop (a stop with a long enough stay counts as a rest). */
+  everyMin?: number;
+  everyKm?: number;
+  /** Length of each rest. */
+  minutes: number;
+}
+
 export interface StopPlan {
   dwellMin?: number;
   pace?: PaceWord | number;
+  /** Earliest / latest arrival, as "HH:MM" on the day of the start. */
+  arriveAfter?: string;
+  arriveBefore?: string;
 }
 
 export const MAX_DWELL_MIN = 600;
@@ -40,7 +51,11 @@ export interface TimelineStop {
 }
 
 export interface Timeline {
-  legs: Array<{ to: string; km: number; pace: number; min: number }>;
+  legs: Array<{ to: string; km: number; pace: number; min: number; restMin: number }>;
+  /** Minutes since the start at which the walker reaches and leaves each stop (rests and earlier stays included). */
+  at: Array<{ id: string; arriveMin: number; leaveMin: number }>;
+  /** Minutes of rest put on the legs by the break plan. */
+  restMin: number;
   /** Walking minutes including the extra time for climbing. */
   walkMin: number;
   climbMin: number;
@@ -63,19 +78,45 @@ export function timeline(
   basePace: number,
   /** Metres climbed on each leg (same length as legKms), when known. */
   ascentsM?: number[] | null,
+  breaks?: BreakPlan,
 ): Timeline {
   const climbKnown = Boolean(ascentsM && ascentsM.length === legKms.length);
+  let sinceMin = 0;
+  let sinceKm = 0;
   const legs: Timeline["legs"] = legKms.map((km, i) => {
     const to = stops[i]?.id ?? "end";
     const pace = legPace(plans, to, basePace);
-    return { to, km, pace, min: km * pace + (climbKnown ? climbMinutes(ascentsM![i], km, pace) : 0) };
+    const min = km * pace + (climbKnown ? climbMinutes(ascentsM![i], km, pace) : 0);
+    let restMin = 0;
+    if (breaks && breaks.minutes > 0 && to !== "end") {
+      if ((breaks.everyMin && sinceMin + min > breaks.everyMin) || (breaks.everyKm && sinceKm + km > breaks.everyKm)) {
+        restMin = breaks.minutes;
+        sinceMin = 0;
+        sinceKm = 0;
+      }
+    }
+    sinceMin += min;
+    sinceKm += km;
+    if (breaks && stops[i] && dwellMinutes(plans, stops[i].id, stops[i].visitMin) >= breaks.minutes) {
+      sinceMin = 0;
+      sinceKm = 0;
+    }
+    return { to, km, pace, min, restMin };
   });
   const climbMin = climbKnown ? legs.reduce((a, l, i) => a + climbMinutes(ascentsM![i], l.km, l.pace), 0) : 0;
   const walkMin = legs.reduce((a, l) => a + l.min, 0);
   const visitMin = stops.reduce((a, s) => a + dwellMinutes(plans, s.id, s.visitMin), 0);
   const inWalk = new Set([...stops.map((s) => s.id), "end"]);
   const ignored = Object.keys(plans ?? {}).filter((id) => !inWalk.has(id));
-  return { legs, walkMin, climbMin, climbKnown, visitMin, totalMin: walkMin + visitMin, ignored };
+  const restMin = legs.reduce((a, l) => a + l.restMin, 0);
+  let clock = 0;
+  const at: Timeline["at"] = stops.map((s, i) => {
+    clock += legs[i].min + legs[i].restMin;
+    const arriveMin = clock;
+    clock += dwellMinutes(plans, s.id, s.visitMin);
+    return { id: s.id, arriveMin, leaveMin: clock };
+  });
+  return { legs, at, restMin, walkMin, climbMin, climbKnown, visitMin, totalMin: walkMin + visitMin + restMin, ignored };
 }
 
 /**
