@@ -438,7 +438,7 @@ async function estimateWalk(
   let approx = false;
   try {
     if (matrixCoolingDown()) throw new Error("matrix cooling down");
-    const m = await getMatrix({ locations: points.map(toOrsCoord), ...(extra?.access ? { profile: ACCESS_PROFILES[extra.access].mode.profile } : {}) } as Parameters<typeof getMatrix>[0]);
+    const m = await getMatrix({ locations: points.map(toOrsCoord), ...(extra?.access ? { profile: ACCESS_PROFILES[extra.access].mode.profile, options: ACCESS_PROFILES[extra.access].mode.options } : {}) } as Parameters<typeof getMatrix>[0]);
     dist = m.distances as number[][];
     if (!dist?.length) throw new Error("empty");
     // The router leaves pairs it cannot connect empty: a straight-line estimate, never a free 0 m leg (the real route check still decides).
@@ -680,7 +680,7 @@ export async function runTool(
         delete state.params.order;
         return { output: JSON.stringify({ ok: true, order: null }), state };
       }
-      const known = (ref: unknown): ref is string => typeof ref === "string" && (ref.startsWith("kind:") || state.candidates.some((c) => c.id === ref));
+      const known = (ref: unknown): ref is string => typeof ref === "string" && (ref.startsWith("kind:") ? state.candidates.some((c) => c.category === ref.slice(5)) : state.candidates.some((c) => c.id === ref));
       const order: StopOrder = { ...state.params.order };
       const bad: string[] = [];
       for (const [key, field] of [["first", "first"], ["last", "last"], ["end_at", "endAt"]] as const) {
@@ -696,7 +696,9 @@ export async function runTool(
           bad.push(`${String(e.a)}/${String(e.b)}`);
           return [];
         });
-        order.before = [...(order.before ?? []), ...pairs].slice(0, 8);
+        const all = [...(order.before ?? []), ...pairs];
+        order.before = all.slice(0, 8);
+        if (all.length > 8) bad.push(`${all.length - 8} extra before-pair(s) dropped (max 8)`);
       }
       if (order.endAt && state.params.endDistanceKm === 0) {
         return { output: JSON.stringify({ error: "end_at conflicts with a loop (back at the start): ask the walker which one they want, then clear the other with set_walk_params clear [loop] or set_stop_order clear" }), state };
@@ -896,7 +898,7 @@ export async function runTool(
       try {
         if (matrixCoolingDown()) throw new Error("matrix cooling down");
         // A wheelchair walker gets the wheelchair matrix, so places it cannot reach (null pairs) drop out before any real routing.
-        const m = await getMatrix({ locations: spots.map(toOrsCoord), profile: routeModeFor(state.params.access)?.profile } as Parameters<typeof getMatrix>[0]);
+        const m = await getMatrix({ locations: spots.map(toOrsCoord), profile: routeModeFor(state.params.access)?.profile, options: routeModeFor(state.params.access)?.options } as Parameters<typeof getMatrix>[0]);
         full = m.distances as number[][];
       } catch (err) {
         // Matrix quota used up or service down: straight lines x1.3 order the sets; the real routes below are still checked.

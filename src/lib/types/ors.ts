@@ -49,6 +49,8 @@ export interface OrsDirectionsResponse {
 export interface OrsMatrixRequest {
   locations: OrsCoordinate[];
   profile?: "foot-walking" | "foot-hiking" | "wheelchair" | "cycling-regular" | "driving-car";
+  /** Routing options (avoid steps, wheelchair restrictions) so the matrix matches the real route. */
+  options?: Record<string, unknown>;
 }
 
 export interface OrsMatrixResponse {

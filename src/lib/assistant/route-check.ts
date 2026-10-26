@@ -203,6 +203,7 @@ export async function routeAndJudge(
   } catch (err) {
     const why = err instanceof BudgetExceeded ? "the routing limit for this request was reached" : "the routing service did not answer";
     if (!(err instanceof BudgetExceeded) && !(err instanceof OrsNoRouteError)) console.error("[assistant] route check failed:", err);
+    if (err instanceof OrsNoRouteError) console.warn(`[assistant] no route (access: ${params.access ?? "none"}): ${err.message}`);
     if (!main && err instanceof OrsNoRouteError && params.access) {
       // The router answered: there is no step-free / wheel-friendly way between these places. That is a failed set, not an outage.
       const base = unavailableVerdict(params, "no route");

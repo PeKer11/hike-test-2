@@ -7,3 +7,11 @@
 | Google Places | Terms (Maps Service Terms, Places API s.10.3 + Places policies): place_id may be cached indefinitely; lat/lng at most 30 consecutive days; other Places content (rating, hours, accessibility) has no caching permission. Fixed: `expireCandidates` (src/lib/assistant/state.ts) drops Google content from stored chat state after 24h and the whole place after 30 days. | Done; strict reading (no hours kept at all) would break the opening-hours check across turns, a lawyer question. |
 
 Wheelchair profile on api.heigit.org verified 2026-10-26: directions with the app's `profile_params.restrictions`, `weightings.green`, round trip, alternatives, matrix and `waytype/steepness/surface` extras all answer 200; an unroutable point answers HTTP 404 with code 2010 (handled as no-route).
+
+## Decisions closing the open questions (2026-10-26)
+
+- **ORS "Transmit personal data":** requests carry only coordinates and a server-side key: no user id, name or email ever goes to ORS (checked in `ors-client.ts`; the request body is locations/options only). A start coordinate without identity is treated as routing input, not personal data. Rule: never add a user identifier to an ORS request.
+- **ORS CC-BY-SA 4.0:** the share-alike duty applies when results are publicly distributed as an adapted database. Saved walks are private per user (RLS), so nothing is redistributed. Rule: do not publish or sell a bulk export of stored route geometry; the attribution is shown on the map.
+- **Transit:** Transitous stays off (non-commercial only). A commercial path is coded: `TRANSIT_PROVIDER=google` uses Google Routes API (TRANSIT) with the existing key. Blocked only on enabling "Routes API" in the Google Cloud project (currently disabled: 403 SERVICE_DISABLED, verified 2026-10-26). Parser is unit-tested; the live call is unverified until that API is enabled.
+- **Google Places:** see the table row above (24h/30 day expiry).
+- **Known limits kept on purpose:** hours for places >30 km from the origin use the browser's time zone; a wider fix needs a time-zone lookup per place.

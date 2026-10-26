@@ -334,6 +334,7 @@ export async function getMatrix(
       // ORS defaults to duration only; ordering needs metres.
       metrics: ["distance"],
       units: "m",
+      ...(request.options ? { options: request.options } : {}),
     },
     { cache: "no-store" },
   );
