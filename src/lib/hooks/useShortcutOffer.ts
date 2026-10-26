@@ -1,5 +1,6 @@
 "use client";
 
+import { accessBody } from "@/lib/walk/active-access";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Coordinates } from "@/lib/types";
@@ -159,7 +160,7 @@ export function useShortcutOffer(deps: ShortcutOfferDeps): ShortcutOfferApi {
       const res = await (d.doFetch ?? fetch)("/api/reroute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ from: ctx.position, candidates: [target.point] }),
+        body: JSON.stringify({ from: ctx.position, candidates: [target.point], ...accessBody() }),
       });
       if (res.ok) data = await res.json();
     } catch {

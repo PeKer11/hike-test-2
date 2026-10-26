@@ -289,7 +289,7 @@ function toAttraction(c: Candidate, params?: WalkParams): Attraction {
     coordinates: c.coordinates,
     category: c.category === "area" ? "landmark" : c.category,
     avgVisitMinutes: dwellMinutes(params?.stops, c.id, visitMinutes(c.category)),
-    ...(plan?.pace !== undefined ? { legPaceMinPerKm: legPace(params?.stops, c.id, params?.paceMinPerKm ?? DEFAULT_PACE) } : {}),
+    ...(plan?.pace !== undefined ? { legPaceMinPerKm: legPace(params?.stops, c.id, (params?.paceMinPerKm ?? DEFAULT_PACE) * (params?.access ? ACCESS_PROFILES[params.access].paceFactor : 1)) } : {}),
     tags: { source: "assistant", placeId: c.placeId },
   };
 }

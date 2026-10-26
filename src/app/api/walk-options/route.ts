@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAccess, routeModeFor } from "@/lib/walk/access";
 import { getDirections } from "@/lib/api/ors-client";
 import {
   callerKey,
@@ -126,6 +127,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const { origin, endAnchor, walked, abandonedPlan, options } = payload;
+  const mode = routeModeFor(isAccess(payload.access) ? payload.access : undefined);
   if (
     !isCoordinate(origin) ||
     (endAnchor !== undefined && !isCoordinate(endAnchor)) ||
@@ -195,12 +197,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     } else {
       coordinates = [origin as Coordinates, ...req.stops, ...(end ? [end] : [])];
     }
-    const merged = { ...(ors ?? {}), ...extra };
+    const merged = { ...(mode?.options ?? {}), ...(ors ?? {}), ...extra };
 
     try {
       const result = await getDirections({
         coordinates: coordinates.map(toOrsCoord),
-        profile: "foot-walking",
+        profile: mode?.profile ?? "foot-walking",
         instructions: false,
         ...(Object.keys(merged).length > 0 ? { options: merged } : {}),
       });

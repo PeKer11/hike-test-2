@@ -94,3 +94,11 @@ describe("orsRoute with a route mode", () => {
     expect(isRouteCached(wps, null, ACCESS_PROFILES.stroller.mode)).toBe(false);
   });
 });
+
+describe("no accessible route", () => {
+  it("ORS 'no route' errors are told apart from outages", async () => {
+    const { OrsNoRouteError } = await import("@/lib/walk/ors-errors");
+    expect(new OrsNoRouteError("x")).toBeInstanceOf(Error);
+    expect(new OrsNoRouteError("x") instanceof OrsNoRouteError).toBe(true);
+  });
+});

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAccess, routeModeFor } from "@/lib/walk/access";
 import { getDirections } from "@/lib/api/ors-client";
 import {
   callerKey,
@@ -44,7 +45,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return rateLimitedResponse(verdict);
   }
 
-  let payload: { from?: unknown; candidates?: unknown };
+  let payload: { from?: unknown; candidates?: unknown; access?: unknown };
   try {
     payload = (await request.json()) as typeof payload;
   } catch {
@@ -71,6 +72,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  const mode = routeModeFor(isAccess(payload.access) ? payload.access : undefined);
   let lastError: string | null = null;
   let anyRouted = false;
 
@@ -82,8 +84,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     try {
       const result = await getDirections({
         coordinates: [toOrsCoord(from), toOrsCoord(candidate)],
-        profile: "foot-walking",
+        profile: mode?.profile ?? "foot-walking",
         instructions: false,
+        ...(mode ? { options: mode.options } : {}),
       });
       const route = result.routes?.[0];
       if (!route) continue;

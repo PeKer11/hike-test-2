@@ -110,6 +110,18 @@ describe("route check", () => {
     expect(est.out.verdict.rules.every((r: { status: string }) => r.status === "not_checked")).toBe(true);
   });
 
+  it("with a stroller, 'no route' fails that set (no_steps) instead of looking like an outage", async () => {
+    const { OrsNoRouteError } = await import("@/lib/walk/ors-errors");
+    route = async () => {
+      throw new OrsNoRouteError("No valid route could be found with these constraints.");
+    };
+    const st = state({ access: "stroller" });
+    const est = await call("estimate_walk", { stop_ids: ["c1", "c2"] }, st);
+    expect(est.out.verdict.unavailable).toBeUndefined();
+    expect(est.out.verdict.broken).toBe(true);
+    expect(est.out.verdict.rules.find((r: { rule: string }) => r.rule === "no_steps").status).toBe("not_met");
+  });
+
   it("clear removes a rule the walker gives up", async () => {
     const st = state({ noRepeat: true, avoidStreets: ["x"], endDistanceKm: 0 });
     const r = await call("set_walk_params", { clear: ["no_repeat", "avoid_streets"] }, st);

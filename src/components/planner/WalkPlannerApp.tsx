@@ -1,5 +1,6 @@
 "use client";
 
+import { setActiveAccess, accessBody } from "@/lib/walk/active-access";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -961,6 +962,7 @@ export function WalkPlannerApp({
   ) => {
     if (options?.routeRules !== undefined) routeRulesRef.current = options.routeRules;
     else if (options?.keepAttractions === undefined) routeRulesRef.current = undefined;
+    setActiveAccess((routeRulesRef.current as { access?: unknown } | undefined)?.access);
     // Snapshot what the walker is on now, so an automatic re-plan can be undone —
     // and so a failed re-plan can put them back instead of stranding them.
     const snapshot: PlanSnapshot | null =
@@ -1795,7 +1797,7 @@ export function WalkPlannerApp({
       const res = await fetch("/api/reroute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ from, candidates: candidates.map((c) => c.point) }),
+        body: JSON.stringify({ from, candidates: candidates.map((c) => c.point), ...accessBody() }),
       });
       const data = (await res.json()) as {
         geometry?: Coordinates[];

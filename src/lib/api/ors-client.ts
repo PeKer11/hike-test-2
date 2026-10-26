@@ -1,5 +1,6 @@
 import "server-only";
 
+import { OrsNoRouteError } from "@/lib/walk/ors-errors";
 import type {
   OrsDirectionsRequest,
   OrsDirectionsResponse,
@@ -109,7 +110,8 @@ async function fetchOrs<T>(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(parseOrsError(errorText, response.status));
+      const message = parseOrsError(errorText, response.status);
+      throw message.startsWith("One or more waypoints") || message.startsWith("No valid route") ? new OrsNoRouteError(message) : new Error(message);
     }
 
     return (await response.json()) as T;

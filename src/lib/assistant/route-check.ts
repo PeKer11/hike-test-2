@@ -10,6 +10,7 @@ import { ACCESS_PROFILES } from "@/lib/walk/access";
 import { satisfies } from "@/lib/walk/stop-order";
 import { scheduleFor } from "./schedule";
 import { brokenKm, brokenRules, evaluateRoute, unavailableVerdict, type RuleId, type Verdict } from "@/lib/walk/rule-verdict";
+import { OrsNoRouteError } from "@/lib/walk/ors-errors";
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
 import { legKmsFromGeometry, timeline } from "@/lib/walk/timing";
 import { DEFAULT_PACE_MIN_PER_KM, visitMinutes, type Candidate, type WalkParams } from "./state";
@@ -201,7 +202,13 @@ export async function routeAndJudge(
     }
   } catch (err) {
     const why = err instanceof BudgetExceeded ? "the routing limit for this request was reached" : "the routing service did not answer";
-    if (!(err instanceof BudgetExceeded)) console.error("[assistant] route check failed:", err);
+    if (!(err instanceof BudgetExceeded) && !(err instanceof OrsNoRouteError)) console.error("[assistant] route check failed:", err);
+    if (!main && err instanceof OrsNoRouteError && params.access) {
+      // The router answered: there is no step-free / wheel-friendly way between these places. That is a failed set, not an outage.
+      const base = unavailableVerdict(params, "no route");
+      const rules = [{ rule: "no_steps" as const, status: "not_met" as const, detail: `no ${params.access} route reaches these places (${err.message})` }, ...base.rules];
+      return { verdict: { ...base, unavailable: undefined, ok: false, broken: true, rules }, orderIds: order.map((s) => s.id) };
+    }
     if (!main) return { verdict: unavailableVerdict(params, why), orderIds: order.map((s) => s.id) };
   }
   const verdict = main as Verdict;

@@ -441,6 +441,12 @@ async function estimateWalk(
     const m = await getMatrix({ locations: points.map(toOrsCoord), ...(extra?.access ? { profile: ACCESS_PROFILES[extra.access].mode.profile } : {}) } as Parameters<typeof getMatrix>[0]);
     dist = m.distances as number[][];
     if (!dist?.length) throw new Error("empty");
+    // The router leaves pairs it cannot connect empty: a straight-line estimate, never a free 0 m leg (the real route check still decides).
+    dist = dist.map((row, i) => row.map((d, j) => {
+      if (typeof d === "number" && Number.isFinite(d)) return d;
+      approx = true;
+      return haversineDistance(points[i], points[j]) * 1.3;
+    }));
   } catch (err) {
     noteMatrixError(err);
     approx = true;

@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/lib/types";
+import { accessBody } from "@/lib/walk/active-access";
 import { haversineDistance } from "@/lib/utils/geo";
 import { isPlausibleConnector, spliceRoute } from "@/lib/walk/rejoin";
 import { cumulativeDistances } from "@/lib/walk/walk-stats";
@@ -57,7 +58,7 @@ export async function planAmenityDetour(args: {
     const res = await doFetch("/api/reroute", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, ...accessBody() }),
     });
     if (!res.ok) return null;
     const data = (await res.json()) as RerouteReply;

@@ -1,4 +1,5 @@
 import { simplifyPath } from "@/lib/places/path";
+import { accessBody } from "@/lib/walk/active-access";
 import type { Coordinates } from "@/lib/types";
 import type { DiscoveryItem } from "@/lib/types/discovery";
 import {
@@ -104,6 +105,7 @@ async function postOptions(
     signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      ...accessBody(),
       origin: ctx.origin,
       ...(ctx.endAnchor ? { endAnchor: ctx.endAnchor } : {}),
       walked: simplifyPath(ctx.walked, OPTIONS_WALKED_MAX_POINTS),
