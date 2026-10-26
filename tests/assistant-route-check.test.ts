@@ -122,6 +122,16 @@ describe("route check", () => {
     expect(est.out.verdict.rules.find((r: { rule: string }) => r.rule === "no_steps").status).toBe("not_met");
   });
 
+  it("a walk in Paris planned from a phone in New York reads 10:00 as Paris time: the cafe that opens at 13:00 is closed", async () => {
+    const days = [0, 1, 2, 3, 4, 5, 6].map((day) => ({ open: { day, minute: 780 }, close: { day, minute: 1080 } }));
+    const st = state({ timeZone: "America/New_York" });
+    st.candidates[1] = { ...st.candidates[1], hours: { utcOffsetMin: 120, periods: days } };
+    const clock = await call("set_clock", { start_time: "10:00" }, st);
+    expect(clock.out.zone).toBe("UTC+02:00");
+    const est = await call("estimate_walk", { stop_ids: ["c1", "c2"], ordered: true }, clock.run.state);
+    expect(est.out.verdict.rules.find((r: { rule: string }) => r.rule === "open_hours").status).toBe("not_met");
+  });
+
   it("clear removes a rule the walker gives up", async () => {
     const st = state({ noRepeat: true, avoidStreets: ["x"], endDistanceKm: 0 });
     const r = await call("set_walk_params", { clear: ["no_repeat", "avoid_streets"] }, st);
