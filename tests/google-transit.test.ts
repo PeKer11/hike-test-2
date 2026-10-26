@@ -14,3 +14,22 @@ describe("parseGoogleRoute", () => {
     expect(parseGoogleRoute({})).toBeNull();
   });
 });
+
+describe("planTransit daily cap", () => {
+  it("stops calling Google once the cap is used", async () => {
+    const { vi } = await import("vitest");
+    const { planTransit } = await import("@/lib/api/transit-client");
+    vi.stubEnv("TRANSIT_PROVIDER", "google");
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "k");
+    vi.stubEnv("TRANSIT_DAILY_CAP", "2");
+    const f = vi.fn().mockImplementation(async () => new Response(JSON.stringify({}), { status: 200 }));
+    vi.stubGlobal("fetch", f);
+    const p = { lat: 1, lng: 1 };
+    await planTransit(p, p, 0);
+    await planTransit(p, p, 0);
+    await expect(planTransit(p, p, 0)).rejects.toThrow("cap");
+    expect(f).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+});

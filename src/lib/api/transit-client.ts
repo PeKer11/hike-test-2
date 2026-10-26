@@ -60,9 +60,27 @@ export function parseGoogleRoute(json: unknown): TransitLeg | null {
   return { departMs, arriveMs, lines, transfers: steps.length - 1 };
 }
 
+const DEFAULT_TRANSIT_DAILY_CAP = 200;
+let usageDay = "";
+let usageCount = 0;
+
+/** Paid Routes calls per server process per day (TRANSIT_DAILY_CAP overrides the default). */
+function transitCapReached(): boolean {
+  const raw = Number(process.env.TRANSIT_DAILY_CAP);
+  const cap = Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TRANSIT_DAILY_CAP;
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== usageDay) {
+    usageDay = today;
+    usageCount = 0;
+  }
+  return usageCount >= cap;
+}
+
 async function planGoogleTransit(from: Coordinates, to: Coordinates, departMs: number): Promise<TransitLeg | null> {
   const key = process.env.GOOGLE_PLACES_API_KEY;
   if (!key) throw new Error("no Google key");
+  if (transitCapReached()) throw new Error("transit daily cap reached");
+  usageCount += 1;
   const point = (c: Coordinates) => ({ location: { latLng: { latitude: c.lat, longitude: c.lng } } });
   const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
     method: "POST",
