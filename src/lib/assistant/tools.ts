@@ -20,6 +20,7 @@ import { clampPace } from "@/lib/walk/pace";
 import { legPace, MAX_DWELL_MIN, timeline, type BreakPlan, type StopPlan, type Timeline } from "@/lib/walk/timing";
 import { formatRecalledWalks, type LoadWalks } from "./recall-walks";
 import { scheduleFor } from "./schedule";
+import { withTransitBack } from "./transit";
 import { scheduleOf } from "@/lib/walk/schedule-rules";
 import { loadEnv, needsRouteCheck, routeAndJudge, TURN_ROUTING_CALLS, type Judged } from "./route-check";
 
@@ -179,6 +180,15 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
         },
         additionalProperties: false,
       },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_transit",
+      description:
+        "Public transport for the way home: back = true means the walker rides a bus or train from where the walk ends back to the start instead of walking back (so the walk is not a loop). The server looks up a real timetable ride and says if there is none. Needs a start time (set_clock). Only the ride back is supported; for anything else say it is not supported yet. back = false removes it.",
+      parameters: { type: "object", properties: { back: { type: "boolean" } }, required: ["back"], additionalProperties: false },
     },
   },
   {
@@ -715,6 +725,16 @@ export async function runTool(
       return { output: JSON.stringify({ ok: true, ...(state.params.startAt !== undefined ? { start: formatClock(state.params.startAt, off) } : {}), end_by: state.params.endBy ?? null, next: "call estimate_walk again" }), state };
     }
 
+    if (name === "set_transit") {
+      if (args.back !== true) {
+        delete state.params.transit;
+        return { output: JSON.stringify({ ok: true, transit: null }), state };
+      }
+      if (state.params.endDistanceKm === 0) return { output: JSON.stringify({ error: "a ride back conflicts with a loop (back at the start by walking): ask which one they want, then clear the loop with set_walk_params clear [loop]" }), state };
+      state.params.transit = { back: true };
+      return { output: JSON.stringify({ ok: true, transit: { back: true }, next: state.params.startAt === undefined ? "ask when they start (set_clock), then call estimate_walk" : "call estimate_walk again" }), state };
+    }
+
     if (name === "set_start") {
       const c = state.candidates.find((x) => x.id === args.candidate_id);
       if (!c) return { output: JSON.stringify({ error: "unknown candidate id" }), state };
@@ -1020,6 +1040,10 @@ export async function runTool(
           verdict: { ...makeVerdict([...limitRules(state.params, est.walkKm, est.walkMin, est.visitMin, est.approx), ...sched.rules], est.walkKm, est.walkMin, est.visitMin), ...(sched.schedule ? { schedule: sched.schedule } : {}) },
           orderIds: est.order.map((s) => s.id),
         };
+      }
+      if (state.params.transit?.back && state.origin && !judged.verdict.unavailable) {
+        const last = state.candidates.find((c) => c.id === judged.orderIds[judged.orderIds.length - 1]);
+        if (last) judged = { ...judged, verdict: await withTransitBack(judged.verdict, last.coordinates, state.origin, state.params) };
       }
       if (!cached) state.checks = rememberCheck(state, picked.map((c) => c.id), ordered, judged);
       if (name === "estimate_walk") {

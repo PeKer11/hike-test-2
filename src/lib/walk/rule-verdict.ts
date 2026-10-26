@@ -8,7 +8,7 @@ import { insideBoundary, outsideKm, type Boundary } from "./loop-search";
 import { analyzeRoute } from "./route-quality";
 import type { RouteDetail } from "./ors-route";
 
-export type RuleId = "no_repeat" | "stay_in_area" | "avoid_streets" | "avoid_dangerous" | "via_streets" | "loop" | "end_distance" | "time" | "max_walk" | "open_hours" | "stop_time" | "end_by" | "meal" | "stop_order" | "no_steps" | "max_grade" | "surface" | "accessible_stops";
+export type RuleId = "no_repeat" | "stay_in_area" | "avoid_streets" | "avoid_dangerous" | "via_streets" | "loop" | "end_distance" | "time" | "max_walk" | "open_hours" | "stop_time" | "end_by" | "meal" | "stop_order" | "no_steps" | "max_grade" | "surface" | "accessible_stops" | "transit";
 /** met = checked and fine; not_met = checked and broken; partial = checked only in part; not_checked = no data to check with. */
 export type RuleStatus = "met" | "not_met" | "partial" | "not_checked";
 
@@ -39,6 +39,8 @@ export interface Verdict {
   climbMin?: number;
   /** Rest minutes (inside visitMin). */
   restMin?: number;
+  /** Minutes the ride back adds after the walk ends (waiting included). */
+  transitMin?: number;
   /** Clock time of arriving and leaving each stop, when the start time is known. */
   schedule?: Array<{ id: string; arrive: string; leave: string }>;
 }
@@ -252,5 +254,5 @@ export function brokenKm(v: Verdict): number {
     if (r.rule === "via_streets" || r.rule === "loop") return 0.5;
     return r.value ?? 0;
   };
-  return v.rules.filter((r) => r.status === "not_met" && !["time", "max_walk", "open_hours", "stop_time", "end_by", "meal", "stop_order", "accessible_stops"].includes(r.rule)).reduce((a, r) => a + amount(r), 0);
+  return v.rules.filter((r) => r.status === "not_met" && !["time", "max_walk", "open_hours", "stop_time", "end_by", "meal", "stop_order", "accessible_stops", "transit"].includes(r.rule)).reduce((a, r) => a + amount(r), 0);
 }

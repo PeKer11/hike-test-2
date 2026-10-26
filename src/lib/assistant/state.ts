@@ -36,6 +36,8 @@ export interface WalkParams {
   /** Stroller or wheelchair: routes avoid steps and steep slopes, and the pace is slower. */
   access?: Access;
   maxGradePct?: number;
+  /** Public transport: ride back from where the walk ends to the start. */
+  transit?: { back?: boolean };
 }
 
 export { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
