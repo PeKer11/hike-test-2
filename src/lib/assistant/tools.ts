@@ -8,7 +8,7 @@ import { assessWalkWindow, endsAfterDark, FORECAST_ATTRIBUTION, forecastUrl, nex
 import { getMatrix } from "@/lib/api/ors-client";
 import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 import { ACCESS_PROFILES, isAccess } from "@/lib/walk/access";
-import { formatClock, nextLocalTime, parseHHMM, tzOffsetMin } from "@/lib/walk/clock";
+import { formatClock, localTimeOnDay, nextLocalTime, parseHHMM, tzOffsetMin } from "@/lib/walk/clock";
 import { bestOrderWithRules, type StopOrder } from "@/lib/walk/stop-order";
 import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
 import { fetchTownBoundary } from "@/lib/walk/town-boundary";
@@ -32,6 +32,7 @@ import {
   placeScore,
   type Candidate,
   type WalkParams,
+  zoneOf,
 } from "./state";
 
 const CATEGORIES: AttractionCategory[] = [
@@ -542,6 +543,13 @@ export async function runTool(
     candidates: [...input.candidates],
     chosen: [...input.chosen],
   };
+  // The place's own UTC offset (from Google) beats the browser zone: a tourist plans Paris from a phone set to Israel.
+  if (state.origin) {
+    const near = state.candidates
+      .filter((c) => c.hours?.utcOffsetMin !== undefined)
+      .sort((a, b) => haversineDistance(state.origin!, a.coordinates) - haversineDistance(state.origin!, b.coordinates))[0];
+    if (near && haversineDistance(state.origin, near.coordinates) < 30000) state.params.placeOffsetMin = near.hours!.utcOffsetMin;
+  }
   let args: Record<string, unknown> = {};
   try {
     args = JSON.parse(rawArgs || "{}") as Record<string, unknown>;
@@ -553,7 +561,7 @@ export async function runTool(
     if (name === "search_place") {
       const query = typeof args.query === "string" ? args.query.trim().slice(0, 120) : "";
       if (!query) return { output: JSON.stringify({ error: "query required" }), state };
-      const places = await searchTextPlaces(query, state.origin ?? undefined, 3);
+      const places = await searchTextPlaces(query, state.origin ?? undefined, 3, true);
       const found = addCandidates(
         state,
         places.map((p) => ({
@@ -562,6 +570,8 @@ export async function runTool(
           coordinates: p.coordinates,
           category: "other" as const,
           placeId: p.placeId,
+          ...(p.hours ? { hours: p.hours } : {}),
+          ...(p.wheelchairEntrance !== undefined ? { wheelchairEntrance: p.wheelchairEntrance } : {}),
           distanceMeters: state.origin
             ? Math.round(haversineDistance(state.origin, p.coordinates))
             : undefined,
@@ -713,19 +723,21 @@ export async function runTool(
         delete state.params.endBy;
         return { output: JSON.stringify({ ok: true, startAt: null }), state };
       }
-      const tz = state.params.timeZone;
+      const tz = zoneOf(state.params);
+      let movedToTomorrow = false;
       if (typeof args.start_in_hours === "number" && args.start_in_hours >= 0 && args.start_in_hours < 72) state.params.startAt = Date.now() + Math.round(args.start_in_hours * 3600000);
       else if (typeof args.start_time === "string") {
         const at = tz ? nextLocalTime(args.start_time, tz, Date.now()) : null;
         if (at === null) return { output: JSON.stringify({ error: tz ? `could not read start_time "${args.start_time}" (use HH:MM)` : "the walker's time zone is unknown: use start_in_hours" }), state };
         state.params.startAt = at;
+        movedToTomorrow = (localTimeOnDay(args.start_time, tz!, Date.now()) ?? Infinity) < Date.now() - 5 * 60000;
       }
       if (typeof args.end_by === "string") {
         if (parseHHMM(args.end_by) === null) return { output: JSON.stringify({ error: "end_by must be HH:MM" }), state };
         state.params.endBy = args.end_by.trim();
       }
       const off = state.params.startAt !== undefined && tz ? (tzOffsetMin(tz, state.params.startAt) ?? 0) : 0;
-      return { output: JSON.stringify({ ok: true, ...(state.params.startAt !== undefined ? { start: formatClock(state.params.startAt, off) } : {}), end_by: state.params.endBy ?? null, next: "call estimate_walk again" }), state };
+      return { output: JSON.stringify({ ok: true, ...(state.params.startAt !== undefined ? { start: formatClock(state.params.startAt, off), ...(movedToTomorrow ? { day: "tomorrow (that time has already passed today): say so" } : {}), zone: tz } : {}), end_by: state.params.endBy ?? null, next: "call estimate_walk again" }), state };
     }
 
     if (name === "set_transit") {
@@ -1034,7 +1046,7 @@ export async function runTool(
       if (picked.length === 0) return { output: JSON.stringify({ error: "no valid stop ids" }), state };
       if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       const ordered = args.ordered === true;
-      const est = await estimateWalk(state.origin, picked, (state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM) * (state.params.access ? ACCESS_PROFILES[state.params.access].paceFactor : 1), ordered, state.params.endDistanceKm === 0, state.params.stops, { order: state.params.order, breaks: state.params.breaks, startAt: state.params.startAt, timeZone: state.params.timeZone, access: state.params.access });
+      const est = await estimateWalk(state.origin, picked, (state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM) * (state.params.access ? ACCESS_PROFILES[state.params.access].paceFactor : 1), ordered, state.params.endDistanceKm === 0, state.params.stops, { order: state.params.order, breaks: state.params.breaks, startAt: state.params.startAt, timeZone: zoneOf(state.params), access: state.params.access });
       // One verdict per set of stops: build_walk reuses what estimate_walk / find_clean_walk already checked.
       const cached = name === "build_walk" ? state.checks?.find((c) => c.key === checkKey(picked.map((c2) => c2.id), state.params, ordered)) : undefined;
       let judged: Judged;

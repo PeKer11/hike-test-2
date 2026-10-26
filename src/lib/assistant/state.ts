@@ -25,6 +25,8 @@ export interface WalkParams {
   /** When the walk starts (epoch ms) and the walker's time zone; needed for opening hours and every clock rule. */
   startAt?: number;
   timeZone?: string;
+  /** UTC offset (minutes) of the place being walked, from Google; wins over the browser zone when they differ (a tourist's phone keeps its home zone). */
+  placeOffsetMin?: number;
   /** The walk must be over by this clock time ("HH:MM", walker's zone). */
   endBy?: string;
   /** Rests: after so many minutes / km without a stop, for so long. */
@@ -41,6 +43,7 @@ export interface WalkParams {
 }
 
 export { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
+import { fixedZone, tzOffsetMin } from "@/lib/walk/clock";
 import type { Access } from "@/lib/walk/access";
 import type { MealWindow } from "@/lib/walk/schedule-rules";
 import type { StopOrder } from "@/lib/walk/stop-order";
@@ -120,4 +123,11 @@ export interface BuildAction {
   geometry?: Coordinates[];
   /** Minutes of rest planned into the walk. */
   restMin?: number;
+}
+
+/** The zone every clock rule reads: the place's own offset when Google gave one and it differs from the walker's browser zone. */
+export function zoneOf(params: Pick<WalkParams, "timeZone" | "placeOffsetMin">, atMs: number = Date.now()): string | undefined {
+  if (params.placeOffsetMin === undefined) return params.timeZone;
+  const browser = params.timeZone ? tzOffsetMin(params.timeZone, atMs) : null;
+  return browser === params.placeOffsetMin && params.timeZone ? params.timeZone : fixedZone(params.placeOffsetMin);
 }

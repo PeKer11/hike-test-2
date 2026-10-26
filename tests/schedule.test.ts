@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { formatClock, localTimeOnDay, nextLocalTime, parseHHMM, tzOffsetMin } from "@/lib/walk/clock";
+import { fixedZone, formatClock, localTimeOnDay, nextLocalTime, parseHHMM, tzOffsetMin } from "@/lib/walk/clock";
 import { openThrough, type WeeklyHours } from "@/lib/walk/opening-hours";
+import { zoneOf } from "@/lib/assistant/state";
 import { scheduleRules } from "@/lib/walk/schedule-rules";
 import { settled, type Verdict } from "@/lib/walk/rule-verdict";
 import { bestOrderWithRules, satisfies } from "@/lib/walk/stop-order";
@@ -56,8 +57,9 @@ describe("scheduleRules", () => {
   const t = timeline(stops, [1, 1], undefined, 15);
   const base = { timeline: t, stops: [{ id: "a", name: "A", category: "museum", hours: museum }, { id: "b", name: "B", category: "food" }], timeZone: TZ };
 
-  it("emits nothing about hours without a start time, but flags wanted clock rules as unchecked", () => {
-    expect(scheduleRules({ ...base })).toEqual([]);
+  it("without a start time, known hours are flagged as unchecked, and wanted clock rules too", () => {
+    expect(scheduleRules({ ...base })).toEqual([expect.objectContaining({ rule: "open_hours", status: "not_checked", dataGap: true })]);
+    expect(scheduleRules({ ...base, stops: [{ id: "b", name: "B", category: "food" }] })).toEqual([]);
     const r = scheduleRules({ ...base, endBy: "18:00" });
     expect(r[0]).toMatchObject({ rule: "stop_time", status: "not_checked", dataGap: true });
   });
@@ -142,5 +144,20 @@ describe("review fixes", () => {
     expect(satisfies(seq, { last: "kind:food" })).toBe(true);
     expect(satisfies([seq[0], seq[2], seq[1]], { last: "kind:food" })).toBe(false);
     expect(satisfies(seq, { last: "c", endAt: "b" })).toBe(false);
+  });
+});
+
+describe("time zones and days", () => {
+  it("reads a fixed-offset zone", () => {
+    expect(tzOffsetMin("UTC+05:30", 0)).toBe(330);
+    expect(tzOffsetMin("UTC-03:00", 0)).toBe(-180);
+    expect(fixedZone(120)).toBe("UTC+02:00");
+    expect(localTimeOnDay("10:00", fixedZone(120), Date.UTC(2026, 9, 26, 12))).toBe(Date.UTC(2026, 9, 26, 8));
+  });
+  it("zoneOf prefers the place offset when it differs from the browser zone", () => {
+    const at = Date.UTC(2026, 6, 1, 10); // summer: Jerusalem +3, Paris +2
+    expect(zoneOf({ timeZone: "Asia/Jerusalem", placeOffsetMin: 120 }, at)).toBe("UTC+02:00");
+    expect(zoneOf({ timeZone: "Asia/Jerusalem", placeOffsetMin: 180 }, at)).toBe("Asia/Jerusalem");
+    expect(zoneOf({ timeZone: "Asia/Jerusalem" }, at)).toBe("Asia/Jerusalem");
   });
 });

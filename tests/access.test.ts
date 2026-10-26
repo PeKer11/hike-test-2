@@ -22,7 +22,9 @@ describe("accessRules", () => {
     // wheelchair limit 6%: class 3 (7-9%) is above; stroller limit 8%: class 3 straddles
     expect(accessRules(detail({ grades: [{ path: line(0.3), cls: 3 }] }), "wheelchair", 2)[1].status).toBe("not_met");
     expect(accessRules(detail({ grades: [{ path: line(0.3), cls: -3 }] }), "stroller", 2)[1].status).toBe("partial");
-    expect(accessRules(detail({ grades: [{ path: line(0.3), cls: 2 }] }), "wheelchair", 2)[1].status).toBe("met");
+    // ORS class 2 is 4% up to (not including) 7%: a 6% limit cannot be sure of it, class 1 (1-4%) is safe
+    expect(accessRules(detail({ grades: [{ path: line(0.3), cls: 2 }] }), "wheelchair", 2)[1].status).toBe("partial");
+    expect(accessRules(detail({ grades: [{ path: line(0.3), cls: 1 }] }), "wheelchair", 2)[1].status).toBe("met");
   });
   it("the walker's own grade limit wins", () => {
     expect(accessRules(detail({ grades: [{ path: line(0.3), cls: 3 }] }), "wheelchair", 2, 11)[1].status).toBe("met");

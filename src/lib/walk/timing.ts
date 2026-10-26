@@ -88,7 +88,9 @@ export function timeline(
     const pace = legPace(plans, to, basePace);
     const min = km * pace + (climbKnown ? climbMinutes(ascentsM![i], km, pace) : 0);
     let restMin = 0;
-    if (breaks && breaks.minutes > 0 && to !== "end") {
+    // A stop that is itself long enough to rest at replaces the rest before it.
+    const stopIsRest = Boolean(breaks && stops[i] && dwellMinutes(plans, stops[i].id, stops[i].visitMin) >= breaks.minutes);
+    if (breaks && breaks.minutes > 0 && to !== "end" && !stopIsRest) {
       if ((breaks.everyMin && sinceMin + min > breaks.everyMin) || (breaks.everyKm && sinceKm + km > breaks.everyKm)) {
         restMin = breaks.minutes;
         sinceMin = 0;

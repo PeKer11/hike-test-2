@@ -2,7 +2,7 @@ import { scheduleOf, scheduleRules } from "@/lib/walk/schedule-rules";
 import { stopAccessRules } from "@/lib/walk/access-rules";
 import type { RuleResult, Verdict } from "@/lib/walk/rule-verdict";
 import type { Timeline } from "@/lib/walk/timing";
-import type { Candidate, WalkParams } from "./state";
+import { zoneOf, type Candidate, type WalkParams } from "./state";
 
 /** Clock, opening-hours and order rules for stops in visiting order, plus the clock time of each stop. */
 export function scheduleFor(params: WalkParams, stops: Candidate[], t: Timeline): { rules: RuleResult[]; schedule: Verdict["schedule"] } {
@@ -12,7 +12,7 @@ export function scheduleFor(params: WalkParams, stops: Candidate[], t: Timeline)
     stops: stops.map((c) => ({ id: c.id, name: c.name, category: c.category, hours: c.hours })),
     plans: params.stops,
     startAt,
-    timeZone: params.timeZone,
+    timeZone: zoneOf(params, startAt),
     endBy: params.endBy,
     meals: params.meals,
     order: params.order,

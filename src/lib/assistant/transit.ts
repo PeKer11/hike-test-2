@@ -2,7 +2,7 @@ import { planTransit, TRANSIT_ATTRIBUTION } from "@/lib/api/transit-client";
 import { formatClock, tzOffsetMin } from "@/lib/walk/clock";
 import type { Coordinates } from "@/lib/types";
 import type { Verdict } from "@/lib/walk/rule-verdict";
-import type { WalkParams } from "./state";
+import { zoneOf, type WalkParams } from "./state";
 
 /** The ride back from where the walk ends to the start. Adds the rule and the extra minutes; never throws. */
 export async function withTransitBack(verdict: Verdict, endAt: Coordinates, origin: Coordinates, params: WalkParams, ride = planTransit): Promise<Verdict> {
@@ -29,5 +29,5 @@ export async function withTransitBack(verdict: Verdict, endAt: Coordinates, orig
 }
 
 function hhmm(ms: number, params: WalkParams, startAt: number): string {
-  return formatClock(ms, (params.timeZone ? tzOffsetMin(params.timeZone, startAt) : null) ?? 0);
+  return formatClock(ms, (zoneOf(params, startAt) ? tzOffsetMin(zoneOf(params, startAt)!, startAt) : null) ?? 0);
 }

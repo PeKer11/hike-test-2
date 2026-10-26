@@ -7,8 +7,16 @@ export function parseHHMM(text: string): number | null {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
 
+/** A fixed-offset zone name that tzOffsetMin understands ("UTC+03:00"), for a place whose IANA zone is not known. */
+export function fixedZone(offsetMin: number): string {
+  const a = Math.abs(offsetMin);
+  return `UTC${offsetMin < 0 ? "-" : "+"}${String(Math.floor(a / 60)).padStart(2, "0")}:${String(a % 60).padStart(2, "0")}`;
+}
+
 /** Minutes east of UTC that `timeZone` is at `epochMs`; null for an unknown zone. */
 export function tzOffsetMin(timeZone: string, epochMs: number): number | null {
+  const fixed = /^UTC([+-])(\d{2}):(\d{2})$/.exec(timeZone);
+  if (fixed) return (fixed[1] === "-" ? -1 : 1) * (Number(fixed[2]) * 60 + Number(fixed[3]));
   try {
     const parts = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(epochMs));
     const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
@@ -36,7 +44,10 @@ export function nextLocalTime(hhmm: string, timeZone: string, nowMs: number): nu
   const today = localTimeOnDay(hhmm, timeZone, nowMs);
   if (today === null) return null;
   if (today >= nowMs - 5 * 60000) return today;
-  return localTimeOnDay(hhmm, timeZone, nowMs + 86400000);
+  // Noon of the next local day, so a daylight-saving change cannot land on the same date again.
+  const offset = tzOffsetMin(timeZone, nowMs) ?? 0;
+  const nextNoon = Math.floor((nowMs + offset * 60000) / 86400000) * 86400000 + 36 * 3600000 - offset * 60000;
+  return localTimeOnDay(hhmm, timeZone, nextNoon);
 }
 
 export function formatClock(epochMs: number, offsetMin: number): string {

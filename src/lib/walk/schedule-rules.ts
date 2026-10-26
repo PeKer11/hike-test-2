@@ -33,6 +33,11 @@ export interface ScheduleInput {
 const MIN = 60000;
 
 /** Clock time of each stop for the verdict ("HH:MM"). */
+/** A clock time earlier than the start belongs to the next day when the walk runs past midnight (start 23:30, "before 00:30"). */
+function afterStart(at: number | null, startAt: number, endAt: number): number | null {
+  return at !== null && at < startAt && at + 24 * 60 * MIN <= endAt ? at + 24 * 60 * MIN : at;
+}
+
 export function scheduleOf(i: Pick<ScheduleInput, "timeline" | "startAt" | "timeZone">): Array<{ id: string; arrive: string; leave: string }> | undefined {
   if (i.startAt === undefined) return undefined;
   const off = (i.timeZone ? tzOffsetMin(i.timeZone, i.startAt) : null) ?? 0;
@@ -54,6 +59,8 @@ export function scheduleRules(i: ScheduleInput): RuleResult[] {
   const wantsClock = Boolean(i.endBy) || Boolean(i.meals?.length) || Object.values(i.plans ?? {}).some((p) => p.arriveAfter || p.arriveBefore);
   if (i.startAt === undefined) {
     if (wantsClock) rules.push({ rule: "stop_time", status: "not_checked", dataGap: true, detail: "the start time is not known" });
+    // Places with known hours cannot be judged without a start time: say so instead of staying silent.
+    if (i.stops.some((s) => s.category !== "area" && s.hours)) rules.push({ rule: "open_hours", status: "not_checked", dataGap: true, detail: "the start time is not known, so opening hours were not checked" });
     return rules;
   }
   const tz = i.timeZone ?? "UTC";
@@ -87,8 +94,9 @@ export function scheduleRules(i: ScheduleInput): RuleResult[] {
     for (const s of timed) {
       const a = byId.get(s.id)!;
       const arrive = i.startAt + a.arriveMin * MIN;
-      const after = i.plans?.[s.id]?.arriveAfter ? localTimeOnDay(i.plans![s.id].arriveAfter!, tz, i.startAt) : null;
-      const before = i.plans?.[s.id]?.arriveBefore ? localTimeOnDay(i.plans![s.id].arriveBefore!, tz, i.startAt) : null;
+      const endAt = i.startAt + i.timeline.totalMin * MIN;
+      const after = i.plans?.[s.id]?.arriveAfter ? afterStart(localTimeOnDay(i.plans![s.id].arriveAfter!, tz, i.startAt), i.startAt, endAt) : null;
+      const before = i.plans?.[s.id]?.arriveBefore ? afterStart(localTimeOnDay(i.plans![s.id].arriveBefore!, tz, i.startAt), i.startAt, endAt) : null;
       if (after !== null && arrive < after) bad.push(`${s.name}: arrives ${clockOf(a.arriveMin)}, wanted after ${i.plans![s.id].arriveAfter}`);
       if (before !== null && arrive > before) bad.push(`${s.name}: arrives ${clockOf(a.arriveMin)}, wanted before ${i.plans![s.id].arriveBefore}`);
     }
@@ -107,10 +115,13 @@ export function scheduleRules(i: ScheduleInput): RuleResult[] {
   }
 
   for (const meal of i.meals ?? []) {
-    const from = localTimeOnDay(meal.from, tz, i.startAt);
-    const rawTo = localTimeOnDay(meal.to, tz, i.startAt);
-    // A window that crosses midnight ends on the next day.
-    const to = rawTo !== null && from !== null && rawTo < from ? rawTo + 24 * 60 * MIN : rawTo;
+    const mealEnd = i.startAt + i.timeline.totalMin * MIN;
+    const fromRaw = localTimeOnDay(meal.from, tz, i.startAt);
+    const toRaw = localTimeOnDay(meal.to, tz, i.startAt);
+    const from = afterStart(fromRaw, i.startAt, mealEnd);
+    // The window moves a day with its start; one that crosses midnight ends on the next day.
+    let to = toRaw !== null && from !== null && fromRaw !== null && from !== fromRaw ? toRaw + 24 * 60 * MIN : toRaw;
+    if (to !== null && from !== null && to < from) to += 24 * 60 * MIN;
     if (from === null || to === null) {
       rules.push({ rule: "meal", status: "not_checked", detail: `could not read ${meal.from}-${meal.to}` });
       continue;

@@ -8,8 +8,8 @@ import type { RuleResult } from "./rule-verdict";
 const pathKm = (path: Coordinates[]): number => path.reduce((a, p, i) => a + (i ? haversineDistance(path[i - 1], p) : 0), 0) / 1000;
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-/** ORS steepness class -> [lowest, highest] grade in percent covered by the class (up or down). */
-const GRADE_CLASS: Record<number, [number, number]> = { 1: [1, 3], 2: [4, 6], 3: [7, 11], 4: [12, 15], 5: [16, Infinity] };
+/** ORS steepness class -> [lowest, highest) grade in percent covered by the class (up or down); the upper bound is exclusive (ORS docs: steepness extra-info). */
+const GRADE_CLASS: Record<number, [number, number]> = { 1: [1, 4], 2: [4, 7], 3: [7, 10], 4: [10, 16], 5: [16, Infinity] };
 
 /** ORS surface codes that a wheel does badly on. */
 const ROUGH_SURFACE = new Set([2, 5, 10, 11, 12, 13, 15, 16, 17, 18]);

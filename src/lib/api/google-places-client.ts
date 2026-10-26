@@ -142,6 +142,7 @@ export function searchTextPlaces(
   query: string,
   bias?: Coordinates,
   maxResults = 1,
+  withRatings = false,
 ): Promise<GooglePlace[]> {
   return post(SEARCH_TEXT_URL, {
     textQuery: query,
@@ -154,7 +155,7 @@ export function searchTextPlaces(
           },
         }
       : {}),
-  });
+  }, withRatings);
 }
 
 /** Up to 20 places of one kind within `radiusMeters` of `center`. */
