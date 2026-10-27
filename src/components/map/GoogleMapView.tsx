@@ -7,6 +7,7 @@ import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStop
 import { GoogleRecommendedLayer } from "@/components/map/GoogleRecommendedLayer";
 import type { MapViewProps } from "@/components/map/MapView";
 import type { Coordinates } from "@/lib/types";
+import { boundsOf } from "@/lib/utils/geo";
 import { WORLDCOVER_ATTRIBUTION } from "@/lib/types/landcover";
 
 const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? "";
@@ -60,6 +61,15 @@ function Viewport({ center, zoom, focusTick = 0 }: { center: Coordinates; zoom: 
   return null;
 }
 
+function FitPath({ path }: { path?: Coordinates[] }) {
+  const map = useMap();
+  useEffect(() => {
+    const b = path ? boundsOf(path) : null;
+    if (map && b) map.fitBounds(b, 48);
+  }, [map, path]);
+  return null;
+}
+
 function PositionFollower({ currentPosition, followPosition = false }: { currentPosition?: Coordinates; followPosition?: boolean }) {
   const map = useMap();
   useEffect(() => {
@@ -90,6 +100,7 @@ export default function GoogleMapView({
   extraAttribution,
   onAddToWalk,
   addedIds,
+  fitPath,
 }: MapViewProps) {
   const credits = [
     "Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors",
@@ -119,6 +130,7 @@ export default function GoogleMapView({
           }}
         >
           <Viewport center={center} zoom={zoom} focusTick={focusTick} />
+          <FitPath path={fitPath} />
           <PositionFollower currentPosition={currentPosition} followPosition={followPosition} />
           {walkedGeometry && walkedGeometry.length > 1 ? <Line path={walkedGeometry} color="#94a3b8" weight={5} opacity={0.9} zIndex={1} /> : null}
           <Line path={routeGeometry} color="#1f8a4c" weight={5} opacity={0.9} zIndex={2} />

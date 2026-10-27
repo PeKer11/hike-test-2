@@ -38,7 +38,7 @@ import { SavedPlacePicker } from "@/components/places/SavedPlacePicker";
 import { SavedPlacesTab } from "@/components/places/SavedPlacesTab";
 import { markStopsVisited } from "@/lib/places/saved-places";
 import { recordRun } from "@/lib/walks/walk-runs";
-import { newWalkFromPlan, rebuildFromSaved, saveBuiltWalk, stopsFromAttractions, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
+import { newWalkFromPlan, previewPathOf, rebuildFromSaved, saveBuiltWalk, stopsFromAttractions, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
   useCollapseFlow,
@@ -53,7 +53,9 @@ import {
   useWalkTicker,
   useWaypoints,
 } from "@/lib/hooks";
-import type { Coordinates } from "@/lib/types";
+import type { Coordinates, Waypoint } from "@/lib/types";
+import { calculateViaDirections } from "@/lib/optimization/route-planner";
+import type { SavedWalk } from "@/lib/walks/saved-walks";
 import { haversineDistance } from "@/lib/utils/geo";
 import { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 import { visitMinutes } from "@/lib/assistant/state";
@@ -476,6 +478,8 @@ export function WalkPlannerApp({
   // Candidate pins for the places currently listed in PlacePromptPanel — shown
   // until they either become real waypoints or the list they came from is gone.
   const [previewPlaces, setPreviewPlaces] = useState<Attraction[]>([]);
+  // A saved walk drawn on the map from the "My walks" list (dashed route + its stops); the plan underneath is untouched.
+  const [walkPreview, setWalkPreview] = useState<{ id: string; title: string; waypoints: Waypoint[]; path: Coordinates[]; geometry: Coordinates[] } | null>(null);
   // Places the walker tapped "Add to walk" on before a walk exists; they join the next build.
   const [wishlist, setWishlist] = useState<Attraction[]>([]);
   // The chat's build callback outlives the render it was created in; read the latest queue through this ref.
@@ -849,6 +853,7 @@ export function WalkPlannerApp({
   // Full reset — the same teardown behind "Clear All" (advanced) and
   // "Start over" (simple view).
   const handleClearAll = () => {
+    setWalkPreview(null);
     clearWaypoints();
     clearRoute();
     cancelSearch();
@@ -856,6 +861,31 @@ export function WalkPlannerApp({
     setPreviewPlaces([]);
     walkRecorderRef.current?.clear();
     setRecordedPointCount(0);
+  };
+
+  // "Show on map" on a saved walk: straight lines between its stops at once, the walking route over them when ORS answers.
+  const showWalkOnMap = (walk: SavedWalk | null) => {
+    if (!walk) {
+      setWalkPreview(null);
+      return;
+    }
+    const path = previewPathOf(walk);
+    if (path.length < 2) {
+      focusOn(walk.start, 15);
+      return;
+    }
+    const stopWaypoints: Waypoint[] = walk.stops.map((s, i) => ({
+      id: `saved-${walk.id}-${i}`,
+      name: `${i + 1}. ${s.name}`,
+      coordinates: { lat: s.lat, lng: s.lng },
+      required: true,
+      isStart: i === 0,
+      isEnd: i === walk.stops.length - 1,
+    }));
+    setWalkPreview({ id: walk.id, title: walk.title, waypoints: stopWaypoints, path, geometry: path });
+    calculateViaDirections(path.map((coordinates, i) => ({ id: `p${i}`, name: "", coordinates, required: true, isStart: i === 0, isEnd: i === path.length - 1 })))
+      .then((r) => setWalkPreview((cur) => (cur?.id === walk.id ? { ...cur, geometry: r.geometry } : cur)))
+      .catch(() => undefined); // keep the straight lines
   };
 
   // Draws a plan on the map and moves the walk into the "planned" phase. Shared by
@@ -923,6 +953,10 @@ export function WalkPlannerApp({
   const savedWalkIdRef = useRef<Promise<string | null> | null>(null);
   const [walksVersion, setWalksVersion] = useState(0);
   const [sideTab, setSideTab] = useState<SideTab>("plan");
+  // Leaving the Walks tab or starting a walk puts the map back to the real plan.
+  useEffect(() => {
+    if (sideTab !== "walks" || walkMode) setWalkPreview(null);
+  }, [sideTab, walkMode]);
   const [friendRequests, setFriendRequests] = useState(0);
   useEffect(() => {
     if (!isSignedIn || sideTab === "friends") return;
@@ -3230,6 +3264,8 @@ export function WalkPlannerApp({
                 <MyWalksPanel
                   isSignedIn={isSignedIn}
                   refreshKey={walksVersion}
+                  previewId={walkPreview?.id ?? null}
+                  onShowOnMap={showWalkOnMap}
                   onWalkAgain={(walk) => {
                     const { input, attractions, routeRules } = rebuildFromSaved(walk);
                     setSideTab("plan");
@@ -3838,10 +3874,11 @@ export function WalkPlannerApp({
         }`}
       >
         <DynamicMap
-          waypoints={waypoints}
+          waypoints={walkPreview?.waypoints ?? waypoints}
           routeGeometry={
-            walkPhase === "walking" ? remainingGeometry : (route?.geometry ?? [])
+            walkPreview ? [] : walkPhase === "walking" ? remainingGeometry : (route?.geometry ?? [])
           }
+          fitPath={walkPreview?.path}
           center={center}
           focusTick={focusTick}
           zoom={zoom}
@@ -3868,18 +3905,27 @@ export function WalkPlannerApp({
           // that already worked on this one path. Still off before a plan
           // exists at all, because until then the markers on screen may be
           // hand-drawn waypoints whose ids no pin means anything against.
-          onTogglePin={walkPlan ? toggleAttractionPin : undefined}
+          onTogglePin={walkPlan && !walkPreview ? toggleAttractionPin : undefined}
           hudInset={walkMode}
           compactControls={!isExpanded}
           extraAttribution={walkMode && companion.attribution ? [companion.attribution] : undefined}
           callouts={walkMode ? callouts : undefined}
           onCalloutSelect={walkMode ? setSelectedCallout : undefined}
-          previewRoutes={optionsOffer?.options.map((o, i) => ({
-            id: `${o.theme}-${i}`,
-            geometry: o.geometry,
-            highlighted: i === collapseFlow.highlight,
-          }))}
+          previewRoutes={walkPreview
+            ? [{ id: `walk-${walkPreview.id}`, geometry: walkPreview.geometry, highlighted: true }]
+            : optionsOffer?.options.map((o, i) => ({
+                id: `${o.theme}-${i}`,
+                geometry: o.geometry,
+                highlighted: i === collapseFlow.highlight,
+              }))}
         />
+        {walkPreview && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-10 z-[800] flex justify-center px-4">
+            <button type="button" onClick={() => setWalkPreview(null)} className="pointer-events-auto cursor-pointer rounded-full bg-tk-ink px-4 py-1.5 text-sm font-medium text-tk-card shadow-lg">
+              {walkPreview.title} · Close ✕
+            </button>
+          </div>
+        )}
         {walkMode && (
           <WalkHud
             alert={walkAlert}

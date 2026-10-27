@@ -135,7 +135,7 @@ function aggregateGeometry(segments: RouteSegment[]): Coordinates[] {
   return geometry;
 }
 
-async function calculateViaDirections(waypoints: Waypoint[]): Promise<CalculatedRoute> {
+export async function calculateViaDirections(waypoints: Waypoint[]): Promise<CalculatedRoute> {
   const directions = await postJson<OrsDirectionsResponse>("/api/directions", {
     profile: "foot-walking",
     instructions: true,

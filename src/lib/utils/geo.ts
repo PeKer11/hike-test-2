@@ -112,3 +112,11 @@ export function formatDistance(meters: number): string {
 
   return `${(meters / 1000).toFixed(1)} km`;
 }
+
+/** North/south/east/west box around a path (Google's LatLngBoundsLiteral), or null when it has fewer than 2 points. */
+export function boundsOf(path: Coordinates[]): { north: number; south: number; east: number; west: number } | null {
+  if (path.length < 2) return null;
+  const lats = path.map((c) => c.lat);
+  const lngs = path.map((c) => c.lng);
+  return { north: Math.max(...lats), south: Math.min(...lats), east: Math.max(...lngs), west: Math.min(...lngs) };
+}

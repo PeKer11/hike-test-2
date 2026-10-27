@@ -14,6 +14,9 @@ interface MyWalksPanelProps {
   /** Bumped by the planner when a walk was saved or changed, to reload the list. */
   refreshKey: number;
   onWalkAgain: (walk: SavedWalk) => void;
+  /** The walk currently drawn on the map from this list, and the toggle that draws or clears it (null clears). */
+  previewId?: string | null;
+  onShowOnMap?: (walk: SavedWalk | null) => void;
 }
 
 const CHIP: Record<SavedWalk["status"], string> = {
@@ -22,7 +25,7 @@ const CHIP: Record<SavedWalk["status"], string> = {
   completed: "bg-tk-ink/10 text-tk-ink",
 };
 
-export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain }: MyWalksPanelProps) {
+export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, previewId = null, onShowOnMap }: MyWalksPanelProps) {
   const [items, setItems] = useState<WalkWithRuns[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -51,7 +54,10 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain }: MyWalksPan
   };
 
   const remove = async (w: SavedWalk) => {
-    if (await deleteWalk(w.id)) setItems((cur) => cur.filter((x) => x.walk.id !== w.id));
+    if (await deleteWalk(w.id)) {
+      if (previewId === w.id) onShowOnMap?.(null);
+      setItems((cur) => cur.filter((x) => x.walk.id !== w.id));
+    }
   };
 
   const shown = filter === "drafts" ? items.filter((i) => i.isDraft) : items;
@@ -95,6 +101,11 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain }: MyWalksPan
                   <button type="button" onClick={() => onWalkAgain(w)} className="cursor-pointer rounded-full bg-tk-ink px-3 py-1 text-xs font-medium text-tk-card hover:opacity-90">
                     Walk again
                   </button>
+                  {onShowOnMap && w.stops.length > 0 && (
+                    <button type="button" aria-pressed={previewId === w.id} onClick={() => onShowOnMap(previewId === w.id ? null : w)} className={BTN_SOFT}>
+                      {previewId === w.id ? "Hide from map" : "Show on map"}
+                    </button>
+                  )}
                   {runCount > 1 && (
                     <button type="button" onClick={() => setOpen(open === w.id ? null : w.id)} className={BTN_SOFT}>
                       {open === w.id ? "Hide runs" : "Earlier runs"}

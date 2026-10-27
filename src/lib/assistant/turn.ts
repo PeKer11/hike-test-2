@@ -89,16 +89,23 @@ export async function runAssistantTurn(
   ];
 
   const signal = AbortSignal.timeout(TURN_TIMEOUT_MS);
-  const budget = makeBudget(TURN_ROUTING_CALLS);
-  for (let i = 0; i < MAX_MODEL_CALLS; i += 1) {
-    const response = await call({
-      model: input.choice.model,
-      messages,
-      tools: ASSISTANT_TOOLS,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-      signal,
-      reasoningEffort: input.effort,
-    });
+  const budget = makeBudget(TURN_ROUTING_CALLS, signal);
+  for (let i = 0; i < MAX_MODEL_CALLS && !signal.aborted; i += 1) {
+    let response;
+    try {
+      response = await call({
+        model: input.choice.model,
+        messages,
+        tools: ASSISTANT_TOOLS,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        signal,
+        reasoningEffort: input.effort,
+      });
+    } catch (err) {
+      // The turn's time is up: fall through to the wrap-up so the walker gets what was found, and the state is kept.
+      if (signal.aborted) break;
+      throw err;
+    }
     billedMicros += estimateCostMicros(input.choice.model, response.inTok, response.outTok);
 
     if (response.toolCalls.length === 0) {
@@ -106,6 +113,11 @@ export async function runAssistantTurn(
     }
     messages.push({ role: "assistant", content: response.content, tool_calls: response.toolCalls });
     for (const tc of response.toolCalls) {
+      if (signal.aborted) {
+        // Every tool call still needs an answer, or the wrap-up request is malformed.
+        messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ skipped: "out of time" }) });
+        continue;
+      }
       const run = await runTool(tc.function.name, tc.function.arguments, state, budget, input.loadWalks);
       state = run.state;
       if (run.action) action = run.action;
@@ -138,7 +150,7 @@ export async function runAssistantTurn(
       return { reply, state, action, askLimits, choices, remembered, billedMicros };
     }
   }
-  // Out of tool rounds: have the model report what it found so far, in the walker's language, instead of a canned English line.
+  // Out of tool rounds or time: have the model report what it found so far, in the walker's language, instead of a canned English line.
   const wrapUp = await call({
     model: input.choice.model,
     messages: [...messages, { role: "user", content: "Stop searching. In the walker's language, say briefly what you found so far and what you still need from them." }],

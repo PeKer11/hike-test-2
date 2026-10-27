@@ -1,4 +1,5 @@
 import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
+import type { Coordinates } from "@/lib/types";
 import type { Attraction, AttractionCategory } from "@/lib/types/walk-plan";
 
 import { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
@@ -97,6 +98,14 @@ export function rebuildFromSaved(walk: SavedWalk): { input: WalkCompanionInput; 
   }));
   const routeRules = typeof p.routeRules === "object" && p.routeRules !== null ? (p.routeRules as Record<string, unknown>) : {};
   return { input, attractions, routeRules };
+}
+
+/** Where a saved walk goes, in order: start, each stop, and back to the start for a loop. Used to preview it on the map. */
+export function previewPathOf(walk: SavedWalk): Coordinates[] {
+  const ok = (c: Coordinates) => Number.isFinite(c.lat) && Number.isFinite(c.lng);
+  const path = [walk.start, ...walk.stops.map((s) => ({ lat: s.lat, lng: s.lng }))].filter(ok);
+  const loop = (walk.params as { maxEndDistanceFromOriginMeters?: unknown } | null)?.maxEndDistanceFromOriginMeters === 0;
+  return loop && ok(walk.start) && path.length > 1 ? [...path, walk.start] : path;
 }
 
 /** Signed-in browser session -> run `fn`; any failure or signed-out is swallowed (null). */

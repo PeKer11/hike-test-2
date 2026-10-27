@@ -132,3 +132,42 @@ describe("runAssistantTurn", () => {
     expect(result.reply).toBe("בונה!");
   });
 });
+
+describe("turn deadline", () => {
+  it("a model call that runs out the turn's time ends in the wrap-up, with the state kept", async () => {
+    const controller = new AbortController();
+    vi.spyOn(AbortSignal, "timeout").mockImplementationOnce(() => controller.signal);
+    const state = { ...EMPTY_STATE, params: { timeMinutes: 120 } };
+    const call = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        controller.abort();
+        throw new DOMException("timeout", "TimeoutError");
+      })
+      .mockResolvedValueOnce({ content: "זה מה שמצאתי עד כה", toolCalls: [], inTok: 1, outTok: 1 });
+    const result = await runAssistantTurn(
+      { summary: null, history: [{ role: "user", content: "תבנה" }], state, choice: { provider: "openai", model: "gpt-6.1-sol" } },
+      { call },
+    );
+    expect(result.reply).toBe("זה מה שמצאתי עד כה");
+    expect(result.state.params.timeMinutes).toBe(120);
+  });
+
+  it("a model error that is not the deadline still throws", async () => {
+    const call = vi.fn().mockRejectedValue(new Error("boom"));
+    await expect(
+      runAssistantTurn({ summary: null, history: [{ role: "user", content: "x" }], state: EMPTY_STATE, choice: { provider: "openai", model: "gpt-6.1-sol" } }, { call }),
+    ).rejects.toThrow("boom");
+  });
+});
+
+describe("routing budget deadline", () => {
+  it("stops taking routing calls once the turn's time is up", async () => {
+    const { makeBudget, BudgetExceeded } = await import("@/lib/walk/routing-budget");
+    const c = new AbortController();
+    const b = makeBudget(5, c.signal);
+    b.take();
+    c.abort();
+    expect(() => b.take()).toThrow(BudgetExceeded);
+  });
+});

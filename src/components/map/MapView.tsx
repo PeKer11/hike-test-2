@@ -52,6 +52,8 @@ export interface MapViewProps {
   /** "Add to walk" on a Recommended-layer place; the layer shows no button without it. */
   onAddToWalk?: (place: Attraction) => void;
   addedIds?: string[];
+  /** Fit the view around this path once (a saved walk shown from the list). */
+  fitPath?: Coordinates[];
 }
 
 function MapViewport({ center, zoom, focusTick = 0 }: { center: Coordinates; zoom: number; focusTick?: number }) {

@@ -13,12 +13,12 @@ export interface RoutingBudget {
   take(): void;
 }
 
-/** ORS free tier allows ~40 directions calls a minute: one tool call may use at most `max`. */
-export function makeBudget(max: number): RoutingBudget {
+/** ORS free tier allows ~40 directions calls a minute: one tool call may use at most `max`. A fired `deadline` (the turn's time) ends the budget too. */
+export function makeBudget(max: number, deadline?: AbortSignal): RoutingBudget {
   const budget: RoutingBudget = {
     used: 0,
     take() {
-      if (budget.used >= max) throw new BudgetExceeded();
+      if (budget.used >= max || deadline?.aborted) throw new BudgetExceeded();
       budget.used += 1;
     },
   };
