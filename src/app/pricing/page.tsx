@@ -83,7 +83,7 @@ export default function PricingPage() {
                   {tier.name}
                 </h2>
                 <p className="mt-2 text-center">
-                  <span className="font-display text-6xl font-light">{tier.price}</span>
+                  <span className="font-sans text-6xl font-extralight">{tier.price}</span>
                   <span className={`ml-2 text-sm ${tier.highlighted ? "text-cream/60" : "text-charcoal/50"}`}>
                     {tier.priceNote}
                   </span>
@@ -94,7 +94,7 @@ export default function PricingPage() {
                       <span className={tier.highlighted ? "text-skysoft" : "text-terra"}>
                         <QuotaIcon index={i} />
                       </span>
-                      <span className="font-display text-3xl font-light">{count}</span>
+                      <span className="font-sans text-3xl font-extralight">{count}</span>
                       <span className={`text-sm ${tier.highlighted ? "text-cream/80" : "text-charcoal/70"}`}>{label}</span>
                     </li>
                   ))}

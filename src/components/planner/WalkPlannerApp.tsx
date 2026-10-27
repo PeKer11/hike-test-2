@@ -3136,13 +3136,13 @@ export function WalkPlannerApp({
           </svg>
           <Link
             href="/"
-            className="relative block w-fit ms-[31px] font-display text-[24.7px] font-bold leading-none tracking-[0.01em] text-tk-wordmark @4xl:ms-[24px] @4xl:text-[21px] @6xl:ms-[31px] @6xl:text-[24.7px]"
+            className="relative block w-fit ms-[31px] font-display text-[24.7px] font-bold leading-[1.1] tracking-[0.01em] text-tk-wordmark @4xl:ms-[24px] @4xl:text-[21px] @6xl:ms-[31px] @6xl:text-[24.7px]"
           >
             Traike
           </Link>
             </>
           )}
-          <h1 className="relative mt-[16px] font-display text-[28.6px] font-[650] leading-none tracking-[-0.02em] text-tk-ink @4xl:mt-[12px] @4xl:text-[24px] @6xl:mt-[16px] @6xl:text-[28.6px]">
+          <h1 className="relative mt-[16px] font-display text-[28.6px] font-[650] leading-[1.1] tracking-[-0.02em] text-tk-ink @4xl:mt-[12px] @4xl:text-[24px] @6xl:mt-[16px] @6xl:text-[28.6px]">
             {isAdvancedOpen ? "Advanced planning" : "Your walk, right now"}
           </h1>
           <p className="relative mt-[6px] max-w-[285px] text-[15.9px] leading-[22.2px] text-tk-lede @4xl:mt-[5px] @4xl:max-w-[250px] @4xl:text-[14px] @4xl:leading-[19.5px] @6xl:mt-[6px] @6xl:max-w-[285px] @6xl:text-[15.9px] @6xl:leading-[22.2px]">

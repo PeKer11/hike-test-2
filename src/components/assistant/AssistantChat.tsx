@@ -454,7 +454,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
   return (
     <div className="@container relative overflow-hidden rounded-tk-card bg-tk-card font-brand shadow-tk-card">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pl-[20px] pr-[14px] pt-[13px] @max-[340px]:pl-[14px] @max-[340px]:pr-[10px]">
-        <span className="whitespace-nowrap font-display text-[22.2px] font-[650] leading-none tracking-[-0.01em] text-tk-ink @max-[340px]:text-[19px]">
+        <span className="whitespace-nowrap font-display text-[22.2px] font-[650] leading-[1.1] tracking-[-0.01em] text-tk-ink @max-[340px]:text-[19px]">
           Plan with Traike
         </span>
         <div className="flex grow items-center gap-[12px] whitespace-nowrap text-[12.5px] leading-none text-[#2f3340] @max-[340px]:gap-[9px] @max-[340px]:text-[11.5px]">
@@ -530,7 +530,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                 <svg aria-hidden viewBox="0 0 54 41" className="absolute -left-[13px] bottom-0 h-[18px] w-[24px]">
                   <path d="M29 3C29 15 22 22 10 27 24 31 38 37 54 41H29Z" fill="#fffcf7" />
                 </svg>
-                <p className="relative rounded-[13px] bg-tk-bubble pb-[11px] pl-[16px] pr-[8px] pt-[10px] text-[12.7px] leading-[17.5px] text-tk-body">
+                <p className="relative rounded-[13px] bg-tk-bubble pb-[11px] pl-[16px] pr-[8px] pt-[10px] text-[14px] leading-[1.55] text-tk-body">
                   Tell me where you are and what you feel like — places, food, nature. I will find them and plan the
                   walk with you.
                 </p>
@@ -555,7 +555,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                   window.setTimeout(() => setCopiedAt((cur) => (cur === i ? null : cur)), 1200);
                 });
               }}
-              className={`relative cursor-pointer whitespace-pre-wrap px-[14px] py-[9px] text-[13px] leading-[1.4] ${
+              className={`relative cursor-pointer whitespace-pre-wrap px-[14px] py-[9px] text-[15px] leading-[1.55] ${
                 m.role === "user"
                   ? "ms-8 rounded-[13px] rounded-br-[4px] bg-tk-ink text-tk-card"
                   : "me-8 rounded-[13px] rounded-bl-[4px] bg-tk-bubble text-tk-body shadow-[0_2px_6px_rgba(110,80,50,0.12)]"
@@ -625,7 +625,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             }}
             rows={2}
             placeholder="I want to see Habima Square, the Jaffa port, and a good market"
-            className="block w-full resize-y rounded-[6px] border border-tk-field bg-white px-[13px] py-[5px] text-[13.3px] leading-[19.5px] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
+            className="block w-full resize-y rounded-[6px] border border-tk-field bg-white px-[13px] py-[5px] text-[16px] leading-[1.5] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
           />
           <div className="flex flex-wrap items-center gap-[7px]">
             <input

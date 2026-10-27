@@ -1,20 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter, Urbanist } from "next/font/google";
+import { Heebo, Secular_One } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
+const heebo = Heebo({
+  subsets: ["hebrew", "latin"],
+  variable: "--font-heebo",
+  display: "swap",
 });
 
-const urbanist = Urbanist({
-  subsets: ["latin"],
-  variable: "--font-urbanist",
-});
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
+const secular = Secular_One({
+  weight: "400",
+  subsets: ["hebrew", "latin"],
+  variable: "--font-secular",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -40,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${urbanist.variable} ${fraunces.variable} antialiased`}
+        className={`${heebo.variable} ${secular.variable} antialiased`}
       >
         {children}
       </body>

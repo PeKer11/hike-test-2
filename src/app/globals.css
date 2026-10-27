@@ -9,11 +9,11 @@
 @theme inline {
   --color-background: var(--color-bg);
   --color-foreground: var(--color-text);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-heebo), system-ui, sans-serif;
 
   /* Traike marketing tokens (DESIGN.md) — used by / and /pricing only */
-  --font-brand: var(--font-urbanist);
-  --font-display: var(--font-fraunces);
+  --font-brand: var(--font-heebo);
+  --font-display: var(--font-secular), var(--font-heebo), sans-serif;
   --color-terra: #c15f3c;
   --color-forest: #1e3d2f;
   --color-skysoft: #8fb8c9;
@@ -39,7 +39,11 @@
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-inter), sans-serif;
+  font-family: var(--font-heebo), sans-serif;
+}
+
+.font-display {
+  font-synthesis-weight: none;
 }
 
 .leaflet-container {
