@@ -15,6 +15,7 @@ import {
   geminiRateLimiter,
   rateLimitedResponse,
 } from "@/lib/api/rate-limit";
+import { hasLearningConsent } from "@/lib/preferences/consent";
 import { rankAttractions } from "@/lib/attractions/attraction-ranker";
 import { fetchAttractions } from "@/lib/attractions/overpass-client";
 import { countStatedConstraints, maybeReorderWithT3 } from "@/lib/llm/plan-escalation";
@@ -428,7 +429,8 @@ async function learningSession(
       data: { user },
     } = await supabase.auth.getUser();
 
-    return user ? { supabase, userId: user.id } : null;
+    // Learning needs the walker's consent on the server too, not only the flag the request carries.
+    return user && (await hasLearningConsent(supabase, user.id)) ? { supabase, userId: user.id } : null;
   } catch {
     return null;
   }

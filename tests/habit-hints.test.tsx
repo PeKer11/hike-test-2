@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// The server checks the walker's stored learning consent; these tests are about what happens once it is granted.
+vi.mock("@/lib/preferences/consent", () => ({ hasLearningConsent: vi.fn(async () => true) }));
+
 import { HabitHintChip } from "@/components/planner/HabitHintChip";
 import { buildHabitHints, planTimeHabitHints } from "@/lib/preferences/habit-hints";
 import { applyAnswer, applyWalk, type HabitState, type WalkObservation } from "@/lib/preferences/habit-model";

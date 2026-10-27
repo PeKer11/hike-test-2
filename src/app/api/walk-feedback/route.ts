@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { callerKey, learningRateLimiter, rateLimitedResponse } from "@/lib/api/rate-limit";
+import { hasLearningConsent } from "@/lib/preferences/consent";
 import { learnFactsFromText } from "@/lib/preferences/fact-store";
 import { ATTRACTION_CATEGORIES } from "@/lib/preferences/preference-extractor";
 import type { AttractionCategory } from "@/lib/types";
@@ -140,7 +141,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (!user || !(await hasLearningConsent(supabase, user.id))) {
       return NextResponse.json({ saved: false });
     }
 

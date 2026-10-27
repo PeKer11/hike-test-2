@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// The server checks the walker's stored learning consent; these tests are about what happens once it is granted.
+vi.mock("@/lib/preferences/consent", () => ({ hasLearningConsent: vi.fn(async () => true) }));
+
 const mockGetUser = vi.fn();
 const mockSaveAttractionFeedback = vi.fn();
 const mockSaveWalkFeedback = vi.fn();
@@ -31,6 +34,7 @@ vi.mock("@/lib/preferences/preference-store", async () => {
 });
 
 import { POST } from "@/app/api/walk-feedback/route";
+import { hasLearningConsent } from "@/lib/preferences/consent";
 
 function postRequest(body: unknown): Request {
   return new Request("http://localhost/api/walk-feedback", {
@@ -68,6 +72,13 @@ describe("POST /api/walk-feedback", () => {
     );
     mockLearnPreferencesFromText.mockReset();
     mockLearnPreferencesFromText.mockResolvedValue(null);
+  });
+
+  it("saves nothing when the server-side consent is not granted, even if the request says learn", async () => {
+    vi.mocked(hasLearningConsent).mockResolvedValueOnce(false);
+    const response = await POST(postRequest({ ratings: [rating()], learnPreferences: true }));
+    expect(await response.json()).toEqual({ saved: false });
+    expect(mockSaveAttractionFeedback).not.toHaveBeenCalled();
   });
 
   it("writes a POI-level row carrying the real place, id and coordinates", async () => {

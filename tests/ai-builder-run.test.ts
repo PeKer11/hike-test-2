@@ -30,6 +30,31 @@ describe("runAiBuild", () => {
     expect(call).toHaveBeenCalledTimes(2);
   });
 
+  it("never runs a tool the builder was not offered (set_start, remember, set_walk_params)", async () => {
+    const { runTool } = await import("@/lib/assistant/tools");
+    vi.mocked(runTool).mockClear();
+    const hijacked = {
+      content: null,
+      inTok: 1,
+      outTok: 1,
+      toolCalls: ["set_start", "set_walk_params", "remember"].map((name, i) => ({ id: `h${i}`, type: "function", function: { name, arguments: "{}" } })),
+    };
+    const call = vi.fn().mockResolvedValueOnce(hijacked).mockResolvedValueOnce(toolCall(["k1", "k2"]));
+    const out = await runAiBuild(req, choice, undefined, call as never);
+    expect(out.stops).toHaveLength(2);
+    expect(vi.mocked(runTool).mock.calls.map((c) => c[0])).toEqual(["build_walk"]);
+    const replies = call.mock.calls[1][0].messages.filter((m: { role: string }) => m.role === "tool");
+    expect(replies.slice(0, 3).map((m: { content: string }) => m.content)).toEqual(Array(3).fill(JSON.stringify({ error: "tool not available" })));
+  });
+
+  it("stops at its cost ceiling, reporting what it already spent", async () => {
+    const call = vi.fn().mockResolvedValue({ content: "hmm", inTok: 40_000, outTok: 0, toolCalls: [] });
+    const err = await runAiBuild(req, { provider: "openai", model: "gpt-6.1-sol" } as never, undefined, call as never, undefined, 100_000).catch((e) => e);
+    expect(err.name).toBe("BilledFailureError");
+    expect(err.billedMicros).toBeGreaterThan(0);
+    expect(call.mock.calls.length).toBeLessThanOrEqual(3);
+  });
+
   it("fails when the model never builds", async () => {
     const call = vi.fn().mockResolvedValue({ content: "hmm", inTok: 1, outTok: 1, toolCalls: [] });
     await expect(runAiBuild(req, choice, undefined, call as never)).rejects.toThrow();

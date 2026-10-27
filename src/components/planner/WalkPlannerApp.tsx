@@ -1,5 +1,6 @@
 "use client";
 
+import { useConsentSync } from "@/lib/hooks/useConsentSync";
 import { setActiveAccess, accessBody } from "@/lib/walk/active-access";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -335,6 +336,7 @@ export function WalkPlannerApp({
     loaded: walkSettingsLoaded,
   } = useWalkSettings();
   const isSignedIn = useIsSignedIn();
+  useConsentSync(isSignedIn && walkSettingsLoaded, walkSettings.learningConsent, walkSettings.preferenceLearningEnabled);
   // Set when a walk ends: the stops that walk was made of, each of which the
   // walker can rate on its own. Null means "don't ask".
   const [feedbackAttractions, setFeedbackAttractions] = useState<

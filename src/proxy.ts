@@ -2,8 +2,18 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { updateSession } from "@/lib/supabase/session";
 
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
 // Next 16 renamed the `middleware` file convention to `proxy`.
 export default async function proxy(request: NextRequest) {
+  // A state-changing API call must come from this site: SameSite=Lax alone does not cover every cross-site case.
+  if (request.nextUrl.pathname.startsWith("/api/") && UNSAFE_METHODS.has(request.method)) {
+    const origin = request.headers.get("origin");
+    if (request.headers.get("sec-fetch-site") === "cross-site" || (origin !== null && origin !== request.nextUrl.origin)) {
+      return NextResponse.json({ error: "Cross-site request refused." }, { status: 403 });
+    }
+  }
+
   // Supabase is optional until auth ships — without the env vars configured
   // the app must keep working exactly as it does today.
   if (

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { hasLearningConsent } from "@/lib/preferences/consent";
 import {
   appendExchange,
   clearExchanges,
@@ -73,7 +74,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     typeof body.responseSummary === "string" ? body.responseSummary : "";
 
   const session = await signedInUser();
-  if (!session) {
+  if (!session || !(await hasLearningConsent(session.supabase, session.userId))) {
     return new NextResponse(null, { status: 204 });
   }
 

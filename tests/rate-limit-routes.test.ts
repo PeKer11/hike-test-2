@@ -117,3 +117,20 @@ describe("rate limiting on the ORS routes", () => {
     expect(junk.status).toBe(429);
   });
 });
+
+describe("rate limits added with the AI hardening", () => {
+  it("limits /api/walk-plan per address before any upstream is called", async () => {
+    const { POST: walkPlan } = await import("@/app/api/walk-plan/route");
+    const { walkPlanRateLimiter } = await import("@/lib/api/rate-limit");
+    walkPlanRateLimiter.reset();
+    let last = 0;
+    for (let i = 0; i < 21; i += 1) {
+      last = (
+        await walkPlan(
+          new Request("http://localhost/api/walk-plan", { method: "POST", headers: { "x-forwarded-for": "203.0.113.50" }, body: "{}" }),
+        )
+      ).status;
+    }
+    expect(last).toBe(429);
+  });
+});

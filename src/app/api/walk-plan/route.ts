@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { hasLearningConsent } from "@/lib/preferences/consent";
 import { callerKey, rateLimitedResponse, walkPlanRateLimiter } from "@/lib/api/rate-limit";
 import { redactForLog } from "@/lib/utils/redact";
 import { clampPace, DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
@@ -801,10 +802,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       if (userId) {
         try {
           const supabase = await createClient();
+          const learnOk = body.learnPreferences === true && (await hasLearningConsent(supabase, userId));
           // Counting sessions is a learning write: consent only.
-          if (body.learnPreferences === true) await recordWalkSession(supabase);
+          if (learnOk) await recordWalkSession(supabase);
           // Companion memory rides along on the same session, with consent only.
-          if (body.learnPreferences === true) {
+          if (learnOk) {
             companionMemory = await loadMemoryWire(supabase, userId, true);
           }
         } catch {

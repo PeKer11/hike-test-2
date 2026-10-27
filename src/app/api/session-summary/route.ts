@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { callerKey, learningRateLimiter, rateLimitedResponse } from "@/lib/api/rate-limit";
+import { hasLearningConsent } from "@/lib/preferences/consent";
 import { runLlm } from "@/lib/llm/llm-client";
 import { cleanOsmPoiKeys, whitelistWalkEnd } from "@/lib/llm/walk-end-whitelist";
 import { PLANNER_PROMPT_ID } from "@/lib/llm/prompts/planner-v1";
@@ -46,7 +47,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ saved: false });
+  if (!user || !(await hasLearningConsent(supabase, user.id))) return NextResponse.json({ saved: false });
 
   // Only the app's own OSM place ids may reach the model: `name@lat,lng` keys carry a name and coordinates.
   const poiKeys = cleanOsmPoiKeys(body.poiKeys);

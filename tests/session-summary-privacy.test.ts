@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// The server checks the walker's stored learning consent; these tests are about what happens once it is granted.
+vi.mock("@/lib/preferences/consent", () => ({ hasLearningConsent: vi.fn(async () => true) }));
+
 const runLlm = vi.fn();
 vi.mock("@/lib/llm/llm-client", () => ({ runLlm: (...a: unknown[]) => runLlm(...a) }));
 vi.mock("@/lib/api/rate-limit", () => ({ callerKey: () => "ip", learningRateLimiter: { check: () => ({ allowed: true, retryAfterSeconds: 0 }) }, rateLimitedResponse: () => { throw new Error("unexpected 429"); } }));

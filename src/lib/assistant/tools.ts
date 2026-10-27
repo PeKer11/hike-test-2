@@ -797,16 +797,16 @@ export async function runTool(
       if (typeof args.no_repeat === "boolean") state.params.noRepeat = args.no_repeat;
       if (typeof args.avoid_dangerous === "boolean") state.params.avoidDangerous = args.avoid_dangerous;
       if (Array.isArray(args.via_streets)) {
-        const via = args.via_streets.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim().slice(0, 60));
+        const via = args.via_streets.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => cleanUntrustedText(x, 60)).filter(Boolean);
         state.params.viaStreets = [...new Set([...(state.params.viaStreets ?? []), ...via])].slice(0, 4);
       }
       if (isAccess(args.access)) state.params.access = args.access;
       else if (args.access === "none") delete state.params.access;
       const grade = num(args.max_grade_pct);
       if (grade && grade <= 30) state.params.maxGradePct = grade;
-      if (typeof args.stay_in_area === "string" && args.stay_in_area.trim()) state.params.stayInArea = args.stay_in_area.trim().slice(0, 80);
+      if (typeof args.stay_in_area === "string" && args.stay_in_area.trim()) state.params.stayInArea = cleanUntrustedText(args.stay_in_area, 80);
       if (Array.isArray(args.avoid_streets)) {
-        const streets = args.avoid_streets.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => x.trim().slice(0, 60));
+        const streets = args.avoid_streets.filter((x): x is string => typeof x === "string" && x.trim().length > 0).map((x) => cleanUntrustedText(x, 60)).filter(Boolean);
         state.params.avoidStreets = [...new Set([...(state.params.avoidStreets ?? []), ...streets])].slice(0, 10);
       }
       const cleared: string[] = [];

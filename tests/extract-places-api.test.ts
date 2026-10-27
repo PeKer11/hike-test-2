@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// The server checks the walker's stored learning consent; these tests are about what happens once it is granted.
+vi.mock("@/lib/preferences/consent", () => ({ hasLearningConsent: vi.fn(async () => true) }));
+
 const mockExtractPlaceNames = vi.fn();
 const mockResolveCanonicalName = vi.fn();
 const mockSearchPlaces = vi.fn();

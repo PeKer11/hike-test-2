@@ -27,6 +27,7 @@ function loadGoogle(): Promise<any> {
 }
 
 const MATCH_RADIUS_M = 100;
+const PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 
 /**
  * Google's own Place Details card for a place found by name near a point: stars and review count first,
@@ -64,13 +65,20 @@ export function GooglePlaceCard({ name, lat, lng, placeId: knownId, startWithRev
     };
   }, [name, lat, lng, knownId]);
 
+  // A place id comes from Google, but it ends up in the DOM, so only the characters a real id has are let through.
+  const safeId = placeId && PLACE_ID.test(placeId) ? placeId : null;
+
   useEffect(() => {
-    if (!placeId || !host.current) return;
-    const request = `<gmp-place-details-place-request place="${placeId}"></gmp-place-details-place-request>`;
-    host.current.innerHTML = showReviews
-      ? `<gmp-place-details style="width:100%">${request}<gmp-place-rating></gmp-place-rating><gmp-place-reviews></gmp-place-reviews></gmp-place-details>`
-      : `<gmp-place-details-compact style="width:100%">${request}<gmp-place-rating></gmp-place-rating><gmp-place-type></gmp-place-type><gmp-place-attribution></gmp-place-attribution></gmp-place-details-compact>`;
-  }, [placeId, showReviews]);
+    const el = host.current;
+    if (!safeId || !el) return;
+    const card = document.createElement(showReviews ? "gmp-place-details" : "gmp-place-details-compact");
+    card.setAttribute("style", "width:100%");
+    const request = document.createElement("gmp-place-details-place-request");
+    request.setAttribute("place", safeId);
+    const parts = showReviews ? ["gmp-place-rating", "gmp-place-reviews"] : ["gmp-place-rating", "gmp-place-type", "gmp-place-attribution"];
+    card.append(request, ...parts.map((t) => document.createElement(t)));
+    el.replaceChildren(card);
+  }, [safeId, showReviews]);
 
   if (!KEY) return null;
   return (
@@ -83,7 +91,7 @@ export function GooglePlaceCard({ name, lat, lng, placeId: knownId, startWithRev
     >
       {state === "loading" ? <p className="text-xs text-slate-600">Loading Google rating…</p> : null}
       {state === "none" ? <p className="text-xs text-slate-600">No Google match for this place.</p> : null}
-      {state === "error" ? <p className="text-xs text-slate-600">Could not load Google reviews.</p> : null}
+      {state === "error" || (placeId && !safeId) ? <p className="text-xs text-slate-600">Could not load Google reviews.</p> : null}
       {state === "ready" && matchedName ? <p className="text-xs text-slate-600">Google: {matchedName}</p> : null}
       {state === "ready" ? (
         <button type="button" className="mb-1 text-xs underline" onClick={() => setShowReviews((v) => !v)}>

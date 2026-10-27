@@ -1,3 +1,4 @@
+import { cleanUntrustedText } from "@/lib/llm/sanitize";
 import { isAccess } from "@/lib/walk/access";
 
 import { expireCandidates, type AssistantState, type Candidate } from "./state";
@@ -16,7 +17,7 @@ const MAX_STORED_STREETS = 10;
 const MAX_STORED_AREA = 80;
 
 // The walker can edit the stored state directly (their own row), so it is trimmed to the same limits the tools use.
-const cleanText = (v: unknown, max: number): string => (typeof v === "string" ? v.replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, max) : "");
+const cleanText = (v: unknown, max: number): string => (typeof v === "string" ? cleanUntrustedText(v, max) : "");
 
 const NUMERIC_PARAMS = ["timeMinutes", "radiusKm", "endDistanceKm", "maxWalkKm", "paceMinPerKm"] as const;
 
