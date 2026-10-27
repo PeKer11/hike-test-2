@@ -113,10 +113,14 @@ export function createSupabaseUsageStore(): UsageStore | null {
 }
 
 export interface BudgetGuard {
-  /** Reserves one call; throws LlmBudgetExceededError past either cap. */
-  reserve(ctx: LlmCallContext): Promise<void>;
-  /** Adds the real cost after the call. Never throws. */
-  settle(ctx: LlmCallContext, costMicros: number): Promise<void>;
+  /**
+   * Reserves one call; throws LlmBudgetExceededError past either cap. `reserveMicros` holds the turn's
+   * worst-case cost up front (refunded on a refusal, replaced by the real cost in settle), so turns that
+   * run at the same time see each other.
+   */
+  reserve(ctx: LlmCallContext, reserveMicros?: number): Promise<void>;
+  /** Adds the real cost after the call (less any reserved hold). Never throws. */
+  settle(ctx: LlmCallContext, costMicros: number, reservedMicros?: number): Promise<void>;
 }
 
 /**
@@ -143,7 +147,7 @@ export function createBudgetGuard(
   let warnedNoStore = false;
 
   return {
-    async reserve(ctx) {
+    async reserve(ctx, reserveMicros = 0) {
       if (!store) {
         if (!warnedNoStore) {
           warnedNoStore = true;
@@ -154,30 +158,52 @@ export function createBudgetGuard(
         if (failClosed) throw new LlmBudgetExceededError("global");
         return;
       }
+      const hold = Math.max(0, Math.round(reserveMicros));
+      const key = callerKeyFor(ctx);
+      const day = utcDay(now());
       let totals: UsageTotals;
       try {
-        totals = await store.bump(callerKeyFor(ctx), utcDay(now()), 1, 0);
+        totals = await store.bump(key, day, 1, hold);
       } catch (error) {
         console.warn(`LLM budget store unavailable; ${failClosed ? "refusing" : "allowing"} the call.`, error);
         if (failClosed) throw new LlmBudgetExceededError("global");
         return;
       }
+      const refund = async () => {
+        if (hold > 0) await store.bump(key, day, 0, -hold).catch(() => undefined);
+      };
+      // What was spent or held before this turn's own hold.
+      const priorCaller = totals.callerCostMicros - hold;
+      const priorGlobal = totals.globalCostMicros - hold;
       // The owner's own account (LLM_OWNER_USER_IDS, comma-separated) is exempt
       // from the per-user caps; the global daily budget below still applies.
       if (isOwner(ctx)) {
-        if (totals.globalCostMicros >= budgetMicros) throw new LlmBudgetExceededError("global");
+        if (priorGlobal >= budgetMicros) {
+          await refund();
+          throw new LlmBudgetExceededError("global");
+        }
         return;
       }
-      if (totals.callerCalls > capFor(ctx)) throw new LlmBudgetExceededError("user");
+      if (totals.callerCalls > capFor(ctx)) {
+        await refund();
+        throw new LlmBudgetExceededError("user");
+      }
       // Settled cost lags the call, so a burst of in-flight calls can overshoot
       // this by their own cost; the call cap above bounds how many there are.
-      if (totals.callerCostMicros >= costCapMicrosFor(ctx)) throw new LlmBudgetExceededError("user");
-      if (totals.globalCostMicros >= budgetMicros) throw new LlmBudgetExceededError("global");
+      if (priorCaller >= costCapMicrosFor(ctx)) {
+        await refund();
+        throw new LlmBudgetExceededError("user");
+      }
+      if (priorGlobal >= budgetMicros) {
+        await refund();
+        throw new LlmBudgetExceededError("global");
+      }
     },
-    async settle(ctx, costMicros) {
-      if (!store || costMicros <= 0) return;
+    async settle(ctx, costMicros, reservedMicros = 0) {
+      const delta = Math.round(costMicros) - Math.max(0, Math.round(reservedMicros));
+      if (!store || delta === 0) return;
       try {
-        await store.bump(callerKeyFor(ctx), utcDay(now()), 0, costMicros);
+        await store.bump(callerKeyFor(ctx), utcDay(now()), 0, delta);
       } catch (error) {
         console.warn("LLM budget settle failed.", error);
       }

@@ -306,3 +306,31 @@ export const assistantRateLimiter = createRateLimiter([
   { limit: 10, windowMs: MINUTE_MS },
   { limit: 150, windowMs: DAY_MS },
 ]);
+
+/**
+ * Per signed-in walker, on top of the per-address limits above: many addresses (or a phone that changes
+ * network) must not multiply one account's allowance. Keyed `user:<id>`.
+ */
+export const assistantUserRateLimiter = createRateLimiter([
+  { limit: 8, windowMs: MINUTE_MS },
+  { limit: 120, windowMs: DAY_MS },
+]);
+export const walkAssistantUserRateLimiter = createRateLimiter([
+  { limit: 6, windowMs: MINUTE_MS },
+  { limit: 60, windowMs: DAY_MS },
+]);
+export const aiBuildUserRateLimiter = createRateLimiter([
+  { limit: 4, windowMs: MINUTE_MS },
+  { limit: 60, windowMs: DAY_MS },
+]);
+/** `/api/places/resolve` makes up to 10 Google calls per request. */
+export const placesResolveRateLimiter = createRateLimiter([
+  { limit: 10, windowMs: MINUTE_MS },
+  { limit: 100, windowMs: DAY_MS },
+]);
+/** `/api/walk-plan` is anonymous and spends ORS and Overpass. */
+export const walkPlanRateLimiter = createRateLimiter([
+  { limit: 20, windowMs: MINUTE_MS },
+  { limit: 300, windowMs: DAY_MS },
+]);
+export const notableRateLimiter = createRateLimiter([{ limit: 30, windowMs: MINUTE_MS }]);

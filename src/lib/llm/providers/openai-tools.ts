@@ -1,3 +1,4 @@
+import { IMAGE_DATA_NOTE } from "../sanitize";
 import { postJson, requireEnv } from "./http";
 
 const OPENAI_BASE = "https://api.openai.com/v1";
@@ -62,6 +63,7 @@ function toInput(messages: ChatMessage[]): InputItem[] {
         role: m.role,
         content: [
           { type: "input_text", text: m.content },
+          { type: "input_text", text: IMAGE_DATA_NOTE },
           ...m.images.map((url) => ({ type: "input_image", image_url: url })),
         ],
       });

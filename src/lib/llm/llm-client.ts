@@ -16,6 +16,7 @@ import { callOpenAi, callOpenAiCompatible } from "./providers/openai";
 import { MissingKeyError } from "./providers/http";
 import { withRetry, statusOf } from "./retry";
 import { UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "./sanitize";
+import { defaultTurnLock, TurnBusyError, type TurnLock } from "./turn-lock";
 import {
   LlmTimeoutError,
   UNMETERED,
@@ -213,28 +214,51 @@ export async function runLlm<T>(
   return { ...result, usedFallback };
 }
 
+export interface TurnGuard {
+  /** Worst-case cost held up front and replaced by the real cost when the turn ends. */
+  reserveMicros?: number;
+  /** One turn at a time per key (for example `assistant:<user id>`). */
+  lockKey?: string;
+  lockTtlMs?: number;
+}
+
 /**
  * Meters a multi-call conversation turn (a tool-calling loop) as ONE reserved
  * call, then settles the real cost of everything it billed. `fn` returns the
  * micro-dollars it spent so the per-caller and global dollar caps still hold.
+ * A turn that fails after billed calls (cancelled, refused, model error) throws
+ * an error carrying `billedMicros`, and that cost is settled too.
  */
 export async function runMeteredTurn<T>(
   ctx: LlmCallContext,
   tier: LlmTier,
   fn: (choice: ProviderChoice, effort: ReturnType<typeof resolveReasoningEffort>) => Promise<{ value: T; billedMicros: number }>,
-  deps: LlmDeps = {},
+  deps: LlmDeps & { lock?: TurnLock } = {},
+  guard: TurnGuard = {},
 ): Promise<T> {
   const env = deps.env ?? process.env;
   const config = resolveLlmConfig(tier, env, "plan");
   const budget = deps.budget ?? defaultBudget(config.dailyBudgetUsd);
-  await budget.reserve(ctx);
-  let billed = 0;
+  const hold = Math.max(0, Math.round(guard.reserveMicros ?? 0));
+  const lock = guard.lockKey ? (deps.lock ?? defaultTurnLock()) : null;
+  const token = lock && guard.lockKey ? await lock.acquire(guard.lockKey, guard.lockTtlMs ?? 150_000) : null;
+  if (lock && !token) throw new TurnBusyError();
   try {
-    const choice = deps.choice ?? config.primary;
-    const { value, billedMicros } = await fn(choice, resolveReasoningEffort(tier, choice.model, env));
-    billed = billedMicros;
-    return value;
+    await budget.reserve(ctx, hold);
+    let billed = 0;
+    try {
+      const choice = deps.choice ?? config.primary;
+      const { value, billedMicros } = await fn(choice, resolveReasoningEffort(tier, choice.model, env));
+      billed = billedMicros;
+      return value;
+    } catch (error) {
+      const spent = (error as { billedMicros?: unknown } | null)?.billedMicros;
+      if (typeof spent === "number" && Number.isFinite(spent) && spent > 0) billed = spent;
+      throw error;
+    } finally {
+      await budget.settle(ctx, billed, hold);
+    }
   } finally {
-    await budget.settle(ctx, billed);
+    if (lock && token && guard.lockKey) await lock.release(guard.lockKey, token).catch(() => undefined);
   }
 }

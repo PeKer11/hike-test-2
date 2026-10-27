@@ -157,7 +157,7 @@ describe("turn deadline", () => {
     const call = vi.fn().mockRejectedValue(new Error("boom"));
     await expect(
       runAssistantTurn({ summary: null, history: [{ role: "user", content: "x" }], state: EMPTY_STATE, choice: { provider: "openai", model: "gpt-6.1-sol" } }, { call }),
-    ).rejects.toThrow("boom");
+    ).rejects.toMatchObject({ name: "BilledFailureError", billedMicros: 0, cause: expect.objectContaining({ message: "boom" }) });
   });
 });
 
@@ -192,7 +192,7 @@ describe("untrusted text and cancel", () => {
     expect(context.role).toBe("user");
     expect(context.content).toMatch(/<data source="places">/);
     // The planted closing tag cannot end the fence early.
-    expect(context.content.match(/<\/data>/g)).toHaveLength(3);
+    expect(context.content.match(/<\/data>/g)).toHaveLength(4);
   });
 
   it("a cancelled turn stops, reports what was spent, and makes no wrap-up call", async () => {

@@ -1,11 +1,15 @@
+import type { PlacesGate } from "@/lib/api/places-quota";
 import type { ProviderChoice } from "@/lib/llm/config";
-import { estimateCostMicros } from "@/lib/llm/pricing";
+import { ceilingMicros, estimateCallMicros, estimateCostMicros } from "@/lib/llm/pricing";
 import {
   callOpenAiTools,
   type ChatMessage,
+  type ToolDef,
 } from "@/lib/llm/providers/openai-tools";
 
-import { UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "@/lib/llm/sanitize";
+import { coarseCoords, UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "@/lib/llm/sanitize";
+import { BilledFailureError } from "@/lib/llm/types";
+import { isHebrew, relaxations, warningLine } from "./safety-diff";
 import { ASSISTANT_SYSTEM } from "./prompt";
 import type { AssistantState, BuildAction } from "./state";
 import { makeBudget } from "@/lib/walk/routing-budget";
@@ -68,6 +72,10 @@ export async function runAssistantTurn(
     cancel?: AbortSignal;
     /** Loads the signed-in walker's saved walks for the recall_walks tool. */
     loadWalks?: LoadWalks;
+    /** Most one turn may spend, in micro-dollars (default ASSISTANT_TURN_CEILING_USD, $0.25). */
+    costCeilingMicros?: number;
+    /** Per-walker Google Places budget for this turn. */
+    places?: PlacesGate;
   },
   deps: TurnDeps = {},
 ): Promise<TurnResult> {
@@ -79,16 +87,30 @@ export async function runAssistantTurn(
   let choices: string[] | undefined;
   const remembered: string[] = [];
   let billedMicros = 0;
+  const before = input.state;
+  const last = input.history[input.history.length - 1];
+  const hebrew = isHebrew(last?.content ?? "");
+  const imageTurn = (last?.images?.length ?? 0) > 0;
+  const ceiling = input.costCeilingMicros ?? ceilingMicros("ASSISTANT_TURN_CEILING_USD", 0.25);
+  const fits = (msgs: ChatMessage[], tools: ToolDef[], out: number) =>
+    billedMicros < ceiling && billedMicros + estimateCallMicros(input.choice.model, { messages: msgs, tools, maxOutputTokens: out }) <= ceiling;
+  // Anything the assistant loosened (a safety rule, the start point) is said by the server at the end of the reply.
+  const finish = (reply: string) => {
+    const startName = state.origin ? state.candidates.find((c) => c.coordinates.lat === state.origin?.lat && c.coordinates.lng === state.origin?.lng)?.name : undefined;
+    const warning = warningLine(relaxations(before, state, startName), hebrew);
+    return warning ? `${reply}\n\n${warning}`.trim() : reply;
+  };
 
   const known = state.candidates.length
     ? `\nPlaces already found (ids): ${JSON.stringify(
         state.candidates.map((c) => ({ id: c.id, name: c.name, kind: c.category })),
       )}`
     : "";
-  const facts = `\nStart point: ${state.origin ? `${state.origin.lat.toFixed(5)},${state.origin.lng.toFixed(5)}` : "not set"}. Limits settled: ${state.limitsSettled ? "yes" : "no"}. Limits so far: ${JSON.stringify(state.params)} (a missing field means no limit).`;
+  const facts = `\nStart point: ${state.origin ? coarseCoords(state.origin) : "not set"}. Limits settled: ${state.limitsSettled ? "yes" : "no"}.`;
   // Everything below that came from outside (saved facts, place names, the stored summary) is fenced as data in a user
   // message, never placed in the system prompt, so text inside a place name or an image cannot pose as an instruction.
   const context = [
+    wrapUntrusted({ source: "limits", text: `Limits so far: ${JSON.stringify(state.params)} (a missing field means no limit).`, maxChars: 4_000 }),
     input.memoryNote ? wrapUntrusted({ source: "memory", text: input.memoryNote, maxChars: 4_000 }) : "",
     known ? wrapUntrusted({ source: "places", text: known, maxChars: 6_000 }) : "",
     input.summary ? wrapUntrusted({ source: "summary", text: `Summary of the earlier conversation:\n${input.summary}`, maxChars: 3_000 }) : "",
@@ -108,6 +130,7 @@ export async function runAssistantTurn(
   const budget = makeBudget(TURN_ROUTING_CALLS, signal);
   let toolCalls = 0;
   for (let i = 0; i < MAX_MODEL_CALLS && !signal.aborted; i += 1) {
+    if (!fits(messages, ASSISTANT_TOOLS, MAX_OUTPUT_TOKENS)) break;
     let response;
     try {
       response = await call({
@@ -122,13 +145,13 @@ export async function runAssistantTurn(
       if (cancelled()) throw new TurnCancelledError(billedMicros);
       // The turn's time is up: fall through to the wrap-up so the walker gets what was found, and the state is kept.
       if (signal.aborted) break;
-      throw err;
+      throw new BilledFailureError(billedMicros, err);
     }
     billedMicros += estimateCostMicros(input.choice.model, response.inTok, response.outTok);
     if (cancelled()) throw new TurnCancelledError(billedMicros);
 
     if (response.toolCalls.length === 0) {
-      return { reply: (response.content ?? "").trim(), state, action, remembered, billedMicros };
+      return { reply: finish((response.content ?? "").trim()), state, action, remembered, billedMicros };
     }
     messages.push({ role: "assistant", content: response.content, tool_calls: response.toolCalls });
     for (const tc of response.toolCalls) {
@@ -138,7 +161,16 @@ export async function runAssistantTurn(
         continue;
       }
       toolCalls += 1;
-      const run = await runTool(tc.function.name, tc.function.arguments, state, budget, input.loadWalks);
+      const run = await runTool(tc.function.name, tc.function.arguments, state, budget, input.loadWalks, input.places);
+      // A picture cannot carry an order to loosen a safety rule: that needs a typed message from the walker.
+      if (imageTurn && relaxations(state, run.state).some((r) => r.rule !== "start_moved")) {
+        messages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({ error: "safety rules cannot be relaxed in a message with an image attached; ask the walker to confirm it in a typed message" }),
+        });
+        continue;
+      }
       state = run.state;
       if (run.action) action = run.action;
       if (run.askLimits) askLimits = true;
@@ -156,34 +188,42 @@ export async function runAssistantTurn(
     }
     // A build ends the turn: the client now runs the planner.
     if (action || askLimits || choices) {
-      const final = await call({
-        model: input.choice.model,
-        messages,
-        tools: [],
-        maxOutputTokens: 400,
-        signal,
-        reasoningEffort: input.effort,
-      }).catch(() => null);
+      const final = fits(messages, [], 400)
+        ? await call({
+            model: input.choice.model,
+            messages,
+            tools: [],
+            maxOutputTokens: 400,
+            signal,
+            reasoningEffort: input.effort,
+          }).catch(() => null)
+        : null;
       if (final) billedMicros += estimateCostMicros(input.choice.model, final.inTok, final.outTok);
       if (cancelled()) throw new TurnCancelledError(billedMicros);
       // Said by the server, so a rule that was not fully checked is never left out of the reply.
-      const reply = `${(final?.content ?? "").trim()}${unchecked.length ? `\n\n⚠ Not fully checked: ${unchecked.join(", ")}` : ""}`.trim();
+      const reply = finish(`${(final?.content ?? "").trim()}${unchecked.length ? `\n\n⚠ Not fully checked: ${unchecked.join(", ")}` : ""}`.trim());
       return { reply, state, action, askLimits, choices, remembered, billedMicros };
     }
   }
   if (cancelled()) throw new TurnCancelledError(billedMicros);
-  // Out of tool rounds or time: have the model report what it found so far, in the walker's language, instead of a canned English line.
-  const wrapUp = await call({
-    model: input.choice.model,
-    messages: [...messages, { role: "user", content: "Stop searching. In the walker's language, say briefly what you found so far and what you still need from them." }],
-    tools: [],
-    maxOutputTokens: 300,
-    signal: AbortSignal.timeout(20_000),
-    reasoningEffort: input.effort,
-  }).catch(() => null);
+  // Out of tool rounds, time or money: have the model report what it found so far, in the walker's language, instead of a canned English line.
+  const wrapMessages: ChatMessage[] = [...messages, { role: "user", content: "Stop searching. In the walker's language, say briefly what you found so far and what you still need from them." }];
+  const wrapUp = fits(wrapMessages, [], 300)
+    ? await call({
+        model: input.choice.model,
+        messages: wrapMessages,
+        tools: [],
+        maxOutputTokens: 300,
+        signal: AbortSignal.timeout(20_000),
+        reasoningEffort: input.effort,
+      }).catch(() => null)
+    : null;
   if (wrapUp) billedMicros += estimateCostMicros(input.choice.model, wrapUp.inTok, wrapUp.outTok);
+  const stopLine = hebrew
+    ? "זה לקח יותר מדי זמן לחשב. אפשר לצמצם (פחות מקומות או אזור קטן יותר)?"
+    : "This took too long to work out. Could you narrow it down (fewer places or a smaller area)?";
   return {
-    reply: wrapUp?.content?.trim() || "I got tangled up — could you say that another way?",
+    reply: finish(wrapUp?.content?.trim() || stopLine),
     state,
     action,
     remembered,

@@ -1,4 +1,8 @@
 import { searchNearbyPlaces, searchTextPlaces } from "@/lib/api/google-places-client";
+import type { PlacesGate } from "@/lib/api/places-quota";
+import { cleanUntrustedText, coarseCoords } from "@/lib/llm/sanitize";
+import { redactForLog } from "@/lib/utils/redact";
+import { ASSISTANT_TOOL_ARGS, MAX_NEARBY_RADIUS_M, parseToolArgs } from "./tool-schemas";
 import type { ToolDef } from "@/lib/llm/providers/openai-tools";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
 import { appUserAgent } from "@/lib/api/http-identity";
@@ -506,7 +510,7 @@ function addCandidates(state: AssistantState, found: Candidate[]): Candidate[] {
       result.push(existing);
       continue;
     }
-    const withId = { ...c, id: `c${++next}`, ...(c.placeId.startsWith("via:") ? {} : { fetchedAt: Date.now() }) };
+    const withId = { ...c, name: cleanUntrustedText(c.name, 120), id: `c${++next}`, ...(c.placeId.startsWith("via:") ? {} : { fetchedAt: Date.now() }) };
     state.candidates.push(withId);
     known.set(c.placeId, withId);
     result.push(withId);
@@ -546,6 +550,8 @@ export async function runTool(
   budget: RoutingBudget = makeBudget(TURN_ROUTING_CALLS),
   /** Loads the signed-in walker's saved walks; absent for guests. */
   loadWalks?: LoadWalks,
+  /** The walker's Google Places budget; a search is refused once it is spent. */
+  placesGate?: PlacesGate,
 ): Promise<ToolRun> {
   let notChecked: RuleResult[] = [];
   let builtVerdict: Verdict | undefined;
@@ -564,17 +570,15 @@ export async function runTool(
     if (near && haversineDistance(state.origin, near.coordinates) < 30000) state.params.placeOffsetMin = near.hours!.utcOffsetMin;
     else delete state.params.placeOffsetMin; // the origin moved away from the city the old offset came from
   }
-  let args: Record<string, unknown> = {};
-  try {
-    args = JSON.parse(rawArgs || "{}") as Record<string, unknown>;
-  } catch {
-    return { output: JSON.stringify({ error: "bad arguments" }), state };
-  }
+  const parsedArgs = parseToolArgs(ASSISTANT_TOOL_ARGS, name, rawArgs);
+  if (!parsedArgs.ok) return { output: JSON.stringify({ error: parsedArgs.error }), state };
+  const args = parsedArgs.args;
 
   try {
     if (name === "search_place") {
       const query = typeof args.query === "string" ? args.query.trim().slice(0, 120) : "";
       if (!query) return { output: JSON.stringify({ error: "query required" }), state };
+      if (placesGate && !(await placesGate.take())) return { output: JSON.stringify({ error: "place search limit reached for today: tell the walker" }), state };
       const places = await searchTextPlaces(query, state.origin ?? undefined, 3, true);
       const found = addCandidates(
         state,
@@ -603,11 +607,13 @@ export async function runTool(
       if (!anchor) {
         return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
       }
-      const radius =
-        num(args.radius_m) ??
-        (state.params.radiusKm ? state.params.radiusKm * 1000 : DEFAULT_NEARBY_RADIUS_M);
+      const radius = Math.min(
+        MAX_NEARBY_RADIUS_M,
+        num(args.radius_m) ?? (state.params.radiusKm ? state.params.radiusKm * 1000 : DEFAULT_NEARBY_RADIUS_M),
+      );
       const wanted = Math.min(MAX_RESULTS_TO_MODEL, Math.round(num(args.count) ?? 3));
       const avoid = state.avoid;
+      if (placesGate && !(await placesGate.take())) return { output: JSON.stringify({ error: "place search limit reached for today: tell the walker" }), state };
       const places = (await searchNearbyPlaces(category, anchor, radius, 20, true)).filter(
         (p) => !avoid?.placeIds.includes(p.placeId) && !avoid?.spots.some((s) => haversineDistance(s, p.coordinates) <= 40),
       );
@@ -1040,7 +1046,7 @@ export async function runTool(
         if (!res.ok) return { output: JSON.stringify({ error: "warnings unavailable: say safety warnings were not checked" }), state };
         const now = new Date(Date.now() + startIn * 3_600_000);
         const found = warningsAt(parseWarnings(await res.text()), state.origin.lat, state.origin.lng, now, minutes / 60);
-        const warnings = found.map(({ event, severity, area, onset, expires }) => ({ event, severity, area, onset, expires }));
+        const warnings = found.map(({ event, severity, area, onset, expires }) => ({ event: cleanUntrustedText(String(event), 80), severity, area: cleanUntrustedText(String(area), 120), onset, expires }));
         return { output: JSON.stringify({ ok: warnings.length === 0, warnings, attribution: SAFETY_ATTRIBUTION }), state };
       } catch {
         return { output: JSON.stringify({ error: "warnings unavailable: say safety warnings were not checked" }), state };
@@ -1120,7 +1126,7 @@ export async function runTool(
       // A walk this long is a wrong start point or a wrong place, not a request: say so instead of building it.
       const plausibleKm = Math.max(MAX_PLAUSIBLE_WALK_KM, state.params.maxWalkKm ?? 0, state.params.timeMinutes ? (state.params.timeMinutes / (state.params.paceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM)) : 0);
       if (judged.verdict.walkKm > plausibleKm) {
-        return { output: JSON.stringify({ error: `this walk is ${Math.round(judged.verdict.walkKm)} km: too long to walk. Check the start point (${state.origin.lat.toFixed(4)},${state.origin.lng.toFixed(4)}) and the places, and tell the walker.`, verdict: judged.verdict }), state };
+        return { output: JSON.stringify({ error: `this walk is ${Math.round(judged.verdict.walkKm)} km: too long to walk. Check the start point (${coarseCoords(state.origin)}) and the places, and tell the walker.`, verdict: judged.verdict }), state };
       }
       // The rules are enforced here, not in the prompt: build exactly the order that was checked, and only when no rule is broken.
       if (judged.verdict.broken) {
@@ -1161,7 +1167,7 @@ export async function runTool(
       };
     }
   } catch (err) {
-    console.error(`[assistant] tool ${name} failed:`, err);
+    console.error(`[assistant] tool ${name} failed:`, redactForLog(err));
     return { output: JSON.stringify({ error: "lookup failed, try again or say so" }), state };
   }
   return { output: JSON.stringify({ error: "unknown tool" }), state };

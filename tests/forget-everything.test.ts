@@ -92,7 +92,7 @@ describe("forget everything", () => {
         for (const c of m[1].matchAll(/add column (?:if not exists )?(\w+)/gi)) cols.add(c[1]);
       }
     }
-    const settingsNotLearned = new Set(["callout_level", "ui_language", "is_internal", "friend_code"]) // is_internal is an operator flag, not something the walker taught us;
+    const settingsNotLearned = new Set(["callout_level", "ui_language", "is_internal", "friend_code", "learning_consent", "learning_consent_at"]) // learning_consent is the walker's own choice (a setting, kept like the client copy); is_internal is an operator flag, not something the walker taught us;
     for (const c of cols) {
       if (!settingsNotLearned.has(c)) expect(PROFILE_LEARNED_RESET).toHaveProperty(c);
     }

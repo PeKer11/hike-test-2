@@ -8,14 +8,20 @@ for (const key of Object.keys(process.env)) {
 
 import { resetAllCircuitBreakers } from "@/lib/api/circuit-breaker";
 import {
+  aiBuildUserRateLimiter,
   assistantRateLimiter,
+  assistantUserRateLimiter,
   chatRateLimiter,
   geminiRateLimiter,
   learningRateLimiter,
   nominatimRateLimiter,
+  notableRateLimiter,
   orsRateLimiter,
   overpassRateLimiter,
+  placesResolveRateLimiter,
   socialRateLimiter,
+  walkAssistantUserRateLimiter,
+  walkPlanRateLimiter,
 } from "@/lib/api/rate-limit";
 
 /**
@@ -42,5 +48,11 @@ beforeEach(() => {
   nominatimRateLimiter.reset();
   overpassRateLimiter.reset();
   socialRateLimiter.reset();
+  assistantUserRateLimiter.reset();
+  walkAssistantUserRateLimiter.reset();
+  aiBuildUserRateLimiter.reset();
+  placesResolveRateLimiter.reset();
+  walkPlanRateLimiter.reset();
+  notableRateLimiter.reset();
   resetAllCircuitBreakers();
 });

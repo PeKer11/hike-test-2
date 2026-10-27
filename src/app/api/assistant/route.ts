@@ -1,20 +1,28 @@
 import { NextResponse } from "next/server";
 
-import { assistantRateLimiter, callerKey, rateLimitedResponse } from "@/lib/api/rate-limit";
+import { createPlacesGate, placesDailyCap } from "@/lib/api/places-quota";
+import { assistantRateLimiter, assistantUserRateLimiter, callerKey, rateLimitedResponse } from "@/lib/api/rate-limit";
 import {
+  capHistory,
   KEEP_RECENT,
   SUMMARIZE_AFTER,
   summarizeConversation,
 } from "@/lib/assistant/summary";
 import { defaultParams, parseDefaults, tasteNote } from "@/lib/assistant/defaults";
 import { tzOffsetMin } from "@/lib/walk/clock";
-import { EMPTY_STATE, expireCandidates, type AssistantState } from "@/lib/assistant/state";
+import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
+import { asState, parseOrigin } from "@/lib/assistant/stored-state";
 import { getPreferredCategoryWeights, getProfileDefaults } from "@/lib/preferences/preference-store";
 import { runAssistantTurn, TurnCancelledError, type TurnMessage } from "@/lib/assistant/turn";
 import { selectFactsForPrompt } from "@/lib/preferences/fact-extractor";
 import { getStandingFacts, learnFactsFromText } from "@/lib/preferences/fact-store";
 import { runMeteredTurn } from "@/lib/llm/llm-client";
+import { ceilingMicros } from "@/lib/llm/pricing";
+import { coarseCoords } from "@/lib/llm/sanitize";
+import { TurnBusyError } from "@/lib/llm/turn-lock";
 import { LlmBudgetExceededError } from "@/lib/llm/types";
+import { hasLearningConsent } from "@/lib/preferences/consent";
+import { redactForLog } from "@/lib/utils/redact";
 import { placesNote } from "@/lib/assistant/places-note";
 import { listPlaces } from "@/lib/places/saved-places";
 import { createClient } from "@/lib/supabase/server";
@@ -53,7 +61,7 @@ function queuedNote(value: unknown): string {
       if (typeof v !== "object" || v === null) return "";
       const { name, coordinates: c } = v as { name?: unknown; coordinates?: { lat?: unknown; lng?: unknown } };
       if (typeof name !== "string") return "";
-      const at = typeof c?.lat === "number" && typeof c?.lng === "number" ? ` (exact spot ${c.lat.toFixed(5)},${c.lng.toFixed(5)})` : "";
+      const at = typeof c?.lat === "number" && typeof c?.lng === "number" ? ` (exact spot ${coarseCoords({ lat: c.lat, lng: c.lng }, 3)})` : "";
       return name + at;
     })
     .map((v) => v.replace(/[\r\n;]+/g, " ").trim().slice(0, 100))
@@ -71,38 +79,6 @@ function parseImages(value: unknown): string[] {
   return value
     .filter((v): v is string => typeof v === "string" && v.length <= MAX_IMAGE_CHARS && IMAGE_URL.test(v))
     .slice(0, MAX_IMAGES);
-}
-
-function parseOrigin(value: unknown): { lat: number; lng: number } | null {
-  if (typeof value !== "object" || value === null) return null;
-  const { lat, lng } = value as Record<string, unknown>;
-  if (typeof lat !== "number" || typeof lng !== "number") return null;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-  return { lat, lng };
-}
-
-const MAX_STORED_CANDIDATES = 60;
-const MAX_STORED_NAME = 120;
-const MAX_STORED_STREETS = 10;
-
-// The owner can edit the stored state directly, so it is trimmed to the same limits the tools use.
-const cleanText = (v: unknown, max: number): string => (typeof v === "string" ? v.replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, max) : "");
-
-function asState(raw: unknown): AssistantState {
-  const s = (raw ?? {}) as Partial<AssistantState>;
-  const params = { ...(s.params ?? {}) } as Record<string, unknown>;
-  for (const key of ["viaStreets", "avoidStreets"]) {
-    if (Array.isArray(params[key])) params[key] = (params[key] as unknown[]).slice(0, MAX_STORED_STREETS).map((v) => cleanText(v, MAX_STORED_NAME)).filter(Boolean);
-  }
-  if (typeof params.stayInArea === "string") params.stayInArea = cleanText(params.stayInArea, 80);
-  const candidates = Array.isArray(s.candidates) ? expireCandidates(s.candidates, Date.now()).slice(0, MAX_STORED_CANDIDATES) : [];
-  return {
-    origin: s.origin ?? null,
-    params: params as AssistantState["params"],
-    candidates: candidates.map((c) => ({ ...c, name: cleanText(c.name, MAX_STORED_NAME) })),
-    chosen: Array.isArray(s.chosen) ? s.chosen : [],
-    limitsSettled: s.limitsSettled === true,
-  };
 }
 
 /**
@@ -134,6 +110,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!user) {
     return NextResponse.json({ error: "Sign in to chat with the assistant.", code: "signin" }, { status: 401 });
   }
+  const userVerdict = assistantUserRateLimiter.check(`user:${user.id}`);
+  if (!userVerdict.allowed) return rateLimitedResponse(userVerdict);
 
   // Load or create the chat.
   let chatId = typeof body.chatId === "string" ? body.chatId : null;
@@ -161,7 +139,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       .limit(MAX_STORED_MESSAGES);
     const all = (rows ?? []) as TurnMessage[];
     totalMessages = all.length;
-    history = all.slice(summarizedCount);
+    // The count is the walker's own row: keep it inside the real messages, and cap what goes to the model.
+    const from = Math.min(Math.max(0, Math.trunc(summarizedCount) || 0), all.length);
+    history = capHistory(all.slice(from), 16, 12_000);
   }
 
   // The gear-menu defaults seed a NEW chat's limits; the learned pace backs them up.
@@ -220,12 +200,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   history = [...history, { role: "user", content: message, ...(images.length ? { images } : {}) }];
 
+  const turnCeiling = ceilingMicros("ASSISTANT_TURN_CEILING_USD", 0.25);
+  const owners = (process.env.LLM_OWNER_USER_IDS ?? "").split(",").map((o) => o.trim());
+  const places = createPlacesGate({ key: `places:user:${user.id}`, dailyCap: placesDailyCap("free", owners.includes(user.id)), perTurnCap: 8 });
+
   try {
     const result = await runMeteredTurn(
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste, memoryNote, cancel: request.signal, loadWalks: () => listMyWalks(supabase, user.id, 50) });
+        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste, memoryNote, cancel: request.signal, loadWalks: () => listMyWalks(supabase, user.id, 50), costCeilingMicros: turnCeiling, places });
         let billed = turn.billedMicros;
         let newSummary = summary;
         let newSummarized = summarizedCount;
@@ -246,13 +230,16 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
         return { value: { turn, newSummary, newSummarized }, billedMicros: billed };
       },
+      {},
+      // The turn's worst case (plus the summarizer) is held up front; one turn at a time per walker.
+      { reserveMicros: turnCeiling + 30_000, lockKey: `assistant:${user.id}`, lockTtlMs: 150_000 },
     );
 
     // The walker undid the send: nothing is saved.
     if (request.signal.aborted) return NextResponse.json({ error: "cancelled" }, { status: 499 });
 
     // Sol only signals that something is worth keeping; what is stored is learned from the walker's own typed message, never from the model's wording (which can echo text from a place name or an image).
-    if ((result.turn.remembered ?? []).length > 0 && images.length === 0) {
+    if ((result.turn.remembered ?? []).length > 0 && images.length === 0 && (await hasLearningConsent(supabase, user.id))) {
       await learnFactsFromText(supabase, user.id, message, { userId: user.id, ip: callerKey(request) }).catch(() => null);
     }
 
@@ -306,6 +293,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       paceKnown: Boolean(result.turn.state.params.paceMinPerKm),
     });
   } catch (error) {
+    if (error instanceof TurnBusyError) {
+      return NextResponse.json({ code: "busy", error: "Still working on your last message." }, { status: 409 });
+    }
     if (error instanceof TurnCancelledError) return NextResponse.json({ error: "cancelled" }, { status: 499 });
     if (error instanceof LlmBudgetExceededError) {
       return NextResponse.json(
@@ -313,7 +303,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 429 },
       );
     }
-    console.error("[assistant] turn failed:", error);
+    console.error("[assistant] turn failed:", redactForLog(error));
     return NextResponse.json({ error: "The assistant could not answer. Try again." }, { status: 502 });
   }
 }

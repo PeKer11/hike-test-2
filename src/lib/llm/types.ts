@@ -102,3 +102,14 @@ export class LlmBudgetExceededError extends Error {
     this.name = "LlmBudgetExceededError";
   }
 }
+
+/** A failure after model calls were already billed; runMeteredTurn settles `billedMicros`. */
+export class BilledFailureError extends Error {
+  constructor(
+    readonly billedMicros: number,
+    cause?: unknown,
+  ) {
+    super("failed after billed model calls", { cause });
+    this.name = "BilledFailureError";
+  }
+}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { callerKey, notableRateLimiter, rateLimitedResponse } from "@/lib/api/rate-limit";
 import { fetchNotable } from "@/lib/places/notable";
 import { notableEnabled } from "@/lib/social/flag";
 import { parseBbox } from "@/lib/social/recommendations";
@@ -7,6 +8,8 @@ import { parseBbox } from "@/lib/social/recommendations";
 /** Notable places (Wikidata, CC0) in a map box. No sign-in: nothing here is about a person. */
 export async function GET(request: Request): Promise<NextResponse> {
   if (!notableEnabled()) return new NextResponse(null, { status: 404 });
+  const verdict = notableRateLimiter.check(callerKey(request));
+  if (!verdict.allowed) return rateLimitedResponse(verdict);
   const box = parseBbox(new URL(request.url).searchParams, 0.12);
   if (!box) return NextResponse.json({ error: "Invalid map area." }, { status: 400 });
   try {

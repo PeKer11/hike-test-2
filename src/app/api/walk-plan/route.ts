@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { callerKey, rateLimitedResponse, walkPlanRateLimiter } from "@/lib/api/rate-limit";
+import { redactForLog } from "@/lib/utils/redact";
 import { clampPace, DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 import { fetchAttractionsResilient as fetchAttractions } from "@/lib/attractions/resilient-attractions";
 import {
@@ -363,6 +365,8 @@ function estimateMinutes(
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const verdict = walkPlanRateLimiter.check(callerKey(request));
+  if (!verdict.allowed) return rateLimitedResponse(verdict);
   try {
     const body = (await request.json()) as WalkPlanApiRequest;
 
@@ -768,7 +772,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             warnings.push("The route does not end back at the start.");
           }
         } catch (err) {
-          console.error("[walk-plan] route geometry failed:", err instanceof Error ? err.message : err);
+          console.error("[walk-plan] route geometry failed:", redactForLog(err));
           // Geometry is optional — don't fail the whole plan if ORS is unavailable
           warnings.push(
             "Could not fetch route geometry from ORS. Start Walk is disabled.",
