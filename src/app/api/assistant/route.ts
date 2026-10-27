@@ -10,7 +10,7 @@ import { defaultParams, parseDefaults, tasteNote } from "@/lib/assistant/default
 import { tzOffsetMin } from "@/lib/walk/clock";
 import { EMPTY_STATE, expireCandidates, type AssistantState } from "@/lib/assistant/state";
 import { getPreferredCategoryWeights, getProfileDefaults } from "@/lib/preferences/preference-store";
-import { runAssistantTurn, type TurnMessage } from "@/lib/assistant/turn";
+import { runAssistantTurn, TurnCancelledError, type TurnMessage } from "@/lib/assistant/turn";
 import { selectFactsForPrompt } from "@/lib/preferences/fact-extractor";
 import { getStandingFacts, learnFactsFromText } from "@/lib/preferences/fact-store";
 import { runMeteredTurn } from "@/lib/llm/llm-client";
@@ -81,12 +81,25 @@ function parseOrigin(value: unknown): { lat: number; lng: number } | null {
   return { lat, lng };
 }
 
+const MAX_STORED_CANDIDATES = 60;
+const MAX_STORED_NAME = 120;
+const MAX_STORED_STREETS = 10;
+
+// The owner can edit the stored state directly, so it is trimmed to the same limits the tools use.
+const cleanText = (v: unknown, max: number): string => (typeof v === "string" ? v.replace(/[\u0000-\u001F\u007F]/g, " ").slice(0, max) : "");
+
 function asState(raw: unknown): AssistantState {
   const s = (raw ?? {}) as Partial<AssistantState>;
+  const params = { ...(s.params ?? {}) } as Record<string, unknown>;
+  for (const key of ["viaStreets", "avoidStreets"]) {
+    if (Array.isArray(params[key])) params[key] = (params[key] as unknown[]).slice(0, MAX_STORED_STREETS).map((v) => cleanText(v, MAX_STORED_NAME)).filter(Boolean);
+  }
+  if (typeof params.stayInArea === "string") params.stayInArea = cleanText(params.stayInArea, 80);
+  const candidates = Array.isArray(s.candidates) ? expireCandidates(s.candidates, Date.now()).slice(0, MAX_STORED_CANDIDATES) : [];
   return {
     origin: s.origin ?? null,
-    params: s.params ?? {},
-    candidates: Array.isArray(s.candidates) ? expireCandidates(s.candidates, Date.now()) : [],
+    params: params as AssistantState["params"],
+    candidates: candidates.map((c) => ({ ...c, name: cleanText(c.name, MAX_STORED_NAME) })),
     chosen: Array.isArray(s.chosen) ? s.chosen : [],
     limitsSettled: s.limitsSettled === true,
   };
@@ -149,27 +162,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     const all = (rows ?? []) as TurnMessage[];
     totalMessages = all.length;
     history = all.slice(summarizedCount);
-  } else {
-    const { data: created, error } = await supabase
-      .from("assistant_chats")
-      .insert({ user_id: user.id, title: message.slice(0, 60) })
-      .select("id")
-      .single();
-    if (error || !created) {
-      return NextResponse.json({ error: "Could not start the chat." }, { status: 500 });
-    }
-    chatId = created.id as string;
-    // Only the newest MAX_CHATS chats are kept; older ones (and their messages,
-    // by cascade) are deleted. TODO: a paid tier with a higher limit.
-    const { data: stale } = await supabase
-      .from("assistant_chats")
-      .select("id")
-      .eq("user_id", user.id)
-      .order("updated_at", { ascending: false })
-      .range(MAX_CHATS, MAX_CHATS + 50);
-    if (stale && stale.length > 0) {
-      await supabase.from("assistant_chats").delete().in("id", stale.map((c) => c.id as string));
-    }
   }
 
   // The gear-menu defaults seed a NEW chat's limits; the learned pace backs them up.
@@ -233,7 +225,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste, memoryNote, loadWalks: () => listMyWalks(supabase, user.id, 50) });
+        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste, memoryNote, cancel: request.signal, loadWalks: () => listMyWalks(supabase, user.id, 50) });
         let billed = turn.billedMicros;
         let newSummary = summary;
         let newSummarized = summarizedCount;
@@ -256,10 +248,36 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
     );
 
-    // Lasting facts Sol chose to keep go through the same store as the
-    // prompt-learned ones (dedupe, contradiction, cap, "forget everything").
-    for (const fact of (result.turn.remembered ?? []).slice(0, 3)) {
-      await learnFactsFromText(supabase, user.id, fact, { userId: user.id, ip: callerKey(request) }).catch(() => null);
+    // The walker undid the send: nothing is saved.
+    if (request.signal.aborted) return NextResponse.json({ error: "cancelled" }, { status: 499 });
+
+    // Sol only signals that something is worth keeping; what is stored is learned from the walker's own typed message, never from the model's wording (which can echo text from a place name or an image).
+    if ((result.turn.remembered ?? []).length > 0 && images.length === 0) {
+      await learnFactsFromText(supabase, user.id, message, { userId: user.id, ip: callerKey(request) }).catch(() => null);
+    }
+
+    // A new chat is created only once the turn succeeded, so a failed or undone first message leaves no orphan chat and prunes nothing.
+    if (!chatId) {
+      const { data: created, error } = await supabase
+        .from("assistant_chats")
+        .insert({ user_id: user.id, title: message.slice(0, 60) })
+        .select("id")
+        .single();
+      if (error || !created) {
+        return NextResponse.json({ error: "Could not start the chat." }, { status: 500 });
+      }
+      chatId = created.id as string;
+      // Only the newest MAX_CHATS chats are kept; older ones (and their messages,
+      // by cascade) are deleted. TODO: a paid tier with a higher limit.
+      const { data: stale } = await supabase
+        .from("assistant_chats")
+        .select("id")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .range(MAX_CHATS, MAX_CHATS + 50);
+      if (stale && stale.length > 0) {
+        await supabase.from("assistant_chats").delete().in("id", stale.map((c) => c.id as string));
+      }
     }
 
     const reply = result.turn.reply || "…";
@@ -288,6 +306,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       paceKnown: Boolean(result.turn.state.params.paceMinPerKm),
     });
   } catch (error) {
+    if (error instanceof TurnCancelledError) return NextResponse.json({ error: "cancelled" }, { status: 499 });
     if (error instanceof LlmBudgetExceededError) {
       return NextResponse.json(
         { code: "budget", error: "The assistant is resting for today. Try again tomorrow." },

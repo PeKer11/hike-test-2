@@ -66,10 +66,15 @@ export async function orsRoute(waypoints: Coordinates[], avoid: AvoidPolygons | 
   });
   const route = res.routes[0];
   if (!route?.geometry) throw new Error("no geometry");
-  // ORS always answers with heights when asked (3D line); only the backup router answers in 2D, and it sends no step positions.
-  const fromOrs = route.segments.some((s) => s.steps.some((st) => st.way_points));
-  const hasElevation = fromOrs;
-  const geometry = decodePolyline(route.geometry, 5, hasElevation);
+  // ORS answers with heights (3D line) when asked; the backup router answers in 2D. The step positions say how many points the
+  // line really has, so the format is the one whose decoded length matches; without step positions ORS means 3D, the backup 2D.
+  const stepEnds = route.segments.flatMap((s) => s.steps.map((st) => st.way_points?.[1] ?? -1));
+  const expected = Math.max(...stepEnds, -1) + 1;
+  const as3d = decodePolyline(route.geometry, 5, true);
+  const as2d = decodePolyline(route.geometry, 5, false);
+  // A real 3D line never also decodes to the right count as 2D (3N values read as pairs give 1.5N points), so a tie means 2D.
+  const hasElevation = expected > 0 ? (as2d.length === expected ? false : true) : false;
+  const geometry = hasElevation ? as3d : as2d;
   // A mis-decoded line starts far from where it was asked to start.
   if (geometry.length > 0 && haversineDistance(waypoints[0], geometry[0]) > MAX_START_GAP_M) throw new Error("route does not start at the start point");
   const legs = hasElevation ? route.segments.map((s) => ({ distanceM: s.distance, ascentM: typeof s.ascent === "number" ? s.ascent : 0 })) : null;

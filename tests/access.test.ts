@@ -67,7 +67,7 @@ describe("orsRoute with a route mode", () => {
     getDirections.mockResolvedValue({
       routes: [
         {
-          geometry: "_c`|@_qo]ObA",
+          geometry: "__ibE_sonEgE?",
           summary: { distance: 100, duration: 70 },
           way_points: [0, 1],
           segments: [{ distance: 100, duration: 70, steps: [{ distance: 100, duration: 70, instruction: "go", name: "Main", way_points: [0, 1] }] }],

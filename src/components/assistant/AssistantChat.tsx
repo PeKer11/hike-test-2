@@ -378,12 +378,35 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
     if (urls.length) setImages((cur) => [...cur, ...urls].slice(0, MAX_IMAGES));
   };
 
+  // The send in flight, with what to put back if the walker undoes it.
+  const inflight = useRef<{ ctl: AbortController; restore: { text: string; themes: string[]; images: string[]; choices: string[]; limitsOpen: boolean; count: number; typedOverride: boolean } } | null>(null);
+
+  const undoSend = () => {
+    const cur = inflight.current;
+    if (!cur) return;
+    inflight.current = null;
+    cur.ctl.abort();
+    const r = cur.restore;
+    setMessages((m) => m.slice(0, r.count));
+    if (!r.typedOverride) {
+      setText((t) => (t.trim() ? t : r.text));
+      setThemes(r.themes);
+      setImages(r.images);
+    }
+    setChoices(r.choices);
+    setLimitsOpen(r.limitsOpen);
+    setPending(false);
+    setError(null);
+  };
+
   const send = async (event: FormEvent | null, override?: { message: string; limits?: Limits }) => {
     event?.preventDefault();
     const typed = override?.message ?? [...THEMES.filter((t) => themes.includes(t.label)).map((t) => t.message), text.trim()].filter(Boolean).join(". ");
     const sentImages = override ? [] : images;
     const message = typed || (sentImages.length ? "🖼" : "");
     if (!message || pending || isBuilding) return;
+    const ctl = new AbortController();
+    inflight.current = { ctl, restore: { text, themes, images, choices, limitsOpen, count: messages.length, typedOverride: !!override } };
     setLimitsOpen(false);
     setChoices([]);
     if (!override) {
@@ -397,6 +420,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
     try {
       const response = await fetch("/api/assistant", {
         method: "POST",
+        signal: ctl.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chatId, message: typed, origin, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) }),
       });
@@ -445,9 +469,14 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
       }
       void refreshChats();
     } catch {
+      if (ctl.signal.aborted) return; // undone by the walker
       setError("Could not reach the assistant. Check your connection.");
     } finally {
-      setPending(false);
+      // Only the newest send may clear the waiting state; an undone one already did.
+      if (inflight.current?.ctl === ctl) {
+        inflight.current = null;
+        setPending(false);
+      }
     }
   };
 
@@ -713,6 +742,15 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                 <span aria-hidden>📍</span>Custom Walk
               </button>
             </div>
+          )}
+          {pending && (
+            <button
+              type="button"
+              onClick={undoSend}
+              className="mb-[6px] block h-[32px] w-full rounded-[9px] border border-tk-field bg-white text-[14px] font-medium leading-none text-tk-body transition-colors hover:bg-tk-bubble"
+            >
+              Undo send
+            </button>
           )}
           <button
             type="submit"
