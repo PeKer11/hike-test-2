@@ -1,9 +1,12 @@
 import { getDirections } from "@/lib/api/ors-client";
 import type { Coordinates } from "@/lib/types";
-import { toOrsCoord } from "@/lib/utils/geo";
+import { haversineDistance, toOrsCoord } from "@/lib/utils/geo";
 import { decodePolyline } from "@/lib/utils/polyline";
 import type { AvoidPolygons } from "./clean-route";
 import type { RouteMode } from "./access";
+
+/** A returned line whose first point is farther than this from the start is treated as broken. */
+const MAX_START_GAP_M = 400;
 
 /** ORS waytype 8 = steps. */
 const STEPS = 8;
@@ -63,10 +66,13 @@ export async function orsRoute(waypoints: Coordinates[], avoid: AvoidPolygons | 
   });
   const route = res.routes[0];
   if (!route?.geometry) throw new Error("no geometry");
-  // Height only comes with the router that was asked for it; the backup router answers in 2D.
-  const hasElevation = route.segments.length > 0 && route.segments.every((s) => typeof s.ascent === "number");
+  // ORS always answers with heights when asked (3D line); only the backup router answers in 2D, and it sends no step positions.
+  const fromOrs = route.segments.some((s) => s.steps.some((st) => st.way_points));
+  const hasElevation = fromOrs;
   const geometry = decodePolyline(route.geometry, 5, hasElevation);
-  const legs = hasElevation ? route.segments.map((s) => ({ distanceM: s.distance, ascentM: s.ascent as number })) : null;
+  // A mis-decoded line starts far from where it was asked to start.
+  if (geometry.length > 0 && haversineDistance(waypoints[0], geometry[0]) > MAX_START_GAP_M) throw new Error("route does not start at the start point");
+  const legs = hasElevation ? route.segments.map((s) => ({ distanceM: s.distance, ascentM: typeof s.ascent === "number" ? s.ascent : 0 })) : null;
 
   const steps = route.segments.flatMap((s) => s.steps);
   const named = steps
