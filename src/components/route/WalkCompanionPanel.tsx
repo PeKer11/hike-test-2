@@ -1,5 +1,6 @@
 "use client";
 
+import { loadSavedStart } from "@/lib/start-location";
 import { useEffect, useRef, useState } from "react";
 
 import { Button, Card, LoadingSpinner } from "@/components/ui";
@@ -304,7 +305,8 @@ export function WalkCompanionPanel({
             setLat((prev) => (prev === "" ? coords.lat.toFixed(6) : prev));
             setLng((prev) => (prev === "" ? coords.lng.toFixed(6) : prev));
           }
-          onLocationDetected?.(coords);
+          // The automatic fix on load must not undo the start the walker picked or the chat remembers (its label would then be wrong).
+          if (!(auto && loadSavedStart())) onLocationDetected?.(coords);
           setIsDetecting(false);
           resolve(coords);
         },
