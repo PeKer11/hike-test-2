@@ -15,7 +15,7 @@ import { ACCESS_PROFILES, isAccess, routeModeFor } from "@/lib/walk/access";
 import { formatClock, localTimeOnDay, nextLocalTime, parseHHMM, tzOffsetMin } from "@/lib/walk/clock";
 import { bestOrderWithRules, type StopOrder } from "@/lib/walk/stop-order";
 import { bestOrder, insideBoundary, pickSpread } from "@/lib/walk/loop-search";
-import { fetchTownBoundary } from "@/lib/walk/town-boundary";
+import { fetchTownBoundary, fetchTownFootprint } from "@/lib/walk/town-boundary";
 import { searchPlaces } from "@/lib/api/nominatim-client";
 import { fetchForbiddenWays } from "@/lib/walk/forbidden-ways";
 import { makeBudget, matrixCoolingDown, noteMatrixError, type RoutingBudget } from "@/lib/walk/routing-budget";
@@ -200,10 +200,13 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "set_start",
-      description: "Set the walk's start point to a candidate id, e.g. the city the walker says they are in.",
+      description: "Set the walk's start to a candidate. For a walk IN a town, include area (town + country): the server keeps the current start if inside that town, otherwise defaults to the town candidate. Continue planning immediately; the start question is non-blocking. Omit area only for an explicitly requested start address/venue.",
       parameters: {
         type: "object",
-        properties: { candidate_id: { type: "string" } },
+        properties: {
+          candidate_id: { type: "string" },
+          area: { type: "string", description: "Named town/area of the walk, with country; checks the actual town outline, not distance from its centre" },
+        },
         required: ["candidate_id"],
         additionalProperties: false,
       },
@@ -396,6 +399,8 @@ export interface ToolRun {
   choices?: string[];
   /** A lasting fact Sol asked to save; the route stores it. */
   remember?: string;
+  /** A default town start to announce without pausing the planning turn. */
+  defaultAreaStart?: { name: string; coordinates: Coordinates };
 }
 
 interface Estimate {
@@ -775,6 +780,33 @@ export async function runTool(
     if (name === "set_start") {
       const c = state.candidates.find((x) => x.id === args.candidate_id);
       if (!c) return { output: JSON.stringify({ error: "unknown candidate id" }), state };
+      if (typeof args.area === "string") {
+        const footprint = await fetchTownFootprint(args.area);
+        const inside = state.origin && footprint ? insideBoundary(state.origin, footprint, 0) : null;
+        if (state.origin && inside !== false) {
+          return {
+            output: JSON.stringify({
+              ok: true, start_source: "current_location", inside_area: inside,
+              next: inside
+                ? "Already inside the requested town: keep this exact start and continue planning now. Do not ask where to start or offer to drop the area rule."
+                : "Town membership could not be verified. Keep the existing start and continue planning; never claim it is outside the town.",
+            }),
+            state,
+          };
+        }
+        if (footprint && !insideBoundary(c.coordinates, footprint, 0)) {
+          return { output: JSON.stringify({ error: "the candidate is outside the requested town: search for a start in that town; keep the area rule" }), state };
+        }
+        state.origin = c.coordinates;
+        return {
+          output: JSON.stringify({
+            ok: true, start: c.name, start_source: "named_area", inside_area: inside,
+            next: "Continue finding places and planning from this start in this same turn. The server will announce the default start and ask okay without waiting for an answer. Do not offer to remove the area rule or pause for start confirmation. Other safety/route confirmations still apply.",
+          }),
+          state,
+          defaultAreaStart: { name: c.name, coordinates: c.coordinates },
+        };
+      }
       state.origin = c.coordinates;
       return { output: JSON.stringify({ ok: true, start: c.name }), state };
     }

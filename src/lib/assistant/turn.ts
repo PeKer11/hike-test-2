@@ -85,6 +85,7 @@ export async function runAssistantTurn(
   let askLimits = false;
   let unchecked: string[] = [];
   let choices: string[] | undefined;
+  let defaultAreaStart: { name: string; coordinates: NonNullable<AssistantState["origin"]> } | undefined;
   const remembered: string[] = [];
   let billedMicros = 0;
   const before = input.state;
@@ -98,7 +99,12 @@ export async function runAssistantTurn(
   const finish = (reply: string) => {
     const startName = state.origin ? state.candidates.find((c) => c.coordinates.lat === state.origin?.lat && c.coordinates.lng === state.origin?.lng)?.name : undefined;
     const warning = warningLine(relaxations(before, state, startName), hebrew);
-    return warning ? `${reply}\n\n${warning}`.trim() : reply;
+    const announce = defaultAreaStart && state.origin?.lat === defaultAreaStart.coordinates.lat && state.origin.lng === defaultAreaStart.coordinates.lng
+      ? hebrew
+        ? `המסלול יתחיל ב־${defaultAreaStart.name}, בסדר? אמשיך לתכנן משם; אפשר לבקש נקודת התחלה אחרת.`
+        : `The walk will start at ${defaultAreaStart.name}, okay? I'll keep planning from there; you can ask for a different start.`
+      : "";
+    return [announce, reply, warning].filter(Boolean).join("\n\n").trim();
   };
 
   const known = state.candidates.length
@@ -172,6 +178,7 @@ export async function runAssistantTurn(
         continue;
       }
       state = run.state;
+      if (run.defaultAreaStart) defaultAreaStart = run.defaultAreaStart;
       if (run.action) action = run.action;
       if (run.askLimits) askLimits = true;
       if (run.choices) choices = run.choices;

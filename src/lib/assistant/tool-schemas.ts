@@ -71,7 +71,7 @@ export const ASSISTANT_TOOL_ARGS = {
     })
     .strict(),
   set_transit: z.object({ back: z.boolean() }).strict(),
-  set_start: z.object({ candidate_id: id }).strict(),
+  set_start: z.object({ candidate_id: id, area: z.string().trim().min(1).max(160).optional() }).strict(),
   set_walk_params: z
     .object({
       time_minutes: walkMin.optional(),
