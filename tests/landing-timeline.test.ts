@@ -38,14 +38,14 @@ describe("landing hero timeline", () => {
     expect(stateAt(0.7)).toEqual(stateAt(0.99));
   });
 
-  it("turns the phone one full turn, face-on when it fills the stage, hazy toward the clouds", () => {
+  it("turns the phone one full turn, face-on when it fills the stage, misted by clouds", () => {
     expect(stateAt(0).spin).toBe(0);
     expect(stateAt(0.36).spin).toBe(360);
     expect(stateAt(0.36).push).toBe(1);
     expect(stateAt(0.21).spin).toBeGreaterThan(150);
     expect(stateAt(0.21).spin).toBeLessThan(210);
-    expect(stateAt(0).blur).toBe(0);
-    expect(stateAt(0.4).blur).toBeGreaterThan(stateAt(0.2).blur * 0.5);
+    expect(stateAt(0.2).cloudO).toBeGreaterThan(0.1); // mist arrives during the turn
+    expect(stateAt(0.2).cloudO).toBeLessThan(0.6);
   });
 
   it("never lets the cloud layer be visible on a still hero", () => {

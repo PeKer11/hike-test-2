@@ -116,7 +116,7 @@ export function HeroStory() {
       copy.current!.style.visibility = st.copyO < 0.02 ? "hidden" : "visible";
       plate.current!.style.transform = `scale(${st.plateScale})`;
       wrap.style.transform = `translate3d(${tx * st.push}px,${ty * st.push}px,0) scale(${1 + (S - 1) * st.push}) ${roll(st.spin)}`;
-      wrap.style.filter = st.blur > 0.3 ? `blur(${st.blur.toFixed(1)}px)` : "none";
+      wrap.style.setProperty("--turn", landscape ? String(st.spin / 360) : "0");
       wrap.style.visibility = st.phoneVisible ? "visible" : "hidden";
       props.current.forEach((el, i) => {
         if (!el) return;

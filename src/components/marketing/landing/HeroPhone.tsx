@@ -25,8 +25,18 @@ export function HeroPhone({ className = "" }: { className?: string }) {
               variant="portrait"
               plate="/images/landing/map-plate.webp"
               animate
-              className="absolute inset-0 h-full w-full"
+              className={`${styles.phonePortrait} absolute inset-0 h-full w-full`}
             />
+            {/* Auto-rotate: while the phone turns onto its side (--turn 0..1, set by HeroStory),
+                a landscape layout counter-rotates so the map stays upright, as on a real phone. */}
+            <div className={styles.phoneLand} aria-hidden>
+              <RouteMap
+                variant="landscape"
+                plate="/images/landing/map-plate.webp"
+                animate
+                className="absolute inset-0 h-full w-full"
+              />
+            </div>
           </div>
         </div>
         <Image

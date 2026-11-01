@@ -56,6 +56,21 @@
   background: #f3ead9;
 }
 
+.phonePortrait {
+  opacity: calc(1 - (var(--turn, 0) - 0.3) * 5);
+}
+
+.phoneLand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 852px;
+  height: 393px;
+  margin: -196.5px 0 0 -426px;
+  opacity: calc((var(--turn, 0) - 0.3) * 5);
+  transform: rotate(calc(var(--turn, 0) * 90deg));
+}
+
 .phoneShell {
   position: absolute;
   inset: 0;
