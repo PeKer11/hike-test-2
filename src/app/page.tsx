@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { BeforeAfter } from "@/components/marketing/landing/BeforeAfter";
+import { ClosingVideo } from "@/components/marketing/landing/ClosingVideo";
 import { FloatingPropCard } from "@/components/marketing/landing/FloatingPropCard";
 import { LandingHero } from "@/components/marketing/landing/LandingHero";
 import { PropParallax } from "@/components/marketing/landing/PropParallax";
@@ -47,17 +48,20 @@ const FEATURES = [
 // TODO(launch gate): confirm these are real, attributable quotes before launch.
 const TESTIMONIALS = [
   {
-    quote: "Every guided tour leaves me behind. Traike just adjusted, and I never felt rushed.",
+    quote:
+      "Every guided tour leaves me behind. Traike just adjusted, and I never felt rushed.",
     name: "Maya",
     detail: "Lisbon",
   },
   {
-    quote: "75 minutes before our train. It built a loop and got us back with eight minutes to spare.",
+    quote:
+      "75 minutes before our train. It built a loop and got us back with eight minutes to spare.",
     name: "Daniel & Or",
     detail: "Rome",
   },
   {
-    quote: "It walked me down a street I’d never noticed in ten years. That café is now my regular.",
+    quote:
+      "It walked me down a street I’d never noticed in ten years. That café is now my regular.",
     name: "Noa",
     detail: "Tel Aviv",
   },
@@ -72,7 +76,10 @@ export default function LandingPage() {
       <LandingHero />
 
       {/* How it works */}
-      <section id="how-it-works" className="relative isolate scroll-mt-20 overflow-hidden">
+      <section
+        id="how-it-works"
+        className="relative isolate scroll-mt-20 overflow-hidden"
+      >
         <Image
           src="/images/hub-mountain-lake-sunset.png"
           alt=""
@@ -170,34 +177,37 @@ export default function LandingPage() {
 
       {/* Closing card */}
       <section className="px-4 py-16 sm:px-6 md:py-24">
-        <div className="relative isolate mx-auto flex h-[520px] max-w-[1200px] items-center overflow-hidden rounded-[28px] shadow-[0_24px_60px_rgba(30,61,47,0.3)] md:h-[560px]">
+        <div className="relative mx-auto max-w-[1200px]">
           <Image
-            src="/images/hero-tent-sunrise-new.png"
+            src="/images/landing/prop-backpack.webp"
             alt=""
-            fill
-            sizes="(min-width: 1200px) 1200px, 100vw"
+            width={900}
+            height={1118}
             aria-hidden
-            className="-z-20 object-cover object-[20%_50%]"
+            className="pointer-events-none absolute -top-14 right-6 z-10 hidden w-[170px] drop-shadow-[0_22px_26px_rgba(7,42,31,0.4)] md:block"
           />
-          <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(7,42,31,0.78),rgba(7,42,31,0.2)_70%)] max-md:bg-[linear-gradient(180deg,rgba(7,42,31,0.7),rgba(7,42,31,0.35))]" />
-          <div className="px-8 md:px-14">
-            <h2 className="max-w-lg font-display text-4xl font-normal text-cream md:text-6xl">
-              Your first walk is on us
-            </h2>
-            <p className="mt-4 text-xl text-cream/90">Any city. No card.</p>
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-              <Link
-                href="/app"
-                className="rounded-full bg-terra px-8 py-4 text-lg font-bold text-cream shadow-[0_8px_24px_rgba(193,95,60,0.5)] transition-colors hover:bg-terra/90"
-              >
-                Start a free walk
-              </Link>
-              <Link
-                href="/pricing"
-                className="text-base font-semibold text-cream underline-offset-4 hover:underline"
-              >
-                See pricing
-              </Link>
+          <div className="relative isolate mx-auto flex h-[520px] max-w-[1200px] items-center overflow-hidden rounded-[28px] shadow-[0_24px_60px_rgba(30,61,47,0.3)] md:h-[560px]">
+            <ClosingVideo className="absolute inset-0 -z-20 h-full w-full object-cover object-[20%_50%]" />
+            <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(7,42,31,0.78),rgba(7,42,31,0.2)_70%)] max-md:bg-[linear-gradient(180deg,rgba(7,42,31,0.7),rgba(7,42,31,0.35))]" />
+            <div className="px-8 md:px-14">
+              <h2 className="max-w-lg font-display text-4xl font-normal text-cream md:text-6xl">
+                Your first walk is on us
+              </h2>
+              <p className="mt-4 text-xl text-cream/90">Any city. No card.</p>
+              <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+                <Link
+                  href="/app"
+                  className="rounded-full bg-terra px-8 py-4 text-lg font-bold text-cream shadow-[0_8px_24px_rgba(193,95,60,0.5)] transition-colors hover:bg-terra/90"
+                >
+                  Start a free walk
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="text-base font-semibold text-cream underline-offset-4 hover:underline"
+                >
+                  See pricing
+                </Link>
+              </div>
             </div>
           </div>
         </div>
