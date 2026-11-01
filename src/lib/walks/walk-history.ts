@@ -1,4 +1,4 @@
-import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
+import type { WalkCompanionInput } from "@/lib/types/walk-companion";
 import type { Coordinates } from "@/lib/types";
 import type { Attraction, AttractionCategory } from "@/lib/types/walk-plan";
 

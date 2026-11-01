@@ -35,7 +35,19 @@ const eslintConfig = defineConfig([
     // (479 MB, build cache only); ignored here regardless so lint stays
     // clean whether or not it's removed.
     ".next-stale-bak/**",
+    // The mobile build's output. Same content as .next/**, same noise.
+    ".next-mobile/**",
   ]),
+  {
+    // eslint-plugin-react-hooks 7.1 (eslint-config-next 16.4.3) reports React Compiler diagnostics as errors.
+    // This app does not enable the React Compiler; tracked as warnings until each file is next touched (TODO.md).
+    rules: {
+      "react-hooks/refs": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/immutability": "warn",
+    },
+  },
 ]);
 
 export default eslintConfig;

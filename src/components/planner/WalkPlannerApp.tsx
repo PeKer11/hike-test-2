@@ -23,7 +23,7 @@ import type { WalkStatsData } from "@/components/walk/WalkStatsBar";
 import { WalkFinishCard, type WalkFinishData } from "@/components/walk/WalkFinishCard";
 import { WalkFeedbackCard } from "@/components/walk/WalkFeedbackCard";
 import { AssistantChat, type AssistantBuild } from "@/components/assistant/AssistantChat";
-import type { WalkCompanionInput } from "@/components/route/WalkCompanionPanel";
+import type { WalkCompanionInput } from "@/lib/types/walk-companion";
 import type {
   Attraction,
   AttractionCategory,
