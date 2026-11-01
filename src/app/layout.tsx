@@ -27,7 +27,7 @@ export const viewport: Viewport = {
   // Lets the walk HUD pad for the notch / home bar via env(safe-area-inset-*),
   // and stops Samsung's forced dark mode from repainting the cream UI.
   viewportFit: "cover",
-  colorScheme: "light",
+  colorScheme: "only light",
 };
 
 export default function RootLayout({

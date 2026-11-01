@@ -40,6 +40,17 @@ const AUTH_DISABLED_ENV = {
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "",
 };
 
+/**
+ * A developer's `.env.local` must not change which map the suite sees: the HUD specs assert against the
+ * Leaflet/OSM map (attribution control, `.leaflet-container`), and CI has no Google keys.
+ */
+const DEFAULT_MAP_ENV = {
+  NEXT_PUBLIC_MAP_PROVIDER: "",
+  NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: "",
+  NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY: "",
+  NEXT_PUBLIC_SOCIAL: "",
+};
+
 export default defineConfig({
   testDir: "./e2e",
   // Belt and braces against the two suites eating each other: vitest.config.ts
@@ -60,6 +71,17 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
+    // Every test starts as a walker who already answered the one-time consent screen, so the modal
+    // does not cover the page. consent.spec.ts opts out to test the screen itself.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: BASE_URL,
+          localStorage: [{ name: "walk-settings", value: JSON.stringify({ learningConsent: "declined" }) }],
+        },
+      ],
+    },
   },
 
   projects: [
@@ -85,6 +107,7 @@ export default defineConfig({
     timeout: 240_000,
     env: {
       ...AUTH_DISABLED_ENV,
+      ...DEFAULT_MAP_ENV,
       // Keeps the e2e build out of `.next`, which a running `npm run dev` owns.
       NEXT_DIST_DIR: ".next-e2e",
     },

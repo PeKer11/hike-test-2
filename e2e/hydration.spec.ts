@@ -16,7 +16,7 @@ const ROUTES = [
   { path: "/", heading: "A walk built around you" },
   { path: "/app", heading: "City Walk Companion" },
   { path: "/login", heading: "Welcome back" },
-  { path: "/pricing", heading: "Try it first. Properly." },
+  { path: "/pricing", heading: "Walk first. Pay later." },
 ] as const;
 
 for (const route of ROUTES) {
