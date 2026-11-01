@@ -14,6 +14,67 @@
   }
 }
 
+/* 3D phone: the stage is authored in shell pixels (771x1357) and scaled to the
+   box width with the unitless-ratio trick, so the homography stays exact. */
+.phoneBox {
+  position: relative;
+  container-type: inline-size;
+  width: min(80vw, 340px);
+  aspect-ratio: 771 / 1357;
+}
+
+@media (min-width: 768px) {
+  .phoneBox {
+    width: min(40svh, 360px);
+  }
+}
+
+.phoneStage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 771px;
+  height: 1357px;
+  transform-origin: 0 0;
+  scale: tan(atan2(100cqw, 771px));
+}
+
+.phoneClip {
+  position: absolute;
+  inset: 0;
+  -webkit-mask: url(/images/landing/phone-hole.webp) 0 0 / 771px 1357px no-repeat;
+  mask: url(/images/landing/phone-hole.webp) 0 0 / 771px 1357px no-repeat;
+}
+
+.phoneScreen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+  background: #f3ead9;
+}
+
+.phoneShell {
+  position: absolute;
+  inset: 0;
+  width: 771px;
+  height: 1357px;
+  max-width: none;
+  pointer-events: none;
+}
+
+.phoneShadow {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -3%;
+  height: 7%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(7, 42, 31, 0.42), transparent);
+  filter: blur(6px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bob {
     animation: none;

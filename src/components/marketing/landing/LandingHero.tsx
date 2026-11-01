@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import styles from "./landing.module.css";
-import { RouteMap } from "./RouteMap";
+import { HeroPhone } from "./HeroPhone";
 
 /* Phase 1: static hero. Phase 3 turns this into the scroll-driven story
    (camera push into the phone, cloud cover, full-bleed map). */
@@ -38,18 +38,8 @@ export function LandingHero() {
         </div>
 
         <div className="flex justify-center md:justify-end md:pe-6">
-          <div className="md:-rotate-[4deg]">
-            <div className={styles.bob}>
-              <div className="relative h-[440px] aspect-[0.49] rounded-[44px] bg-tk-ink p-[10px] shadow-[0_40px_80px_-20px_rgba(7,42,31,0.55),inset_0_0_0_1px_rgba(255,255,255,0.12)] md:h-[min(62svh,600px)]">
-                <div className="relative h-full w-full overflow-hidden rounded-[34px] bg-cream">
-                  <RouteMap variant="portrait" className="absolute inset-0 h-full w-full" />
-                  <span className="absolute left-1/2 top-2.5 h-5 w-20 -translate-x-1/2 rounded-full bg-tk-ink" />
-                  <span className="absolute bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-cream/95 px-4 py-2 text-[15px] font-semibold text-forest shadow-[0_6px_18px_rgba(30,61,47,0.25)]">
-                    90 min · 4.2 km · 3 stops
-                  </span>
-                </div>
-              </div>
-            </div>
+          <div className={styles.bob}>
+            <HeroPhone />
           </div>
         </div>
       </div>
