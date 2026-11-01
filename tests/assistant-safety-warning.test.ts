@@ -27,12 +27,14 @@ const guarded: AssistantState = {
     { id: "c1", name: "Far cafe", coordinates: { lat: 32.09, lng: 34.8 }, category: "food", placeId: "p1" },
   ],
 };
+// The walker's reply to "drop it?" is the turn that arms a refused clear (turn.ts).
+const asked: AssistantState = { ...guarded, safetyClear: { rules: ["access", "avoid_dangerous", "max_grade", "stay_in_area"], armed: false } };
 const clearAll = tool("t1", "set_walk_params", { clear: ["access", "avoid_dangerous", "max_grade", "stay_in_area"] });
 
 describe("server-written warning", () => {
   it("says what the assistant loosened, and the state really lost the rules", async () => {
     const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll)).mockResolvedValueOnce(text("done"));
-    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "any cafe" }], state: guarded, choice }, { call });
+    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "any cafe" }], state: asked, choice }, { call });
     expect(result.reply).toMatch(/^done/);
     expect(result.reply).toMatch(/Changed by the assistant/);
     for (const part of [/step-free routing for a wheelchair is off/, /dangerous roads/, /6% slope limit was removed/, /may now leave Caesarea/]) expect(result.reply).toMatch(part);
@@ -41,8 +43,29 @@ describe("server-written warning", () => {
 
   it("writes the Hebrew line for a Hebrew message", async () => {
     const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll)).mockResolvedValueOnce(text("בסדר"));
-    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "כל בית קפה" }], state: guarded, choice }, { call });
+    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "כל בית קפה" }], state: asked, choice }, { call });
     expect(result.reply).toMatch(/שינוי שהעוזר ביצע/);
+  });
+
+  it("refuses to drop safety rules in one turn, even if asked twice", async () => {
+    const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll, { ...clearAll, id: "t2" })).mockResolvedValueOnce(text("asking"));
+    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "any cafe" }], state: guarded, choice }, { call });
+    expect(result.state.params).toEqual(guarded.params);
+    expect(result.state.safetyClear).toEqual({ rules: ["access", "avoid_dangerous", "max_grade", "stay_in_area"], armed: false });
+    expect(result.reply).toBe("asking");
+  });
+
+  it("forgets a refused clear the walker never confirmed", async () => {
+    const armed = { ...asked, safetyClear: { ...asked.safetyClear!, armed: true } };
+    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "hi" }], state: armed, choice }, { call: vi.fn().mockResolvedValueOnce(text("hello")) });
+    expect(result.state.safetyClear).toBeUndefined();
+  });
+
+  it("does not let access:none or avoid_dangerous:false through in one turn", async () => {
+    const call = vi.fn().mockResolvedValueOnce(toolRound(tool("t1", "set_walk_params", { access: "none", avoid_dangerous: false }))).mockResolvedValueOnce(text("ok"));
+    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "x" }], state: guarded, choice }, { call });
+    expect(result.state.params.access).toBe("wheelchair");
+    expect(result.state.params.avoidDangerous).toBe(true);
   });
 
   it("flags a start that moved, with the place name", async () => {
@@ -69,7 +92,7 @@ describe("server-written warning", () => {
   it("refuses to loosen a rule in a message with an image, and says nothing was changed", async () => {
     const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll)).mockResolvedValueOnce(text("ok"));
     const result = await runAssistantTurn(
-      { summary: null, history: [{ role: "user", content: "see picture", images: ["data:image/png;base64,AAAA"] }], state: guarded, choice },
+      { summary: null, history: [{ role: "user", content: "see picture", images: ["data:image/png;base64,AAAA"] }], state: asked, choice },
       { call },
     );
     expect(result.state.params).toEqual(guarded.params);

@@ -28,6 +28,9 @@ import { withTransitBack } from "./transit";
 import { scheduleOf } from "@/lib/walk/schedule-rules";
 import { loadEnv, needsRouteCheck, routeAndJudge, TURN_ROUTING_CALLS, type Judged } from "./route-check";
 
+/** Rules set_walk_params will not drop in a single turn. */
+const SAFETY_CLEAR = new Set(["access", "max_grade", "stay_in_area", "avoid_dangerous"]);
+
 import {
   DEFAULT_PACE_MIN_PER_KM,
   visitMinutes,
@@ -819,6 +822,24 @@ export async function runTool(
       const w = num(args.max_walk_km);
       if (e === 0 && (state.params.order?.endAt || state.params.transit?.back)) {
         return { output: JSON.stringify({ error: "a loop (back at the start) conflicts with end_at / the ride home: ask the walker which one they want, then clear the other first" }), state };
+      }
+      // Dropping a safety rule needs a second step: refuse now, allow only after the walker's next message (see turn.ts).
+      const asked = new Set<string>(
+        (Array.isArray(args.clear) ? args.clear : []).filter((x: unknown): x is string => typeof x === "string" && SAFETY_CLEAR.has(x)),
+      );
+      if (args.access === "none") asked.add("access");
+      if (args.avoid_dangerous === false) asked.add("avoid_dangerous");
+      if (asked.size) {
+        const pending = state.safetyClear;
+        if (pending?.armed && [...asked].every((x) => pending.rules.includes(x))) {
+          delete state.safetyClear;
+        } else {
+          state.safetyClear = { rules: [...asked], armed: false };
+          return {
+            output: JSON.stringify({ error: "not done: dropping a safety rule needs the walker to confirm it. Ask the walker in plain words whether to drop it, change nothing else about it, and wait for the answer." }),
+            state,
+          };
+        }
       }
       if (w) state.params.maxWalkKm = w;
       state.limitsSettled = true;

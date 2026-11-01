@@ -44,5 +44,8 @@ export function asState(raw: unknown): AssistantState {
     candidates: candidates.map((c) => ({ ...c, name: cleanText(c.name, MAX_STORED_NAME) })),
     chosen: Array.isArray(s.chosen) ? s.chosen.filter((x): x is string => typeof x === "string").slice(0, MAX_STORED_CANDIDATES) : [],
     limitsSettled: s.limitsSettled === true,
+    ...(s.safetyClear && Array.isArray(s.safetyClear.rules) && s.safetyClear.rules.length
+      ? { safetyClear: { rules: s.safetyClear.rules.filter((x): x is string => typeof x === "string").slice(0, 4), armed: s.safetyClear.armed === true } }
+      : {}),
   };
 }

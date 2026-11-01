@@ -81,6 +81,11 @@ export async function runAssistantTurn(
 ): Promise<TurnResult> {
   const call = deps.call ?? callOpenAiTools;
   let state = input.state;
+  // A refused safety clear becomes allowed on the walker's next message, and only on that one.
+  if (state.safetyClear) {
+    const { safetyClear, ...rest } = state;
+    state = safetyClear.armed ? rest : { ...rest, safetyClear: { ...safetyClear, armed: true } };
+  }
   let action: BuildAction | undefined;
   let askLimits = false;
   let unchecked: string[] = [];
