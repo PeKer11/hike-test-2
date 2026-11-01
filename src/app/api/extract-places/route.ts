@@ -10,6 +10,7 @@ import {
   searchTextPlaces,
 } from "@/lib/api/google-places-client";
 import { searchPlaces } from "@/lib/api/nominatim-client";
+import { createPlacesGate, placesDailyCap, type PlacesGate } from "@/lib/api/places-quota";
 import {
   callerKey,
   geminiRateLimiter,
@@ -46,6 +47,7 @@ import {
   getPreferredCategories,
   learnPreferencesFromText,
 } from "@/lib/preferences/preference-store";
+import { callerKeyFor } from "@/lib/llm/budget";
 import { LlmBudgetExceededError } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -115,6 +117,9 @@ const GEOCODE_DELAY_MS = 1100;
 // Same 2 km the City Walk Companion form defaults to, so a stop found for a
 // stated need is as reachable as one the open-mode search would have offered.
 const NEED_SEARCH_RADIUS_METERS = 2000;
+
+/** Paid Google calls one request may make: the context area, the named places, up to 3 canonical retries, up to 9 need kinds. */
+const MAX_GOOGLE_CALLS_PER_REQUEST = 16;
 // How long the need search waits on Overpass before using Nominatim instead.
 const NEED_OVERPASS_BUDGET_MS = 5000;
 // Only used to bound how far the ranker will look when the walker did not say
@@ -158,10 +163,11 @@ interface GeocodeMatch {
 async function geocode(
   name: string,
   bias: Coordinates | undefined,
+  placesGate: PlacesGate,
 ): Promise<GeocodeMatch | null> {
   // Google finds a named place anywhere ("Habima, Tel Aviv") and only prefers
   // the bias; any failure just falls through to Nominatim as before.
-  if (googlePlacesAvailable()) {
+  if (googlePlacesAvailable() && (await placesGate.take())) {
     try {
       const [place] = await searchTextPlaces(name, bias);
       if (place) {
@@ -238,7 +244,8 @@ async function findNeedAttractions(
   origin: Coordinates | undefined,
   durationMinutes: number | null,
   excludeNames: Set<string>,
-  count?: number | null,
+  count: number | null | undefined,
+  placesGate: PlacesGate,
 ): Promise<Attraction[]> {
   if (categories.length === 0 || !origin) {
     return [];
@@ -246,7 +253,7 @@ async function findNeedAttractions(
 
   let picked: Attraction[] = [];
   if (googlePlacesAvailable()) {
-    picked = await findNeedsViaGoogle(categories, origin, excludeNames, count);
+    picked = await findNeedsViaGoogle(categories, origin, excludeNames, count, placesGate);
     if (picked.length >= Math.max(count ?? 0, categories.length)) {
       return count ? picked.slice(0, Math.max(count, categories.length)) : picked;
     }
@@ -296,8 +303,11 @@ async function findNeedsViaGoogle(
   categories: AttractionCategory[],
   origin: Coordinates,
   excludeNames: Set<string>,
-  count?: number | null,
+  count: number | null | undefined,
+  placesGate: PlacesGate,
 ): Promise<Attraction[]> {
+  // Refused (daily or per-request cap): contribute nothing, the caller falls back to OSM.
+  if (!(await placesGate.take(categories.length))) return [];
   const pools = new Map<AttractionCategory, Attraction[]>();
   await Promise.all(
     categories.map(async (category) => {
@@ -627,6 +637,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     const session = await learningSession(body.learnPreferences);
     const facts = await standingFactsFor(session);
 
+    // Google Places is paid: cap calls per request and per day, counted against the walker (or the ip bucket).
+    const owners = (process.env.LLM_OWNER_USER_IDS ?? "").split(",").map((o) => o.trim());
+    const placesGate = createPlacesGate({
+      key: `places:${callerKeyFor(llmContext(session?.userId ?? null))}`,
+      dailyCap: placesDailyCap("free", !!session && owners.includes(session.userId)),
+      perTurnCap: MAX_GOOGLE_CALLS_PER_REQUEST,
+    });
+
     let bias = toBias(body.nearLocation);
     const {
       places,
@@ -661,7 +679,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         await delay(GEOCODE_DELAY_MS);
       }
       geocodeCalls += 1;
-      return geocode(name, searchBias);
+      return geocode(name, searchBias, placesGate);
     };
 
     // Kept beyond the bias it is used for: it is also the best guess at where the
@@ -760,6 +778,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           : [],
       ),
       stopCount,
+      placesGate,
     );
 
     const factContradictions = await learnFromText(session, prompt, llmContext(session?.userId ?? null));

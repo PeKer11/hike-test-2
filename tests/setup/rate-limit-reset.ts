@@ -2,8 +2,11 @@ import { beforeEach } from "vitest";
 
 // Keep tests hermetic: a developer's real provider keys / LLM_* routing must not
 // change which model a test resolves (zero-config OpenAI routing keys off them).
-for (const key of Object.keys(process.env)) {
-  if (/^LLM_(PROVIDER|MODEL)/.test(key) || key === "OPENAI_API_KEY") delete process.env[key];
+// The opt-in live injection eval (RUN_LIVE_INJECTION_EVAL=1) needs the real key and model routing.
+if (process.env.RUN_LIVE_INJECTION_EVAL !== "1") {
+  for (const key of Object.keys(process.env)) {
+    if (/^LLM_(PROVIDER|MODEL)/.test(key) || key === "OPENAI_API_KEY") delete process.env[key];
+  }
 }
 
 import { resetAllCircuitBreakers } from "@/lib/api/circuit-breaker";
