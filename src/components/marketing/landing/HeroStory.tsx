@@ -66,12 +66,18 @@ export function HeroStory() {
       sec.style.setProperty("--hh", `${HEADER}px`);
       wrap.style.transform = "none";
       const s = stg.getBoundingClientRect();
-      const b = box.getBoundingClientRect();
-      const k = b.width / PHONE.shellW;
+      // Layout offsets, not getBoundingClientRect: the intro animation transforms the phone.
+      let bl = 0;
+      let bt = 0;
+      for (let el: HTMLElement | null = box; el && el !== stg; el = el.offsetParent as HTMLElement | null) {
+        bl += el.offsetLeft;
+        bt += el.offsetTop;
+      }
+      const k = box.offsetWidth / PHONE.shellW;
       const avgX = PHONE.corners.reduce((a, c) => a + c[0], 0) / 4;
       const avgY = PHONE.corners.reduce((a, c) => a + c[1], 0) / 4;
-      cx = b.left - s.left + avgX * k;
-      cy = b.top - s.top + avgY * k;
+      cx = bl + avgX * k;
+      cy = bt + avgY * k;
       const screenH = ((PHONE.corners[3][1] - PHONE.corners[0][1] + (PHONE.corners[2][1] - PHONE.corners[1][1])) / 2) * k;
       W = s.width;
       H = s.height;
@@ -148,7 +154,8 @@ export function HeroStory() {
             ref={(el) => {
               props.current[i] = el;
             }}
-            className={`pointer-events-none absolute z-[5] ${p.pos}`}
+            className={`${styles.propIn} pointer-events-none absolute z-[5] ${p.pos}`}
+            style={{ ["--pd" as string]: `${0.7 + i * 0.12}s` }}
           >
             <Image
               src={p.src}
@@ -179,8 +186,10 @@ export function HeroStory() {
           </div>
           <div className="flex justify-center md:justify-end md:pe-6">
             <div ref={phoneWrap} className="will-change-transform">
-              <div className={styles.bob}>
-                <HeroPhone />
+              <div className={styles.intro}>
+                <div className={styles.bob}>
+                  <HeroPhone />
+                </div>
               </div>
             </div>
           </div>
