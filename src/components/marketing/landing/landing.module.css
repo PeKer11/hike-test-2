@@ -1,0 +1,21 @@
+/* Landing-only styles. globals.css is shared with the app and stays untouched. */
+
+.bob {
+  animation: bob 6s ease-in-out infinite;
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(-6px);
+  }
+  50% {
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bob {
+    animation: none;
+  }
+}
