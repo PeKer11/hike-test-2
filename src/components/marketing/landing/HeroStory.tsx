@@ -36,6 +36,7 @@ export function HeroStory() {
   const clouds = useRef<HTMLDivElement>(null);
   const map = useRef<HTMLDivElement>(null);
   const props = useRef<(HTMLDivElement | null)[]>([]);
+  const intro = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -59,6 +60,9 @@ export function HeroStory() {
     let target = 0;
     let cur = 0;
     let raf = 0;
+    let introPush = 0; // 1 = phone screen fills the stage (same pose as the scroll push), eases to 0
+    let introRaf = 0;
+    let introAnim: Animation | undefined;
 
     const measure = () => {
       // The shared header can wrap on narrow screens (80px at 360-390), so read it.
@@ -103,7 +107,8 @@ export function HeroStory() {
       copy.current!.style.pointerEvents = st.copyO < 0.1 ? "none" : "auto";
       copy.current!.style.visibility = st.copyO < 0.02 ? "hidden" : "visible";
       plate.current!.style.transform = `scale(${st.plateScale})`;
-      wrap.style.transform = `translate3d(${tx * st.push}px,${ty * st.push}px,0) scale(${1 + (S - 1) * st.push})`;
+      const push = Math.max(st.push, introPush);
+      wrap.style.transform = `translate3d(${tx * push}px,${ty * push}px,0) scale(${1 + (S - 1) * push})`;
       wrap.style.visibility = st.phoneVisible ? "visible" : "hidden";
       props.current.forEach((el, i) => {
         if (!el) return;
@@ -130,6 +135,44 @@ export function HeroStory() {
     measure();
     cur = target;
     apply(cur);
+
+    // Intro: the phone starts full-screen, spins fast through blur, and settles into place.
+    const introEl = intro.current;
+    if (introEl) {
+      if (window.scrollY > 40) {
+        introEl.classList.add(styles.introDone);
+      } else {
+        // Phase 1 (0-45%): phone fills the stage and spins fast through blur.
+        // Phase 2 (45-100%): it pulls back to its resting place and the blur clears.
+        const MS = 2300;
+        const SPIN = 0.45;
+        const t0 = performance.now();
+        introPush = 1;
+        apply(cur);
+        introAnim = introEl.animate(
+          [
+            { transform: "perspective(1600px) rotateY(-540deg)", filter: "blur(16px)", opacity: 0, easing: "cubic-bezier(0.25, 0.6, 0.3, 1)" },
+            { transform: "perspective(1600px) rotateY(0deg)", filter: "blur(9px)", opacity: 1, offset: SPIN, easing: "ease-out" },
+            { transform: "perspective(1600px) rotateY(0deg)", filter: "blur(0px)", opacity: 1 },
+          ],
+          { duration: MS, fill: "both" },
+        );
+        const done = () => {
+          introEl.classList.add(styles.introDone);
+          introAnim?.cancel();
+        };
+        introAnim.onfinish = done;
+        const tick = (now: number) => {
+          const t = Math.min(1, (now - t0) / MS);
+          const u = Math.max(0, (t - SPIN) / (1 - SPIN));
+          introPush = 1 - (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+          apply(cur);
+          if (t < 1) introRaf = requestAnimationFrame(tick);
+          else introPush = 0;
+        };
+        introRaf = requestAnimationFrame(tick);
+      }
+    }
     const onResize = () => measure();
     window.addEventListener("scroll", readScroll, { passive: true });
     window.addEventListener("resize", onResize);
@@ -137,6 +180,8 @@ export function HeroStory() {
       window.removeEventListener("scroll", readScroll);
       window.removeEventListener("resize", onResize);
       if (raf) cancelAnimationFrame(raf);
+      if (introRaf) cancelAnimationFrame(introRaf);
+      introAnim?.cancel();
     };
   }, []);
 
@@ -155,7 +200,7 @@ export function HeroStory() {
               props.current[i] = el;
             }}
             className={`${styles.propIn} pointer-events-none absolute z-[5] ${p.pos}`}
-            style={{ ["--pd" as string]: `${0.7 + i * 0.12}s` }}
+            style={{ ["--pd" as string]: `${1.5 + i * 0.12}s` }}
           >
             <Image
               src={p.src}
@@ -186,7 +231,7 @@ export function HeroStory() {
           </div>
           <div className="flex justify-center md:justify-end md:pe-6">
             <div ref={phoneWrap} className="will-change-transform">
-              <div className={styles.intro}>
+              <div ref={intro} className={styles.intro}>
                 <div className={styles.bob}>
                   <HeroPhone />
                 </div>
