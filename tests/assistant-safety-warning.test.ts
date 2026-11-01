@@ -8,7 +8,7 @@ vi.mock("@/lib/api/google-places-client", () => ({
 }));
 
 import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
-import { relaxations, warningLine } from "@/lib/assistant/safety-diff";
+import { confirmLabel, relaxations, warningLine } from "@/lib/assistant/safety-diff";
 import { runAssistantTurn } from "@/lib/assistant/turn";
 import { capHistory } from "@/lib/assistant/summary";
 
@@ -28,13 +28,17 @@ const guarded: AssistantState = {
   ],
 };
 // The walker's reply to "drop it?" is the turn that arms a refused clear (turn.ts).
-const asked: AssistantState = { ...guarded, safetyClear: { rules: ["access", "avoid_dangerous", "max_grade", "stay_in_area"], armed: false } };
+const ALL = ["access", "avoid_dangerous", "max_grade", "stay_in_area"];
+const askedIn = (hebrew: boolean): AssistantState => ({ ...guarded, safetyClear: { rules: ALL, armed: false, label: confirmLabel(ALL, hebrew) } });
+const asked = askedIn(false);
+const YES = confirmLabel(ALL, false);
+const YES_HE = confirmLabel(ALL, true);
 const clearAll = tool("t1", "set_walk_params", { clear: ["access", "avoid_dangerous", "max_grade", "stay_in_area"] });
 
 describe("server-written warning", () => {
   it("says what the assistant loosened, and the state really lost the rules", async () => {
     const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll)).mockResolvedValueOnce(text("done"));
-    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "any cafe" }], state: asked, choice }, { call });
+    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: YES }], state: asked, choice }, { call });
     expect(result.reply).toMatch(/^done/);
     expect(result.reply).toMatch(/Changed by the assistant/);
     for (const part of [/step-free routing for a wheelchair is off/, /dangerous roads/, /6% slope limit was removed/, /may now leave Caesarea/]) expect(result.reply).toMatch(part);
@@ -43,7 +47,7 @@ describe("server-written warning", () => {
 
   it("writes the Hebrew line for a Hebrew message", async () => {
     const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll)).mockResolvedValueOnce(text("בסדר"));
-    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "כל בית קפה" }], state: asked, choice }, { call });
+    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: YES_HE }], state: askedIn(true), choice }, { call });
     expect(result.reply).toMatch(/שינוי שהעוזר ביצע/);
   });
 
@@ -51,14 +55,29 @@ describe("server-written warning", () => {
     const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll, { ...clearAll, id: "t2" })).mockResolvedValueOnce(text("asking"));
     const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "any cafe" }], state: guarded, choice }, { call });
     expect(result.state.params).toEqual(guarded.params);
-    expect(result.state.safetyClear).toEqual({ rules: ["access", "avoid_dangerous", "max_grade", "stay_in_area"], armed: false });
+    expect(result.state.safetyClear).toEqual({ rules: ALL, armed: false, label: YES });
+    expect(result.choices).toEqual([YES, "No, keep the rules"]);
     expect(result.reply).toBe("asking");
   });
 
+  it("a reply that is not the confirm button does not arm the clear", async () => {
+    for (const reply of ["yes", "any cafe", "ok drop it all", `${YES} and more`]) {
+      const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll)).mockResolvedValueOnce(text("asking"));
+      const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: reply }], state: asked, choice }, { call });
+      expect(result.state.params).toEqual(guarded.params);
+    }
+  });
+
   it("forgets a refused clear the walker never confirmed", async () => {
-    const armed = { ...asked, safetyClear: { ...asked.safetyClear!, armed: true } };
-    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "hi" }], state: armed, choice }, { call: vi.fn().mockResolvedValueOnce(text("hello")) });
+    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: "hi" }], state: asked, choice }, { call: vi.fn().mockResolvedValueOnce(text("hello")) });
     expect(result.state.safetyClear).toBeUndefined();
+  });
+
+  it("a confirm button for one rule does not release another", async () => {
+    const one = { ...guarded, safetyClear: { rules: ["max_grade"], armed: false, label: confirmLabel(["max_grade"], false) } };
+    const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll)).mockResolvedValueOnce(text("asking"));
+    const result = await runAssistantTurn({ summary: null, history: [{ role: "user", content: confirmLabel(["max_grade"], false) }], state: one, choice }, { call });
+    expect(result.state.params).toEqual(guarded.params);
   });
 
   it("does not let access:none or avoid_dangerous:false through in one turn", async () => {
@@ -92,13 +111,13 @@ describe("server-written warning", () => {
   it("refuses to loosen a rule in a message with an image, and says nothing was changed", async () => {
     const call = vi.fn().mockResolvedValueOnce(toolRound(clearAll)).mockResolvedValueOnce(text("ok"));
     const result = await runAssistantTurn(
-      { summary: null, history: [{ role: "user", content: "see picture", images: ["data:image/png;base64,AAAA"] }], state: asked, choice },
+      { summary: null, history: [{ role: "user", content: YES, images: ["data:image/png;base64,AAAA"] }], state: asked, choice },
       { call },
     );
     expect(result.state.params).toEqual(guarded.params);
     expect(result.reply).toBe("ok");
     const toolMessage = call.mock.calls[1][0].messages.find((m: { role: string }) => m.role === "tool");
-    expect(toolMessage.content).toMatch(/cannot be relaxed/);
+    expect(toolMessage.content).toMatch(/not done/);
   });
 });
 

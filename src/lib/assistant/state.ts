@@ -119,8 +119,8 @@ export interface AssistantState {
   limitsSettled?: boolean;
   /** Places the walker already visited (saved and marked): find_nearby never offers them again. Rebuilt every turn. */
   avoid?: { placeIds: string[]; spots: Coordinates[] };
-  /** Safety rules a tool call tried to drop: refused until the walker's next message ("armed"), so one turn cannot loosen them alone. */
-  safetyClear?: { rules: string[]; armed: boolean };
+  /** Safety rules a tool call tried to drop: refused until the walker's next message is exactly the confirm button `label` ("armed"). */
+  safetyClear?: { rules: string[]; armed: boolean; label?: string };
   /** Recent route checks (verdict + visiting order), so build_walk reuses what estimate_walk found. In-memory only. Only the newest check keeps its route geometry. */
   checks?: Array<{ key: string; verdict: Verdict; orderIds: string[]; geometry?: Coordinates[] }>;
 }

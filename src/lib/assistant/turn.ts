@@ -9,7 +9,7 @@ import {
 
 import { coarseCoords, UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "@/lib/llm/sanitize";
 import { BilledFailureError } from "@/lib/llm/types";
-import { isHebrew, relaxations, warningLine } from "./safety-diff";
+import { confirmLabel, isHebrew, keepLabel, relaxations, warningLine } from "./safety-diff";
 import { ASSISTANT_SYSTEM } from "./prompt";
 import type { AssistantState, BuildAction } from "./state";
 import { makeBudget } from "@/lib/walk/routing-budget";
@@ -81,11 +81,6 @@ export async function runAssistantTurn(
 ): Promise<TurnResult> {
   const call = deps.call ?? callOpenAiTools;
   let state = input.state;
-  // A refused safety clear becomes allowed on the walker's next message, and only on that one.
-  if (state.safetyClear) {
-    const { safetyClear, ...rest } = state;
-    state = safetyClear.armed ? rest : { ...rest, safetyClear: { ...safetyClear, armed: true } };
-  }
   let action: BuildAction | undefined;
   let askLimits = false;
   let unchecked: string[] = [];
@@ -97,6 +92,12 @@ export async function runAssistantTurn(
   const last = input.history[input.history.length - 1];
   const hebrew = isHebrew(last?.content ?? "");
   const imageTurn = (last?.images?.length ?? 0) > 0;
+  // A refused safety clear is allowed only when the walker's next message is exactly the confirm button the server offered.
+  if (state.safetyClear) {
+    const { safetyClear, ...rest } = state;
+    const confirmed = !imageTurn && safetyClear.label !== undefined && last?.content.trim() === safetyClear.label;
+    state = confirmed ? { ...rest, safetyClear: { ...safetyClear, armed: true } } : rest;
+  }
   const ceiling = input.costCeilingMicros ?? ceilingMicros("ASSISTANT_TURN_CEILING_USD", 0.25);
   const fits = (msgs: ChatMessage[], tools: ToolDef[], out: number) =>
     billedMicros < ceiling && billedMicros + estimateCallMicros(input.choice.model, { messages: msgs, tools, maxOutputTokens: out }) <= ceiling;
@@ -183,6 +184,12 @@ export async function runAssistantTurn(
         continue;
       }
       state = run.state;
+      // A safety clear was just refused: the server, not the model, offers the confirm button.
+      if (state.safetyClear && !state.safetyClear.armed && !state.safetyClear.label) {
+        const label = confirmLabel(state.safetyClear.rules, hebrew);
+        state = { ...state, safetyClear: { ...state.safetyClear, label } };
+        run.choices = [label, keepLabel(hebrew)];
+      }
       if (run.defaultAreaStart) defaultAreaStart = run.defaultAreaStart;
       if (run.action) action = run.action;
       if (run.askLimits) askLimits = true;

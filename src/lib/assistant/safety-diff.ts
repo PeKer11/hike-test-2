@@ -64,3 +64,18 @@ export function warningLine(list: Relaxation[], hebrew: boolean): string {
     ? `⚠ שינוי שהעוזר ביצע: ${parts}. אם לא ביקשתם את זה, כתבו לי ואחזיר.`
     : `⚠ Changed by the assistant: ${parts}. If you did not ask for this, tell me and I will put it back.`;
 }
+
+const RULE_WORDS: Record<string, [string, string]> = {
+  access: ["step-free routing", "ניתוב ללא מדרגות"],
+  max_grade: ["slope limit", "מגבלת שיפוע"],
+  stay_in_area: ["stay-in-town rule", "הגבלת אזור"],
+  avoid_dangerous: ["avoiding dangerous roads", "הימנעות מכבישים מסוכנים"],
+};
+
+/** The exact text of the confirm button for dropping safety rules; only a tap (or the same words typed) by the walker confirms. */
+export function confirmLabel(rules: string[], hebrew: boolean): string {
+  const names = rules.map((r) => RULE_WORDS[r]?.[hebrew ? 1 : 0] ?? r).join(", ");
+  return hebrew ? `כן, להסיר: ${names}` : `Yes, drop: ${names}`;
+}
+
+export const keepLabel = (hebrew: boolean): string => (hebrew ? "לא, להשאיר את הכללים" : "No, keep the rules");
