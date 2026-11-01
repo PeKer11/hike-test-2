@@ -26,16 +26,26 @@ describe("landing hero timeline", () => {
   });
 
   it("is fully covered by clouds before the phone is swapped for the map", () => {
-    for (const p of [0.4, 0.42, 0.44, 0.45]) expect(stateAt(p).cloudO).toBe(1);
+    for (const p of [0.44, 0.46, 0.48, 0.49]) expect(stateAt(p).cloudO).toBe(1);
     // the handover happens inside the fully covered window
-    expect(stateAt(0.44).phoneVisible).toBe(true);
-    expect(stateAt(0.45).phoneVisible).toBe(false);
-    expect(stateAt(0.45).mapVisible).toBe(true);
-    expect(stateAt(0.45).cloudO).toBe(1);
+    expect(stateAt(0.47).phoneVisible).toBe(true);
+    expect(stateAt(0.48).phoneVisible).toBe(false);
+    expect(stateAt(0.48).mapVisible).toBe(true);
+    expect(stateAt(0.48).cloudO).toBe(1);
   });
 
   it("holds still after the map settles", () => {
     expect(stateAt(0.7)).toEqual(stateAt(0.99));
+  });
+
+  it("turns the phone one full turn, face-on when it fills the stage, hazy toward the clouds", () => {
+    expect(stateAt(0).spin).toBe(0);
+    expect(stateAt(0.36).spin).toBe(360);
+    expect(stateAt(0.36).push).toBe(1);
+    expect(stateAt(0.21).spin).toBeGreaterThan(150);
+    expect(stateAt(0.21).spin).toBeLessThan(210);
+    expect(stateAt(0).blur).toBe(0);
+    expect(stateAt(0.4).blur).toBeGreaterThan(stateAt(0.2).blur * 0.5);
   });
 
   it("never lets the cloud layer be visible on a still hero", () => {

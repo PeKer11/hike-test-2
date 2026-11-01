@@ -80,7 +80,7 @@
 .hero {
   --hh: 64px;
   position: relative;
-  height: 320svh;
+  height: 400svh;
 }
 
 .stage {
@@ -93,7 +93,7 @@
 
 @media (max-width: 767px) {
   .hero {
-    height: 260svh;
+    height: 320svh;
   }
 }
 

@@ -54,6 +54,7 @@ export function HeroStory() {
     let tx = 0;
     let ty = 0;
     let S = 1;
+    let landscape = false;
     let W = 1;
     let H = 1;
     let target = 0;
@@ -81,7 +82,11 @@ export function HeroStory() {
       const screenH = ((PHONE.corners[3][1] - PHONE.corners[0][1] + (PHONE.corners[2][1] - PHONE.corners[1][1])) / 2) * k;
       W = s.width;
       H = s.height;
-      S = Math.min(5, (H * 1.18) / screenH);
+      // Wide stage: the phone turns onto its side and grows until its screen covers the stage.
+      // Tall stage (mobile): portrait phone fills it directly.
+      const screenW = ((PHONE.corners[1][0] - PHONE.corners[0][0] + (PHONE.corners[2][0] - PHONE.corners[3][0])) / 2) * k;
+      landscape = W > H * 1.1;
+      S = landscape ? Math.max(W / screenH, H / screenW) * 1.15 : Math.min(5, (H * 1.18) / screenH);
       tx = W / 2 - cx;
       ty = H / 2 - cy;
       docTop = sec.getBoundingClientRect().top + window.scrollY - HEADER;
@@ -96,6 +101,13 @@ export function HeroStory() {
       if (!raf) raf = requestAnimationFrame(frame);
     };
 
+    const roll = (spin: number) => {
+      const turn = spin / 360;
+      return landscape
+        ? `rotate(${-90 * turn}deg) perspective(1800px) rotateY(${-35 * Math.sin(Math.PI * turn)}deg)`
+        : `perspective(1800px) rotateY(${spin}deg)`;
+    };
+
     const apply = (p: number) => {
       const st = stateAt(p);
       copy.current!.style.opacity = String(st.copyO);
@@ -103,7 +115,8 @@ export function HeroStory() {
       copy.current!.style.pointerEvents = st.copyO < 0.1 ? "none" : "auto";
       copy.current!.style.visibility = st.copyO < 0.02 ? "hidden" : "visible";
       plate.current!.style.transform = `scale(${st.plateScale})`;
-      wrap.style.transform = `translate3d(${tx * st.push}px,${ty * st.push}px,0) scale(${1 + (S - 1) * st.push})`;
+      wrap.style.transform = `translate3d(${tx * st.push}px,${ty * st.push}px,0) scale(${1 + (S - 1) * st.push}) ${roll(st.spin)}`;
+      wrap.style.filter = st.blur > 0.3 ? `blur(${st.blur.toFixed(1)}px)` : "none";
       wrap.style.visibility = st.phoneVisible ? "visible" : "hidden";
       props.current.forEach((el, i) => {
         if (!el) return;
