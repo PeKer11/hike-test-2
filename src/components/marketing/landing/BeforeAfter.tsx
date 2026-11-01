@@ -41,9 +41,9 @@ export function BeforeAfter() {
         if (e.currentTarget.hasPointerCapture(e.pointerId)) moveTo(e.clientX);
       }}
     >
-      <RouteMap look="before" className="absolute inset-0 h-full w-full" />
+      <RouteMap look="before" plate="/images/landing/map-plate.webp" className="absolute inset-0 h-full w-full" />
       <div className="absolute inset-0" style={{ clipPath: `inset(0 0 0 ${pos}%)` }}>
-        <RouteMap look="after" className="absolute inset-0 h-full w-full" />
+        <RouteMap look="after" plate="/images/landing/map-plate.webp" className="absolute inset-0 h-full w-full" />
       </div>
 
       <span className="absolute left-4 top-4 rounded-full bg-white/90 px-4 py-2 text-[15px] font-semibold text-charcoal/70 shadow">

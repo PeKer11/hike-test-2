@@ -8,34 +8,6 @@ import { PropParallax } from "@/components/marketing/landing/PropParallax";
 import { SiteFooter } from "@/components/marketing/SiteFooter";
 import { SiteHeader } from "@/components/marketing/SiteHeader";
 
-/* Inline icons in the Iconoir style (1.5px stroke, round caps) — DESIGN.md
-   forbids Lucide. Shown on cards that have no 3D prop yet. */
-function IconCompass({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d="m15.5 8.5-2 5-5 2 2-5z" />
-    </svg>
-  );
-}
-
-function IconMapPin({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M12 21s-7-5.1-7-11a7 7 0 0 1 14 0c0 5.9-7 11-7 11Z" />
-      <circle cx="12" cy="10" r="2.5" />
-    </svg>
-  );
-}
-
-function IconHeart({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M12 20.5s-8-4.9-8-11a4.5 4.5 0 0 1 8-2.8 4.5 4.5 0 0 1 8 2.8c0 6.1-8 11-8 11Z" />
-    </svg>
-  );
-}
-
 const STEPS = [
   {
     prop: "/images/traike/3d/compass.png",
@@ -56,17 +28,17 @@ const STEPS = [
 
 const FEATURES = [
   {
-    icon: <IconCompass className="h-6 w-6" />,
+    prop: "/images/landing/prop-watch.webp",
     title: "Adapts in real time",
     body: "Watches your pace and reroutes as you go.",
   },
   {
-    icon: <IconHeart className="h-6 w-6" />,
+    prop: "/images/landing/prop-mug.webp",
     title: "Learns what you linger on",
     body: "Your next walk starts from who you are.",
   },
   {
-    icon: <IconMapPin className="h-6 w-6" />,
+    prop: "/images/landing/prop-binoculars.webp",
     title: "Local stories, not landmarks",
     body: "The courtyard café, the mural down the alley.",
   },
@@ -154,7 +126,7 @@ export default function LandingPage() {
           <h2 className="text-center font-display text-4xl font-normal text-forest md:text-6xl">
             Made for the way you wander
           </h2>
-          <div className="mt-16 grid gap-6 md:grid-cols-3 md:gap-8">
+          <div className="mt-48 grid gap-x-8 gap-y-44 md:mt-52 md:grid-cols-3 md:gap-y-16">
             {FEATURES.map((f) => (
               <FloatingPropCard key={f.title} {...f} />
             ))}
@@ -163,7 +135,16 @@ export default function LandingPage() {
       </section>
 
       {/* Testimonials */}
-      <section className="bg-gradient-to-b from-forest to-tk-ink py-20 md:py-28">
+      <section className="relative isolate overflow-hidden py-20 md:py-28">
+        <Image
+          src="/images/landing/forest-plate.webp"
+          alt=""
+          fill
+          sizes="100vw"
+          aria-hidden
+          className="-z-20 object-cover object-center"
+        />
+        <div className="absolute inset-0 -z-10 bg-tk-ink/70" />
         <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
           <h2 className="text-center font-display text-4xl font-normal text-cream md:text-6xl">
             Walks people still talk about
@@ -191,12 +172,12 @@ export default function LandingPage() {
       <section className="px-4 py-16 sm:px-6 md:py-24">
         <div className="relative isolate mx-auto flex h-[520px] max-w-[1200px] items-center overflow-hidden rounded-[28px] shadow-[0_24px_60px_rgba(30,61,47,0.3)] md:h-[560px]">
           <Image
-            src="/images/sunset-couple-new.png"
+            src="/images/hero-tent-sunrise-new.png"
             alt=""
             fill
             sizes="(min-width: 1200px) 1200px, 100vw"
             aria-hidden
-            className="-z-20 -scale-x-100 object-cover object-center"
+            className="-z-20 object-cover object-[20%_50%]"
           />
           <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(7,42,31,0.78),rgba(7,42,31,0.2)_70%)] max-md:bg-[linear-gradient(180deg,rgba(7,42,31,0.7),rgba(7,42,31,0.35))]" />
           <div className="px-8 md:px-14">
