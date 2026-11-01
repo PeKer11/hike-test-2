@@ -73,7 +73,7 @@ export function DirectionOptionsSheet({
               className={`w-44 shrink-0 snap-start rounded-xl p-2 text-start transition ${
                 selected
                   ? "bg-terra/10 shadow-[0_2px_10px_rgba(193,95,60,0.25)]"
-                  : "bg-white/70 hover:bg-forest/5"
+                  : "bg-paper/70 hover:bg-forest/5"
               }`}
             >
               <span className="flex items-center gap-1.5 text-sm font-semibold">
@@ -109,7 +109,7 @@ export function DirectionOptionsSheet({
         <button
           type="button"
           onClick={() => onChoose(highlight)}
-          className="flex-1 rounded-lg bg-terra px-3 py-2 text-xs font-semibold text-white transition hover:bg-terra/90"
+          className="flex-1 rounded-lg bg-terra px-3 py-2 text-xs font-semibold text-on-accent transition hover:bg-terra/90"
         >
           {t("options.choose")}
         </button>

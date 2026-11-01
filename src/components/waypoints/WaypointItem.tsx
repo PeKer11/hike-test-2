@@ -25,7 +25,7 @@ export function WaypointItem({
   onSetTimeWindow,
 }: WaypointItemProps) {
   return (
-    <article className="space-y-3 rounded-md border border-charcoal/10 bg-white p-3">
+    <article className="space-y-3 rounded-md border border-charcoal/10 bg-paper p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="text-xs font-semibold text-charcoal/60">#{index + 1}</div>
         <div className="flex items-center gap-2 text-xs">

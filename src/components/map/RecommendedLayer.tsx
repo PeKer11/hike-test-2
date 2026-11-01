@@ -59,7 +59,7 @@ function AddToWalkButton({ attraction, onAdd, added }: { attraction: Attraction;
       type="button"
       disabled={added}
       onClick={() => onAdd(attraction)}
-      className="mt-1 rounded-full bg-terra px-3 py-1 text-xs font-medium text-white disabled:bg-forest/70"
+      className="mt-1 rounded-full bg-terra px-3 py-1 text-xs font-medium text-on-accent disabled:bg-forest/70"
     >
       {added ? "✓ Added to walk" : "＋ Add to walk"}
     </button>
@@ -141,11 +141,11 @@ export function RecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddToWalk?:
             type="button"
             onClick={() => void toggle()}
             aria-pressed={places !== null}
-            className={`rounded-full border border-terra/60 px-3 py-1.5 text-sm font-medium shadow ${places ? "bg-terra text-white" : "bg-white text-charcoal"}`}
+            className={`rounded-full border border-terra/60 px-3 py-1.5 text-sm font-medium shadow ${places ? "bg-terra text-on-accent" : "bg-paper text-charcoal"}`}
           >
             ⭐ Recommended
           </button>
-          {note ? <p className="mt-1 max-w-52 rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
+          {note ? <p className="mt-1 max-w-52 rounded bg-paper/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
         </div>
       </div>
       {notable.map((p) => (

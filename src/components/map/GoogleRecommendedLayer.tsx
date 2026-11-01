@@ -107,7 +107,7 @@ function countSearch() {
 function AddToWalkButton({ attraction, onAdd, added }: { attraction: Attraction; onAdd?: (a: Attraction) => void; added: boolean }) {
   if (!onAdd) return null;
   return (
-    <button type="button" disabled={added} onClick={() => onAdd(attraction)} className="mt-1 rounded-full bg-terra px-3 py-1 text-xs font-medium text-white disabled:bg-forest/70">
+    <button type="button" disabled={added} onClick={() => onAdd(attraction)} className="mt-1 rounded-full bg-terra px-3 py-1 text-xs font-medium text-on-accent disabled:bg-forest/70">
       {added ? "✓ Added to walk" : "＋ Add to walk"}
     </button>
   );
@@ -285,7 +285,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = f
     void showTop();
     if (enabled) void showExtra();
   };
-  const btn = (on: boolean) => `rounded-full border border-terra/60 px-3 py-1.5 text-sm font-medium shadow ${on ? "bg-terra text-white" : "bg-white text-charcoal"}`;
+  const btn = (on: boolean) => `rounded-full border border-terra/60 px-3 py-1.5 text-sm font-medium shadow ${on ? "bg-terra text-on-accent" : "bg-paper text-charcoal"}`;
 
   return (
     <>
@@ -293,7 +293,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = f
         {/* Right-aligned and capped so it never reaches the Map/Satellite switch on the left; sm:mr clears the fixed account pill so both share one row. */}
         <div className={`flex max-w-[min(640px,60vw)] gap-2 p-2.5 ${compact ? "flex-wrap items-center justify-end" : "flex-wrap items-center justify-end sm:mr-[270px]"}`}>
           {top.length ? (
-            <div className="pointer-events-none flex flex-wrap justify-end gap-x-2 rounded bg-white/85 px-2 py-1 text-xs text-charcoal shadow">
+            <div className="pointer-events-none flex flex-wrap justify-end gap-x-2 rounded bg-paper/85 px-2 py-1 text-xs text-charcoal shadow">
               {Object.values(GROUPS).map((g) => (
                 <span key={g.label} className="flex items-center gap-1">
                   <span className="inline-flex h-4 w-4 rounded-full p-0.5 text-white" style={{ background: g.color }}>{g.glyph}</span>
@@ -305,7 +305,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = f
           <button type="button" onClick={toggleAll} aria-pressed={top.length > 0 || extra !== null} className={btn(top.length > 0 || extra !== null)}>
             🏆 Top rated
           </button>
-          {note ? <p className="max-w-52 rounded bg-white/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
+          {note ? <p className="max-w-52 rounded bg-paper/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
         </div>
       </MapControl>
       {all.map((i) => (
@@ -313,7 +313,7 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = f
           {i.source === "google" ? (
             <div className="flex items-center gap-1" data-testid="top-rated-marker">
               {pin(GROUPS[i.group ?? "sights"].color, "#fff", GROUPS[i.group ?? "sights"].glyph, 32)}
-              <span className="rounded bg-white/95 px-1 text-xs font-semibold shadow">★ {i.rating?.toFixed(1)} ({i.ratingCount})</span>
+              <span className="rounded bg-paper/95 px-1 text-xs font-semibold shadow">★ {i.rating?.toFixed(1)} ({i.ratingCount})</span>
             </div>
           ) : i.source === "notable" ? (
             goldStar

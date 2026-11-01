@@ -85,7 +85,7 @@ export function WalkAlertCard({ alert }: { alert: WalkAlert }) {
               onClick={action.onClick}
               className={
                 action.primary
-                  ? "flex-1 rounded-lg bg-terra px-3 py-2 text-xs font-semibold text-white transition hover:bg-terra/90"
+                  ? "flex-1 rounded-lg bg-terra px-3 py-2 text-xs font-semibold text-on-accent transition hover:bg-terra/90"
                   : "flex-1 rounded-lg border border-forest/25 px-3 py-2 text-xs font-semibold text-forest transition hover:bg-forest/10"
               }
             >

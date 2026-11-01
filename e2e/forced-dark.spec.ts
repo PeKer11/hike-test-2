@@ -20,6 +20,8 @@ test("the cream UI stays light under forced dark mode", async ({ page }) => {
   const control = luminance(await paintedRgb(page, 10, 10));
   test.skip(control > 0.5, "this Chromium ignores forced dark; run the Samsung phone check (B8)");
 
+  // An explicit light choice must survive forced dark (device dark would otherwise give our own dark theme).
+  await page.addInitScript(() => localStorage.setItem("traike-theme", "light"));
   await page.goto("/app");
   await expect(page.getByRole("button", { name: "Build My Walk" })).toBeVisible();
   const box = await page.locator(".bg-cream").first().boundingBox();

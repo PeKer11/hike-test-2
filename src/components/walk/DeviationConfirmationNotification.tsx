@@ -52,18 +52,18 @@ export function DeviationConfirmationNotification({
     // be off route and behind schedule at once, so all three can be on screen
     // together, and the slots are fixed rather than packed so a banner does
     // not move under a thumb that is already reaching for it.
-    <div className="absolute top-36 left-1/2 z-[500] w-[min(22rem,90%)] -translate-x-1/2 space-y-2 rounded-xl bg-forest px-4 py-3 text-sm text-white shadow-lg">
+    <div className="absolute top-36 left-1/2 z-[500] w-[min(22rem,90%)] -translate-x-1/2 space-y-2 rounded-xl bg-forest px-4 py-3 text-sm text-on-accent shadow-lg">
       <p>You&apos;ve gone off the planned route. Redraw it from where you are?</p>
       <div className="flex gap-2">
         <button
           onClick={onConfirm}
-          className="flex-1 rounded-md bg-terra px-3 py-2 text-xs font-semibold text-white transition hover:bg-terra/90"
+          className="flex-1 rounded-md bg-terra px-3 py-2 text-xs font-semibold text-on-accent transition hover:bg-terra/90"
         >
           Redraw from here
         </button>
         <button
           onClick={onDismiss}
-          className="flex-1 rounded-md border border-cream/30 px-3 py-2 text-xs font-semibold text-cream/90 transition hover:bg-white/10"
+          className="flex-1 rounded-md border border-cream/30 px-3 py-2 text-xs font-semibold text-cream/90 transition hover:bg-paper/10"
         >
           I know where I&apos;m going
         </button>

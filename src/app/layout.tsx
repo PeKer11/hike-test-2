@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Heebo, Secular_One } from "next/font/google";
+import { ThemeSync } from "@/components/theme/ThemeSync";
+import { THEME_INIT_SCRIPT } from "@/lib/theme/theme";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -36,10 +38,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body
         className={`${heebo.variable} ${secular.variable} antialiased`}
       >
+        <ThemeSync />
         {children}
       </body>
     </html>

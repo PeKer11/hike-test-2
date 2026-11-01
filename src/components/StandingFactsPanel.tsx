@@ -145,7 +145,7 @@ export function StandingFactsPanel({
             {facts.map((fact) => (
               <li
                 key={fact.id}
-                className="flex items-center justify-between gap-2 rounded-md bg-white/70 px-2 py-1.5 text-xs"
+                className="flex items-center justify-between gap-2 rounded-md bg-paper/70 px-2 py-1.5 text-xs"
               >
                 <span className="text-charcoal/80">
                   {fact.text}

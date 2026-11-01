@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { AuthForm } from "@/components/auth/AuthForm";
 
 export const metadata: Metadata = {
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
 export default function SignupPage() {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-cream p-4 font-brand text-charcoal">
+      <ThemeToggle floating />
       {/* Photo background under a cream wash, one glossy 3D accessory on the card's corner. */}
       <Image
         src="/images/meadow-hikers-new.png"
@@ -18,7 +20,7 @@ export default function SignupPage() {
         priority
         sizes="100vw"
         aria-hidden
-        className="scale-105 object-cover object-center"
+        className="scale-105 object-cover object-center dark:brightness-75 dark:saturate-75"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-cream/80 via-cream/45 to-cream/85" />
       <div className="relative w-full max-w-sm">

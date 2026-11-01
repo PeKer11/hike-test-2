@@ -20,7 +20,7 @@ export function WalkRecordingPanel({
   const plural = pointCount === 1 ? "" : "s";
 
   return (
-    <section className="space-y-2 rounded-lg border border-charcoal/10 bg-white p-3 shadow-sm">
+    <section className="space-y-2 rounded-lg border border-charcoal/10 bg-paper p-3 shadow-sm">
       {isRecording ? (
         <div className="flex items-center gap-2 text-sm text-charcoal/80">
           <span
@@ -38,7 +38,7 @@ export function WalkRecordingPanel({
           <button
             type="button"
             onClick={onDownload}
-            className="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-terra px-3 text-sm font-medium text-white transition hover:bg-terra/90"
+            className="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-terra px-3 text-sm font-medium text-on-accent transition hover:bg-terra/90"
           >
             GPX
           </button>

@@ -69,7 +69,7 @@ export function WalkHud({ alert, sheet, chat, stats, onDetails, onEndWalk }: Wal
           <button
             type="button"
             onClick={onEndWalk}
-            className="pointer-events-auto ms-auto rounded-full bg-terra px-4 py-2 text-xs font-semibold text-white shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition hover:bg-terra/90"
+            className="pointer-events-auto ms-auto rounded-full bg-terra px-4 py-2 text-xs font-semibold text-on-accent shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition hover:bg-terra/90"
           >
             {walkCopy.hud.endWalk}
           </button>

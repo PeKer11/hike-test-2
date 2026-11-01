@@ -913,7 +913,7 @@ export function PlacePromptPanel({
               {scrollback.map((entry) => (
                 <li
                   key={entry.id}
-                  className="rounded-md bg-white/70 px-2 py-1 text-xs"
+                  className="rounded-md bg-paper/70 px-2 py-1 text-xs"
                 >
                   <p className="text-charcoal/80">
                     {truncatePrompt(entry.prompt)}
@@ -1037,8 +1037,8 @@ export function PlacePromptPanel({
                   }
                   className={`cursor-pointer rounded-full px-3 py-1 text-xs transition disabled:cursor-default disabled:opacity-50 ${
                     isSelected
-                      ? "bg-terra text-white shadow-sm"
-                      : "border border-terra/40 bg-white text-forest hover:bg-terra/10"
+                      ? "bg-terra text-on-accent shadow-sm"
+                      : "border border-terra/40 bg-paper text-forest hover:bg-terra/10"
                   }`}
                 >
                   {CATEGORY_LABELS[category]}

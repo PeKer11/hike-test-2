@@ -40,7 +40,7 @@ export function GoogleStopMarkers({
           >
             <div className="flex items-center gap-1" data-testid="map-stop-marker">
               <span dangerouslySetInnerHTML={{ __html: markerIconHtml(label, color, pinnedIds.includes(waypoint.id)) }} />
-              <span dir="auto" className="rounded bg-white/95 px-1 text-xs font-semibold shadow">
+              <span dir="auto" className="rounded bg-paper/95 px-1 text-xs font-semibold shadow">
                 {label} – {waypoint.name}
               </span>
             </div>

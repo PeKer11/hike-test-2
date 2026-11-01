@@ -38,7 +38,7 @@ const DEVIATION_MODE_LABELS: { value: DeviationResponseMode; text: string }[] = 
 ];
 
 const SELECT_CLASS =
-  "rounded-md border border-charcoal/15 bg-white px-2 py-1 text-sm text-forest outline-none ring-terra transition focus:ring-2";
+  "rounded-md border border-charcoal/15 bg-paper px-2 py-1 text-sm text-forest outline-none ring-terra transition focus:ring-2";
 const ROW_CLASS =
   "flex items-center justify-between gap-3 text-sm text-charcoal/80";
 

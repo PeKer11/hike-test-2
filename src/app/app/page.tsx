@@ -60,7 +60,7 @@ export default async function AppHubPage() {
         priority
         sizes="100vw"
         aria-hidden
-        className="scale-105 object-cover object-center blur-lg"
+        className="scale-105 object-cover object-center blur-lg dark:brightness-75 dark:saturate-75"
       />
       <div
         aria-hidden

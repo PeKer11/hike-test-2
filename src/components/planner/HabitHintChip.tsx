@@ -26,7 +26,7 @@ export function HabitHintChip({
         <li
           key={h.habit}
           data-testid={`habit-hint-${h.habit}`}
-          className="flex items-center gap-2 rounded-full border border-forest/20 bg-white px-3 py-1 text-xs text-charcoal/80"
+          className="flex items-center gap-2 rounded-full border border-forest/20 bg-paper px-3 py-1 text-xs text-charcoal/80"
         >
           <span className="flex-1">{h.text[lang]}</span>
           <button

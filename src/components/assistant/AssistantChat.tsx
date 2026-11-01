@@ -183,7 +183,7 @@ function LimitsBox({
     maxWalkKm: initial?.maxWalkKm ?? defaults.maxWalkKm ?? null,
   });
   return (
-    <div className="space-y-2 rounded-xl border border-charcoal/10 bg-white p-3">
+    <div className="space-y-2 rounded-xl border border-charcoal/10 bg-paper p-3">
       {LIMIT_ROWS.map((row) => (
         <div key={row.key} className="space-y-1">
           <p className="text-xs font-medium text-charcoal/70">{row.label}</p>
@@ -194,7 +194,7 @@ function LimitsBox({
                 type="button"
                 onClick={() => setLimits((l) => ({ ...l, [row.key]: o }))}
                 className={`rounded-full border px-2 py-1 text-xs ${
-                  limits[row.key] === o ? "border-terra bg-terra text-white" : "border-charcoal/15"
+                  limits[row.key] === o ? "border-terra bg-terra text-on-accent" : "border-charcoal/15"
                 }`}
               >
                 {o === 0 ? "Back to start" : `${o} ${row.unit}`}
@@ -204,7 +204,7 @@ function LimitsBox({
               type="button"
               onClick={() => setLimits((l) => ({ ...l, [row.key]: null }))}
               className={`rounded-full border px-2 py-1 text-xs ${
-                limits[row.key] === null ? "border-terra bg-terra text-white" : "border-charcoal/15"
+                limits[row.key] === null ? "border-terra bg-terra text-on-accent" : "border-charcoal/15"
               }`}
             >
               No limit
@@ -235,7 +235,7 @@ function LimitsBox({
                 type="button"
                 onClick={() => setLimits((l) => ({ ...l, paceMinPerKm: p.value }))}
                 className={`rounded-full border px-2 py-1 text-xs ${
-                  limits.paceMinPerKm === p.value ? "border-terra bg-terra text-white" : "border-charcoal/15"
+                  limits.paceMinPerKm === p.value ? "border-terra bg-terra text-on-accent" : "border-charcoal/15"
                 }`}
               >
                 {p.label}
@@ -486,7 +486,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
         <span className="whitespace-nowrap font-display text-[22.2px] font-[650] leading-[1.1] tracking-[-0.01em] text-tk-ink @max-[340px]:text-[19px]">
           Plan with Traike
         </span>
-        <div className="flex grow items-center gap-[12px] whitespace-nowrap text-[12.5px] leading-none text-[#2f3340] @max-[340px]:gap-[9px] @max-[340px]:text-[11.5px]">
+        <div className="flex grow items-center gap-[12px] whitespace-nowrap text-[12.5px] leading-none text-tk-body @max-[340px]:gap-[9px] @max-[340px]:text-[11.5px]">
           <button type="button" className="underline decoration-1 underline-offset-[2px] hover:text-tk-ink" onClick={() => setShowChats((v) => !v)}>
             Chats ({chats.length})
           </button>
@@ -498,7 +498,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             aria-label="Assistant settings"
             title="Settings"
             className={`ml-auto flex h-[22px] w-[22px] items-center justify-center transition-colors ${
-              settingsOpen ? "text-tk-send" : "text-[#2b2d3a] hover:text-tk-send"
+              settingsOpen ? "text-tk-send" : "text-tk-body hover:text-tk-send"
             }`}
             onClick={() => setSettingsOpen((v) => !v)}
           >
@@ -518,7 +518,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
         )}
 
         {showChats && (
-          <ul className="mx-[17px] mt-[8px] max-h-40 space-y-1 overflow-y-auto rounded-[10px] border border-tk-line bg-[#fffdf9] p-1">
+          <ul className="mx-[17px] mt-[8px] max-h-40 space-y-1 overflow-y-auto rounded-[10px] border border-tk-line bg-tk-bubble p-1">
             {chats.length === 0 && <li className="px-2 py-1 text-xs text-charcoal/50">No chats yet.</li>}
             {chats.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-2 rounded-xl px-2 py-1 hover:bg-cream/70">
@@ -557,7 +557,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
               <img src="/images/traike/route-trail.svg" alt="" aria-hidden className="pointer-events-none absolute right-[22px] top-[106px] z-10 w-[116px]" />
               <div data-mock="bubble" className="relative z-20 ml-[36.8%] mr-[3.4%] drop-shadow-[0_2px_5px_rgba(110,80,50,0.16)]">
                 <svg aria-hidden viewBox="0 0 54 41" className="absolute -left-[13px] bottom-0 h-[18px] w-[24px]">
-                  <path d="M29 3C29 15 22 22 10 27 24 31 38 37 54 41H29Z" fill="#fffcf7" />
+                  <path d="M29 3C29 15 22 22 10 27 24 31 38 37 54 41H29Z" className="fill-tk-bubble" />
                 </svg>
                 <p className="relative rounded-[13px] bg-tk-bubble pb-[11px] pl-[16px] pr-[8px] pt-[10px] text-[14px] leading-[1.55] text-tk-body">
                   Tell me where you are and what you feel like — places, food, nature. I will find them and plan the
@@ -612,7 +612,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                 <button
                   key={c}
                   type="button"
-                  className="rounded-full border border-tk-send bg-white px-[10px] py-[4px] text-[12px] text-tk-wordmark"
+                  className="rounded-full border border-tk-send bg-paper px-[10px] py-[4px] text-[12px] text-tk-wordmark"
                   onClick={() => void send(null, { message: c })}
                 >
                   {c}
@@ -654,7 +654,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             }}
             rows={2}
             placeholder="I want to see Habima Square, the Jaffa port, and a good market"
-            className="block w-full resize-y rounded-[6px] border border-tk-field bg-white px-[13px] py-[5px] text-[16px] leading-[1.5] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
+            className="block w-full resize-y rounded-[6px] border border-tk-field bg-paper px-[13px] py-[5px] text-[16px] leading-[1.5] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
           />
           <div className="flex flex-wrap items-center gap-[7px]">
             <input
@@ -672,7 +672,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
               type="button"
               disabled={images.length >= MAX_IMAGES}
               onClick={() => fileInputRef.current?.click()}
-              className="rounded-full border border-tk-field bg-white px-[10px] py-[3px] text-[12px] text-tk-body hover:border-tk-send disabled:cursor-not-allowed"
+              className="rounded-full border border-tk-field bg-paper px-[10px] py-[3px] text-[12px] text-tk-body hover:border-tk-send disabled:cursor-not-allowed"
             >
               📎 Add image
             </button>
@@ -684,7 +684,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                   type="button"
                   aria-label="Remove image"
                   onClick={() => setImages((cur) => cur.filter((_, j) => j !== i))}
-                  className="absolute -right-[5px] -top-[5px] flex h-[15px] w-[15px] items-center justify-center rounded-full bg-tk-ink text-[10px] leading-none text-white"
+                  className="absolute -right-[5px] -top-[5px] flex h-[15px] w-[15px] items-center justify-center rounded-full bg-tk-ink text-[10px] leading-none text-on-accent"
                 >
                   ×
                 </button>
@@ -719,7 +719,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                 window.addEventListener("mousemove", onMove);
                 window.addEventListener("mouseup", onUp);
               }}
-              className="-mx-[17px] flex cursor-grab select-none gap-[7px] active:cursor-grabbing overflow-x-auto px-[17px] pb-[6px] [&::-webkit-scrollbar]:h-[6px] [&::-webkit-scrollbar-track]:mx-[17px] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-white [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-tk-send"
+              className="-mx-[17px] flex cursor-grab select-none gap-[7px] active:cursor-grabbing overflow-x-auto px-[17px] pb-[6px] [&::-webkit-scrollbar]:h-[6px] [&::-webkit-scrollbar-track]:mx-[17px] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-paper [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-tk-send"
             >
               {THEMES.map((t) => (
                 <button
@@ -727,7 +727,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                   type="button"
                   aria-pressed={themes.includes(t.label)}
                   onClick={() => setThemes((cur) => (cur.includes(t.label) ? cur.filter((l) => l !== t.label) : [...cur, t.label]))}
-                  className={`flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border ${themes.includes(t.label) ? "border-tk-send bg-white ring-1 ring-tk-send" : "border-[#eadfce] bg-[#fffdf9]"} py-[4px] pe-[12px] ps-[4px] font-brand text-[12.5px] font-semibold tracking-[0.005em] text-tk-ink shadow-[0_1px_3px_rgba(50,32,16,0.12)] transition-colors hover:border-tk-send hover:bg-white`}
+                  className={`flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border ${themes.includes(t.label) ? "border-tk-send bg-paper ring-1 ring-tk-send" : "border-[#eadfce] bg-tk-bubble"} py-[4px] pe-[12px] ps-[4px] font-brand text-[12.5px] font-semibold tracking-[0.005em] text-tk-ink shadow-[0_1px_3px_rgba(50,32,16,0.12)] transition-colors hover:border-tk-send hover:bg-paper`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={t.image} alt="" aria-hidden className="h-[22px] w-[22px] rounded-full object-cover" />
@@ -737,7 +737,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
               <button
                 type="button"
                 onClick={() => inputRef.current?.focus()}
-                className="flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border border-dashed border-tk-send/60 bg-transparent py-[4px] pe-[12px] ps-[8px] font-brand text-[12.5px] font-semibold text-tk-wordmark transition-colors hover:bg-white"
+                className="flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border border-dashed border-tk-send/60 bg-transparent py-[4px] pe-[12px] ps-[8px] font-brand text-[12.5px] font-semibold text-tk-wordmark transition-colors hover:bg-paper"
               >
                 <span aria-hidden>📍</span>Custom Walk
               </button>
@@ -747,7 +747,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             <button
               type="button"
               onClick={undoSend}
-              className="mb-[6px] block h-[32px] w-full rounded-[9px] border border-tk-field bg-white text-[14px] font-medium leading-none text-tk-body transition-colors hover:bg-tk-bubble"
+              className="mb-[6px] block h-[32px] w-full rounded-[9px] border border-tk-field bg-paper text-[14px] font-medium leading-none text-tk-body transition-colors hover:bg-tk-bubble"
             >
               Undo send
             </button>
@@ -755,7 +755,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
           <button
             type="submit"
             disabled={pending || isBuilding || (!text.trim() && images.length === 0 && themes.length === 0)}
-            className="block h-[37px] w-full rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-white transition-colors hover:bg-[#c2643c] disabled:cursor-not-allowed"
+            className="block h-[37px] w-full rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-on-accent transition-colors hover:bg-[#c2643c] disabled:cursor-not-allowed"
           >
             {isBuilding ? "Building your walk…" : "Send"}
           </button>

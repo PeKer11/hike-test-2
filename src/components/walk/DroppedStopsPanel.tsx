@@ -64,7 +64,7 @@ export function DroppedStopsPanel({ stops, onRecall, onDismiss }: Props) {
             <button
               onClick={() => onRecall(attraction.id)}
               aria-label={`Put ${attraction.name} back in the walk`}
-              className="shrink-0 rounded-full border border-amber-400 bg-white px-2 py-0.5 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
+              className="shrink-0 rounded-full border border-amber-400 bg-paper px-2 py-0.5 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
             >
               Put it back
             </button>

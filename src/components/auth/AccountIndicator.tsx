@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { createClient } from "@/lib/supabase/server";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { LogoutButton } from "./LogoutButton";
 
 // Server component: the session is read from the request cookies, which the
@@ -20,7 +21,8 @@ export async function AccountIndicator() {
   } = await supabase.auth.getUser();
 
   return (
-    <div className="pointer-events-auto fixed right-3 top-3 z-[1000] max-sm:top-[66px] flex items-center gap-2 rounded-md border border-charcoal/10 bg-white/95 px-3 py-1.5 text-xs shadow-sm">
+    <div className="pointer-events-auto fixed right-3 top-3 z-[1000] max-sm:top-[66px] flex items-center gap-2 rounded-md border border-charcoal/10 bg-paper/95 px-3 py-1.5 text-xs shadow-sm">
+      <ThemeToggle />
       {user ? (
         <>
           <span className="max-w-[160px] truncate max-sm:hidden text-charcoal/70">

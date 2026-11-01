@@ -3104,7 +3104,7 @@ export function WalkPlannerApp({
           walkMode && isDetailsOpen
             ? "absolute inset-x-0 bottom-0 z-[700] max-h-[70%] flex-none rounded-t-2xl shadow-[0_-4px_20px_rgba(30,61,47,0.18)] @4xl:static @4xl:max-h-none @4xl:flex-1 @4xl:rounded-none @4xl:shadow-none"
             : "relative"
-        } p-[14px] pb-[26px] @4xl:p-[12px] @4xl:pb-[20px] @6xl:p-[14px] @6xl:pb-[26px]`}
+        } planner-sidebar p-[14px] pb-[26px] @4xl:p-[12px] @4xl:pb-[20px] @6xl:p-[14px] @6xl:pb-[26px]`}
         style={{
           backgroundColor: "#d9b98a",
           backgroundImage: "url(/images/traike/sidebar-bg.jpg)",
@@ -3118,7 +3118,7 @@ export function WalkPlannerApp({
           <button
             type="button"
             onClick={() => setIsDetailsOpen(false)}
-            className="relative z-10 mb-2 ms-auto flex rounded-full border border-forest/20 bg-white px-3 py-1 text-xs font-semibold text-forest @4xl:hidden"
+            className="relative z-10 mb-2 ms-auto flex rounded-full border border-forest/20 bg-paper px-3 py-1 text-xs font-semibold text-forest @4xl:hidden"
           >
             {walkCopy.hud.closeDetails}
           </button>
@@ -3161,7 +3161,7 @@ export function WalkPlannerApp({
                 ? "Back to the simple walk builder"
                 : "Open the full planner: your own stops, route rules and hike search"
             }
-            className="absolute -top-[10px] end-0 inline-flex h-[31px] items-center gap-[9px] rounded-full border border-[#a9b7b0] bg-[#fefcf8] ps-[14px] pe-[15px] text-[12.75px] font-semibold leading-none text-tk-ink shadow-tk-soft transition-colors hover:bg-white @4xl:h-[28px] @4xl:gap-[7px] @4xl:ps-[11px] @4xl:pe-[12px] @4xl:text-[11.5px] @6xl:h-[31px] @6xl:gap-[9px] @6xl:ps-[14px] @6xl:pe-[15px] @6xl:text-[12.75px]"
+            className="absolute -top-[10px] end-0 inline-flex h-[31px] items-center gap-[9px] rounded-full border border-[#a9b7b0] dark:border-tk-line bg-tk-bubble ps-[14px] pe-[15px] text-[12.75px] font-semibold leading-none text-tk-ink shadow-tk-soft transition-colors hover:bg-paper @4xl:h-[28px] @4xl:gap-[7px] @4xl:ps-[11px] @4xl:pe-[12px] @4xl:text-[11.5px] @6xl:h-[31px] @6xl:gap-[9px] @6xl:ps-[14px] @6xl:pe-[15px] @6xl:text-[12.75px]"
           >
             {isAdvancedOpen ? (
               <IconCollapse className="h-[14px] w-[14px]" />
@@ -3649,7 +3649,7 @@ export function WalkPlannerApp({
                   moves the reported position, so what fires downstream is the
                   real detector on a real position stream. */}
               {walkPhase === "walking" && isSimulating && (
-                <div className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-white px-3 py-2">
+                <div className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-paper px-3 py-2">
                   <p className="text-xs text-charcoal/60">
                     {isStrayLoading
                       ? "Finding a real side street to wander down…"
@@ -3704,7 +3704,7 @@ export function WalkPlannerApp({
                   for it, so the real ReplanTrigger measures a real drift off a
                   real position stream. At 10× that is ~90 seconds of watching. */}
               {walkPhase === "walking" && isSimulating && (
-                <div className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-white px-3 py-2">
+                <div className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-paper px-3 py-2">
                   <p className="text-xs text-charcoal/60">
                     {simulatedPaceDrift === null
                       ? "Walk the route at the wrong speed for it to exercise the pace re-plan. Takes about 90 seconds to trigger."
@@ -3840,7 +3840,7 @@ export function WalkPlannerApp({
             <button
               type="button"
               onClick={handleClearAll}
-              className="mx-auto flex items-center gap-[8px] py-2 text-[12.75px] font-semibold leading-[20px] text-[#34261c]"
+              className="mx-auto flex items-center gap-[8px] py-2 text-[12.75px] font-semibold leading-[20px] text-tk-body"
             >
               <svg aria-hidden viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 12a8 8 0 1 1-2.5-5.8" />

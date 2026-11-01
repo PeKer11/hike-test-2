@@ -131,18 +131,18 @@ export function StartLocationPicker({ onPick, origin }: StartLocationPickerProps
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Start from: city or address"
-          className="block min-w-0 flex-1 rounded-[6px] border border-tk-field bg-white px-[10px] py-[4px] text-[12.5px] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
+          className="block min-w-0 flex-1 rounded-[6px] border border-tk-field bg-paper px-[10px] py-[4px] text-[12.5px] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
         />
         <button
           type="button"
           onClick={() => locate(false)}
-          className="shrink-0 whitespace-nowrap rounded-full border border-tk-send/60 bg-transparent px-[10px] py-[4px] font-brand text-[12px] font-semibold text-tk-wordmark transition-colors hover:bg-white"
+          className="shrink-0 whitespace-nowrap rounded-full border border-tk-send/60 bg-transparent px-[10px] py-[4px] font-brand text-[12px] font-semibold text-tk-wordmark transition-colors hover:bg-paper"
         >
           📍 My location
         </button>
       </div>
       {results.length > 0 && (
-        <ul className="absolute inset-x-[17px] top-full z-20 mt-[2px] max-h-44 overflow-auto rounded-[6px] border border-tk-field bg-white shadow-tk-soft">
+        <ul className="absolute inset-x-[17px] top-full z-20 mt-[2px] max-h-44 overflow-auto rounded-[6px] border border-tk-field bg-paper shadow-tk-soft">
           {results.map((r) => (
             <li key={r.id}>
               <button

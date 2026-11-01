@@ -1,11 +1,108 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 :root {
   color-scheme: only light;
   --color-bg: #f4f7fb;
   --color-panel: #ffffff;
   --color-text: #0f172a;
+  --tk-terra: #c15f3c;
+  --tk-forest: #1e3d2f;
+  --tk-skysoft: #8fb8c9;
+  --tk-cream: #fbf8f4;
+  --tk-charcoal: #231f1c;
+  --tk-paper: #ffffff;
+  --tk-on-accent: #ffffff;
+  --tk-tk-card: #fcf7f0;
+  --tk-tk-ink: #072a1f;
+  --tk-tk-wordmark: #b5512b;
+  --tk-tk-body: #2e3040;
+  --tk-tk-lede: #1a120b;
+  --tk-tk-send: #cc6f46;
+  --tk-tk-check: #b4501f;
+  --tk-tk-bubble: #fffcf7;
+  --tk-tk-well: #faf4ed;
+  --tk-tk-line: #efe7dc;
+  --tk-tk-field: #d9d2cb;
+  --tk-tk-sage: #5f6f5d;
+  --tk-shadow-card: 0 3px 12px rgba(50, 32, 16, 0.28), 0 1px 2px rgba(50, 32, 16, 0.1);
+  --tk-shadow-soft: 0 2px 8px rgba(50, 32, 16, 0.16);
 }
+
+/* Dark: warm forest night. Brand tokens swap as pairs, so text and fills that
+   share a token stay readable; terra only gets brighter. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #121512;
+  --color-text: #f2ebe1;
+  --tk-terra: #e2805a;
+  --tk-forest: #9fcbb0;
+  --tk-skysoft: #8fb8c9;
+  --tk-cream: #171a16;
+  --tk-charcoal: #f2ebe1;
+  --tk-paper: #1f1d19;
+  --tk-on-accent: #1a1410;
+  --tk-tk-card: #1c1a17;
+  --tk-tk-ink: #e9f0e8;
+  --tk-tk-wordmark: #e2805a;
+  --tk-tk-body: #d9d4cc;
+  --tk-tk-lede: #f5efe6;
+  --tk-tk-send: #e8875d;
+  --tk-tk-check: #eb9a72;
+  --tk-tk-bubble: #25221d;
+  --tk-tk-well: #2a2620;
+  --tk-tk-line: #3a342c;
+  --tk-tk-field: #6e655a;
+  --tk-tk-sage: #a5b3a1;
+  --tk-shadow-card: 0 0 0 1px rgba(242, 235, 225, 0.06), 0 8px 24px rgba(0, 0, 0, 0.45);
+  --tk-shadow-soft: 0 0 0 1px rgba(242, 235, 225, 0.05), 0 2px 10px rgba(0, 0, 0, 0.35);
+
+  /* Status shades used as text/tints on light cards. */
+  --color-rose-50: #3a1f22;
+  --color-rose-100: #4a2528;
+  --color-rose-200: #6b3338;
+  --color-rose-700: #f0a3a8;
+  --color-rose-600: #f08a90;
+  --color-amber-50: #33290f;
+  --color-amber-100: #44361a;
+  --color-amber-200: #5c4a1f;
+  --color-amber-300: #7a6128;
+  --color-amber-700: #f0c36a;
+  --color-amber-800: #f4cf85;
+  --color-amber-900: #f8dca0;
+  --color-slate-400: #8c968f;
+  --color-slate-500: #a3ada6;
+  --color-slate-600: #b9c2bb;
+  --color-slate-700: #cdd4ce;
+  --color-red-600: #f0847b;
+  --color-red-700: #f4a098;
+  --color-emerald-600: #5fcf9a;
+  --color-emerald-700: #7fdcae;
+}
+
+/* Night map: invert only the tiles, never markers or routes. */
+:root[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55);
+}
+:root[data-theme="dark"] .leaflet-container {
+  background: #171a16;
+}
+:root[data-theme="dark"] .leaflet-popup-content-wrapper,
+:root[data-theme="dark"] .leaflet-popup-tip,
+:root[data-theme="dark"] .leaflet-tooltip,
+:root[data-theme="dark"] .leaflet-bar a {
+  background: var(--tk-paper);
+  color: var(--tk-charcoal);
+  border-color: var(--tk-line);
+}
+:root[data-theme="dark"] .leaflet-tooltip-top:before { border-top-color: var(--tk-paper); }
+:root[data-theme="dark"] .leaflet-tooltip-bottom:before { border-bottom-color: var(--tk-paper); }
+:root[data-theme="dark"] .leaflet-container .leaflet-control-attribution {
+  background: rgba(23, 26, 22, 0.85);
+  color: var(--tk-charcoal);
+}
+:root[data-theme="dark"] .leaflet-control-attribution a { color: var(--tk-terra); }
 
 @theme inline {
   --color-background: var(--color-bg);
@@ -15,25 +112,27 @@
   /* Traike marketing tokens (DESIGN.md) — used by / and /pricing only */
   --font-brand: var(--font-heebo);
   --font-display: var(--font-secular), var(--font-heebo), sans-serif;
-  --color-terra: #c15f3c;
-  --color-forest: #1e3d2f;
-  --color-skysoft: #8fb8c9;
-  --color-cream: #fbf8f4;
-  --color-charcoal: #231f1c;
-  --color-tk-card: #fcf7f0;
-  --color-tk-ink: #072a1f;
-  --color-tk-wordmark: #b5512b;
-  --color-tk-body: #2e3040;
-  --color-tk-lede: #1a120b;
-  --color-tk-send: #cc6f46;
-  --color-tk-check: #b4501f;
-  --color-tk-bubble: #fffcf7;
-  --color-tk-well: #faf4ed;
-  --color-tk-line: #efe7dc;
-  --color-tk-field: #d9d2cb;
-  --color-tk-sage: #5f6f5d;
-  --shadow-tk-card: 0 3px 12px rgba(50, 32, 16, 0.28), 0 1px 2px rgba(50, 32, 16, 0.1);
-  --shadow-tk-soft: 0 2px 8px rgba(50, 32, 16, 0.16);
+  --color-paper: var(--tk-paper);
+  --color-on-accent: var(--tk-on-accent);
+  --color-terra: var(--tk-terra);
+  --color-forest: var(--tk-forest);
+  --color-skysoft: var(--tk-skysoft);
+  --color-cream: var(--tk-cream);
+  --color-charcoal: var(--tk-charcoal);
+  --color-tk-card: var(--tk-tk-card);
+  --color-tk-ink: var(--tk-tk-ink);
+  --color-tk-wordmark: var(--tk-tk-wordmark);
+  --color-tk-body: var(--tk-tk-body);
+  --color-tk-lede: var(--tk-tk-lede);
+  --color-tk-send: var(--tk-tk-send);
+  --color-tk-check: var(--tk-tk-check);
+  --color-tk-bubble: var(--tk-tk-bubble);
+  --color-tk-well: var(--tk-tk-well);
+  --color-tk-line: var(--tk-tk-line);
+  --color-tk-field: var(--tk-tk-field);
+  --color-tk-sage: var(--tk-tk-sage);
+  --shadow-tk-card: var(--tk-shadow-card);
+  --shadow-tk-soft: var(--tk-shadow-soft);
   --radius-tk-card: 14px;
 }
 
@@ -81,3 +180,9 @@ body {
   bottom: var(--hud-h, 9rem);
 }
 
+
+/* Dark: dim the sidebar photo instead of letting it glare. */
+:root[data-theme="dark"] .planner-sidebar {
+  background-color: #2a2118 !important;
+  background-blend-mode: multiply;
+}

@@ -70,18 +70,18 @@ export function PaceConfirmationNotification({
     // which is only viewport-sized while expanded. Sits below that banner's
     // row rather than on it — a walker can be off route and behind schedule at
     // the same time, and two overlapping banners answer neither question.
-    <div className="absolute top-16 left-1/2 z-[500] w-[min(22rem,90%)] -translate-x-1/2 space-y-2 rounded-xl bg-forest px-4 py-3 text-sm text-white shadow-lg">
+    <div className="absolute top-16 left-1/2 z-[500] w-[min(22rem,90%)] -translate-x-1/2 space-y-2 rounded-xl bg-forest px-4 py-3 text-sm text-on-accent shadow-lg">
       <p>{question}</p>
       <div className="flex gap-2">
         <button
           onClick={onConfirm}
-          className="flex-1 rounded-md bg-terra px-3 py-2 text-xs font-semibold text-white transition hover:bg-terra/90"
+          className="flex-1 rounded-md bg-terra px-3 py-2 text-xs font-semibold text-on-accent transition hover:bg-terra/90"
         >
           {confirmLabel}
         </button>
         <button
           onClick={onDismiss}
-          className="flex-1 rounded-md border border-cream/30 px-3 py-2 text-xs font-semibold text-cream/90 transition hover:bg-white/10"
+          className="flex-1 rounded-md border border-cream/30 px-3 py-2 text-xs font-semibold text-cream/90 transition hover:bg-paper/10"
         >
           {dismissLabel}
         </button>
@@ -92,7 +92,7 @@ export function PaceConfirmationNotification({
       {isSlow && (
         <button
           onClick={onExtendTime}
-          className="w-full rounded-md border border-cream/30 px-3 py-2 text-xs font-semibold text-cream/90 transition hover:bg-white/10"
+          className="w-full rounded-md border border-cream/30 px-3 py-2 text-xs font-semibold text-cream/90 transition hover:bg-paper/10"
         >
           Give me more time
         </button>

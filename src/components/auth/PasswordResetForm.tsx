@@ -98,7 +98,7 @@ export function PasswordResetForm({
   }
 
   return (
-    <div className="w-full max-w-sm space-y-5 rounded-xl bg-white p-8 shadow-[0_4px_20px_rgba(30,61,47,0.12)]">
+    <div className="w-full max-w-sm space-y-5 rounded-xl bg-paper p-8 shadow-[0_4px_20px_rgba(30,61,47,0.12)]">
       <h1 className="font-display text-2xl font-bold text-forest">
         {isRequest ? "Reset your password" : "Choose a new password"}
       </h1>

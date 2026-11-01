@@ -10,9 +10,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 // Brand tokens from DESIGN.md (see globals.css @theme) — same terracotta/forest
 // language as the landing and auth pages.
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-tk-send text-white hover:bg-[#c2643c] disabled:bg-tk-send/40",
+  primary: "bg-tk-send text-on-accent hover:bg-[#c2643c] disabled:bg-tk-send/40",
   secondary:
-    "border border-[#ddd3c7] bg-white text-tk-body hover:bg-[#fffaf3] disabled:text-tk-body/40",
+    "border border-[#ddd3c7] dark:border-tk-line bg-paper text-tk-body hover:bg-[#fffaf3] dark:hover:bg-tk-well disabled:text-tk-body/40",
   ghost:
     "bg-transparent text-charcoal/70 hover:bg-charcoal/5 disabled:text-charcoal/30",
   danger: "bg-rose-600 text-white hover:bg-rose-500 disabled:bg-rose-300",

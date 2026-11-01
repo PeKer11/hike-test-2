@@ -57,7 +57,7 @@ export function ConsentGate({
       aria-modal="true"
       aria-labelledby="consent-title"
       dir={lang === "he" ? "rtl" : "ltr"}
-      className="fixed inset-0 z-[2000] flex items-center justify-center bg-charcoal/60 p-4"
+      className="fixed inset-0 z-[2000] flex items-center justify-center bg-charcoal/60 p-4 dark:bg-black/60"
     >
       <div className="w-full max-w-md space-y-4 rounded-2xl bg-cream p-6 text-charcoal shadow-xl">
         <div className="flex items-center justify-between gap-3">

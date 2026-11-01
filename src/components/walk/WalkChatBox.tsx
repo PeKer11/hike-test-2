@@ -65,7 +65,7 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
             <li key={m.id} dir="auto" className={m.role === "user" ? "text-end" : "text-start"}>
               <p
                 className={`inline-block rounded-xl px-3 py-1.5 text-xs ${
-                  m.role === "user" ? "bg-forest/10 text-forest" : "bg-white text-charcoal/80"
+                  m.role === "user" ? "bg-forest/10 text-forest" : "bg-paper text-charcoal/80"
                 }`}
               >
                 {m.text}
@@ -77,7 +77,7 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
                       key={i}
                       type="button"
                       onClick={() => chat.runAction(m.id, i)}
-                      className="rounded-full bg-terra px-3 py-1 text-xs font-semibold text-white transition hover:bg-terra/90"
+                      className="rounded-full bg-terra px-3 py-1 text-xs font-semibold text-on-accent transition hover:bg-terra/90"
                     >
                       {action.label}
                     </button>
@@ -97,12 +97,12 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
           onChange={(event) => setText(event.target.value)}
           placeholder={copy.placeholder}
           aria-label={copy.ask}
-          className="min-w-0 flex-1 rounded-full border border-charcoal/15 bg-white px-3 py-1.5 text-base focus:border-terra focus:outline-none sm:text-sm"
+          className="min-w-0 flex-1 rounded-full border border-charcoal/15 bg-paper px-3 py-1.5 text-base focus:border-terra focus:outline-none sm:text-sm"
         />
         <button
           type="submit"
           disabled={chat.pending || text.trim().length === 0}
-          className="rounded-full bg-forest px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+          className="rounded-full bg-forest px-4 py-1.5 text-xs font-semibold text-on-accent disabled:opacity-50"
         >
           {copy.send}
         </button>

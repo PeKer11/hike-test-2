@@ -1,6 +1,7 @@
 "use client";
 
-import { APIProvider, ControlPosition, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
+import { APIProvider, ColorScheme, ControlPosition, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
+import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import { useEffect, useRef } from "react";
 
 import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStopMarkers } from "@/components/map/GoogleMarkers";
@@ -102,6 +103,7 @@ export default function GoogleMapView({
   addedIds,
   fitPath,
 }: MapViewProps) {
+  const theme = useResolvedTheme();
   const credits = [
     "Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors",
     ...(callouts?.some((a) => a.place.verification === "detected") ? [WORLDCOVER_ATTRIBUTION] : []),
@@ -114,6 +116,7 @@ export default function GoogleMapView({
       <APIProvider apiKey={KEY}>
         <Map
           mapId={MAP_ID}
+          colorScheme={theme === "dark" ? ColorScheme.DARK : ColorScheme.LIGHT}
           defaultCenter={center}
           defaultZoom={zoom}
           gestureHandling="greedy"
@@ -145,7 +148,7 @@ export default function GoogleMapView({
         </Map>
       </APIProvider>
       {/* Our own credits sit at the page's bottom-left, off the map. Google's logo and terms stay on the map: its terms require them. */}
-      <div className="pointer-events-none fixed left-0 z-[900] max-w-[70%] bg-white/80 px-1.5 py-0.5 text-[10px] text-slate-700" style={{ bottom: hudInset ? "var(--hud-h, 9rem)" : 0 }}>
+      <div className="pointer-events-none fixed left-0 z-[900] max-w-[70%] bg-paper/80 px-1.5 py-0.5 text-[10px] text-slate-700" style={{ bottom: hudInset ? "var(--hud-h, 9rem)" : 0 }}>
         {credits.join(" · ")}
       </div>
     </div>

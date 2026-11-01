@@ -22,7 +22,7 @@ const levelClasses: Record<TrailBriefingLevel, string> = {
 
 function ItemSection({ item }: { item: TrailBriefingItem }) {
   return (
-    <section className="space-y-2 rounded-[6px] border border-tk-line bg-[#fffdf9] p-3">
+    <section className="space-y-2 rounded-[6px] border border-tk-line bg-tk-bubble p-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-forest">{item.title}</h3>
         <span className="rounded-full bg-cream px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-charcoal/70">
@@ -102,7 +102,7 @@ export function TrailIntelligencePanel({
             {open ? "▲" : "▼"}
           </span>
         </h2>
-        <p className="mt-[4px] text-[12.2px] leading-[16px] text-[#363941]">
+        <p className="mt-[4px] text-[12.2px] leading-[16px] text-tk-body">
           Route context, timing guidance, and safety confidence.
         </p>
       </button>
@@ -172,7 +172,7 @@ export function TrailIntelligencePanel({
               <ItemSection item={report.currentConditions} />
               <ItemSection item={report.safety} />
 
-              <section className="space-y-2 rounded-[6px] border border-tk-line bg-[#fffdf9] p-3">
+              <section className="space-y-2 rounded-[6px] border border-tk-line bg-tk-bubble p-3">
                 <h3 className="text-sm font-semibold text-forest">
                   Source coverage
                 </h3>

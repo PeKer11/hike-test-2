@@ -66,7 +66,7 @@ export function WalkFinishCard({
         <p className="text-sm text-charcoal/70">
           {he ? "איזו הליכה! גילית מקומות חדשים והכרת את האזור כמו מקומי." : "What a great walk! You explored new places and saw the area like a local."}
         </p>
-        <div className="grid grid-cols-3 divide-x divide-charcoal/10 rounded-xl bg-white/70 py-3">
+        <div className="grid grid-cols-3 divide-x divide-charcoal/10 rounded-xl bg-paper/70 py-3">
           <div>
             <div className="font-display text-lg font-bold text-forest">{duration}</div>
             <div className="text-xs text-charcoal/60">{he ? "משך" : "Duration"}</div>

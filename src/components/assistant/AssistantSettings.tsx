@@ -65,7 +65,7 @@ const NUMBER_ROWS: Array<{ key: NumericKey; label: string; unit: string }> = [
 
 function chip(active: boolean): string {
   return `rounded-full border px-2 py-1 text-xs ${
-    active ? "border-terra bg-terra text-white" : "border-charcoal/15"
+    active ? "border-terra bg-terra text-on-accent" : "border-charcoal/15"
   }`;
 }
 
@@ -85,7 +85,7 @@ export function AssistantSettings({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-charcoal/10 bg-white p-3">
+    <div className="space-y-3 rounded-xl border border-charcoal/10 bg-paper p-3">
       <p className="text-xs text-charcoal/60">
         Used when you do not say otherwise. Leave a box empty for no limit.
       </p>

@@ -439,7 +439,7 @@ export function WalkCompanionPanel({
             className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
               availableMinutes === ""
                 ? "border-terra bg-terra/10 text-terra"
-                : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
+                : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
             }`}
           >
             No time limit
@@ -468,7 +468,7 @@ export function WalkCompanionPanel({
             className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
               radiusKm === ""
                 ? "border-terra bg-terra/10 text-terra"
-                : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
+                : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
             }`}
           >
             No radius limit
@@ -498,7 +498,7 @@ export function WalkCompanionPanel({
             className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
               endDistanceKm === ""
                 ? "border-terra bg-terra/10 text-terra"
-                : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
+                : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
             }`}
           >
             No limit
@@ -533,7 +533,7 @@ export function WalkCompanionPanel({
               className={`rounded-md border px-2 py-3 text-xs font-medium transition sm:py-1.5 ${
                 pace === opt.value
                   ? "border-terra bg-terra/10 text-terra"
-                  : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
+                  : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
               }`}
             >
               {opt.label}
@@ -570,7 +570,7 @@ export function WalkCompanionPanel({
               className={`rounded-full border px-3 py-2 text-xs transition sm:px-2 sm:py-1 ${
                 selectedCategories.includes(opt.value)
                   ? "border-terra bg-terra/10 text-terra"
-                  : "border-charcoal/15 bg-white text-charcoal/70 hover:bg-cream/70"
+                  : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
               }`}
             >
               {opt.label}

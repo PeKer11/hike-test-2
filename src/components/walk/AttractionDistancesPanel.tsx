@@ -60,7 +60,7 @@ export function AttractionDistancesPanel({
   const progressPercent = Math.round((doneCount / items.length) * 100);
 
   return (
-    <section className="rounded-lg border border-charcoal/10 bg-white shadow-sm">
+    <section className="rounded-lg border border-charcoal/10 bg-paper shadow-sm">
       <div className="space-y-1.5 border-b border-charcoal/10 px-3 py-2">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-charcoal/60">
