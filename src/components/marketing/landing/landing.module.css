@@ -19,7 +19,8 @@
 .phoneBox {
   position: relative;
   container-type: inline-size;
-  width: min(80vw, 340px);
+  /* mobile: phone sits under the copy, so cap it to the stage height left over (small peek-crop is fine) */
+  width: min(80vw, 340px, calc((100svh - var(--hh, 64px) - 330px) * 0.65));
   aspect-ratio: 771 / 1357;
 }
 

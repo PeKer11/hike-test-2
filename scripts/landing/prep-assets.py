@@ -30,6 +30,10 @@ for f in sorted(glob.glob(f"{SRC}/lp-*.png")):
         x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max()
         padx, pady = int((x1 - x0) * 0.04), int((y1 - y0) * 0.04)
         im = im.crop((max(x0 - padx, 0), max(y0 - pady, 0), min(x1 + padx, im.width), min(y1 + pady, im.height)))
+        if base == "cloud-3":  # flat-cut bottom reads as a hard seam: fade it out
+            ar = np.asarray(im.getchannel("A")).astype(float)
+            t = np.clip((1 - np.arange(ar.shape[0]) / ar.shape[0]) / 0.35, 0, 1)[:, None]
+            im.putalpha(Image.fromarray((ar * t * t * (3 - 2 * t)).astype(np.uint8)))
         cap = 1400 if base.startswith("cloud-") else 900
         if im.width > cap:
             im = im.resize((cap, round(im.height * cap / im.width)), Image.LANCZOS)

@@ -13,7 +13,7 @@ import { stateAt } from "./timeline";
 /* Props float around the phone. dx/dy (stage fractions) is where each one flies
    when the camera pushes in; they fade out as they go. */
 const PROPS = [
-  { src: "/images/traike/3d/compass.png", pos: "right-[4%] top-[26%] w-[78px] md:left-[54%] md:right-auto md:top-[8%] md:w-[130px]", dx: -0.1, dy: -0.25, fd: 7 },
+  { src: "/images/traike/3d/compass.png", pos: "right-[4%] top-[41%] w-[78px] md:left-[54%] md:right-auto md:top-[8%] md:w-[130px]", dx: -0.1, dy: -0.25, fd: 7 },
   { src: "/images/landing/prop-canteen.webp", pos: "left-[40%] bottom-[5%] w-[96px] md:w-[150px] max-md:hidden", dx: -0.25, dy: 0.2, fd: 8 },
   { src: "/images/landing/prop-binoculars.webp", pos: "right-[1%] bottom-[3%] w-[110px] md:w-[250px]", dx: 0.35, dy: 0.25, fd: 6 },
 ] as const;
@@ -61,6 +61,9 @@ export function HeroStory() {
     let raf = 0;
 
     const measure = () => {
+      // The shared header can wrap on narrow screens (80px at 360-390), so read it.
+      const HEADER = document.querySelector("header")?.offsetHeight ?? 64;
+      sec.style.setProperty("--hh", `${HEADER}px`);
       wrap.style.transform = "none";
       const s = stg.getBoundingClientRect();
       const b = box.getBoundingClientRect();
@@ -75,7 +78,6 @@ export function HeroStory() {
       S = Math.min(5, (H * 1.18) / screenH);
       tx = W / 2 - cx;
       ty = H / 2 - cy;
-      const HEADER = 64;
       docTop = sec.getBoundingClientRect().top + window.scrollY - HEADER;
       range = Math.max(1, sec.offsetHeight - H);
       const w = wrap.getBoundingClientRect();
@@ -93,6 +95,7 @@ export function HeroStory() {
       copy.current!.style.opacity = String(st.copyO);
       copy.current!.style.transform = `translate3d(0,${st.copyY}px,0)`;
       copy.current!.style.pointerEvents = st.copyO < 0.1 ? "none" : "auto";
+      copy.current!.style.visibility = st.copyO < 0.02 ? "hidden" : "visible";
       plate.current!.style.transform = `scale(${st.plateScale})`;
       wrap.style.transform = `translate3d(${tx * st.push}px,${ty * st.push}px,0) scale(${1 + (S - 1) * st.push})`;
       wrap.style.visibility = st.phoneVisible ? "visible" : "hidden";
