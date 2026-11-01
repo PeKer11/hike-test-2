@@ -75,7 +75,123 @@
   filter: blur(6px);
 }
 
+/* Hero: pinned stage inside a tall section; the scroll loop in HeroStory drives it. */
+.hero {
+  --hh: 64px;
+  position: relative;
+  height: 320svh;
+}
+
+.stage {
+  position: sticky;
+  top: var(--hh);
+  height: calc(100svh - var(--hh));
+  overflow: hidden;
+  isolation: isolate;
+}
+
+@media (max-width: 767px) {
+  .hero {
+    height: 260svh;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .hero {
+    height: auto;
+  }
+  .stage {
+    position: relative;
+    top: 0;
+    min-height: 680px;
+    height: calc(100svh - var(--hh));
+  }
+}
+
+.plate {
+  position: absolute;
+  inset: 0;
+  background: #f1c88f url(/images/landing/hero-plate-1.webp) 50% 60% / cover no-repeat;
+}
+
+@media (max-width: 767px) {
+  .plate {
+    background-image: url(/images/landing/hero-plate-mobile.webp);
+    background-position: 50% 40%;
+  }
+}
+
+.cloud {
+  transform: scale(calc(var(--cs, 1) * var(--flip, 1)), var(--cs, 1));
+  will-change: transform;
+}
+
+/* Route draw and pin drop. Starts when an ancestor carries .autoplay (phone, on
+   load) or .play (story map, toggled by the scroll loop). */
+.route {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.pin {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+:global(.autoplay) .route,
+:global(.play) .route {
+  animation: draw 2.4s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards;
+}
+
+:global(.autoplay) .pin,
+:global(.play) .pin {
+  animation: pinPop 0.6s cubic-bezier(0.3, 1.7, 0.5, 1) var(--d, 1s) forwards;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pinPop {
+  from {
+    opacity: 0;
+    transform: translateY(-46px) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.float {
+  animation: floaty var(--fd, 7s) ease-in-out infinite;
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(-7px) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(7px) rotate(1.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route {
+    stroke-dashoffset: 0;
+    animation: none !important;
+  }
+  .pin {
+    opacity: 1;
+    animation: none !important;
+  }
+  .float {
+    animation: none;
+  }
   .bob {
     animation: none;
   }

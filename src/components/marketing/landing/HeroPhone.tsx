@@ -14,7 +14,7 @@ export function HeroPhone({ className = "" }: { className?: string }) {
       <div className={styles.phoneStage}>
         <div className={styles.phoneClip}>
           <div
-            className={styles.phoneScreen}
+            className={`${styles.phoneScreen} autoplay`}
             style={{
               width: PHONE.screenW,
               height: PHONE.screenH,
@@ -23,11 +23,10 @@ export function HeroPhone({ className = "" }: { className?: string }) {
           >
             <RouteMap
               variant="portrait"
+              plate="/images/landing/map-plate.webp"
+              animate
               className="absolute inset-0 h-full w-full"
             />
-            <span className="absolute bottom-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-cream/95 px-5 py-2.5 text-[17px] font-semibold text-forest shadow-[0_6px_18px_rgba(30,61,47,0.25)]">
-              90 min · 4.2 km · 3 stops
-            </span>
           </div>
         </div>
         <Image

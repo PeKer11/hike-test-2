@@ -2,6 +2,10 @@
    generated map plates; the route and pins stay live SVG so they never blur.
    `slice` makes the art cover any container the way object-fit: cover does. */
 
+import type { CSSProperties } from "react";
+
+import styles from "./landing.module.css";
+
 type Variant = "landscape" | "portrait";
 type Look = "after" | "before";
 
@@ -46,10 +50,16 @@ export function RouteMap({
   variant = "landscape",
   look = "after",
   className,
+  plate,
+  animate = false,
 }: {
   variant?: Variant;
   look?: Look;
   className?: string;
+  /** Generated map plate drawn in place of the stand-in paper art. */
+  plate?: string;
+  /** Route draws and pins drop, once `.autoplay` or `.play` is on an ancestor. */
+  animate?: boolean;
 }) {
   const a = ART[variant];
   const grey = look === "before";
@@ -64,6 +74,17 @@ export function RouteMap({
       aria-label={grey ? "A fixed tour route" : "A walk route built for you"}
       style={grey ? { filter: "grayscale(1) brightness(1.04)" } : undefined}
     >
+      {plate ? (
+        <image
+          href={plate}
+          x={variant === "portrait" ? -(a.h * 1.5 - a.w) * 0.42 : 0}
+          y={0}
+          width={a.h * 1.5}
+          height={a.h}
+          preserveAspectRatio="xMidYMid slice"
+        />
+      ) : (
+        <>
       <rect width={a.w} height={a.h} fill="#f3ead9" />
       {/* soft contour rings */}
       <g fill="none" stroke="#d8c8a2" strokeWidth="2" opacity="0.7">
@@ -83,6 +104,9 @@ export function RouteMap({
       ))}
       <path d={a.lake} fill="#a9cbd6" />
 
+        </>
+      )}
+
       {grey ? (
         <path
           d={a.loop}
@@ -94,14 +118,16 @@ export function RouteMap({
         />
       ) : (
         <>
-          <path d={a.route} fill="none" stroke="#fbf8f4" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" />
-          <path d={a.route} fill="none" stroke="#c15f3c" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={a.route} pathLength={1} className={animate ? styles.route : undefined} fill="none" stroke="#fbf8f4" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={a.route} pathLength={1} className={animate ? styles.route : undefined} fill="none" stroke="#c15f3c" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
         </>
       )}
 
-      {a.pins.map(([x, y]) => (
+      {a.pins.map(([x, y], i) => (
         <image
           key={`${x}-${y}`}
+          className={animate ? styles.pin : undefined}
+          style={animate ? ({ "--d": `${1.1 + i * 0.5}s` } as CSSProperties) : undefined}
           href="/images/traike/3d/pin.png"
           x={x - pinW / 2}
           y={y - pinW * 0.95}
