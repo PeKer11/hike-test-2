@@ -13,6 +13,7 @@ import {
 } from "@/lib/assistant/state";
 import { dwellMinutes, legPace } from "@/lib/walk/timing";
 import { createClient } from "@/lib/supabase/client";
+import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import type { AssistantDefaults } from "@/lib/assistant/defaults";
 import { AssistantSettings, PACE_PRESETS, useAssistantDefaults } from "./AssistantSettings";
 import { StartLocationPicker } from "./StartLocationPicker";
@@ -253,6 +254,7 @@ function LimitsBox({
 
 function GuideFigure() {
   const [fallback, setFallback] = useState(false);
+  const night = useResolvedTheme() === "dark";
   // guide.png is dropped in later; until then the old crop shows, softly faded.
   // The ref callback also catches a load error that fired before hydration.
   const check = (el: HTMLImageElement | null) => {
@@ -266,9 +268,9 @@ function GuideFigure() {
       alt=""
       aria-hidden
       onError={() => setFallback(true)}
-      src={fallback ? "/images/assistant/guide.jpg" : "/images/assistant/guide.png"}
-      data-fallback={fallback || undefined}
-      className="pointer-events-none absolute bottom-0 left-0 z-10 h-[149px] w-[54%] object-contain object-left-bottom data-[fallback]:w-[100px] data-[fallback]:object-cover data-[fallback]:object-top data-[fallback]:[mask-image:radial-gradient(ellipse_70%_75%_at_50%_42%,#000_62%,transparent_100%)]"
+      src={night ? "/images/assistant/guide-night.jpg" : fallback ? "/images/assistant/guide.jpg" : "/images/assistant/guide.png"}
+      data-fallback={(!night && fallback) || undefined}
+      className={`${night ? "[mask-image:linear-gradient(90deg,#000_82%,transparent_100%)] " : ""}pointer-events-none absolute bottom-0 left-0 z-10 h-[149px] w-[54%] object-contain object-left-bottom data-[fallback]:w-[100px] data-[fallback]:object-cover data-[fallback]:object-top data-[fallback]:[mask-image:radial-gradient(ellipse_70%_75%_at_50%_42%,#000_62%,transparent_100%)]`}
     />
   );
 }
@@ -546,7 +548,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
         {messages.length === 0 && (
           <>
             <div data-mock="scene" className="relative mt-[2px] min-h-[152px] pb-[57px] pt-[22px]">
-              <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(247,236,220,0)_0%,#f7ecdc_45%,#f3e2c9_100%)]" />
+              <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(247,236,220,0)_0%,#f7ecdc_45%,#f3e2c9_100%)] dark:bg-[linear-gradient(180deg,rgba(8,18,31,0)_0%,#0b1a2b_45%,#08121f_100%)]" />
               {/* eslint-disable @next/next/no-img-element */}
               <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute -left-[4px] top-[7px] z-0 w-[56px]" />
               <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute left-[25%] top-[78px] z-0 w-[46px] -scale-x-100 opacity-90" />

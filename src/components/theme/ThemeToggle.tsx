@@ -1,10 +1,9 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { setChoice } from "@/lib/theme/theme";
+import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 
-import { THEME_EVENT, readChoice, setChoice, type ThemeChoice } from "@/lib/theme/theme";
-
-const OPTIONS: { value: ThemeChoice; label: string; icon: React.ReactNode }[] = [
+const OPTIONS: { value: "light" | "dark"; label: string; icon: React.ReactNode }[] = [
   {
     value: "light",
     label: "Light",
@@ -16,34 +15,15 @@ const OPTIONS: { value: ThemeChoice; label: string; icon: React.ReactNode }[] = 
     ),
   },
   {
-    value: "system",
-    label: "Match device",
-    icon: (
-      <>
-        <rect x="3" y="4" width="18" height="12" rx="2" />
-        <path d="M8 20h8M12 16v4" />
-      </>
-    ),
-  },
-  {
     value: "dark",
     label: "Dark",
     icon: <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" />,
   },
 ];
 
-function subscribe(cb: () => void) {
-  window.addEventListener(THEME_EVENT, cb);
-  window.addEventListener("storage", cb);
-  return () => {
-    window.removeEventListener(THEME_EVENT, cb);
-    window.removeEventListener("storage", cb);
-  };
-}
-
 export function ThemeToggle({ floating = false }: { floating?: boolean }) {
-  // "system" on the server keeps hydration identical.
-  const choice = useSyncExternalStore(subscribe, readChoice, () => "system" as ThemeChoice);
+  // Device-following stays the default until the first click; the pill shows what is on screen.
+  const choice = useResolvedTheme();
 
   return (
     <div
@@ -52,7 +32,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
       className={
         floating
           ? "fixed right-3 top-3 z-[1000] flex items-center gap-0.5 rounded-full border border-charcoal/10 bg-paper/90 p-1 shadow-tk-soft backdrop-blur"
-          : "flex items-center gap-0.5 rounded-full border border-charcoal/10 p-0.5"
+          : "flex items-center gap-0.5 rounded-full border border-charcoal/10 bg-paper/95 p-1 shadow-sm"
       }
     >
       {OPTIONS.map((o) => (

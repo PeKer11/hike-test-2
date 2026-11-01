@@ -21,8 +21,9 @@ export async function AccountIndicator() {
   } = await supabase.auth.getUser();
 
   return (
-    <div className="pointer-events-auto fixed right-3 top-3 z-[1000] max-sm:top-[66px] flex items-center gap-2 rounded-md border border-charcoal/10 bg-paper/95 px-3 py-1.5 text-xs shadow-sm">
+    <div className="pointer-events-auto fixed right-3 top-3 z-[1000] max-sm:top-[66px] flex items-center gap-2 text-xs">
       <ThemeToggle />
+      <div className="flex items-center gap-2 rounded-md border border-charcoal/10 bg-paper/95 px-3 py-1.5 shadow-sm">
       {user ? (
         <>
           <span className="max-w-[160px] truncate max-sm:hidden text-charcoal/70">
@@ -44,6 +45,7 @@ export async function AccountIndicator() {
           Log in
         </Link>
       )}
+      </div>
     </div>
   );
 }

@@ -39,4 +39,19 @@ test.describe("dark theme", () => {
       });
     }
   }
+
+  test("phone width: sun/moon toggle fits, night guide shows", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+      localStorage.setItem("traike-theme", "dark");
+      localStorage.setItem("traike-consent-accepted", "1");
+    });
+    await page.goto("/login");
+    await expect(page.getByRole("radio")).toHaveCount(2);
+    await page.screenshot({ path: "test-results/theme/login-dark-phone.png" });
+    await page.goto("/app");
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: "test-results/theme/app-dark-phone.png" });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
 });
