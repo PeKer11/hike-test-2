@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { BeforeAfter } from "@/components/marketing/landing/BeforeAfter";
 import { ClosingVideo } from "@/components/marketing/landing/ClosingVideo";
 import { FloatingPropCard } from "@/components/marketing/landing/FloatingPropCard";
 import { LandingHero } from "@/components/marketing/landing/LandingHero";
@@ -100,21 +99,6 @@ export default function LandingPage() {
               </li>
             ))}
           </ol>
-        </div>
-      </section>
-
-      {/* The gap */}
-      <section className="bg-gradient-to-b from-cream to-skysoft/20 py-20 md:py-28">
-        <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
-          <h2 className="text-center font-display text-4xl font-normal text-forest md:text-6xl">
-            Not someone else&rsquo;s tour
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-center text-xl text-forest/80">
-            Same city. One fixed route for everyone, or one built for you.
-          </p>
-          <div className="mt-12">
-            <BeforeAfter />
-          </div>
         </div>
       </section>
 
