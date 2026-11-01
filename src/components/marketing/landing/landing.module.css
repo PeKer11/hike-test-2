@@ -1,0 +1,254 @@
+/* Landing-only styles. globals.css is shared with the app and stays untouched. */
+
+.bob {
+  animation: bob 6s ease-in-out infinite;
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(-6px);
+  }
+  50% {
+    transform: translateY(6px);
+  }
+}
+
+/* 3D phone: the stage is authored in shell pixels (771x1357) and scaled to the
+   box width with the unitless-ratio trick, so the homography stays exact. */
+.phoneBox {
+  position: relative;
+  container-type: inline-size;
+  /* mobile: phone sits under the copy, so cap it to the stage height left over (small peek-crop is fine) */
+  width: min(80vw, 340px, calc((100svh - var(--hh, 64px) - 330px) * 0.65));
+  aspect-ratio: 771 / 1357;
+}
+
+@media (min-width: 768px) {
+  .phoneBox {
+    width: min(40svh, 360px);
+  }
+}
+
+.phoneStage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 771px;
+  height: 1357px;
+  transform-origin: 0 0;
+  scale: tan(atan2(100cqw, 771px));
+}
+
+.phoneClip {
+  position: absolute;
+  inset: 0;
+  -webkit-mask: url(/images/landing/phone-hole.webp) 0 0 / 771px 1357px no-repeat;
+  mask: url(/images/landing/phone-hole.webp) 0 0 / 771px 1357px no-repeat;
+}
+
+.phoneScreen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+  background: #f3ead9;
+}
+
+.phonePortrait {
+  opacity: calc(1 - (var(--turn, 0) - 0.3) * 5);
+}
+
+.phoneLand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 852px;
+  height: 393px;
+  margin: -196.5px 0 0 -426px;
+  opacity: calc((var(--turn, 0) - 0.3) * 5);
+  transform: rotate(calc(var(--turn, 0) * 90deg));
+}
+
+.phoneShell {
+  position: absolute;
+  inset: 0;
+  width: 771px;
+  height: 1357px;
+  max-width: none;
+  pointer-events: none;
+}
+
+.phoneShadow {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -3%;
+  height: 7%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(7, 42, 31, 0.42), transparent);
+  filter: blur(6px);
+}
+
+/* Hero: pinned stage inside a tall section; the scroll loop in HeroStory drives it. */
+.hero {
+  --hh: 64px;
+  position: relative;
+  height: 400svh;
+}
+
+.stage {
+  position: sticky;
+  top: var(--hh);
+  height: calc(100svh - var(--hh));
+  overflow: hidden;
+  isolation: isolate;
+}
+
+@media (max-width: 767px) {
+  .hero {
+    height: 320svh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero {
+    height: auto;
+  }
+  .stage {
+    position: relative;
+    top: 0;
+    min-height: 680px;
+    height: calc(100svh - var(--hh));
+  }
+}
+
+.plate {
+  position: absolute;
+  inset: 0;
+  background: #f1c88f url(/images/landing/hero-plate-1.webp) 50% 60% / cover no-repeat;
+}
+
+@media (max-width: 767px) {
+  .plate {
+    background-image: url(/images/landing/hero-plate-mobile.webp);
+    background-position: 50% 40%;
+  }
+}
+
+.cloud {
+  transform: scale(calc(var(--cs, 1) * var(--flip, 1)), var(--cs, 1));
+  will-change: transform;
+}
+
+/* Route draw and pin drop. Starts when an ancestor carries .autoplay (phone, on
+   load) or .play (story map, toggled by the scroll loop). */
+.route {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.pin {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+:global(.autoplay) .route,
+:global(.play) .route {
+  animation: draw 2.4s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards;
+}
+
+:global(.autoplay) .pin,
+:global(.play) .pin {
+  animation: pinPop 0.6s cubic-bezier(0.3, 1.7, 0.5, 1) var(--d, 1s) forwards;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pinPop {
+  from {
+    opacity: 0;
+    transform: translateY(-46px) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.float {
+  animation: floaty var(--fd, 7s) ease-in-out infinite;
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(-7px) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(7px) rotate(1.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route {
+    stroke-dashoffset: 0;
+    animation: none !important;
+  }
+  .pin {
+    opacity: 1;
+    animation: none !important;
+  }
+  .float {
+    animation: none;
+  }
+  .bob {
+    animation: none;
+  }
+}
+
+/* Intro: the phone arrives big, tilted and blurred, then settles into place; props pop in after.
+   Runs once from the server-rendered markup (no JS), ends at identity, skipped for reduced motion. */
+.intro {
+  animation: phoneIntro 1.1s cubic-bezier(0.18, 0.75, 0.2, 1) backwards;
+}
+
+@keyframes phoneIntro {
+  0% {
+    transform: perspective(1400px) scale(2.2) rotateY(-70deg);
+    filter: blur(18px);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    transform: perspective(1400px) scale(1) rotateY(0deg);
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+.propIn {
+  animation: propIn 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) var(--pd, 0.7s) backwards;
+}
+
+@keyframes propIn {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro,
+  .propIn {
+    animation: none;
+  }
+}
