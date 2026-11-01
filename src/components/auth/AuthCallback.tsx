@@ -34,7 +34,7 @@ export function AuthCallback() {
       // Only same-origin paths — an attacker-supplied absolute URL must not be
       // able to bounce a freshly authenticated user off-site.
       const nextParam = search.get("next");
-      const next = nextParam?.startsWith("/") ? nextParam : "/app";
+      const next = nextParam && /^\/(?![\/\\])/.test(nextParam) ? nextParam : "/app";
 
       const hash = new URLSearchParams(window.location.hash.slice(1));
       const accessToken = hash.get("access_token");

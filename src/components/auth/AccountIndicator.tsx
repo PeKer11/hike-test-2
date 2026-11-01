@@ -26,6 +26,12 @@ export async function AccountIndicator() {
           <span className="max-w-[160px] truncate max-sm:hidden text-charcoal/70">
             {user.email}
           </span>
+          <Link
+            href="/forgot-password"
+            className="font-semibold text-terra hover:text-terra"
+          >
+            Change password
+          </Link>
           <LogoutButton />
         </>
       ) : (

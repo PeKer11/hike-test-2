@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -21,11 +20,31 @@ const inputClasses =
 
 const labelClasses = "text-sm font-semibold text-forest";
 
+// Invisible direction marks that Hebrew text (WhatsApp, Gmail) puts around a
+// pasted email; the browser rejects them and the user can't see why.
+const INVISIBLE_MARKS = /[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF\s]/g;
+
+export function cleanEmail(raw: string): string {
+  return raw.replace(INVISIBLE_MARKS, "").toLowerCase();
+}
+
+function friendlyError(error: { code?: string; message: string }): string {
+  switch (error.code) {
+    case "invalid_credentials":
+      return "Wrong email or password.";
+    case "email_not_confirmed":
+      return "Confirm your email first — check your inbox for the link.";
+    case "over_request_rate_limit":
+    case "over_email_send_rate_limit":
+      return "Too many attempts. Wait a minute and try again.";
+    case "user_already_exists":
+      return "This email already has an account — log in instead.";
+    default:
+      return error.message;
+  }
+}
+
 export function AuthForm({ mode, initialError }: AuthFormProps) {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError ?? null);
   // Set when signup succeeded but Supabase is waiting on an email confirmation,
   // so there is no session to redirect with yet.
@@ -37,6 +56,21 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
     setError(null);
     setNotice(null);
 
+    // Read the DOM, not React state: autofill and password managers set the
+    // value without a typing event, so state can still be empty.
+    const form = new FormData(event.currentTarget);
+    const email = cleanEmail(String(form.get("email") ?? ""));
+    const password = String(form.get("password") ?? "");
+    const confirmPassword = String(form.get("confirmPassword") ?? "");
+
+    if (!email.includes("@") || !password) {
+      setError("Enter your email and password.");
+      return;
+    }
+    if (mode === "signup" && password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
     if (mode === "signup" && password !== confirmPassword) {
       setError("Passwords don't match.");
       return;
@@ -53,7 +87,7 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
           password,
         });
         if (signInError) {
-          throw new Error(signInError.message);
+          throw new Error(friendlyError(signInError));
         }
       } else {
         const { data, error: signUpError } = await supabase.auth.signUp({
@@ -64,7 +98,10 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
           },
         });
         if (signUpError) {
-          throw new Error(signUpError.message);
+          throw new Error(friendlyError(signUpError));
+        }
+        if (data.user?.identities?.length === 0) {
+          throw new Error("This email already has an account — log in instead.");
         }
         if (!data.session) {
           setNotice(
@@ -74,9 +111,9 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
         }
       }
 
-      // The session cookie changed, so any cached server render is stale.
-      router.refresh();
-      router.push("/app");
+      // Full load: the session cookie changed, so skip any cached client route.
+      window.location.assign("/app");
+      return;
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong. Try again.",
@@ -101,13 +138,13 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
         </p>
       </div>
 
-      <form className="space-y-4" onSubmit={handleSubmit}>
+      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
         <label className="block space-y-1.5">
           <span className={labelClasses}>Email</span>
           <input
             type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            name="email"
+            id="email"
             autoComplete="email"
             required
             className={inputClasses}
@@ -118,10 +155,9 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
           <span className={labelClasses}>Password</span>
           <input
             type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            name="password"
+            id="password"
             autoComplete={isSignup ? "new-password" : "current-password"}
-            minLength={6}
             required
             className={inputClasses}
           />
@@ -132,14 +168,22 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
             <span className={labelClasses}>Confirm password</span>
             <input
               type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
+              name="confirmPassword"
+              id="confirmPassword"
               autoComplete="new-password"
-              minLength={6}
               required
               className={inputClasses}
             />
           </label>
+        )}
+
+        {!isSignup && (
+          <Link
+            href="/forgot-password"
+            className="block text-sm font-semibold text-terra hover:text-terra/80"
+          >
+            Forgot password?
+          </Link>
         )}
 
         {error && (
