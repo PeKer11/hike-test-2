@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
-import { cleanEmail } from "./AuthForm";
+import { cleanEmail, friendlyError } from "./AuthForm";
 
 type ResetMode = "request" | "update";
 
@@ -13,8 +13,26 @@ const inputClasses =
   "w-full rounded-[10px] border border-charcoal/15 bg-cream/40 px-3 py-2.5 text-sm text-charcoal focus:border-terra focus:outline-none";
 const labelClasses = "text-sm font-semibold text-forest";
 
-export function PasswordResetForm({ mode }: { mode: ResetMode }) {
-  const [error, setError] = useState<string | null>(null);
+export function PasswordResetForm({
+  mode,
+  initialError,
+}: {
+  mode: ResetMode;
+  initialError?: string;
+}) {
+  const [error, setError] = useState<string | null>(initialError ?? null);
+  // Update mode needs the recovery session the callback created.
+  const [hasSession, setHasSession] = useState<boolean | null>(
+    mode === "update" ? null : true,
+  );
+  const [coolingDown, setCoolingDown] = useState(false);
+
+  useEffect(() => {
+    if (mode !== "update") return;
+    void createClient()
+      .auth.getUser()
+      .then(({ data }) => setHasSession(Boolean(data.user)));
+  }, [mode]);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isRequest = mode === "request";
@@ -35,11 +53,23 @@ export function PasswordResetForm({ mode }: { mode: ResetMode }) {
           setError("Enter your email.");
           return;
         }
-        await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-        });
+        // redirectTo must keep its "?": the email template appends "&token_hash=…".
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+          email,
+          {
+            redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+          },
+        );
+        if (resetError) {
+          setError(friendlyError(resetError));
+          return;
+        }
         // Same message whether or not the account exists.
-        setNotice("If an account exists for that email, we sent a reset link.");
+        setNotice(
+          "If an account exists for that email, we sent a reset link. Check spam — only the newest link works.",
+        );
+        setCoolingDown(true);
+        setTimeout(() => setCoolingDown(false), 60_000);
         return;
       }
 
@@ -56,7 +86,7 @@ export function PasswordResetForm({ mode }: { mode: ResetMode }) {
         password,
       });
       if (updateError) {
-        setError(updateError.message);
+        setError(friendlyError(updateError));
         return;
       }
       window.location.assign("/app");
@@ -73,7 +103,23 @@ export function PasswordResetForm({ mode }: { mode: ResetMode }) {
         {isRequest ? "Reset your password" : "Choose a new password"}
       </h1>
 
-      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+      {hasSession === null && (
+        <p className="text-sm text-charcoal/70">Checking your link…</p>
+      )}
+      {hasSession === false && (
+        <p className="rounded-[10px] bg-terra/10 p-3 text-xs text-terra">
+          This reset link is invalid or expired.{" "}
+          <Link href="/forgot-password" className="font-semibold underline">
+            Request a new one
+          </Link>
+        </p>
+      )}
+
+      <form
+        className={`space-y-4 ${hasSession ? "" : "hidden"}`}
+        onSubmit={handleSubmit}
+        noValidate
+      >
         {isRequest ? (
           <label className="block space-y-1.5">
             <span className={labelClasses}>Email</span>
@@ -126,7 +172,7 @@ export function PasswordResetForm({ mode }: { mode: ResetMode }) {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || coolingDown}
           className="w-full rounded-[10px] bg-terra px-7 py-3 text-sm font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90 disabled:bg-terra/50"
         >
           {isSubmitting ? "Working…" : isRequest ? "Send reset link" : "Save password"}

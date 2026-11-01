@@ -28,7 +28,14 @@ export function cleanEmail(raw: string): string {
   return raw.replace(INVISIBLE_MARKS, "").toLowerCase();
 }
 
-function friendlyError(error: { code?: string; message: string }): string {
+export function friendlyError(error: {
+  code?: string;
+  name?: string;
+  message: string;
+}): string {
+  if (error.name === "AuthSessionMissingError") {
+    return "Your reset link expired. Request a new one.";
+  }
   switch (error.code) {
     case "invalid_credentials":
       return "Wrong email or password.";
@@ -39,6 +46,17 @@ function friendlyError(error: { code?: string; message: string }): string {
       return "Too many attempts. Wait a minute and try again.";
     case "user_already_exists":
       return "This email already has an account — log in instead.";
+    case "email_address_not_authorized":
+      return "We can't email this address yet.";
+    case "same_password":
+      return "That's your current password. Choose a different one.";
+    case "otp_expired":
+      return "This reset link expired or was already used. Request a new one.";
+    case "session_not_found":
+    case "session_expired":
+      return "Your reset link expired. Request a new one.";
+    case "reauthentication_needed":
+      return "For security, use a fresh reset link from your email.";
     default:
       return error.message;
   }

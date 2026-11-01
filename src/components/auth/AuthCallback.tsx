@@ -44,6 +44,10 @@ export function AuthCallback() {
       const type = search.get("type") as EmailOtpType | null;
 
       const supabase = createClient();
+      const isRecovery =
+        type === "recovery" ||
+        hash.get("type") === "recovery" ||
+        next === "/reset-password";
 
       let message: string | null = null;
 
@@ -54,8 +58,17 @@ export function AuthCallback() {
         });
         message = error?.message ?? null;
       } else if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        message = error?.message ?? null;
+        // The browser client already exchanges ?code= on startup
+        // (detectSessionInUrl) and the PKCE verifier is single-use, so a second
+        // exchangeCodeForSession here always fails. Wait for that run instead.
+        const { error } = await supabase.auth.initialize();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        message = session
+          ? null
+          : (error?.message ??
+            "Open the link in the same browser you requested it from, or request a new one.");
       } else if (tokenHash && type) {
         const { error } = await supabase.auth.verifyOtp({
           type,
@@ -71,19 +84,24 @@ export function AuthCallback() {
       }
 
       if (message) {
-        router.replace(`/login?error=${encodeURIComponent(message)}`);
+        if (/expired|invalid/i.test(message)) {
+          message =
+            "This reset link expired or was already used. Request a new one below.";
+        }
+        const target = isRecovery ? "/forgot-password" : "/login";
+        router.replace(`${target}?error=${encodeURIComponent(message)}`);
         return;
       }
 
       // The session cookie changed, so any cached server render is stale.
       router.refresh();
-      router.replace(next);
+      router.replace(isRecovery ? "/reset-password" : next);
     }
 
     void complete();
   }, [router]);
 
   return (
-    <p className="text-sm text-charcoal/70">Confirming your email address…</p>
+    <p className="text-sm text-charcoal/70">Checking your link…</p>
   );
 }
