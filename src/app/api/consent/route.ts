@@ -25,3 +25,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (error) return NextResponse.json({ error: "Could not save." }, { status: 500 });
   return new NextResponse(null, { status: 204 });
 }
+
+/** The saved choice, so a new browser or deploy URL does not ask a signed-in walker again. */
+export async function GET(): Promise<NextResponse> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ consent: "unset" });
+  const { data } = await supabase.from("profiles").select("learning_consent").eq("id", user.id).maybeSingle();
+  const consent = data?.learning_consent === "granted" || data?.learning_consent === "declined" ? data.learning_consent : "unset";
+  return NextResponse.json({ consent });
+}

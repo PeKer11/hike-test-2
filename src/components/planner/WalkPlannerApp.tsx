@@ -1,6 +1,6 @@
 "use client";
 
-import { useConsentSync } from "@/lib/hooks/useConsentSync";
+import { useConsentSync, useServerConsent } from "@/lib/hooks/useConsentSync";
 import { setActiveAccess, accessBody } from "@/lib/walk/active-access";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -337,6 +337,9 @@ export function WalkPlannerApp({
   } = useWalkSettings();
   const isSignedIn = useIsSignedIn();
   useConsentSync(isSignedIn && walkSettingsLoaded, walkSettings.learningConsent, walkSettings.preferenceLearningEnabled);
+  const consentChecked = useServerConsent(walkSettingsLoaded, walkSettings.learningConsent, (granted) =>
+    setWalkSettings({ learningConsent: granted ? "granted" : "declined", preferenceLearningEnabled: granted }),
+  );
   // Set when a walk ends: the stops that walk was made of, each of which the
   // walker can rate on its own. Null means "don't ask".
   const [feedbackAttractions, setFeedbackAttractions] = useState<
@@ -3081,7 +3084,7 @@ export function WalkPlannerApp({
        The flex row lives on the child, not here — an element can't match its
        own container query, so `@4xl:flex-row` would silently never fire. */
     <div className="@container relative h-full w-full overflow-hidden bg-cream font-brand text-charcoal">
-      {walkSettingsLoaded && walkSettings.learningConsent === "unset" ? (
+      {walkSettingsLoaded && consentChecked && walkSettings.learningConsent === "unset" ? (
         <ConsentGate
           lang={uiLang}
           onLanguage={(uiLanguage) => setWalkSettings({ uiLanguage })}
