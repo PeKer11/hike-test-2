@@ -14,11 +14,11 @@ export const metadata: Metadata = {
 const FAQ = [
   {
     q: "What is a Traike route?",
-    a: "A walk built for you by the AI: your start, your time, your taste. Re-routing mid-walk is included.",
+    a: "A walk built for you by the AI: your start, your time, your taste. Re-routing mid-walk is included. On the free plan you choose the places yourself and Traike arranges the route.",
   },
   {
     q: "Does the free plan ever expire?",
-    a: "No. The daily allowance simply renews every day.",
+    a: "No. Your free walks renew every month.",
   },
   {
     q: "Can prices change?",
