@@ -1,5 +1,11 @@
 # TODO
 
+## Open (2026-11-02, from Ariel)
+- [ ] Hebrew mode: when the chat is in Hebrew, the whole chat UI is right-to-left and all labels are in Hebrew (check whether the mic/send buttons should flip side too).
+- [ ] Dictation language button ("עב"/"EN", `AssistantChat.tsx` next to the mic): Ariel could not find it in the live app; find out why and make it visible.
+- [ ] Dictation (STT) still does not work for Ariel; he sent a screen recording. Diagnose from the recording / the red error text.
+- [ ] Pricing quotas (3 walks a month, 2 top-rated searches): needs his rules first (what counts as a walk, what happens at the limit; no payment exists yet).
+
 ## MVP
 - [x] Project scaffolding (Next.js + TypeScript + Tailwind)
 - [x] Install map dependencies (Leaflet, react-leaflet)
