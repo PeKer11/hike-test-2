@@ -204,7 +204,7 @@ export async function runAssistantTurn(
       if (tc.function.name === "build_walk" && run.action) {
         try {
           const open = (JSON.parse(run.output).not_checked ?? []) as Array<{ rule: string; status: string }>;
-          unchecked = open.map((r) => describeRule(r.rule, r.status));
+          unchecked = open.map((r) => describeRule(r.rule, r.status, hebrew));
         } catch {
           unchecked = [];
         }
@@ -225,7 +225,7 @@ export async function runAssistantTurn(
       if (final) billedMicros += estimateCostMicros(input.choice.model, final.inTok, final.outTok);
       if (cancelled()) throw new TurnCancelledError(billedMicros);
       // Said by the server, so a rule that was not fully checked is never left out of the reply.
-      const reply = finish(`${(final?.content ?? "").trim()}${unchecked.length ? `\n\n⚠ Could not fully verify: ${unchecked.join(", ")}` : ""}`.trim());
+      const reply = finish(`${(final?.content ?? "").trim()}${unchecked.length ? `\n\n${hebrew ? "⚠ לא הצלחתי לאמת עד הסוף" : "⚠ Could not fully verify"}: ${unchecked.join(", ")}` : ""}`.trim());
       return { reply, state, action, askLimits, choices, remembered, billedMicros };
     }
   }

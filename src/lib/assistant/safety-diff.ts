@@ -74,7 +74,7 @@ const RULE_WORDS: Record<string, [string, string]> = {
 
 /** The exact text of the confirm button for dropping safety rules; only a tap (or the same words typed) by the walker confirms. */
 export function confirmLabel(rules: string[], hebrew: boolean): string {
-  const names = rules.map((r) => RULE_WORDS[r]?.[hebrew ? 1 : 0] ?? r).join(", ");
+  const names = rules.map((r) => RULE_WORDS[r]?.[hebrew ? 1 : 0] ?? r.replace(/_/g, " ")).join(", ");
   return hebrew ? `כן, להסיר: ${names}` : `Yes, drop: ${names}`;
 }
 

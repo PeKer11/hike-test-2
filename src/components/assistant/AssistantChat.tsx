@@ -315,10 +315,13 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
   const [statedLimits, setStatedLimits] = useState<Partial<Limits>>({});
   const [text, setText] = useState("");
   const dictationBase = useRef("");
+  // The browser recognises one language per tap and cannot tell Hebrew from English by ear: the walker picks it (עב / EN).
+  const [micLang, setMicLang] = useState<"he" | "en" | null>(null);
   const mic = useSpeechInput(
     (spoken) => setText(dictationBase.current ? `${dictationBase.current} ${spoken}` : spoken),
-    () => recognitionLang(text, typeof navigator === "undefined" ? "" : navigator.language),
+    () => micLang ?? recognitionLang(text, typeof navigator === "undefined" ? "" : navigator.language),
   );
+  const shownMicLang = micLang ?? recognitionLang(text, typeof navigator === "undefined" ? "" : navigator.language);
   const [canSpeak, setCanSpeak] = useState(false);
   useEffect(() => setCanSpeak(ttsSupported()), []);
   // Which reply is being read aloud, so its button can stop it. The browser has no "finished" callback through speak(), so poll.
@@ -809,6 +812,18 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                 className={`flex h-[37px] w-[37px] shrink-0 items-center justify-center rounded-full border border-tk-field text-[16px] ${mic.listening ? "animate-pulse bg-tk-send text-on-accent" : "bg-paper text-tk-body"}`}
               >
                 🎤
+              </button>
+            )}
+            {mic.supported && (
+              <button
+                type="button"
+                disabled={mic.listening}
+                onClick={() => setMicLang(shownMicLang === "he" ? "en" : "he")}
+                aria-label={shownMicLang === "he" ? "Dictation language: Hebrew. Tap for English" : "Dictation language: English. Tap for Hebrew"}
+                title={shownMicLang === "he" ? "Dictation language: Hebrew (tap for English)" : "Dictation language: English (tap for Hebrew)"}
+                className="flex h-[37px] shrink-0 items-center justify-center rounded-full border border-tk-field bg-paper px-[9px] text-[12.5px] font-medium text-tk-body disabled:opacity-50"
+              >
+                {shownMicLang === "he" ? "עב" : "EN"}
               </button>
             )}
             <button

@@ -79,7 +79,9 @@ export function useSpeechInput(onText: (transcript: string) => void, lang: () =>
       setListening(false);
       if (e.error === "not-allowed" || e.error === "service-not-allowed") setError("Microphone is blocked. Allow it for this site in the browser's address bar.");
       else if (e.error === "no-speech") setError("Did not hear anything. Try again.");
-      else if (e.error && e.error !== "aborted") setError("Dictation failed. Try again.");
+      else if (e.error === "language-not-supported") setError("This browser cannot dictate in the chosen language. Switch the language button (עב / EN).");
+      else if (e.error === "network") setError("Dictation needs an internet connection to the browser's speech service. Try again.");
+      else if (e.error && e.error !== "aborted") setError(`Dictation failed (${e.error}). Try again.`);
     };
     rec.current = r;
     setError(null);
