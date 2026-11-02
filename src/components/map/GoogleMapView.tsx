@@ -147,8 +147,8 @@ export default function GoogleMapView({
           {callouts && onCalloutSelect ? <GoogleCallouts announcements={callouts} onSelect={onCalloutSelect} /> : null}
         </Map>
       </APIProvider>
-      {/* Our own credits sit at the page's bottom-left, off the map. Google's logo and terms stay on the map: its terms require them. */}
-      <div className="pointer-events-none fixed left-0 z-[900] max-w-[70%] bg-paper/80 px-1.5 py-0.5 text-[10px] text-slate-700" style={{ bottom: hudInset ? "var(--hud-h, 9rem)" : 0 }}>
+      {/* Our own credits sit small at the map's bottom edge, beside Google's logo. Google's logo and terms stay on the map: its terms require them. */}
+      <div className="pointer-events-none absolute bottom-0 left-24 z-[900] max-w-[40%] bg-paper/80 px-1.5 py-0.5 text-[9px] leading-tight text-slate-700">
         {credits.join(" · ")}
       </div>
     </div>
