@@ -189,3 +189,7 @@ body {
 :root[data-theme="dark"] .planner-sidebar {
   text-shadow: 0 1px 10px rgba(8, 18, 31, 0.95), 0 0 2px rgba(8, 18, 31, 0.8);
 }
+/* Anything with its own background (bubbles, buttons, cards) is already readable; the glow only smears its text. */
+:root[data-theme="dark"] .planner-sidebar [class*="bg-"] {
+  text-shadow: none;
+}

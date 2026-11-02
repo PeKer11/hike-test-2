@@ -114,6 +114,8 @@ export function resolveReasoningEffort(
   const raw = tierVar(env, "LLM_REASONING_EFFORT", tier)?.toLowerCase();
   const effort = EFFORTS.find((e) => e === raw);
   if (!effort) {
+    // Claude defaults to high, too slow for chat: medium for the assistant tier, low for extraction. Route building asks for high itself.
+    if (/^claude-/.test(model)) return tier === 3 ? "medium" : "low";
     if (/-(sol|astra)\b/.test(model)) return "low";
     // Luna reasons by default: 120-300 hidden tokens, 2.4-4.3s on a short
     // extraction, which blows the 6s tier-1 timeout on a real prompt. Extraction

@@ -139,8 +139,8 @@ export function PlannerFrame({
            bottom-right, so this corner is free. While expanded it drops below
            the account indicator, which is pinned to the viewport's top-right.
            z-[600] clears the Leaflet panes. */
-        className={`absolute right-3 z-[600] inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-forest/20 bg-paper/95 text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-forest/10 ${
-          GOOGLE_MAP ? "bottom-36" : isExpanded ? "top-14" : "top-3"
+        className={`absolute z-[600] inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-forest/20 bg-paper/95 text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-forest/10 ${
+          GOOGLE_MAP && isExpanded ? "right-[7.25rem] top-3.5" : GOOGLE_MAP || !isExpanded ? "right-3 top-3" : "right-3 top-14"
         }`}
       >
         {isExpanded ? (
