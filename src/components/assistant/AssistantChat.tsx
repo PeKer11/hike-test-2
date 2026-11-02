@@ -414,6 +414,8 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
     if (!cur) return;
     inflight.current = null;
     cur.ctl.abort();
+    // The browser dropping the request does not always stop the server's turn: tell it to stop (and stop spending).
+    void fetch("/api/assistant/cancel", { method: "POST", keepalive: true }).catch(() => undefined);
     const r = cur.restore;
     setMessages((m) => m.slice(0, r.count));
     if (!r.typedOverride) {

@@ -16,21 +16,35 @@ export interface TurnLock {
   /** A token when the lock was taken, null while a live turn holds it. */
   acquire(key: string, ttlMs: number): Promise<string | null>;
   release(key: string, token: string): Promise<void>;
+  /** Asks the live turn holding `key` to stop. False when none is running (or cancelling is unavailable). */
+  requestCancel(key: string): Promise<boolean>;
+  /** Whether the live turn holding `key` was asked to stop. Never throws: an unavailable check means "no". */
+  isCancelled(key: string): Promise<boolean>;
 }
 
 /** Per-instance lock for tests and for when the database lock is unavailable. */
 export function createMemoryTurnLock(now: () => number = Date.now): TurnLock {
-  const held = new Map<string, { token: string; until: number }>();
+  const held = new Map<string, { token: string; until: number; cancelled: boolean }>();
   return {
     async acquire(key, ttlMs) {
       const current = held.get(key);
       if (current && current.until > now()) return null;
       const token = randomUUID();
-      held.set(key, { token, until: now() + ttlMs });
+      held.set(key, { token, until: now() + ttlMs, cancelled: false });
       return token;
     },
     async release(key, token) {
       if (held.get(key)?.token === token) held.delete(key);
+    },
+    async requestCancel(key) {
+      const current = held.get(key);
+      if (!current || current.until <= now()) return false;
+      current.cancelled = true;
+      return true;
+    },
+    async isCancelled(key) {
+      const current = held.get(key);
+      return !!current && current.until > now() && current.cancelled;
     },
   };
 }
@@ -50,6 +64,14 @@ export function createSupabaseTurnLock(): TurnLock | null {
     async release(lockKey, token) {
       const { error } = await client.rpc("turn_lock_release", { p_key: lockKey, p_token: token });
       if (error) throw new Error(`turn_lock_release failed: ${error.message}`);
+    },
+    async requestCancel(lockKey) {
+      const { data, error } = await client.rpc("turn_lock_cancel", { p_key: lockKey });
+      return !error && data === true;
+    },
+    async isCancelled(lockKey) {
+      const { data, error } = await client.rpc("turn_lock_is_cancelled", { p_key: lockKey });
+      return !error && data === true;
     },
   };
 }
@@ -84,6 +106,15 @@ export function defaultTurnLock(): TurnLock {
       const kind = where.get(token);
       where.delete(token);
       await (kind === "memory" ? memory : db).release(key, token);
+    },
+    // A turn may hold either lock (the database one can fail over), so ask both.
+    async requestCancel(key) {
+      const [a, b] = await Promise.all([db.requestCancel(key), memory.requestCancel(key)]);
+      return a || b;
+    },
+    async isCancelled(key) {
+      const [a, b] = await Promise.all([db.isCancelled(key), memory.isCancelled(key)]);
+      return a || b;
     },
   };
   return cached;

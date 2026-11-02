@@ -154,3 +154,19 @@ describe("one turn at a time", () => {
     expect(await lock.acquire("k", 1_000)).toBeTruthy();
   });
 });
+
+describe("turn lock cancel", () => {
+  it("flags only a live turn, and a new turn starts unflagged", async () => {
+    let t = 1000;
+    const lock = createMemoryTurnLock(() => t);
+    expect(await lock.requestCancel("k")).toBe(false);
+    await lock.acquire("k", 5000);
+    expect(await lock.isCancelled("k")).toBe(false);
+    expect(await lock.requestCancel("k")).toBe(true);
+    expect(await lock.isCancelled("k")).toBe(true);
+    t += 6000;
+    expect(await lock.isCancelled("k")).toBe(false);
+    await lock.acquire("k", 5000);
+    expect(await lock.isCancelled("k")).toBe(false);
+  });
+});

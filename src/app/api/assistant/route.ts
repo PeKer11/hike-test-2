@@ -20,7 +20,7 @@ import { getStandingFacts, learnFactsFromText } from "@/lib/preferences/fact-sto
 import { runMeteredTurn } from "@/lib/llm/llm-client";
 import { ceilingMicros } from "@/lib/llm/pricing";
 import { coarseCoords } from "@/lib/llm/sanitize";
-import { TurnBusyError } from "@/lib/llm/turn-lock";
+import { defaultTurnLock, TurnBusyError } from "@/lib/llm/turn-lock";
 import { LlmBudgetExceededError } from "@/lib/llm/types";
 import { hasLearningConsent } from "@/lib/preferences/consent";
 import { redactForLog } from "@/lib/utils/redact";
@@ -210,7 +210,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runAssistantTurn({ summary, history, state, choice, effort: choice.provider === "anthropic" && !process.env.LLM_REASONING_EFFORT_T3 && needsDeepThinking(message, state) ? "high" : effort, tasteNote: taste, memoryNote, cancel: request.signal, loadWalks: () => listMyWalks(supabase, user.id, 50), costCeilingMicros: turnCeiling, places });
+        // Stop reaches this turn even when the browser's disconnect does not: the cancel endpoint flags the lock, and we poll it.
+        const stop = new AbortController();
+        const watch = setInterval(() => {
+          void defaultTurnLock().isCancelled(`assistant:${user.id}`).then((c) => c && stop.abort()).catch(() => undefined);
+        }, 1500);
+        try {
+        const turn = await runAssistantTurn({ summary, history, state, choice, effort: choice.provider === "anthropic" && !process.env.LLM_REASONING_EFFORT_T3 && needsDeepThinking(message, state) ? "high" : effort, tasteNote: taste, memoryNote, cancel: AbortSignal.any([request.signal, stop.signal]), loadWalks: () => listMyWalks(supabase, user.id, 50), costCeilingMicros: turnCeiling, places });
         let billed = turn.billedMicros;
         let newSummary = summary;
         let newSummarized = summarizedCount;
@@ -230,6 +236,9 @@ export async function POST(request: Request): Promise<NextResponse> {
           }
         }
         return { value: { turn, newSummary, newSummarized }, billedMicros: billed };
+        } finally {
+          clearInterval(watch);
+        }
       },
       {},
       // The turn's worst case (plus the summarizer) is held up front; one turn at a time per walker.
