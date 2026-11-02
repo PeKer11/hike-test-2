@@ -23,7 +23,7 @@ interface RecognitionLike {
   continuous: boolean;
   onresult: ((e: RecognitionEventLike) => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((e: { error?: string }) => void) | null;
   start(): void;
   stop(): void;
 }
@@ -50,6 +50,7 @@ function ctor(): RecognitionCtor | null {
 export function useSpeechInput(onText: (transcript: string) => void, lang: () => CopyLang) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const rec = useRef<RecognitionLike | null>(null);
   const onTextRef = useRef(onText);
   useEffect(() => {
@@ -74,8 +75,14 @@ export function useSpeechInput(onText: (transcript: string) => void, lang: () =>
       onTextRef.current(t.trim());
     };
     r.onend = () => setListening(false);
-    r.onerror = () => setListening(false);
+    r.onerror = (e) => {
+      setListening(false);
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") setError("Microphone is blocked. Allow it for this site in the browser's address bar.");
+      else if (e.error === "no-speech") setError("Did not hear anything. Try again.");
+      else if (e.error && e.error !== "aborted") setError("Dictation failed. Try again.");
+    };
     rec.current = r;
+    setError(null);
     setListening(true);
     try {
       r.start();
@@ -84,5 +91,5 @@ export function useSpeechInput(onText: (transcript: string) => void, lang: () =>
     }
   }, [lang]);
 
-  return { supported, listening, start, stop };
+  return { supported, listening, error, start, stop };
 }

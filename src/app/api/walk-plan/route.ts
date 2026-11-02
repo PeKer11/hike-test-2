@@ -1,3 +1,4 @@
+import { describeRule } from "@/lib/assistant/rule-labels";
 import { NextResponse } from "next/server";
 
 import { hasLearningConsent } from "@/lib/preferences/consent";
@@ -766,7 +767,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             const grade = typeof body.maxGradePct === "number" && body.maxGradePct > 0 && body.maxGradePct <= 30 ? body.maxGradePct : undefined;
             for (const r of accessRules(detail, access, km, grade)) {
               if (r.status === "not_met") warnings.push(`${r.detail ?? r.rule} (${access} route).`);
-              else if (r.status === "not_checked" || r.status === "partial") warnings.push(`Not fully checked for a ${access}: ${r.rule} (${r.detail ?? "no data"}).`);
+              else if (r.status === "not_checked" || r.status === "partial") warnings.push(`Could not fully verify for a ${access}: ${describeRule(r.rule, r.status)}${r.detail ? ` — ${r.detail}` : ""}.`);
             }
           }
           if (returnToStart && !summary.closesLoop) {

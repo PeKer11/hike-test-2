@@ -71,7 +71,7 @@ const nextConfig: NextConfig = {
           // stays open to same-origin and closed to embedded frames.
           {
             key: "Permissions-Policy",
-            value: "geolocation=(self), camera=(), microphone=(), payment=()",
+            value: "geolocation=(self), camera=(), microphone=(self), payment=()",
           },
         ],
       },

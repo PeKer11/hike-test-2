@@ -321,6 +321,16 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
   );
   const [canSpeak, setCanSpeak] = useState(false);
   useEffect(() => setCanSpeak(ttsSupported()), []);
+  // Which reply is being read aloud, so its button can stop it. The browser has no "finished" callback through speak(), so poll.
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+  useEffect(() => {
+    if (speakingIdx === null) return;
+    const id = window.setInterval(() => {
+      if (!window.speechSynthesis.speaking) setSpeakingIdx(null);
+    }, 400);
+    return () => window.clearInterval(id);
+  }, [speakingIdx]);
+  useEffect(() => () => stopSpeaking(), []);
   const [themes, setThemes] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -615,16 +625,21 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
               {m.role === "assistant" && canSpeak && (
                 <button
                   type="button"
-                  aria-label="Read aloud"
-                  title="Read aloud"
+                  aria-label={speakingIdx === i ? "Stop reading" : "Read aloud"}
+                  title={speakingIdx === i ? "Stop reading" : "Read aloud"}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (speakingIdx === i) {
+                      stopSpeaking();
+                      setSpeakingIdx(null);
+                      return;
+                    }
                     stopSpeaking();
-                    speak(m.content, textLang(m.content), true);
+                    setSpeakingIdx(speak(m.content, textLang(m.content), true) ? i : null);
                   }}
                   className="mt-1 block text-[13px] opacity-60 hover:opacity-100"
                 >
-                  🔊
+                  {speakingIdx === i ? "⏹" : "🔊"}
                 </button>
               )}
               {copiedAt === i && <span className="absolute -top-2 end-2 rounded-full bg-tk-ink px-2 text-[10px] text-tk-card">Copied</span>}
@@ -667,7 +682,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
           {pending && <p className="text-xs text-charcoal/50">Thinking…</p>}
         </div>
 
-        {error && <p className="mx-[17px] mt-2 text-[12px] text-red-700">{error}</p>}
+        {(error || mic.error) && <p className="mx-[17px] mt-2 text-[12px] text-red-700">{error ?? mic.error}</p>}
 
         <form onSubmit={(e) => void send(e)} className="relative z-0 mt-[12px] space-y-[11px] px-[17px]">
           <textarea
