@@ -1,3 +1,4 @@
+import { needsDeepThinking } from "@/lib/assistant/effort";
 import { NextResponse } from "next/server";
 
 import { createPlacesGate, placesDailyCap } from "@/lib/api/places-quota";
@@ -209,7 +210,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runAssistantTurn({ summary, history, state, choice, effort, tasteNote: taste, memoryNote, cancel: request.signal, loadWalks: () => listMyWalks(supabase, user.id, 50), costCeilingMicros: turnCeiling, places });
+        const turn = await runAssistantTurn({ summary, history, state, choice, effort: choice.provider === "anthropic" && !process.env.LLM_REASONING_EFFORT_T3 && needsDeepThinking(message, state) ? "high" : effort, tasteNote: taste, memoryNote, cancel: request.signal, loadWalks: () => listMyWalks(supabase, user.id, 50), costCeilingMicros: turnCeiling, places });
         let billed = turn.billedMicros;
         let newSummary = summary;
         let newSummarized = summarizedCount;
