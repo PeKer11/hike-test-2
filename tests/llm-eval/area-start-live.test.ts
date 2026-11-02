@@ -9,12 +9,15 @@ vi.mock("@/lib/api/google-places-client", () => ({ searchTextPlaces: vi.fn(), se
 import { searchNearbyPlaces, searchTextPlaces } from "@/lib/api/google-places-client";
 import { EMPTY_STATE } from "@/lib/assistant/state";
 import { runAssistantTurn } from "@/lib/assistant/turn";
-import { callOpenAiTools } from "@/lib/llm/providers/openai-tools";
+import type { callOpenAiTools } from "@/lib/llm/providers/openai-tools";
+import { toolCallFor } from "@/lib/llm/providers/anthropic-tools";
 
 // Opt-in, paid model check; map tools use fixtures and no application/production DB is involved.
 // The shared test setup deliberately removes provider keys; reload only for this explicit opt-in.
 if (process.env.RUN_LIVE_AREA_START_EVAL) process.loadEnvFile(".env.local");
-const live = Boolean(process.env.RUN_LIVE_AREA_START_EVAL && process.env.OPENAI_API_KEY);
+const provider = process.env.ANTHROPIC_API_KEY ? "anthropic" : "openai";
+const live = Boolean(process.env.RUN_LIVE_AREA_START_EVAL && (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY));
+const callTools = toolCallFor(provider);
 const townStart = { lat: 32.52, lng: 34.94 };
 const town = { placeId: "town", name: "בנימינה גבעת עדה", coordinates: townStart, primaryType: "locality", types: ["locality"] };
 
@@ -34,7 +37,7 @@ describe.skipIf(!live)("live area-start behavior", () => {
   ])("resolves an $label start and searches immediately without a start-choice gate", { timeout: 120_000 }, async ({ label, origin }) => {
     const startCalls: Array<Record<string, unknown>> = [];
     const recording: typeof callOpenAiTools = async (req) => {
-      const result = await callOpenAiTools(req);
+      const result = await callTools(req);
       for (const t of result.toolCalls) {
         if (t.function.name === "set_start") startCalls.push(JSON.parse(t.function.arguments));
       }
@@ -44,7 +47,7 @@ describe.skipIf(!live)("live area-start behavior", () => {
       summary: null,
       history: [{ role: "user", content: "תמצא לי שני מקומות לטיול בבנימינה, אוכל וטבע. תציע מקומות ואז אבחר. אל תצא מבנימינה." }],
       state: { ...EMPTY_STATE, origin, params: {}, limitsSettled: true },
-      choice: { provider: "openai", model: "gpt-6.1-sol" },
+      choice: { provider, model: provider === "anthropic" ? "claude-sonnet-5-5" : "gpt-6.1-sol" },
     }, { call: recording });
     expect(startCalls.some((c) => typeof c.area === "string")).toBe(true);
     expect(result.state.origin).toEqual(label === "inside" ? origin : townStart);
