@@ -3106,8 +3106,8 @@ export function WalkPlannerApp({
             : "relative"
         } planner-sidebar p-[14px] pb-[26px] @4xl:p-[12px] @4xl:pb-[20px] @6xl:p-[14px] @6xl:pb-[26px]`}
         style={{
-          backgroundColor: "#d9b98a",
-          backgroundImage: "url(/images/traike/sidebar-bg.jpg)",
+          backgroundColor: "var(--tk-sidebar-bg)",
+          backgroundImage: "var(--tk-sidebar-img)",
           backgroundRepeat: "no-repeat",
           backgroundSize: "max(100%, 460px) auto",
           backgroundPosition: "right top",

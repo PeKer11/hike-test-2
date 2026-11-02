@@ -270,7 +270,7 @@ function GuideFigure() {
       onError={() => setFallback(true)}
       src={night ? "/images/assistant/guide-night.jpg" : fallback ? "/images/assistant/guide.jpg" : "/images/assistant/guide.png"}
       data-fallback={(!night && fallback) || undefined}
-      className={`${night ? "[mask-image:linear-gradient(90deg,#000_82%,transparent_100%)] " : ""}pointer-events-none absolute bottom-0 left-0 z-10 h-[149px] w-[54%] object-contain object-left-bottom data-[fallback]:w-[100px] data-[fallback]:object-cover data-[fallback]:object-top data-[fallback]:[mask-image:radial-gradient(ellipse_70%_75%_at_50%_42%,#000_62%,transparent_100%)]`}
+      className={`${night ? "[mask-image:linear-gradient(90deg,transparent_0%,#000_10%,#000_80%,transparent_100%)] " : ""}pointer-events-none absolute bottom-0 left-0 z-10 h-[149px] w-[54%] object-contain object-left-bottom data-[fallback]:w-[100px] data-[fallback]:object-cover data-[fallback]:object-top data-[fallback]:[mask-image:radial-gradient(ellipse_70%_75%_at_50%_42%,#000_62%,transparent_100%)]`}
     />
   );
 }
@@ -547,16 +547,16 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
 
         {messages.length === 0 && (
           <>
-            <div data-mock="scene" className="relative mt-[2px] min-h-[152px] pb-[57px] pt-[22px]">
-              <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(247,236,220,0)_0%,#f7ecdc_45%,#f3e2c9_100%)] dark:bg-[linear-gradient(180deg,rgba(8,18,31,0)_0%,#0b1a2b_45%,#08121f_100%)]" />
+            <div data-mock="scene" className="relative mt-[2px] min-h-[152px] pb-[57px] pt-[22px] dark:rounded-[12px] dark:bg-[#0b1a2b]">
+              <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(247,236,220,0)_0%,#f7ecdc_45%,#f3e2c9_100%)] dark:bg-[linear-gradient(180deg,rgba(8,18,31,0)_0%,#0b1a2b_55%,#08121f_100%)]" />
               {/* eslint-disable @next/next/no-img-element */}
-              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute -left-[4px] top-[7px] z-0 w-[56px]" />
-              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute left-[25%] top-[78px] z-0 w-[46px] -scale-x-100 opacity-90" />
+              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute -left-[4px] top-[7px] z-0 w-[56px] dark:opacity-40 dark:brightness-75" />
+              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute left-[25%] top-[78px] z-0 w-[46px] -scale-x-100 opacity-90 dark:opacity-40 dark:brightness-75" />
               <GuideFigure />
-              <svg aria-hidden viewBox="0 0 67 50" className="pointer-events-none absolute left-[27.6%] top-[55px] z-10 h-[22px] w-[30px]" fill="none" stroke="#c9653a" strokeWidth={6} strokeLinecap="round">
+              <svg aria-hidden viewBox="0 0 67 50" className="pointer-events-none absolute left-[27.6%] top-[55px] z-10 h-[22px] w-[30px] text-[#c9653a] dark:text-[#f3d98b]" fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round">
                 <path d="M5 20 13 42M36 4 29 41M63 28 44 49" />
               </svg>
-              <img src="/images/traike/route-trail.svg" alt="" aria-hidden className="pointer-events-none absolute right-[22px] top-[106px] z-10 w-[116px]" />
+              <img src="/images/traike/route-trail.svg" alt="" aria-hidden className="pointer-events-none absolute right-[22px] top-[106px] z-10 w-[116px] dark:opacity-60 dark:brightness-150" />
               <div data-mock="bubble" className="relative z-20 ml-[36.8%] mr-[3.4%] drop-shadow-[0_2px_5px_rgba(110,80,50,0.16)]">
                 <svg aria-hidden viewBox="0 0 54 41" className="absolute -left-[13px] bottom-0 h-[18px] w-[24px]">
                   <path d="M29 3C29 15 22 22 10 27 24 31 38 37 54 41H29Z" className="fill-tk-bubble" />
@@ -566,7 +566,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
                   walk with you.
                 </p>
               </div>
-              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute -right-[2px] top-[119px] z-20 w-[34px] -scale-x-100 rotate-[25deg]" />
+              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute -right-[2px] top-[119px] z-20 w-[34px] -scale-x-100 rotate-[25deg] dark:opacity-50 dark:brightness-75" />
               {/* eslint-enable @next/next/no-img-element */}
             </div>
           </>
@@ -745,22 +745,26 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
               </button>
             </div>
           )}
-          {pending && (
+          <div className="flex items-center gap-[8px]">
             <button
-              type="button"
-              onClick={undoSend}
-              className="mb-[6px] block h-[32px] w-full rounded-[9px] border border-tk-field bg-paper text-[14px] font-medium leading-none text-tk-body transition-colors hover:bg-tk-bubble"
+              type="submit"
+              disabled={pending || isBuilding || (!text.trim() && images.length === 0 && themes.length === 0)}
+              className="block h-[37px] min-w-0 flex-1 rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-on-accent transition-colors hover:bg-[#c2643c] disabled:cursor-not-allowed"
             >
-              Undo send
+              {isBuilding ? "Building your walk…" : "Send"}
             </button>
-          )}
-          <button
-            type="submit"
-            disabled={pending || isBuilding || (!text.trim() && images.length === 0 && themes.length === 0)}
-            className="block h-[37px] w-full rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-on-accent transition-colors hover:bg-[#c2643c] disabled:cursor-not-allowed"
-          >
-            {isBuilding ? "Building your walk…" : "Send"}
-          </button>
+            {pending && (
+              <button
+                type="button"
+                onClick={undoSend}
+                aria-label="Stop"
+                title="Stop"
+                className="flex h-[37px] w-[37px] shrink-0 items-center justify-center rounded-full bg-tk-ink text-tk-card transition-opacity hover:opacity-85"
+              >
+                <span aria-hidden className="block h-[13px] w-[13px] rounded-[2px] bg-current" />
+              </button>
+            )}
+          </div>
         </form>
 
       </div>

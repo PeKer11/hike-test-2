@@ -181,8 +181,11 @@ body {
 }
 
 
-/* Dark: dim the sidebar photo instead of letting it glare. */
+/* Dark: a real night scene for the sidebar, not a dimmed day photo. */
+:root { --tk-sidebar-bg: #d9b98a; --tk-sidebar-img: url(/images/traike/sidebar-bg.jpg); }
+:root[data-theme="dark"] { --tk-sidebar-bg: #08121f; --tk-sidebar-img: url(/images/traike/sidebar-bg-night.jpg); }
+
+/* Keep the header readable over the lantern in the night sidebar scene. */
 :root[data-theme="dark"] .planner-sidebar {
-  background-color: #2a2118 !important;
-  background-blend-mode: multiply;
+  text-shadow: 0 1px 10px rgba(8, 18, 31, 0.95), 0 0 2px rgba(8, 18, 31, 0.8);
 }

@@ -46,15 +46,15 @@ describe("undo send", () => {
     const box = screen.getByPlaceholderText(/Habima/) as HTMLTextAreaElement;
     fireEvent.change(box, { target: { value: "cafe near the sea" } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Undo send" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy());
     expect(box.value).toBe("");
 
-    fireEvent.click(screen.getByRole("button", { name: "Undo send" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
 
     await waitFor(() => expect(box.value).toBe("cafe near the sea"));
     expect(signal?.aborted).toBe(true);
     expect(screen.queryByText("cafe near the sea", { selector: "p, div, span" })).toBeNull();
     expect(screen.queryByText(/Could not reach/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Undo send" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   });
 });

@@ -75,7 +75,7 @@ export function WalkStatsBar({ stats }: { stats: WalkStatsData }) {
   return (
     <div
       data-testid="walk-stats"
-      className="pointer-events-auto flex divide-x divide-charcoal/10 rounded-2xl bg-cream/95 py-2 shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur rtl:divide-x-reverse"
+      className="pointer-events-auto flex divide-x divide-charcoal/10 rounded-2xl bg-cream/95 py-2 shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur dark:bg-[#0b1a2b]/90 dark:ring-1 dark:ring-white/10 rtl:divide-x-reverse"
     >
       <Tile
         label={walkCopy.stats.pace}

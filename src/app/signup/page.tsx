@@ -20,7 +20,15 @@ export default function SignupPage() {
         priority
         sizes="100vw"
         aria-hidden
-        className="scale-105 object-cover object-center dark:brightness-75 dark:saturate-75"
+        className="scale-105 object-cover object-center dark:hidden"
+      />
+      <Image
+        src="/images/hub-night.jpg"
+        alt=""
+        fill
+        sizes="100vw"
+        aria-hidden
+        className="scale-105 object-cover object-center hidden dark:block"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-cream/80 via-cream/45 to-cream/85" />
       <div className="relative w-full max-w-sm">

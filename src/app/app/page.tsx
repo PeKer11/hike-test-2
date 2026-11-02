@@ -60,7 +60,15 @@ export default async function AppHubPage() {
         priority
         sizes="100vw"
         aria-hidden
-        className="scale-105 object-cover object-center blur-lg dark:brightness-75 dark:saturate-75"
+        className="scale-105 object-cover object-center blur-lg dark:hidden"
+      />
+      <Image
+        src="/images/hub-night.jpg"
+        alt=""
+        fill
+        sizes="100vw"
+        aria-hidden
+        className="scale-105 object-cover object-center blur-lg hidden dark:block"
       />
       <div
         aria-hidden
