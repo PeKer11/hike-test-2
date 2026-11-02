@@ -22,6 +22,9 @@ import type { LoadWalks } from "./recall-walks";
 /** A user turn is at most this many model calls (each tool round is one). */
 const MAX_MODEL_CALLS = 12;
 const MAX_OUTPUT_TOKENS = 2000;
+/** The closing note after a build or a wrap-up is a sentence or two: low effort, so thinking cannot eat the token budget and leave an empty reply. */
+const CLOSING_TOKENS = 2048;
+const CLOSING_EFFORT = "low";
 const TURN_TIMEOUT_MS = 90_000;
 /** Tool calls one turn may run in total, so a hijacked model cannot loop the paid map APIs. */
 const MAX_TOOL_CALLS = 20;
@@ -209,14 +212,14 @@ export async function runAssistantTurn(
     }
     // A build ends the turn: the client now runs the planner.
     if (action || askLimits || choices) {
-      const final = fits(messages, [], 1024)
+      const final = fits(messages, [], CLOSING_TOKENS)
         ? await call({
             model: input.choice.model,
             messages,
             tools: [],
-            maxOutputTokens: 1024,
+            maxOutputTokens: CLOSING_TOKENS,
             signal,
-            reasoningEffort: input.effort,
+            reasoningEffort: CLOSING_EFFORT,
           }).catch(() => null)
         : null;
       if (final) billedMicros += estimateCostMicros(input.choice.model, final.inTok, final.outTok);
@@ -229,14 +232,14 @@ export async function runAssistantTurn(
   if (cancelled()) throw new TurnCancelledError(billedMicros);
   // Out of tool rounds, time or money: have the model report what it found so far, in the walker's language, instead of a canned English line.
   const wrapMessages: ChatMessage[] = [...messages, { role: "user", content: "Stop searching. In the walker's language, say briefly what you found so far and what you still need from them." }];
-  const wrapUp = fits(wrapMessages, [], 1024)
+  const wrapUp = fits(wrapMessages, [], CLOSING_TOKENS)
     ? await call({
         model: input.choice.model,
         messages: wrapMessages,
         tools: [],
-        maxOutputTokens: 1024,
+        maxOutputTokens: CLOSING_TOKENS,
         signal: AbortSignal.timeout(20_000),
-        reasoningEffort: input.effort,
+        reasoningEffort: CLOSING_EFFORT,
       }).catch(() => null)
     : null;
   if (wrapUp) billedMicros += estimateCostMicros(input.choice.model, wrapUp.inTok, wrapUp.outTok);

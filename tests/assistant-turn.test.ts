@@ -131,6 +131,31 @@ describe("runAssistantTurn", () => {
     expect(result.action?.type).toBe("build");
     expect(result.reply).toBe("בונה!");
   });
+
+  it("the closing note after a build runs at low effort with room to answer, whatever the turn's effort", async () => {
+    const state = {
+      ...EMPTY_STATE,
+      limitsSettled: true,
+      origin: { lat: 1, lng: 1 },
+      candidates: [{ id: "c1", name: "A", coordinates: { lat: 1, lng: 1 }, category: "food" as const, placeId: "p" }],
+    };
+    const call = vi
+      .fn()
+      .mockResolvedValueOnce({
+        content: null,
+        toolCalls: [{ id: "t1", type: "function", function: { name: "build_walk", arguments: '{"stop_ids":["c1"]}' } }],
+        inTok: 1,
+        outTok: 1,
+      })
+      .mockResolvedValueOnce({ content: "Building!", toolCalls: [], inTok: 1, outTok: 1 });
+    await runAssistantTurn(
+      { summary: "s", history: [{ role: "user", content: "yes" }], state, effort: "high", choice: { provider: "anthropic", model: "claude-sonnet-5-5" } },
+      { call },
+    );
+    expect(call.mock.calls[0][0].reasoningEffort).toBe("high");
+    expect(call.mock.calls[1][0].reasoningEffort).toBe("low");
+    expect(call.mock.calls[1][0].maxOutputTokens).toBeGreaterThan(1024);
+  });
 });
 
 describe("turn deadline", () => {
