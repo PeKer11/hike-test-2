@@ -58,7 +58,7 @@ export function GoogleStopMarkers({
                   : "Tap to pin — keeps this stop when the walk is rebuilt."}
               </div>
             ) : null}
-            <div className="text-xs text-slate-600">
+            <div className="text-xs text-slate-600 dark:text-slate-300">
               {open.coordinates.lat.toFixed(5)}, {open.coordinates.lng.toFixed(5)}
             </div>
             <span className="sr-only">{openIndex + 1}</span>
@@ -85,7 +85,7 @@ export function GooglePreviewMarkers({ places }: { places: Attraction[] }) {
           <div className="space-y-1">
             <div className="text-sm font-semibold">{open.name}</div>
             <div className="text-xs text-amber-700">Candidate stop — not in your walk yet</div>
-            <div className="text-xs text-slate-600">
+            <div className="text-xs text-slate-600 dark:text-slate-300">
               {open.coordinates.lat.toFixed(5)}, {open.coordinates.lng.toFixed(5)}
             </div>
           </div>

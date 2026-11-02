@@ -193,3 +193,11 @@ body {
 :root[data-theme="dark"] .planner-sidebar [class*="bg-"] {
   text-shadow: none;
 }
+
+/* Google's info window stays white in night mode; make it a night card so the light text tokens inside are readable. */
+:root[data-theme="dark"] .gm-style .gm-style-iw-c,
+:root[data-theme="dark"] .gm-style .gm-style-iw-tc::after {
+  background: #14202e;
+}
+:root[data-theme="dark"] .gm-style .gm-style-iw-c { color: #e8eef5; }
+:root[data-theme="dark"] .gm-style .gm-ui-hover-effect > span { background-color: #e8eef5; }

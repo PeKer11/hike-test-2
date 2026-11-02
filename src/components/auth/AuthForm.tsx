@@ -221,11 +221,16 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
           disabled={isSubmitting}
           className="w-full rounded-[10px] bg-terra px-7 py-3 text-sm font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90 disabled:bg-terra/50"
         >
-          {isSubmitting
-            ? "Working…"
-            : isSignup
-              ? "Create account"
-              : "Log in"}
+          {isSubmitting ? (
+            <span className="inline-flex items-center justify-center gap-2" role="status">
+              <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-cream/40 border-t-cream" />
+              {isSignup ? "Creating account…" : "Logging in…"}
+            </span>
+          ) : isSignup ? (
+            "Create account"
+          ) : (
+            "Log in"
+          )}
         </button>
       </form>
 
