@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
+import { recognitionLang, textLang, useSpeechInput } from "@/lib/speech/recognition";
+import { speak, stopSpeaking, ttsSupported } from "@/lib/walk/tts";
+
 import { Button } from "@/components/ui";
 import {
   DEFAULT_PACE_MIN_PER_KM,
@@ -311,6 +314,13 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
   const [places, setPlaces] = useState<Candidate[]>([]);
   const [statedLimits, setStatedLimits] = useState<Partial<Limits>>({});
   const [text, setText] = useState("");
+  const dictationBase = useRef("");
+  const mic = useSpeechInput(
+    (spoken) => setText(dictationBase.current ? `${dictationBase.current} ${spoken}` : spoken),
+    () => recognitionLang(text, typeof navigator === "undefined" ? "" : navigator.language),
+  );
+  const [canSpeak, setCanSpeak] = useState(false);
+  useEffect(() => setCanSpeak(ttsSupported()), []);
   const [themes, setThemes] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -602,6 +612,21 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
               }`}
             >
               {m.role === "assistant" ? renderMessage(m.content, places, onFocusPlace) : m.content}
+              {m.role === "assistant" && canSpeak && (
+                <button
+                  type="button"
+                  aria-label="Read aloud"
+                  title="Read aloud"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    stopSpeaking();
+                    speak(m.content, textLang(m.content), true);
+                  }}
+                  className="mt-1 block text-[13px] opacity-60 hover:opacity-100"
+                >
+                  🔊
+                </button>
+              )}
               {copiedAt === i && <span className="absolute -top-2 end-2 rounded-full bg-tk-ink px-2 text-[10px] text-tk-card">Copied</span>}
             </div>
           ))}
@@ -755,6 +780,22 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             </div>
           )}
           <div className="flex items-center gap-[8px]">
+            {mic.supported && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (mic.listening) return mic.stop();
+                  dictationBase.current = text.trim();
+                  mic.start();
+                }}
+                aria-label={mic.listening ? "Stop dictation" : "Dictate"}
+                aria-pressed={mic.listening}
+                title={mic.listening ? "Stop dictation" : "Dictate"}
+                className={`flex h-[37px] w-[37px] shrink-0 items-center justify-center rounded-full border border-tk-field text-[16px] ${mic.listening ? "animate-pulse bg-tk-send text-on-accent" : "bg-paper text-tk-body"}`}
+              >
+                🎤
+              </button>
+            )}
             <button
               type="submit"
               disabled={pending || isBuilding || (!text.trim() && images.length === 0 && themes.length === 0)}
