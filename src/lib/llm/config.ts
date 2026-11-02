@@ -51,6 +51,15 @@ const OPENAI_ZERO_CONFIG: Record<LlmTier, string> = {
   3: "gpt-6.1-sol",
 };
 
+/** With ANTHROPIC_API_KEY set and no explicit LLM_PROVIDER / LLM_MODEL, every tier runs on Sonnet 5.5. */
+const ANTHROPIC_ZERO_CONFIG_MODEL = "claude-sonnet-5-5";
+
+function zeroConfigAnthropic(env: Env): ProviderChoice | null {
+  if (!env.ANTHROPIC_API_KEY?.trim()) return null;
+  if (Object.keys(env).some((k) => /^LLM_(PROVIDER|MODEL)/.test(k) && env[k]?.trim())) return null;
+  return { provider: "anthropic", model: ANTHROPIC_ZERO_CONFIG_MODEL };
+}
+
 function zeroConfigOpenAi(env: Env, tier: LlmTier): ProviderChoice | null {
   if (!env.OPENAI_API_KEY?.trim()) return null;
   if (Object.keys(env).some((k) => /^LLM_(PROVIDER|MODEL)/.test(k) && env[k]?.trim())) return null;
@@ -71,6 +80,7 @@ export function resolveLlmConfig(
   _task?: LlmTaskName,
 ): LlmConfig {
   const primary =
+    zeroConfigAnthropic(env) ??
     zeroConfigOpenAi(env, tier) ??
     choose(tierVar(env, "LLM_PROVIDER", tier), tierVar(env, "LLM_MODEL", tier)) ??
     choose("gemini", undefined)!;

@@ -2,6 +2,7 @@ import { searchNearbyPlaces, searchTextPlaces } from "@/lib/api/google-places-cl
 import type { PlacesGate } from "@/lib/api/places-quota";
 import type { ProviderChoice } from "@/lib/llm/config";
 import { ceilingMicros, estimateCallMicros, estimateCostMicros } from "@/lib/llm/pricing";
+import { toolCallFor } from "@/lib/llm/providers/anthropic-tools";
 import { callOpenAiTools, type ChatMessage, type ToolDef } from "@/lib/llm/providers/openai-tools";
 import { cleanUntrustedText, UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "@/lib/llm/sanitize";
 import { BilledFailureError } from "@/lib/llm/types";
@@ -12,7 +13,7 @@ import { parseToolArgs, WALK_TOOL_ARGS } from "./tool-schemas";
 const MAX_MODEL_CALLS = 5;
 /** Tool calls one turn may run in total, so a hijacked model cannot loop the paid map APIs. */
 const MAX_TOOL_CALLS = 8;
-const MAX_OUTPUT_TOKENS = 500;
+const MAX_OUTPUT_TOKENS = 1500;
 const TURN_TIMEOUT_MS = 30_000;
 const CATEGORIES: AttractionCategory[] = ["food", "nature", "park", "museum", "landmark", "viewpoint", "religious", "shopping", "entertainment", "other"];
 
@@ -98,7 +99,7 @@ export interface WalkTurnInput {
 
 export async function runWalkTurn(
   input: WalkTurnInput,
-  call: typeof callOpenAiTools = callOpenAiTools,
+  call: typeof callOpenAiTools = toolCallFor(input.choice.provider),
 ): Promise<{ reply: string; actions: WalkAction[]; remembered: string[]; billedMicros: number }> {
   const found = new Map<string, { name: string; coordinates: Coordinates }>();
   const actions: WalkAction[] = [];

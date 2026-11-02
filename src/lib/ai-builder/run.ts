@@ -3,6 +3,7 @@ import type { PlacesGate } from "@/lib/api/places-quota";
 import { ceilingMicros, estimateCallMicros, estimateCostMicros } from "@/lib/llm/pricing";
 import { cleanUntrustedText, UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "@/lib/llm/sanitize";
 import { BilledFailureError } from "@/lib/llm/types";
+import { toolCallFor } from "@/lib/llm/providers/anthropic-tools";
 import { callOpenAiTools, type ChatMessage } from "@/lib/llm/providers/openai-tools";
 import { TURN_ROUTING_CALLS } from "@/lib/assistant/route-check";
 import { visitMinutes, type AssistantState, type Candidate, type WalkParams } from "@/lib/assistant/state";
@@ -15,7 +16,7 @@ import { AI_BUILDER_SYSTEM } from "./prompt";
 const MAX_MODEL_CALLS = 16;
 /** Tool calls one build may run in total, so a hijacked model cannot loop the paid map APIs. */
 const MAX_TOOL_CALLS = 24;
-const MAX_OUTPUT_TOKENS = 700;
+const MAX_OUTPUT_TOKENS = 3000;
 const TIMEOUT_MS = 100_000;
 const TOOLS = new Set(["search_place", "find_nearby", "estimate_walk", "find_clean_walk", "check_weather", "check_safety", "build_walk"]);
 
@@ -61,7 +62,7 @@ export async function runAiBuild(
   req: AiBuildRequest,
   choice: ProviderChoice,
   effort?: string,
-  call: typeof callOpenAiTools = callOpenAiTools,
+  call: typeof callOpenAiTools = toolCallFor(choice.provider),
   places?: PlacesGate,
   /** Most this build may spend, in micro-dollars (default AI_BUILD_CEILING_USD, $0.40). */
   costCeilingMicros: number = ceilingMicros("AI_BUILD_CEILING_USD", 0.4),

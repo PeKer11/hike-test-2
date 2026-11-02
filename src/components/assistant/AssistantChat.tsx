@@ -252,6 +252,9 @@ function LimitsBox({
   );
 }
 
+const BUSY_RETRIES = 75;
+const BUSY_RETRY_MS = 2000;
+
 function GuideFigure() {
   const [fallback, setFallback] = useState(false);
   const night = useResolvedTheme() === "dark";
@@ -383,7 +386,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
   // The send in flight, with what to put back if the walker undoes it.
   const inflight = useRef<{ ctl: AbortController; restore: { text: string; themes: string[]; images: string[]; choices: string[]; limitsOpen: boolean; count: number; typedOverride: boolean } } | null>(null);
 
-  const undoSend = () => {
+  const undoSend = (failure?: string) => {
     const cur = inflight.current;
     if (!cur) return;
     inflight.current = null;
@@ -398,7 +401,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
     setChoices(r.choices);
     setLimitsOpen(r.limitsOpen);
     setPending(false);
-    setError(null);
+    setError(failure ?? null);
   };
 
   const send = async (event: FormEvent | null, override?: { message: string; limits?: Limits }) => {
@@ -420,15 +423,21 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
     setMessages((m) => [...m, { role: "user", content: sentImages.length ? `${message} 🖼×${sentImages.length}` : message }]);
     setPending(true);
     try {
-      const response = await fetch("/api/assistant", {
-        method: "POST",
-        signal: ctl.signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId, message: typed, origin, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) }),
-      });
-      const data = (await response.json()) as AssistantReply;
+      const body = JSON.stringify({ chatId, message: typed, origin, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) });
+      // 409 "busy": an earlier turn of this user is still finishing on the server (e.g. one that was stopped).
+      // Wait for it instead of leaving an unanswered bubble; Stop still cancels the wait.
+      let response: Response;
+      let data: AssistantReply;
+      for (let attempt = 0; ; attempt++) {
+        response = await fetch("/api/assistant", { method: "POST", signal: ctl.signal, headers: { "Content-Type": "application/json" }, body });
+        data = (await response.json()) as AssistantReply;
+        if (response.status !== 409 || (data as { code?: string }).code !== "busy" || attempt >= BUSY_RETRIES) break;
+        await new Promise((resolve) => window.setTimeout(resolve, BUSY_RETRY_MS));
+        if (ctl.signal.aborted) return;
+      }
       if (!response.ok) {
-        setError(data.error ?? "Something went wrong. Try again.");
+        // Nothing was answered: take the message back out of the thread and put the draft back.
+        undoSend(data.error ?? "Something went wrong. Try again.");
         return;
       }
       setChatId(data.chatId);
@@ -756,7 +765,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             {pending && (
               <button
                 type="button"
-                onClick={undoSend}
+                onClick={() => undoSend()}
                 aria-label="Stop"
                 title="Stop"
                 className="flex h-[37px] w-[37px] shrink-0 items-center justify-center rounded-full bg-tk-ink text-tk-card transition-opacity hover:opacity-85"

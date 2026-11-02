@@ -17,6 +17,8 @@ const positive = (v: unknown) => (finite(v) && v > 0 && v < 100_000 ? v : undefi
 const strings = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.length <= 120).slice(0, max) : []);
 const CATEGORIES = ["food", "nature", "park", "museum", "landmark", "viewpoint", "religious", "shopping", "entertainment", "other"];
 const MAX_BODY_BYTES = 200_000;
+/** Building a route is the hard reasoning task, so it always runs at high effort. */
+const BUILD_EFFORT = "high";
 
 /** The AI decides which stops a walk has and in what order; the planner then only measures it. */
 export async function POST(request: Request): Promise<NextResponse> {
@@ -81,8 +83,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     const result = await runMeteredTurn(
       { userId: user.id, ip: callerKey(request) },
       3,
-      async (choice, effort) => {
-        const built = await runAiBuild(aiRequest, choice, effort, undefined, places, buildCeiling);
+      async (choice) => {
+        const built = await runAiBuild(aiRequest, choice, BUILD_EFFORT, undefined, places, buildCeiling);
         return { value: built, billedMicros: built.billedMicros };
       },
       {},

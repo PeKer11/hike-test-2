@@ -7,6 +7,7 @@ import {
   type ToolDef,
 } from "@/lib/llm/providers/openai-tools";
 
+import { toolCallFor } from "@/lib/llm/providers/anthropic-tools";
 import { coarseCoords, UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "@/lib/llm/sanitize";
 import { BilledFailureError } from "@/lib/llm/types";
 import { confirmLabel, isHebrew, keepLabel, relaxations, warningLine } from "./safety-diff";
@@ -19,7 +20,7 @@ import type { LoadWalks } from "./recall-walks";
 
 /** A user turn is at most this many model calls (each tool round is one). */
 const MAX_MODEL_CALLS = 12;
-const MAX_OUTPUT_TOKENS = 700;
+const MAX_OUTPUT_TOKENS = 2000;
 const TURN_TIMEOUT_MS = 90_000;
 /** Tool calls one turn may run in total, so a hijacked model cannot loop the paid map APIs. */
 const MAX_TOOL_CALLS = 20;
@@ -79,7 +80,7 @@ export async function runAssistantTurn(
   },
   deps: TurnDeps = {},
 ): Promise<TurnResult> {
-  const call = deps.call ?? callOpenAiTools;
+  const call = deps.call ?? toolCallFor(input.choice.provider);
   let state = input.state;
   let action: BuildAction | undefined;
   let askLimits = false;
@@ -207,12 +208,12 @@ export async function runAssistantTurn(
     }
     // A build ends the turn: the client now runs the planner.
     if (action || askLimits || choices) {
-      const final = fits(messages, [], 400)
+      const final = fits(messages, [], 1024)
         ? await call({
             model: input.choice.model,
             messages,
             tools: [],
-            maxOutputTokens: 400,
+            maxOutputTokens: 1024,
             signal,
             reasoningEffort: input.effort,
           }).catch(() => null)
@@ -227,12 +228,12 @@ export async function runAssistantTurn(
   if (cancelled()) throw new TurnCancelledError(billedMicros);
   // Out of tool rounds, time or money: have the model report what it found so far, in the walker's language, instead of a canned English line.
   const wrapMessages: ChatMessage[] = [...messages, { role: "user", content: "Stop searching. In the walker's language, say briefly what you found so far and what you still need from them." }];
-  const wrapUp = fits(wrapMessages, [], 300)
+  const wrapUp = fits(wrapMessages, [], 1024)
     ? await call({
         model: input.choice.model,
         messages: wrapMessages,
         tools: [],
-        maxOutputTokens: 300,
+        maxOutputTokens: 1024,
         signal: AbortSignal.timeout(20_000),
         reasoningEffort: input.effort,
       }).catch(() => null)

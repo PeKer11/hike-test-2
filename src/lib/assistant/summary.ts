@@ -1,5 +1,6 @@
 import { estimateCostMicros } from "@/lib/llm/pricing";
 import type { ProviderChoice } from "@/lib/llm/config";
+import { toolCallFor } from "@/lib/llm/providers/anthropic-tools";
 import { callOpenAiTools } from "@/lib/llm/providers/openai-tools";
 import { UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "@/lib/llm/sanitize";
 
@@ -17,7 +18,7 @@ export async function summarizeConversation(
   messages: TurnMessage[],
   choice: ProviderChoice,
   effort?: string,
-  call: typeof callOpenAiTools = callOpenAiTools,
+  call: typeof callOpenAiTools = toolCallFor(choice.provider),
 ): Promise<{ summary: string; billedMicros: number }> {
   const text = messages.map((m) => (m.role === "user" ? `walker: ${m.content}` : wrapUntrusted({ source: "assistant-reply", text: m.content, maxChars: 2_000 }))).join("\n");
   const response = await call({
@@ -30,7 +31,7 @@ export async function summarizeConversation(
       },
     ],
     tools: [],
-    maxOutputTokens: 400,
+    maxOutputTokens: 1024,
     signal: AbortSignal.timeout(20_000),
     reasoningEffort: effort,
   });
