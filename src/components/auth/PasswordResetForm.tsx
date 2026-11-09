@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { createClient } from "@/lib/supabase/client";
+import { createClient, createRecoveryRequestClient } from "@/lib/supabase/client";
 
 import { cleanEmail, friendlyError } from "./AuthForm";
 
@@ -54,7 +54,7 @@ export function PasswordResetForm({
           return;
         }
         // redirectTo must keep its "?": the email template appends "&token_hash=…".
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        const { error: resetError } = await createRecoveryRequestClient().auth.resetPasswordForEmail(
           email,
           {
             redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,

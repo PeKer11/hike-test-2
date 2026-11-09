@@ -11,6 +11,7 @@ const verifyOtp = vi.fn();
 const setSession = vi.fn();
 const replace = vi.fn();
 vi.mock("@/lib/supabase/client", () => ({
+  createRecoveryRequestClient: () => ({ auth: { resetPasswordForEmail: reset } }),
   createClient: () => ({
     auth: {
       resetPasswordForEmail: reset,
