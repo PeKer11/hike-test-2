@@ -52,7 +52,7 @@ describe("PasswordResetForm request", () => {
     render(<PasswordResetForm mode="request" />);
     setVal("email", "a@b.com");
     submit();
-    expect(await screen.findByText(/Too many attempts/)).toBeTruthy();
+    expect(await screen.findByText(/Too many emails sent recently/)).toBeTruthy();
     expect(screen.queryByText(/we sent a reset link/)).toBeNull();
   });
 

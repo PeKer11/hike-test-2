@@ -26,6 +26,7 @@ export function PasswordResetForm({
     mode === "update" ? null : true,
   );
   const [coolingDown, setCoolingDown] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (mode !== "update") return;
@@ -137,10 +138,13 @@ export function PasswordResetForm({
             <label className="block space-y-1.5">
               <span className={labelClasses}>New password</span>
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 name="password"
                 id="password"
                 autoComplete="new-password"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 required
                 className={inputClasses}
               />
@@ -148,13 +152,24 @@ export function PasswordResetForm({
             <label className="block space-y-1.5">
               <span className={labelClasses}>Confirm password</span>
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 name="confirmPassword"
                 id="confirmPassword"
                 autoComplete="new-password"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 required
                 className={inputClasses}
               />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-charcoal/70">
+              <input
+                type="checkbox"
+                checked={showPassword}
+                onChange={(event) => setShowPassword(event.target.checked)}
+              />
+              Show passwords
             </label>
           </>
         )}

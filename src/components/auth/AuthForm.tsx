@@ -42,8 +42,11 @@ export function friendlyError(error: {
     case "email_not_confirmed":
       return "Confirm your email first — check your inbox for the link.";
     case "over_request_rate_limit":
-    case "over_email_send_rate_limit":
       return "Too many attempts. Wait a minute and try again.";
+    case "over_email_send_rate_limit":
+      // Also fires when the project-wide hourly email quota is used up, so a
+      // minute is not enough.
+      return "Too many emails sent recently. Try again in about an hour.";
     case "user_already_exists":
       return "This email already has an account — log in instead.";
     case "email_address_not_authorized":
