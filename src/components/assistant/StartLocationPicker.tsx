@@ -164,7 +164,7 @@ export function StartLocationPicker({ onPick, origin }: StartLocationPickerProps
         </ul>
       )}
       {status ? (
-        <p className="mt-[4px] text-[11.5px] text-charcoal/60">{status}</p>
+        <p dir="ltr" className="mt-[4px] text-left text-[11.5px] text-charcoal/60">{status}</p>
       ) : label ? (
         <p dir="auto" className="mt-[4px] truncate text-[11.5px] text-tk-sage">
           Starting from: {label}

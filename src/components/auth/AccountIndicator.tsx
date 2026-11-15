@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { createClient } from "@/lib/supabase/server";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { LogoutButton } from "./LogoutButton";
 
@@ -22,6 +23,7 @@ export async function AccountIndicator() {
 
   return (
     <div className="pointer-events-auto fixed right-3 top-3 z-[1000] max-sm:top-[66px] flex items-center gap-2 text-xs">
+      <RefreshButton />
       <ThemeToggle />
       {user ? (
         // Collapsed to one round button so the cluster stays a corner dot, not a bar over the map.
