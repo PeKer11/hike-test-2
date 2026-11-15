@@ -29,7 +29,7 @@ export const walkCopy = {
   hud: {
     details: "Details",
     endWalk: "End walk",
-    closeDetails: "Close",
+    closeDetails: "Back to walk",
     detailsTitle: "Walk details",
   },
   stats: {

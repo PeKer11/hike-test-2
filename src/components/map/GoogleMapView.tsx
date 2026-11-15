@@ -22,10 +22,12 @@ interface LineProps {
   opacity: number;
   zIndex: number;
   dashed?: boolean;
+  /** Small arrows along the line so a loop reads as going one way. */
+  arrows?: boolean;
 }
 
 /** `@vis.gl/react-google-maps` ships no Polyline, so this wraps `google.maps.Polyline`. */
-function Line({ path, color, weight, opacity, zIndex, dashed = false }: LineProps) {
+function Line({ path, color, weight, opacity, zIndex, dashed = false, arrows = false }: LineProps) {
   const map = useMap();
   const maps = useMapsLibrary("maps");
 
@@ -40,12 +42,18 @@ function Line({ path, color, weight, opacity, zIndex, dashed = false }: LineProp
       strokeColor: color,
       strokeOpacity: dashed ? 0 : opacity,
       strokeWeight: dashed ? 0 : weight,
-      icons: dashed
-        ? [{ icon: { path: "M 0,-1 0,1", strokeColor: color, strokeOpacity: opacity, strokeWeight: weight, scale: 1 }, offset: "0", repeat: `${weight * 4}px` }]
-        : undefined,
+      icons: [
+        ...(dashed
+          ? [{ icon: { path: "M 0,-1 0,1", strokeColor: color, strokeOpacity: opacity, strokeWeight: weight, scale: 1 }, offset: "0", repeat: `${weight * 4}px` }]
+          : []),
+        // Direction: a white arrow with the route's colour as its outline, repeated along the line.
+        ...(arrows
+          ? [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.6, strokeColor: color, strokeOpacity: 1, strokeWeight: 1.5, fillColor: "#ffffff", fillOpacity: 1 }, offset: "40px", repeat: "110px" }]
+          : []),
+      ],
     });
     return () => line.setMap(null);
-  }, [map, maps, path, color, weight, opacity, zIndex, dashed]);
+  }, [map, maps, path, color, weight, opacity, zIndex, dashed, arrows]);
 
   return null;
 }
@@ -136,9 +144,9 @@ export default function GoogleMapView({
           <FitPath path={fitPath} />
           <PositionFollower currentPosition={currentPosition} followPosition={followPosition} />
           {walkedGeometry && walkedGeometry.length > 1 ? <Line path={walkedGeometry} color="#94a3b8" weight={5} opacity={0.9} zIndex={1} /> : null}
-          <Line path={routeGeometry} color="#1f8a4c" weight={5} opacity={0.9} zIndex={2} />
+          <Line path={routeGeometry} color="#1f8a4c" weight={5} opacity={0.9} zIndex={2} arrows />
           {previewRoutes?.map((r) => (
-            <Line key={r.id} path={r.geometry} color={r.highlighted ? "#c15f3c" : "#1e3d2f"} weight={r.highlighted ? 5 : 3} opacity={r.highlighted ? 0.95 : 0.55} zIndex={3} dashed />
+            <Line key={r.id} path={r.geometry} color={r.highlighted ? "#c15f3c" : "#1e3d2f"} weight={r.highlighted ? 5 : 3} opacity={r.highlighted ? 0.95 : 0.55} zIndex={3} dashed arrows />
           ))}
           <GoogleStopMarkers waypoints={waypoints} pinnedIds={pinnedIds} onTogglePin={onTogglePin} />
           <GooglePreviewMarkers places={previewPlaces ?? []} />

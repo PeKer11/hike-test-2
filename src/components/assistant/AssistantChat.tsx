@@ -17,6 +17,7 @@ import {
 import { dwellMinutes, legPace } from "@/lib/walk/timing";
 import { createClient } from "@/lib/supabase/client";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
+import { useHydrated } from "@/lib/hooks/useHydrated";
 import type { AssistantDefaults } from "@/lib/assistant/defaults";
 import { AssistantSettings, PACE_PRESETS, useAssistantDefaults } from "./AssistantSettings";
 import { StartLocationPicker } from "./StartLocationPicker";
@@ -313,6 +314,8 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
   const [showChats, setShowChats] = useState(false);
   const [places, setPlaces] = useState<Candidate[]>([]);
   const [statedLimits, setStatedLimits] = useState<Partial<Limits>>({});
+  // The server HTML is typable but dead until hydration: keep it disabled so nothing typed there is lost.
+  const hydrated = useHydrated();
   const [text, setText] = useState("");
   const dictationBase = useRef("");
   // The browser recognises one language per tap and cannot tell Hebrew from English by ear: the walker picks it (עב / EN).
@@ -709,6 +712,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
               }
             }}
             rows={2}
+            disabled={!hydrated}
             placeholder="I want to see Habima Square, the Jaffa port, and a good market"
             className="block w-full resize-y rounded-[6px] border border-tk-field bg-paper px-[13px] py-[5px] text-[16px] leading-[1.5] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
           />
@@ -830,10 +834,10 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             )}
             <button
               type="submit"
-              disabled={pending || isBuilding || (!text.trim() && images.length === 0 && themes.length === 0)}
+              disabled={!hydrated || pending || isBuilding || (!text.trim() && images.length === 0 && themes.length === 0)}
               className="block h-[37px] min-w-0 flex-1 rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-on-accent transition-colors hover:bg-[#c2643c] disabled:cursor-not-allowed"
             >
-              {isBuilding ? "Building your walk…" : "Send"}
+              {isBuilding ? "Building your walk…" : !hydrated ? "Loading…" : "Send"}
             </button>
             {pending && (
               <button

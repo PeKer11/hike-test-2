@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { useHydrated } from "@/lib/hooks/useHydrated";
 import { createClient, createRecoveryRequestClient } from "@/lib/supabase/client";
 
 import { cleanEmail, friendlyError } from "./AuthForm";
@@ -20,6 +21,8 @@ export function PasswordResetForm({
   mode: ResetMode;
   initialError?: string;
 }) {
+  // Before hydration the browser would submit this form itself.
+  const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(initialError ?? null);
   // Update mode needs the recovery session the callback created.
   const [hasSession, setHasSession] = useState<boolean | null>(
@@ -118,6 +121,7 @@ export function PasswordResetForm({
 
       <form
         className={`space-y-4 ${hasSession ? "" : "hidden"}`}
+        method="post"
         onSubmit={handleSubmit}
         noValidate
       >
@@ -187,7 +191,7 @@ export function PasswordResetForm({
 
         <button
           type="submit"
-          disabled={isSubmitting || coolingDown}
+          disabled={isSubmitting || coolingDown || !hydrated}
           className="w-full rounded-[10px] bg-terra px-7 py-3 text-sm font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90 disabled:bg-terra/50"
         >
           {isSubmitting ? "Working…" : isRequest ? "Send reset link" : "Save password"}

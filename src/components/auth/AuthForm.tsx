@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { useHydrated } from "@/lib/hooks/useHydrated";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "login" | "signup";
@@ -66,6 +67,8 @@ export function friendlyError(error: {
 }
 
 export function AuthForm({ mode, initialError }: AuthFormProps) {
+  // Before hydration the browser would submit this form itself (GET, password in the URL).
+  const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(initialError ?? null);
   // Set when signup succeeded but Supabase is waiting on an email confirmation,
   // so there is no session to redirect with yet.
@@ -159,7 +162,7 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
         </p>
       </div>
 
-      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+      <form className="space-y-4" method="post" onSubmit={handleSubmit} noValidate>
         <label className="block space-y-1.5">
           <span className={labelClasses}>Email</span>
           <input
@@ -221,7 +224,7 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !hydrated}
           className="w-full rounded-[10px] bg-terra px-7 py-3 text-sm font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90 disabled:bg-terra/50"
         >
           {isSubmitting ? (

@@ -2826,27 +2826,28 @@ export function WalkPlannerApp({
         body: isFindingWayBack ? walkCopy.offRoute.findingWay : turnBody,
         note: whileHereNote ?? undefined,
         actions: [
-          {
-            label: walkCopy.offRoute.showWayBack,
-            primary: true,
-            onClick: () => {
-              clearDeviationConfirmation();
-              void runLocalRejoin();
-            },
-          },
+          // Redraw first: a walker who is off the route wants a route from where they are, not a way back to the old one.
           {
             label: walkCopy.offRoute.replan,
+            primary: true,
             onClick: () => {
               clearDeviationConfirmation();
               runDeviationTriggeredRebuild();
             },
           },
           {
+            label: walkCopy.offRoute.showWayBack,
+            onClick: () => {
+              clearDeviationConfirmation();
+              void runLocalRejoin();
+            },
+          },
+          // "I know where I'm going" means the walker chose this way: plan from here, don't leave the old line standing.
+          {
             label: walkCopy.offRoute.dismiss,
             onClick: () => {
               clearDeviationConfirmation();
-              offRouteDismissedRef.current = true;
-              setOffRouteDismissed(true);
+              runDeviationTriggeredRebuild();
             },
           },
           ...(isSignedIn
@@ -3121,7 +3122,7 @@ export function WalkPlannerApp({
           <button
             type="button"
             onClick={() => setIsDetailsOpen(false)}
-            className="relative z-10 mb-2 ms-auto flex rounded-full border border-forest/20 bg-paper px-3 py-1 text-xs font-semibold text-forest @4xl:hidden"
+            className="sticky top-0 z-20 mb-2 ms-auto flex min-h-[40px] items-center rounded-full border border-forest/20 bg-paper px-4 text-sm font-semibold text-forest shadow-tk-card @4xl:hidden"
           >
             {walkCopy.hud.closeDetails}
           </button>

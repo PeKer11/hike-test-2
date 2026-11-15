@@ -518,7 +518,7 @@ describe("what the collection adds on the way", () => {
     expect(lines[0].textContent).toContain("Old Fountain");
     expect(lines[0].getAttribute("dir")).toBe("auto");
   });
-  it("announces nothing while the off-route card is up (even on the first off-route fix) and resumes after dismissal", async () => {
+  it("announces nothing while the off-route ask card is up, and answering it re-plans from here", async () => {
     // ~100 m off the line and staying there, so the 400 m collapse never triggers.
     vi.spyOn(SimulatedWalkTracker.prototype, "strayOffRoute").mockImplementation(async function (
       this: SimulatedWalkTracker,
@@ -548,14 +548,13 @@ describe("what the collection adds on the way", () => {
     expect(idsFrom(firstOffRouteIdx).has("placeA")).toBe(false);
     expect(idsFrom(firstOffRouteIdx).has("placeB")).toBe(false);
 
+    // In the ask card "I know where I'm going" plans the walk again from where the walker is
+    // (it used to only hide the card, which left a walker who answered yes with nothing happening).
+    const plansBefore = walkPlanCalls.length;
     fireEvent.click(knowButton()!);
     await flush(3);
-    const dismissIndex = mapRenders.length;
-    for (let i = 0; i < 15; i += 1) await advance(1_000);
-    expect(sheet()).toBeNull();
-    const resumed = idsFrom(dismissIndex);
-    expect(resumed.has("placeA") || resumed.has("placeB")).toBe(true);
-    expect(resumed.has("placeB")).toBe(true);
+    expect(walkPlanCalls.length).toBe(plansBefore + 1);
+    expect(knowButton()).toBeNull();
   });
 
   // A6: a dismissal belongs to one excursion. Rejoining the route re-arms the
