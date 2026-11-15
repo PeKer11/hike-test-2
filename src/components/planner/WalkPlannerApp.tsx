@@ -1964,7 +1964,8 @@ export function WalkPlannerApp({
       deviationConfirmTimeoutRef.current = null;
       deviationConfirmationRef.current = false;
       setDeviationConfirmation(false);
-      continueInHeadingAfterSilence();
+      // No answer: take the walker back to the original shortest route.
+      if (isOffRouteRef.current) void runLocalRejoin();
     }, DEVIATION_CONFIRMATION_TIMEOUT_MS);
   };
   askBeforeRedrawingRef.current = askBeforeRedrawing;
@@ -2837,20 +2838,21 @@ export function WalkPlannerApp({
         body: isFindingWayBack ? walkCopy.offRoute.findingWay : turnBody,
         note: whileHereNote ?? undefined,
         actions: [
-          // Redraw first: a walker who is off the route wants a route from where they are, not a way back to the old one.
+          // 1. Back to the planned route (also what happens if nobody answers).
           {
-            label: walkCopy.offRoute.replan,
+            label: walkCopy.offRoute.showWayBack,
             primary: true,
             onClick: () => {
               clearDeviationConfirmation();
-              runDeviationTriggeredRebuild();
+              void runLocalRejoin();
             },
           },
+          // 2. Best route from here through the remaining stops.
           {
-            label: walkCopy.offRoute.showWayBack,
+            label: walkCopy.offRoute.replan,
             onClick: () => {
               clearDeviationConfirmation();
-              void runLocalRejoin();
+              runDeviationTriggeredRebuild();
             },
           },
           // "I know where I'm going": let them walk. A "Rebuild route" button stays on the map for when they want it.
@@ -2870,8 +2872,8 @@ export function WalkPlannerApp({
                     // Keep the question up: the walker may still tap an answer after talking.
                     walkChat.openWith(
                       uiLang === "he"
-                        ? "סטיתי מהמסלול. מה האפשרויות שלי? אפשר לתקן, לבנות מחדש מכאן או להמשיך בדרך שלי."
-                        : "I've gone off the planned route. What are my options? I could rejoin, redraw from here, or carry on my own way.",
+                        ? "סטיתי מהמסלול ואני רוצה לבחור בעצמי מה לעשות (למשל להישאר על הכביש הזה, או שתחפש באינטרנט משהו עדכני בסביבה). שאל אותי מה אני רוצה ותבנה לפי זה."
+                        : "I've gone off the planned route and want to choose what happens (e.g. stay on this road, or look up something current nearby). Ask what I want and build the route around it.",
                     );
                   },
                 },

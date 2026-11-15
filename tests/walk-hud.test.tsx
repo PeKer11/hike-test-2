@@ -347,7 +347,7 @@ describe("ending the walk during a mid-walk rebuild", () => {
 });
 
 describe("the local way back", () => {
-  it("auto mode asks first too, and Show way back falls back to the full re-plan when no way back can be routed", async () => {
+  it("auto mode asks first too, and Back to my route falls back to the full re-plan when no way back can be routed", async () => {
     settingsStore["walk-settings"] = JSON.stringify({
       ...DEFAULT_WALK_SETTINGS,
       deviationMode: "auto",
@@ -356,19 +356,19 @@ describe("the local way back", () => {
     await startSimulatedWalk();
     await stray();
     expect(walkPlanCalls).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Show way back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
     await flush();
 
     expect(rerouteCalls.length).toBeGreaterThanOrEqual(1);
     expect(walkPlanCalls).toHaveLength(2);
   });
 
-  it("in ask mode offers Show way back, which routes locally instead of re-planning", async () => {
+  it("in ask mode offers Back to my route, which routes locally instead of re-planning", async () => {
     await startSimulatedWalk();
     await stray();
 
     expect(screen.getByText(/You've gone off the planned route/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Show way back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
     await flush();
     expect(rerouteCalls).toHaveLength(1);
     expect(rerouteCalls[0].candidates.length).toBeGreaterThanOrEqual(1);

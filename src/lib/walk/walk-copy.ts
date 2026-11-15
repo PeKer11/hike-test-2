@@ -63,10 +63,10 @@ export const walkCopy = {
     title: "You're off the route",
     // The question the "ask" setting poses: same wording the old banner used.
     askTitle: "You've gone off the planned route",
-    showWayBack: "Show way back",
-    replan: "Redraw from here",
+    showWayBack: "Back to my route",
+    replan: "Best route from here",
     dismiss: "I know where I'm going",
-    talk: "Ask the assistant",
+    talk: "Tell me what you want",
     findingWay: "Finding the way back…",
     wayBackFailed: "Couldn't find a way back just now. Re-plan from here?",
   },

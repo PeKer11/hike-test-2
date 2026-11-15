@@ -284,7 +284,7 @@ describe("going off route mid-walk", () => {
     await startSimulatedWalk();
     await strayUntilAsked();
 
-    fireEvent.click(screen.getByRole("button", { name: "Redraw from here" }));
+    fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
     await flush();
 
     expect(walkPlanCalls).toHaveLength(2);
@@ -301,7 +301,7 @@ describe("going off route mid-walk", () => {
     expect(pinnedOnMap()).toEqual(["a2"]);
 
     await strayUntilAsked();
-    fireEvent.click(screen.getByRole("button", { name: "Redraw from here" }));
+    fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
     await flush();
 
     // Both halves of the `!options?.autoResume` gate: the pin survived the
@@ -318,7 +318,7 @@ describe("going off route mid-walk", () => {
     await flush();
 
     await strayUntilAsked();
-    fireEvent.click(screen.getByRole("button", { name: "Redraw from here" }));
+    fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
     await flush();
 
     const kept = (walkPlanCalls[1].explicitAttractions ?? []) as Attraction[];
@@ -334,7 +334,7 @@ describe("what a rebuild cost the walker", () => {
     await strayUntilAsked();
 
     walkPlanQueue.push(planOf([MUSEUM, MARKET]));
-    fireEvent.click(screen.getByRole("button", { name: "Redraw from here" }));
+    fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
     await flush();
   }
 
@@ -376,7 +376,7 @@ describe("what a rebuild cost the walker", () => {
     await strayUntilAsked();
 
     walkPlanQueue.push(planOf([MUSEUM, MARKET]));
-    fireEvent.click(screen.getByRole("button", { name: "Redraw from here" }));
+    fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
     await flush();
 
     // The rebuild happened and handed the walker the new route to start.
@@ -445,18 +445,14 @@ describe("silence after the off-route question", () => {
     expect(walkPlanCalls).toHaveLength(1);
   });
 
-  it("rebuilds around the direction the walker held, once they have opted in", async () => {
+  it("no longer rebuilds in the held direction: silence means back to the original route", async () => {
     seedSettings({ continueHeadingOnSilence: true });
     await startSimulatedWalk();
     await strayUntilAsked();
 
     await advance(90_000);
 
-    expect(walkPlanCalls).toHaveLength(2);
-    // Built from where they got to, going their way, and allowed to find
-    // replacements for the stops the cone cut.
-    expect(Number(walkPlanCalls[1].lng)).toBeGreaterThan(ORIGIN.lng);
-    expect(walkPlanCalls[1].fillRemainingTime).toBe(true);
+    expect(walkPlanCalls.every((c) => c.fillRemainingTime !== true)).toBe(true);
   });
 
   it("leaves the route alone when the walker rejoined before the question lapsed", async () => {

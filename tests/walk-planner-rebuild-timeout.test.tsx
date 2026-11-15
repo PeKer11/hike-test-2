@@ -229,7 +229,7 @@ async function startHangingRebuild() {
   await advance(8_000);
 
   hangRebuilds = true;
-  fireEvent.click(screen.getByRole("button", { name: "Redraw from here" }));
+  fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
   await flush();
 }
 
