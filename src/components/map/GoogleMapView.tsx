@@ -2,7 +2,7 @@
 
 import { APIProvider, ColorScheme, ControlPosition, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStopMarkers } from "@/components/map/GoogleMarkers";
 import { GoogleRecommendedLayer } from "@/components/map/GoogleRecommendedLayer";
@@ -81,10 +81,33 @@ function FitPath({ path }: { path?: Coordinates[] }) {
 
 function PositionFollower({ currentPosition, followPosition = false }: { currentPosition?: Coordinates; followPosition?: boolean }) {
   const map = useMap();
+  // The walker dragged the map: stop pulling it back until they tap "re-centre".
+  const [paused, setPaused] = useState(false);
   useEffect(() => {
-    if (map && followPosition && currentPosition) map.panTo(currentPosition);
-  }, [map, currentPosition, followPosition]);
-  return null;
+    if (!map) return;
+    const l = map.addListener("dragstart", () => setPaused(true));
+    return () => l.remove();
+  }, [map]);
+  useEffect(() => {
+    if (map && followPosition && currentPosition && !paused) map.panTo(currentPosition);
+  }, [map, currentPosition, followPosition, paused]);
+  return (
+    <>
+      {paused ? (
+        <button
+          type="button"
+          onClick={() => setPaused(false)}
+          aria-label="Re-centre on me"
+          className="absolute left-[10px] top-[96px] z-[1000] flex h-11 w-11 items-center justify-center rounded-full border border-forest/20 bg-paper text-forest shadow-tk-card"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+            <circle cx="12" cy="12" r="3.5" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+          </svg>
+        </button>
+      ) : null}
+    </>
+  );
 }
 
 /** Google Maps version of `MapView` — same props, so the planner doesn't change. */

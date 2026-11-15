@@ -534,6 +534,17 @@ export function WalkPlannerApp({
   // "Turn left, 80 m" while off route; null otherwise.
   const [offRouteHint, setOffRouteHint] = useState<string | null>(null);
   const [offRouteDismissed, setOffRouteDismissed] = useState(false);
+  // Off the route for minutes: stop quietly showing a turn-back hint and ask whether to redraw from here.
+  useEffect(() => {
+    if (!isOffRoute || walkPhase !== "walking") return;
+    const id = setInterval(() => {
+      if (walkSettingsRef.current.deviationMode === "off") return;
+      if (!isOffRouteRef.current || deviationConfirmationRef.current) return;
+      askBeforeRedrawingRef.current?.();
+    }, 4 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [isOffRoute, walkPhase]);
+  const askBeforeRedrawingRef = useRef<(() => void) | null>(null);
   // A local rejoin is being routed (the "Show way back" tap has a network call
   // behind it) / when the last one succeeded, on the fix clock.
   const [isFindingWayBack, setIsFindingWayBack] = useState(false);
@@ -1956,6 +1967,7 @@ export function WalkPlannerApp({
       continueInHeadingAfterSilence();
     }, DEVIATION_CONFIRMATION_TIMEOUT_MS);
   };
+  askBeforeRedrawingRef.current = askBeforeRedrawing;
 
   /**
    * Raise the question instead of rebuilding, for a direction the walker set to
@@ -2879,6 +2891,12 @@ export function WalkPlannerApp({
         // Without this, auto/off mode could never dismiss the card, so callouts
         // stayed held back until the walker rejoined.
         actions: [
+          // A walker who is off the route wants a route from where they are: offer it here too, not only in "ask" mode.
+          {
+            label: walkCopy.offRoute.replan,
+            primary: true,
+            onClick: () => runDeviationTriggeredRebuild(),
+          },
           {
             label: walkCopy.offRoute.dismiss,
             onClick: () => {

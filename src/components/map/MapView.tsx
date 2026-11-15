@@ -5,7 +5,7 @@ import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility
 import "leaflet-defaulticon-compatibility";
 
 import { AttributionControl, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { MapClickHandler } from "@/components/map/MapClickHandler";
 import { CurrentPositionMarker } from "@/components/map/CurrentPositionMarker";
@@ -110,16 +110,42 @@ function PositionFollower({
   followPosition?: boolean;
 }) {
   const map = useMap();
+  // The walker dragged the map: stop pulling it back until they tap "re-centre".
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
-    if (!followPosition || !currentPosition) {
+    const pause = () => setPaused(true);
+    map.on("dragstart", pause);
+    return () => {
+      map.off("dragstart", pause);
+    };
+  }, [map]);
+
+  useEffect(() => {
+    if (!followPosition || !currentPosition || paused) {
       return;
     }
 
     map.panTo([currentPosition.lat, currentPosition.lng]);
-  }, [currentPosition, followPosition, map]);
+  }, [currentPosition, followPosition, map, paused]);
 
-  return null;
+  return (
+    <>
+      {paused ? (
+        <button
+          type="button"
+          onClick={() => setPaused(false)}
+          aria-label="Re-centre on me"
+          className="absolute left-[10px] top-[96px] z-[1000] flex h-11 w-11 items-center justify-center rounded-full border border-forest/20 bg-paper text-forest shadow-tk-card"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+            <circle cx="12" cy="12" r="3.5" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+          </svg>
+        </button>
+      ) : null}
+    </>
+  );
 }
 
 export default function MapView({
