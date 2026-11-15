@@ -18,8 +18,10 @@ interface WalkHudProps {
 }
 
 /**
- * Everything the walker sees over the map while walking, as one bottom stack:
- * the single alert card, the Details / End walk pills, the stats bar.
+ * Everything the walker sees over the map while walking, as one opaque bottom
+ * sheet that paints to the screen edge (safe-area included), so no page
+ * background shows around it: the single alert card, the Details / End walk
+ * pills, the stats bar.
  *
  * Nothing sits at the top on a narrow screen — that band belongs to the account
  * pill and the frame's expand button. The stack publishes its own height as
@@ -54,7 +56,7 @@ export function WalkHud({ alert, sheet, chat, stats, onDetails, onEndWalk }: Wal
       <div
         ref={stackRef}
         data-testid="walk-hud"
-        className="pointer-events-none absolute inset-x-3 bottom-0 flex flex-col gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] @4xl:mx-auto @4xl:max-w-xl"
+        className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col gap-2 rounded-t-[22px] bg-paper px-4 pt-2 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(30,61,47,0.18)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)] dark:ring-1 dark:ring-inset dark:ring-[rgba(242,235,225,0.06)]"
       >
         {sheet ?? (alert ? <WalkAlertCard key={alert.id} alert={alert} /> : null)}
         {chat}
@@ -62,14 +64,14 @@ export function WalkHud({ alert, sheet, chat, stats, onDetails, onEndWalk }: Wal
           <button
             type="button"
             onClick={onDetails}
-            className="pointer-events-auto rounded-full border border-forest/20 bg-cream/95 dark:bg-[#0b1a2b]/90 px-4 py-2 text-xs font-semibold text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur transition hover:bg-forest/10 @4xl:hidden"
+            className="pointer-events-auto min-h-11 rounded-full border border-forest/20 bg-paper px-4 py-2 text-[15px] font-semibold text-forest transition hover:bg-forest/10 @4xl:hidden"
           >
             {walkCopy.hud.details}
           </button>
           <button
             type="button"
             onClick={onEndWalk}
-            className="pointer-events-auto ms-auto rounded-full bg-terra px-4 py-2 text-xs font-semibold text-on-accent shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition hover:bg-terra/90"
+            className="pointer-events-auto ms-auto min-h-11 rounded-full bg-terra px-4 py-2 text-[15px] font-semibold text-on-accent transition hover:bg-terra/90"
           >
             {walkCopy.hud.endWalk}
           </button>

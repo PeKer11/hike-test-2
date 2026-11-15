@@ -259,6 +259,15 @@ describe("the live-walk HUD", () => {
     expect(Math.abs(shown - planned)).toBeLessThanOrEqual(0.3);
   });
 
+  it("is one opaque full-width sheet that owns the safe-area padding", async () => {
+    await startSimulatedWalk();
+    const cls = screen.getByTestId("walk-hud").className;
+    expect(cls).toContain("bg-paper");
+    expect(cls).toContain("inset-x-0");
+    expect(cls).toContain("env(safe-area-inset-bottom)");
+    expect(cls).not.toContain("#0b1a2b");
+  });
+
   it("gives the whole frame to the map: the form is hidden until Details, and not unmounted", async () => {
     await startSimulatedWalk();
     const aside = document.querySelector("aside") as HTMLElement;

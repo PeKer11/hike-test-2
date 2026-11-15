@@ -128,6 +128,12 @@ test("Start Walk fills the phone screen with the map and keeps the HUD out of th
     hudBox!.y + hudBox!.height > pill.y;
   expect(overlapsPill).toBe(false);
 
+  // The HUD is one sheet that reaches the screen's bottom edge: no bare page background under it.
+  const bottomHit = await page.evaluate(
+    () => !!document.elementFromPoint(195, window.innerHeight - 2)?.closest("[data-testid=walk-hud]"),
+  );
+  expect(bottomHit).toBe(true);
+
   // OSM attribution stays visible, above the HUD rather than under it.
   const attribution = page.locator(".leaflet-control-attribution");
   await expect(attribution).toBeVisible();

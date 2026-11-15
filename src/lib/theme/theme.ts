@@ -36,9 +36,19 @@ export function resolveTheme(choice: ThemeChoice, pathname: string, prefersDark:
   return choice;
 }
 
+// Browser chrome follows the app's own theme (the sheet colour), not only the OS setting.
+function syncThemeColor(resolved: ResolvedTheme): void {
+  const color = resolved === "dark" ? "#1f1d19" : "#fbf8f4";
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    m.setAttribute("content", color);
+    m.removeAttribute("media");
+  });
+}
+
 export function applyTheme(): ResolvedTheme {
   const resolved = resolveTheme(readChoice(), window.location.pathname, systemPrefersDark());
   document.documentElement.setAttribute("data-theme", resolved);
+  syncThemeColor(resolved);
   return resolved;
 }
 

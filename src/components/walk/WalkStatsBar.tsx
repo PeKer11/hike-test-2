@@ -39,13 +39,13 @@ function Tile({
   const pct = Math.round(Math.min(1, Math.max(0, fraction)) * 100);
   return (
     <div className="min-w-0 flex-1 px-2">
-      <p className="truncate text-[10px] font-medium uppercase tracking-wide text-charcoal/60">
+      <p className="truncate text-[13px] font-medium text-charcoal/60">
         {label}
       </p>
       <p className="font-display text-xl font-bold leading-tight text-forest">
         {value}
         {unit ? (
-          <span className="ms-1 text-[11px] font-medium text-charcoal/60">{unit}</span>
+          <span className="ms-1 text-[13px] font-medium text-charcoal/60">{unit}</span>
         ) : null}
       </p>
       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-charcoal/10">
@@ -75,7 +75,7 @@ export function WalkStatsBar({ stats }: { stats: WalkStatsData }) {
   return (
     <div
       data-testid="walk-stats"
-      className="pointer-events-auto flex divide-x divide-charcoal/10 rounded-2xl bg-cream/95 py-2 shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur dark:bg-[#0b1a2b]/90 dark:ring-1 dark:ring-white/10 rtl:divide-x-reverse"
+      className="flex divide-x divide-charcoal/10 rounded-2xl bg-paper py-2 rtl:divide-x-reverse"
     >
       <Tile
         label={walkCopy.stats.pace}

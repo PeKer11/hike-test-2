@@ -30,6 +30,10 @@ export const viewport: Viewport = {
   // and stops Samsung's forced dark mode from repainting the cream UI.
   viewportFit: "cover",
   colorScheme: "only light",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbf8f4" },
+    { media: "(prefers-color-scheme: dark)", color: "#1f1d19" },
+  ],
 };
 
 export default function RootLayout({
