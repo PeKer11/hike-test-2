@@ -2,6 +2,7 @@
 
 import { Pane, Polyline } from "react-leaflet";
 
+import { RouteArrows } from "@/components/map/RouteArrows";
 import type { Coordinates } from "@/lib/types";
 
 interface RoutePolylineProps {
@@ -22,6 +23,7 @@ export function RoutePolyline({ geometry }: RoutePolylineProps) {
         positions={geometry.map((point) => [point.lat, point.lng])}
         pathOptions={{ color: "#1f8a4c", weight: 5, opacity: 0.9 }}
       />
+      <RouteArrows geometry={geometry} color="#1f8a4c" />
     </Pane>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
+import { Fragment } from "react";
 import { Polyline } from "react-leaflet";
 
+import { RouteArrows } from "@/components/map/RouteArrows";
 import type { Coordinates } from "@/lib/types";
 
 export interface PreviewRoute {
@@ -20,16 +22,21 @@ export function OptionPreviewLines({ routes }: { routes: PreviewRoute[] }) {
       {routes
         .filter((r) => r.geometry.length >= 2)
         .map((r) => (
-          <Polyline
-            key={r.id}
-            positions={r.geometry.map((p) => [p.lat, p.lng])}
-            pathOptions={{
-              color: r.highlighted ? "#c15f3c" : "#1e3d2f",
-              weight: r.highlighted ? 5 : 3,
-              opacity: r.highlighted ? 0.95 : 0.55,
-              dashArray: "8 8",
-            }}
-          />
+          <Fragment key={r.id}>
+            <Polyline
+              positions={r.geometry.map((p) => [p.lat, p.lng])}
+              pathOptions={{
+                color: r.highlighted ? "#c15f3c" : "#1e3d2f",
+                weight: r.highlighted ? 5 : 3,
+                opacity: r.highlighted ? 0.95 : 0.55,
+                dashArray: "8 8",
+              }}
+            />
+            <RouteArrows
+              geometry={r.geometry}
+              color={r.highlighted ? "#c15f3c" : "#1e3d2f"}
+            />
+          </Fragment>
         ))}
     </>
   );
