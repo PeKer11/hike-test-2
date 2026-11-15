@@ -2187,6 +2187,7 @@ export function WalkPlannerApp({
         isOffRouteRef.current,
         deviation.deviationMeters,
         update.accuracyMeters,
+        walkSettingsRef.current.deviationDistanceM,
       );
       markOffRoute(offRoute);
 
@@ -2400,12 +2401,8 @@ export function WalkPlannerApp({
     // is on now.
     headingMonitorRef.current = new HeadingMonitor();
 
-    deviationMonitorRef.current = new DeviationMonitor(walkSettingsRef.current, (response) => {
-      if (response === "auto") {
-        void runLocalRejoin(true);
-        return;
-      }
-
+    deviationMonitorRef.current = new DeviationMonitor(walkSettingsRef.current, () => {
+      // Ask first, in every mode: redraw from here (a fresh route to the stops still ahead), or let the walker walk.
       askBeforeRedrawing();
     });
   };
@@ -2856,12 +2853,13 @@ export function WalkPlannerApp({
               void runLocalRejoin();
             },
           },
-          // "I know where I'm going" means the walker chose this way: plan from here, don't leave the old line standing.
+          // "I know where I'm going": let them walk. A "Rebuild route" button stays on the map for when they want it.
           {
             label: walkCopy.offRoute.dismiss,
             onClick: () => {
               clearDeviationConfirmation();
-              runDeviationTriggeredRebuild();
+              offRouteDismissedRef.current = true;
+              setOffRouteDismissed(true);
             },
           },
           ...(isSignedIn
@@ -3899,6 +3897,19 @@ export function WalkPlannerApp({
             : "h-[45%] min-h-[180px] shrink-0"
         }`}
       >
+        {walkMode && isOffRoute && offRouteDismissed ? (
+          <button
+            type="button"
+            onClick={() => {
+              offRouteDismissedRef.current = false;
+              setOffRouteDismissed(false);
+              runDeviationTriggeredRebuild();
+            }}
+            className="absolute left-1/2 top-3 z-[700] flex h-11 -translate-x-1/2 items-center rounded-full border border-forest/20 bg-paper px-4 text-sm font-semibold text-forest shadow-tk-card"
+          >
+            Rebuild route from here
+          </button>
+        ) : null}
         {!walkMode ? (
           <button
             type="button"

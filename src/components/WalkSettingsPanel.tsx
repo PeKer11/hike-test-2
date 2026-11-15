@@ -7,7 +7,12 @@ import { Toggle } from "@/components/ui/Toggle";
 import { syncOptIn } from "@/lib/social/client";
 import { socialEnabled } from "@/lib/social/flag";
 import { walkCopy } from "@/lib/walk/walk-copy";
-import { CALLOUT_LEVELS } from "@/lib/types/walk-settings";
+import {
+  CALLOUT_LEVELS,
+  MAX_DEVIATION_DISTANCE_M,
+  MIN_DEVIATION_DISTANCE_M,
+  clampDeviationDistance,
+} from "@/lib/types/walk-settings";
 import type { CalloutLevel } from "@/lib/types/discovery";
 import type {
   DeviationResponseMode,
@@ -156,6 +161,22 @@ export function WalkSettingsPanel({
           </SettingsSection>
 
           <SettingsSection title="If I go off route">
+            <label className="space-y-1 text-sm text-charcoal/80">
+              <span className="block">Ask me when I am this far from the route (metres)</span>
+              <input
+                type="number"
+                min={MIN_DEVIATION_DISTANCE_M}
+                max={MAX_DEVIATION_DISTANCE_M}
+                key={settings.deviationDistanceM}
+                defaultValue={settings.deviationDistanceM}
+                onBlur={(event) => {
+                  const m = clampDeviationDistance(Number(event.target.value));
+                  event.target.value = String(m);
+                  onChange({ deviationDistanceM: m });
+                }}
+                className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base text-forest outline-none ring-terra transition focus:ring-2 sm:text-sm"
+              />
+            </label>
             <label className={ROW_CLASS}>
               <span>How to respond</span>
               <select

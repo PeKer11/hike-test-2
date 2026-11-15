@@ -347,23 +347,7 @@ describe("ending the walk during a mid-walk rebuild", () => {
 });
 
 describe("the local way back", () => {
-  it("in auto mode splices a street route in and never re-plans", async () => {
-    settingsStore["walk-settings"] = JSON.stringify({
-      ...DEFAULT_WALK_SETTINGS,
-      deviationMode: "auto",
-    });
-    await startSimulatedWalk();
-    await stray();
-
-    expect(rerouteCalls.length).toBeGreaterThanOrEqual(1);
-    expect(rerouteCalls[0].candidates.length).toBeGreaterThanOrEqual(1);
-    expect(rerouteCalls[0].candidates.length).toBeLessThanOrEqual(2);
-    // Same plan, same stops, same tracker: no second build, still walking.
-    expect(walkPlanCalls).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "End walk" })).toBeTruthy();
-  });
-
-  it("falls back to the full re-plan when no way back can be routed", async () => {
+  it("auto mode asks first too, and Show way back falls back to the full re-plan when no way back can be routed", async () => {
     settingsStore["walk-settings"] = JSON.stringify({
       ...DEFAULT_WALK_SETTINGS,
       deviationMode: "auto",
@@ -371,6 +355,8 @@ describe("the local way back", () => {
     rerouteMode = "fail";
     await startSimulatedWalk();
     await stray();
+    expect(walkPlanCalls).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Show way back" }));
     await flush();
 
     expect(rerouteCalls.length).toBeGreaterThanOrEqual(1);
@@ -385,6 +371,8 @@ describe("the local way back", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show way back" }));
     await flush();
     expect(rerouteCalls).toHaveLength(1);
+    expect(rerouteCalls[0].candidates.length).toBeGreaterThanOrEqual(1);
+    expect(rerouteCalls[0].candidates.length).toBeLessThanOrEqual(2);
     expect(walkPlanCalls).toHaveLength(1);
   });
 });

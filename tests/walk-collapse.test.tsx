@@ -518,7 +518,7 @@ describe("what the collection adds on the way", () => {
     expect(lines[0].textContent).toContain("Old Fountain");
     expect(lines[0].getAttribute("dir")).toBe("auto");
   });
-  it("announces nothing while the off-route ask card is up, and answering it re-plans from here", async () => {
+  it("announces nothing while the off-route ask card is up, and answering it lets them walk, with a rebuild button", async () => {
     // ~100 m off the line and staying there, so the 400 m collapse never triggers.
     vi.spyOn(SimulatedWalkTracker.prototype, "strayOffRoute").mockImplementation(async function (
       this: SimulatedWalkTracker,
@@ -548,10 +548,14 @@ describe("what the collection adds on the way", () => {
     expect(idsFrom(firstOffRouteIdx).has("placeA")).toBe(false);
     expect(idsFrom(firstOffRouteIdx).has("placeB")).toBe(false);
 
-    // In the ask card "I know where I'm going" plans the walk again from where the walker is
-    // (it used to only hide the card, which left a walker who answered yes with nothing happening).
+    // "I know where I'm going" lets the walker walk: no re-plan, the card goes away, and a
+    // "Rebuild route from here" button stays for when they want one.
     const plansBefore = walkPlanCalls.length;
     fireEvent.click(knowButton()!);
+    await flush(3);
+    expect(walkPlanCalls.length).toBe(plansBefore);
+    expect(screen.queryByRole("button", { name: /Rebuild route from here/ })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Rebuild route from here/ }));
     await flush(3);
     expect(walkPlanCalls.length).toBe(plansBefore + 1);
     expect(knowButton()).toBeNull();

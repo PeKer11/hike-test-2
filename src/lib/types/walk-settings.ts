@@ -79,6 +79,8 @@ export interface WalkSettings {
    */
   autoResumeAfterRebuild: boolean;
   paceCheckIntervalMs: number; // enforced min: 30_000
+  /** How far from the planned route (metres) before the app notices and asks. */
+  deviationDistanceM: number;
   // Gates both learning ends: the preference pass over the "name your own
   // stops" text, and the post-walk feedback question. Client-side only — the
   // flag rides along in the request body and the server obeys it.
@@ -168,6 +170,7 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   // resumed tracking on its own.
   autoResumeAfterRebuild: true,
   paceCheckIntervalMs: 60_000,
+  deviationDistanceM: 20,
   // Off until the walker answers the consent screen.
   preferenceLearningEnabled: false,
   learningConsent: "unset",
@@ -230,4 +233,12 @@ export function clampPaceCheckInterval(ms: number): number {
   }
 
   return Math.max(MIN_PACE_CHECK_INTERVAL_MS, ms);
+}
+
+export const MIN_DEVIATION_DISTANCE_M = 10;
+export const MAX_DEVIATION_DISTANCE_M = 200;
+
+export function clampDeviationDistance(m: number): number {
+  if (!Number.isFinite(m)) return DEFAULT_WALK_SETTINGS.deviationDistanceM;
+  return Math.min(MAX_DEVIATION_DISTANCE_M, Math.max(MIN_DEVIATION_DISTANCE_M, Math.round(m)));
 }

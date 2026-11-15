@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   clampPaceCheckInterval,
+  clampDeviationDistance,
   DEFAULT_WALK_SETTINGS,
   toCalloutLevel,
   toDeviationResponseMode,
@@ -54,6 +55,11 @@ function sanitizeSettings(
       typeof candidate?.paceCheckIntervalMs === "number"
         ? candidate.paceCheckIntervalMs
         : DEFAULT_WALK_SETTINGS.paceCheckIntervalMs,
+    ),
+    deviationDistanceM: clampDeviationDistance(
+      typeof candidate?.deviationDistanceM === "number"
+        ? candidate.deviationDistanceM
+        : DEFAULT_WALK_SETTINGS.deviationDistanceM,
     ),
     // Learning needs an explicit yes: blobs from before the consent screen
     // (flag true, consent missing) come back off and get asked.

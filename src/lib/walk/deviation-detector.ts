@@ -135,9 +135,12 @@ export function nextOffRouteState(
   prev: boolean,
   deviationM: number,
   accuracyM: number,
+  onM: number = OFF_ROUTE_ON_M,
 ): boolean {
+  // Back on the route below 60% of the "off" distance, so a walker hovering at the line does not flicker.
+  const offM = onM === OFF_ROUTE_ON_M ? OFF_ROUTE_OFF_M : Math.round(onM * 0.6);
   if (accuracyM > OFF_ROUTE_MAX_ACCURACY_M) return prev;
-  if (deviationM > OFF_ROUTE_ON_M && deviationM > accuracyM) return true;
-  if (deviationM < OFF_ROUTE_OFF_M) return false;
+  if (deviationM > onM && deviationM > accuracyM) return true;
+  if (deviationM < offM) return false;
   return prev;
 }
