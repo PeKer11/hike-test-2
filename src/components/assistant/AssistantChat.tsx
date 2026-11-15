@@ -78,6 +78,8 @@ interface AssistantChatProps {
   onStart: (simulate: boolean) => void;
   /** The walker picked a start point (GPS or searched place). */
   onSetOrigin: (coordinates: Coordinates) => void;
+  /** Only a rough (IP-city) position is known: show that area, without choosing a start. */
+  onFocusArea?: (coordinates: Coordinates) => void;
 }
 
 const MAX_IMAGES = 5;
@@ -303,7 +305,7 @@ function toAttraction(c: Candidate, params?: WalkParams): Attraction {
   };
 }
 
-export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, queuedPlaces, walking, onFocusPlace, walkReady, onStart, onSetOrigin }: AssistantChatProps) {
+export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, queuedPlaces, walking, onFocusPlace, walkReady, onStart, onSetOrigin, onFocusArea }: AssistantChatProps) {
   const queuedRef = useRef(queuedPlaces ?? []);
   queuedRef.current = queuedPlaces ?? [];
   const walkingRef = useRef(walking ?? false);
@@ -549,7 +551,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
       </div>
 
       <div className="pb-[13px]">
-        <StartLocationPicker origin={origin} onPick={onSetOrigin} />
+        <StartLocationPicker origin={origin} onPick={onSetOrigin} onApproximate={onFocusArea} />
         {settingsOpen && (
           <div className="mx-[17px] mt-[8px]">
             <AssistantSettings defaults={defaults} onChange={setDefaults} />

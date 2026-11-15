@@ -31,6 +31,8 @@ export interface MapViewProps {
   zoom: number;
   onMapClick: (coordinates: Coordinates) => void;
   currentPosition?: Coordinates;
+  /** How sure the position is, in metres: drawn as a soft halo around the dot. */
+  currentAccuracyM?: number;
   followPosition?: boolean;
   /** Places found from free text but not accepted into a walk yet. */
   previewPlaces?: Attraction[];
@@ -157,6 +159,7 @@ export default function MapView({
   zoom,
   onMapClick,
   currentPosition,
+  currentAccuracyM,
   followPosition,
   previewPlaces,
   pinnedIds,
@@ -205,7 +208,7 @@ export default function MapView({
       />
       <PreviewMarkers places={previewPlaces ?? []} />
       <RecommendedLayer onAddToWalk={onAddToWalk} addedIds={addedIds} />
-      {currentPosition ? <CurrentPositionMarker position={currentPosition} /> : null}
+      {currentPosition ? <CurrentPositionMarker position={currentPosition} accuracyM={currentAccuracyM} /> : null}
       {walkedGeometry && walkedGeometry.length > 1 ? (
         <Polyline
           positions={walkedGeometry.map((p) => [p.lat, p.lng])}

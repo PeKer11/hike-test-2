@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import { WalkAlertCard, type WalkAlert } from "@/components/walk/WalkAlertCard";
 import { WalkStatsBar, type WalkStatsData } from "@/components/walk/WalkStatsBar";
+import type { LocateState } from "@/lib/geo/locate";
 import { walkCopy } from "@/lib/walk/walk-copy";
 
 interface WalkHudProps {
@@ -13,6 +14,9 @@ interface WalkHudProps {
   /** The in-walk chat (the "Ask" pill); sits between the alert and the pill row. */
   chat?: ReactNode;
   stats: WalkStatsData | null;
+  /** Lock-on state of the real GPS; the chip shows while it is searching or weak, and is hidden once good. */
+  gpsState?: LocateState;
+  lang?: "he" | "en";
   onDetails: () => void;
   onEndWalk: () => void;
 }
@@ -28,7 +32,10 @@ interface WalkHudProps {
  * `--hud-h` on the map section so the map can lift Leaflet's attribution (a
  * licence requirement) clear of it.
  */
-export function WalkHud({ alert, sheet, chat, stats, onDetails, onEndWalk }: WalkHudProps) {
+export function WalkHud({ alert, sheet, chat, stats, gpsState = "idle", lang = "en", onDetails, onEndWalk }: WalkHudProps) {
+  const gpsCopy = walkCopy.hud.gps[lang];
+  const gpsLabel =
+    gpsState === "searching" ? gpsCopy.searching : gpsState === "coarse" || gpsState === "timeout" || gpsState === "unavailable" ? gpsCopy.weak : null;
   const outerRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +67,19 @@ export function WalkHud({ alert, sheet, chat, stats, onDetails, onEndWalk }: Wal
       >
         {sheet ?? (alert ? <WalkAlertCard key={alert.id} alert={alert} /> : null)}
         {chat}
+        {gpsLabel ? (
+          <div
+            role="status"
+            data-testid="gps-chip"
+            className="flex items-center gap-2 self-start rounded-full bg-forest/10 px-3 py-1 text-[13px] font-medium text-forest"
+          >
+            <span
+              aria-hidden
+              className={`h-2 w-2 rounded-full ${gpsState === "searching" ? "animate-pulse bg-forest" : "bg-amber-500"}`}
+            />
+            {gpsLabel}
+          </div>
+        ) : null}
         <div className="pointer-events-none flex justify-between gap-2">
           <button
             type="button"

@@ -1,6 +1,7 @@
 import type { Attraction, Coordinates } from "@/lib/types";
 import { haversineDistance, routeDistanceBetween } from "@/lib/utils/geo";
-import { GPS_MAX_AGE_MS, GPS_TIMEOUT_MS } from "@/lib/walk/walk-cadence";
+import { geolocationSupported, locate, type LocateFix, type LocateState } from "@/lib/geo/locate";
+import { DOT_MAX_ACCURACY_M, ENGINE_MAX_ACCURACY_M } from "@/lib/walk/walk-cadence";
 
 /**
  * Compass bearing (degrees, 0 = north, clockwise) from a to b.
@@ -40,16 +41,20 @@ export interface PaceError {
   isTimeout: boolean;
 }
 export type PaceErrorHandler = (error: PaceError) => void;
+export type GpsStateHandler = (state: LocateState) => void;
 
 // Minimum distance between samples to compute a meaningful pace (avoids GPS noise)
 const MIN_DISTANCE_FOR_PACE_METERS = 10;
 // Keep last N samples for pace averaging
 const PACE_SAMPLE_WINDOW = 5;
-// Ignore positions with accuracy worse than this
-const MAX_ACCURACY_METERS = 100;
+// The very first fix may be this coarse (shown as a dot with a halo) so the screen is never empty
+// while the GPS locks; after that only fixes within DOT_MAX_ACCURACY_M reach the dot.
+const FIRST_FIX_MAX_ACCURACY_METERS = 2000;
 
 export class WalkTracker {
-  private watchId: number | null = null;
+  private locator: { stop(): void } | null = null;
+  private onState?: GpsStateHandler;
+  private hasEmitted = false;
   private samples: PositionSample[] = [];
   private onUpdate: PaceUpdateHandler;
   private onError?: PaceErrorHandler;
@@ -62,7 +67,9 @@ export class WalkTracker {
     onError?: PaceErrorHandler,
     attractions: Attraction[] = [],
     geometry: Coordinates[] = [],
+    onState?: GpsStateHandler,
   ) {
+    this.onState = onState;
     this.onUpdate = onUpdate;
     this.onError = onError;
     this.attractions = attractions;
@@ -70,25 +77,16 @@ export class WalkTracker {
   }
 
   start(): void {
-    if (!navigator.geolocation) {
+    if (!geolocationSupported()) {
       throw new Error("Geolocation is not supported by this browser.");
     }
 
-    this.watchId = navigator.geolocation.watchPosition(
-      (pos) => this.handlePosition(pos),
-      (err) => {
-        this.onError?.({
-          code: err.code,
-          message: err.message,
-          isTimeout: err.code === err.TIMEOUT,
-        });
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: GPS_MAX_AGE_MS,
-        timeout: GPS_TIMEOUT_MS,
-      },
-    );
+    this.locator = locate({
+      purpose: "walk",
+      onUpdate: (fix) => this.handleFix(fix),
+      onState: (state) => this.onState?.(state),
+      onError: (err) => this.onError?.(err),
+    });
   }
 
   /** Swap in new route geometry mid-walk (a local rejoin spliced the route). */
@@ -97,49 +95,50 @@ export class WalkTracker {
   }
 
   stop(): void {
-    if (this.watchId !== null) {
-      navigator.geolocation.clearWatch(this.watchId);
-      this.watchId = null;
-    }
+    this.locator?.stop();
+    this.locator = null;
+    this.hasEmitted = false;
     this.samples = [];
     this.lastAcceptedPosition = null;
   }
 
-  private handlePosition(pos: GeolocationPosition): void {
-    const accuracy = pos.coords.accuracy;
+  private handleFix(fix: LocateFix): void {
+    const accuracy = fix.accuracyMeters;
 
-    // Discard low-accuracy readings
-    if (accuracy > MAX_ACCURACY_METERS) return;
+    // The dot takes any fix up to DOT_MAX_ACCURACY_M (with a halo of that size); the first fix
+    // may be coarser. Pace, bearing and everything built on them only trust ENGINE_MAX_ACCURACY_M.
+    const tooPoor = accuracy > DOT_MAX_ACCURACY_M;
+    if (tooPoor && (this.hasEmitted || accuracy > FIRST_FIX_MAX_ACCURACY_METERS)) return;
+    this.hasEmitted = true;
 
+    const engineGrade = accuracy <= ENGINE_MAX_ACCURACY_M;
     const sample: PositionSample = {
-      coordinates: { lat: pos.coords.latitude, lng: pos.coords.longitude },
-      timestamp: pos.timestamp,
+      coordinates: fix.coordinates,
+      timestamp: fix.timestamp,
       accuracyMeters: accuracy,
     };
 
-    const bearing =
-      this.lastAcceptedPosition !== null
-        ? computeBearing(this.lastAcceptedPosition, sample.coordinates)
-        : undefined;
-
-    this.lastAcceptedPosition = sample.coordinates;
-
-    this.samples.push(sample);
-    if (this.samples.length > PACE_SAMPLE_WINDOW) {
-      this.samples.shift();
+    let bearing: number | undefined;
+    if (engineGrade) {
+      bearing =
+        this.lastAcceptedPosition !== null
+          ? computeBearing(this.lastAcceptedPosition, sample.coordinates)
+          : undefined;
+      this.lastAcceptedPosition = sample.coordinates;
+      this.samples.push(sample);
+      if (this.samples.length > PACE_SAMPLE_WINDOW) {
+        this.samples.shift();
+      }
     }
 
     this.onUpdate({
       currentPosition: sample.coordinates,
       accuracyMeters: accuracy,
-      paceMinPerKm: this.computePace(),
+      paceMinPerKm: engineGrade ? this.computePace() : null,
       timestamp: sample.timestamp,
       attractionDistances: this.computeAttractionDistances(sample.coordinates),
       bearing,
-      speedMps:
-        typeof pos.coords.speed === "number" && Number.isFinite(pos.coords.speed)
-          ? pos.coords.speed
-          : undefined,
+      speedMps: fix.speedMps,
     });
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { geolocationSupported, locate } from "@/lib/geo/locate";
 import { loadSavedStart } from "@/lib/start-location";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,6 +10,7 @@ import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
 import type { WalkCompanionInput } from "@/lib/types/walk-companion";
 import type { WalkSettings } from "@/lib/types/walk-settings";
+import { haversineDistance } from "@/lib/utils/geo";
 
 interface WalkCompanionPanelProps {
   isLoading: boolean;
@@ -159,6 +161,7 @@ export function WalkCompanionPanel({
    * from it and flipping it must not re-run the effect it guards.
    */
   const hasDetectedGpsRef = useRef(false);
+  const locateRef = useRef<{ stop(): void } | null>(null);
 
   useEffect(() => {
     if (!mapClickedCoords) {
@@ -270,39 +273,54 @@ export function WalkCompanionPanel({
       );
     }
 
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
+    if (!geolocationSupported()) {
       return fail("Geolocation not supported on this device.");
     }
     setIsDetecting(true);
     return new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          };
-          if (!auto) {
-            hasDetectedGpsRef.current = true;
-            setLat(coords.lat.toFixed(6));
-            setLng(coords.lng.toFixed(6));
-          } else {
-            setLat((prev) => (prev === "" ? coords.lat.toFixed(6) : prev));
-            setLng((prev) => (prev === "" ? coords.lng.toFixed(6) : prev));
-          }
-          // The automatic fix on load must not undo the start the walker picked or the chat remembers (its label would then be wrong).
-          if (!(auto && loadSavedStart())) onLocationDetected?.(coords);
-          setIsDetecting(false);
-          resolve(coords);
+      let answered = false;
+      let firstApplied: Coordinates | null = null;
+      const answer = (coords: Coordinates | null) => {
+        if (answered) return;
+        answered = true;
+        setIsDetecting(false);
+        resolve(coords);
+      };
+      const apply = (coords: Coordinates) => {
+        const latText = coords.lat.toFixed(6);
+        const lngText = coords.lng.toFixed(6);
+        const previous = firstApplied;
+        // Refining overwrites only what this very detection wrote, never what the walker typed.
+        const mine = (text: string, was: number | null) => was !== null && text === was.toFixed(6);
+        if (!auto) {
+          hasDetectedGpsRef.current = true;
+          setLat(latText);
+          setLng(lngText);
+        } else {
+          setLat((prev) => (prev === "" || mine(prev, previous?.lat ?? null) ? latText : prev));
+          setLng((prev) => (prev === "" || mine(prev, previous?.lng ?? null) ? lngText : prev));
+        }
+        firstApplied = coords;
+        // The automatic fix on load must not undo the start the walker picked or the chat remembers (its label would then be wrong).
+        if (!(auto && loadSavedStart())) onLocationDetected?.(coords);
+      };
+      locateRef.current?.stop();
+      locateRef.current = locate({
+        purpose: "start",
+        onUpdate: (fix) => {
+          // A city-level guess is for centring a map, never a start point.
+          if (fix.source === "ip") return;
+          const moved = !firstApplied || haversineDistance(firstApplied, fix.coordinates) > 30;
+          if (moved) apply(fix.coordinates);
+          answer(fix.coordinates);
         },
-        () => {
-          if (!auto) {
-            setLocationError("Could not detect location. Enter coordinates manually.");
+        onState: (state) => {
+          if (state === "denied" || state === "unavailable" || state === "timeout") {
+            if (!auto) setLocationError("Could not detect location. Enter coordinates manually.");
+            answer(null);
           }
-          setIsDetecting(false);
-          resolve(null);
         },
-        { enableHighAccuracy: true, timeout: 10000 },
-      );
+      });
     });
   };
 
@@ -312,6 +330,7 @@ export function WalkCompanionPanel({
     if (lat === "" && lng === "") {
       void detectLocation(true);
     }
+    return () => locateRef.current?.stop();
     // Once, on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

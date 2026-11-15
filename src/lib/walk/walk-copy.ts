@@ -31,6 +31,11 @@ export const walkCopy = {
     endWalk: "End walk",
     closeDetails: "Back to walk",
     detailsTitle: "Walk details",
+    /** The GPS chip: shown only while the position is still being found or is weak. */
+    gps: {
+      en: { searching: "Finding your location…", weak: "Weak GPS" },
+      he: { searching: "מאתר מיקום…", weak: "GPS חלש" },
+    },
   },
   stats: {
     pace: "Walking pace",

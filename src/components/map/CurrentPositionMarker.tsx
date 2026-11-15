@@ -1,12 +1,14 @@
 "use client";
 
 import L from "leaflet";
-import { Marker } from "react-leaflet";
+import { Circle, Marker } from "react-leaflet";
 
 import type { Coordinates } from "@/lib/types";
 
 interface CurrentPositionMarkerProps {
   position: Coordinates;
+  /** When set, a soft halo this many metres wide shows how sure the position is. */
+  accuracyM?: number;
 }
 
 const currentPositionIcon = L.divIcon({
@@ -18,6 +20,19 @@ const currentPositionIcon = L.divIcon({
 
 export function CurrentPositionMarker({
   position,
+  accuracyM,
 }: CurrentPositionMarkerProps) {
-  return <Marker position={[position.lat, position.lng]} icon={currentPositionIcon} />;
+  return (
+    <>
+      {accuracyM ? (
+        <Circle
+          center={[position.lat, position.lng]}
+          radius={accuracyM}
+          interactive={false}
+          pathOptions={{ color: "#2563eb", weight: 1, opacity: 0.4, fillColor: "#2563eb", fillOpacity: 0.12 }}
+        />
+      ) : null}
+      <Marker position={[position.lat, position.lng]} icon={currentPositionIcon} />
+    </>
+  );
 }

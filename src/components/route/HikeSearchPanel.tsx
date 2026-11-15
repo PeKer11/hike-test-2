@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button, Card, LoadingSpinner, Toggle } from "@/components/ui";
+import { geolocationSupported, locate } from "@/lib/geo/locate";
 import type { Coordinates } from "@/lib/types";
 
 interface HikeSearchPanelProps {
@@ -72,38 +73,42 @@ export function HikeSearchPanel({
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const locateRef = useRef<{ stop(): void } | null>(null);
+  useEffect(() => () => locateRef.current?.stop(), []);
 
   const detectMyLocation = () => {
     setLocationError(null);
 
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
+    if (!geolocationSupported()) {
       setLocationError("Location is not supported on this device/browser.");
       return;
     }
 
     setIsDetectingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    let answered = false;
+    locateRef.current?.stop();
+    locateRef.current = locate({
+      purpose: "start",
+      onUpdate: (fix) => {
+        if (fix.source === "ip") return;
         onOriginInputChange({
-          lat: position.coords.latitude.toFixed(6),
-          lng: position.coords.longitude.toFixed(6),
+          lat: fix.coordinates.lat.toFixed(6),
+          lng: fix.coordinates.lng.toFixed(6),
         });
+        answered = true;
         setIsDetectingLocation(false);
       },
-      (error) => {
-        const message =
-          error.code === error.PERMISSION_DENIED
-            ? "Location permission was denied. Enable location access and try again."
-            : "Could not detect your location. Please try again or enter coordinates manually.";
-        setLocationError(message);
-        setIsDetectingLocation(false);
+      onState: (state) => {
+        if (answered) return;
+        if (state === "denied") {
+          setLocationError("Location permission was denied. Enable location access and try again.");
+          setIsDetectingLocation(false);
+        } else if (state === "timeout" || state === "unavailable") {
+          setLocationError("Could not detect your location. Please try again or enter coordinates manually.");
+          setIsDetectingLocation(false);
+        }
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000,
-      },
-    );
+    });
   };
 
   const submit = () => {

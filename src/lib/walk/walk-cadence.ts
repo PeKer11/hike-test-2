@@ -11,8 +11,8 @@
 // --- GPS watch -------------------------------------------------------------
 export const GPS_MAX_AGE_MS = 5_000;
 export const GPS_TIMEOUT_MS = 20_000;
-/** The dot on the map accepts a fix this good... */
-export const DOT_MAX_ACCURACY_M = 100;
+/** The dot on the map accepts a fix this good (drawn with an accuracy halo)... */
+export const DOT_MAX_ACCURACY_M = 150;
 /** ...but speed / deviation / POI logic only trusts fixes this good. */
 export const ENGINE_MAX_ACCURACY_M = 50;
 /** UI state is pushed at most this often. */

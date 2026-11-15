@@ -59,6 +59,8 @@ describe("HikeSearchPanel validation", () => {
     vi.stubGlobal("navigator", {
       geolocation: {
         getCurrentPosition: mockGetCurrentPosition,
+        watchPosition: vi.fn(() => 1),
+        clearWatch: vi.fn(),
       },
     });
 

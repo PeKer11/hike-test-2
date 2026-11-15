@@ -222,7 +222,7 @@ describe("WalkCompanionPanel — GPS outranks the prompt's area", () => {
     );
     vi.stubGlobal("navigator", {
       ...navigator,
-      geolocation: { getCurrentPosition },
+      geolocation: { getCurrentPosition, watchPosition: vi.fn(() => 1), clearWatch: vi.fn() },
     });
     return getCurrentPosition;
   }
@@ -290,10 +290,12 @@ describe("WalkCompanionPanel — GPS outranks the prompt's area", () => {
     vi.stubGlobal("navigator", {
       ...navigator,
       geolocation: {
+        watchPosition: vi.fn(() => 1),
+        clearWatch: vi.fn(),
         getCurrentPosition: (
           _onSuccess: PositionCallback,
           onError: PositionErrorCallback,
-        ) => onError({} as GeolocationPositionError),
+        ) => onError({ code: 1, message: "denied" } as GeolocationPositionError),
       },
     });
     const { rerender } = render(panel(null));

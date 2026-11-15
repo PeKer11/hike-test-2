@@ -97,6 +97,7 @@ import {
 } from "@/lib/walk/rejoin";
 import { walkCopy } from "@/lib/walk/walk-copy";
 import { WalkRecorder } from "@/lib/walk/walk-recorder";
+import type { LocateState } from "@/lib/geo/locate";
 import { WalkTracker } from "@/lib/walk/walk-tracker";
 import type { PaceUpdate } from "@/lib/walk/walk-tracker";
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
@@ -553,6 +554,9 @@ export function WalkPlannerApp({
   const isUnmountedRef = useRef(false);
   const [mapClickedCoords, setMapClickedCoords] = useState<Coordinates | null>(null);
   const [walkTrackingMessage, setWalkTrackingMessage] = useState<string | null>(null);
+  // Where the GPS is in its lock-on, for the chip in the walk HUD; and how sure the dot is.
+  const [gpsState, setGpsState] = useState<LocateState>("idle");
+  const [currentAccuracyM, setCurrentAccuracyM] = useState<number | null>(null);
   const [attractionDistances, setAttractionDistances] = useState<Record<string, number>>({});
   const routeAnchor =
     route?.orderedWaypoints[0]?.coordinates ?? route?.geometry[0];
@@ -786,6 +790,8 @@ export function WalkPlannerApp({
     lastGpsUpdateRef.current = 0;
     setIsRecording(false);
     setCurrentPosition(null);
+    setCurrentAccuracyM(null);
+    setGpsState("idle");
     setRemainingGeometry([]);
     markOffRoute(false);
     setWalkPhase("idle");
@@ -2097,6 +2103,7 @@ export function WalkPlannerApp({
         if (poorNow - lastGpsUpdateRef.current >= 1000) {
           lastGpsUpdateRef.current = poorNow;
           setCurrentPosition(update.currentPosition);
+          setCurrentAccuracyM(update.accuracyMeters);
         }
         return;
       }
@@ -2149,6 +2156,7 @@ export function WalkPlannerApp({
       lastGpsUpdateRef.current = now;
 
       setCurrentPosition(update.currentPosition);
+      setCurrentAccuracyM(update.accuracyMeters);
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
       walkedTrackRef.current.push(update.currentPosition);
@@ -2359,7 +2367,7 @@ export function WalkPlannerApp({
           attractions,
           walkInputRef.current?.walkingPaceMinPerKm ?? DEFAULT_PACE_MIN_PER_KM,
         )
-      : new WalkTracker(onPositionUpdate, onGpsError, attractions, walkGeometryRef.current);
+      : new WalkTracker(onPositionUpdate, onGpsError, attractions, walkGeometryRef.current, setGpsState);
     walkTrackerRef.current = tracker;
     tracker.start();
 
@@ -3340,6 +3348,7 @@ export function WalkPlannerApp({
                     setCurrentPosition(coordinates);
                     focusOn(coordinates, 14);
                   }}
+                  onFocusArea={(coordinates) => focusOn(coordinates, 12)}
                   onStart={(simulate) => {
                     setIsSimulating(simulate);
                     setStartRequested(true);
@@ -3935,6 +3944,7 @@ export function WalkPlannerApp({
           onMapClick={handleMapClick}
           walkedGeometry={walkPhase === "walking" && showWalkedPath ? [...walkedTrackRef.current] : undefined}
           currentPosition={currentPosition ?? undefined}
+          currentAccuracyM={walkMode ? currentAccuracyM ?? undefined : undefined}
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}
           onAddToWalk={walkPhase === "walking" ? undefined : addMapPlaceToWalk}
@@ -3982,6 +3992,8 @@ export function WalkPlannerApp({
             chat={<WalkChatBox chat={walkChat} lang={uiLang === "he" ? "he" : "en"} />}
             sheet={directionSheet}
             stats={walkStats}
+            gpsState={gpsState}
+            lang={uiLang === "he" ? "he" : "en"}
             onDetails={() => setIsDetailsOpen(true)}
             onEndWalk={handleEndWalk}
           />

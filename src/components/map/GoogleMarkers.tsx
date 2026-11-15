@@ -1,7 +1,7 @@
 "use client";
 
-import { AdvancedMarker, InfoWindow } from "@vis.gl/react-google-maps";
-import { useState } from "react";
+import { AdvancedMarker, InfoWindow, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
+import { useEffect, useState } from "react";
 
 import { calloutHtml } from "@/components/map/PoiCallouts";
 import { markerIconHtml } from "@/components/map/MapMarkers";
@@ -95,7 +95,26 @@ export function GooglePreviewMarkers({ places }: { places: Attraction[] }) {
   );
 }
 
-export function GoogleCurrentPosition({ position }: { position: Coordinates }) {
+export function GoogleCurrentPosition({ position, accuracyM }: { position: Coordinates; accuracyM?: number }) {
+  const map = useMap();
+  const maps = useMapsLibrary("maps");
+  // A soft halo as wide as the fix is uncertain, so a coarse first fix reads as "somewhere around here".
+  useEffect(() => {
+    if (!map || !maps || !accuracyM) return;
+    const halo = new maps.Circle({
+      map,
+      center: position,
+      radius: accuracyM,
+      clickable: false,
+      strokeColor: "#2563eb",
+      strokeOpacity: 0.4,
+      strokeWeight: 1,
+      fillColor: "#2563eb",
+      fillOpacity: 0.12,
+      zIndex: 400,
+    });
+    return () => halo.setMap(null);
+  }, [map, maps, position, accuracyM]);
   return (
     <AdvancedMarker position={position} zIndex={500}>
       <span style={{ width: 16, height: 16, borderRadius: 9999, background: "#2563eb", border: "3px solid white", boxShadow: "0 0 0 4px rgba(37,99,235,0.3)", display: "block" }} />

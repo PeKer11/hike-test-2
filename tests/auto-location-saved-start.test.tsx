@@ -7,7 +7,7 @@ import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 
 function mockGps() {
   const getCurrentPosition = vi.fn((ok: (p: unknown) => void) => ok({ coords: { latitude: 32.09, longitude: 34.88 } }));
-  Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition }, configurable: true });
+  Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition, watchPosition: vi.fn(() => 1), clearWatch: vi.fn() }, configurable: true });
   return getCurrentPosition;
 }
 const panel = (onLocationDetected: () => void) => (
