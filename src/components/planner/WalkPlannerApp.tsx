@@ -958,6 +958,8 @@ export function WalkPlannerApp({
   const savedWalkIdRef = useRef<Promise<string | null> | null>(null);
   const [walksVersion, setWalksVersion] = useState(0);
   const [sideTab, setSideTab] = useState<SideTab>("plan");
+  // Phone only: hide the side panel so the map fills the screen.
+  const [mapFull, setMapFull] = useState(false);
   // Leaving the Walks tab or starting a walk puts the map back to the real plan.
   useEffect(() => {
     if (sideTab !== "walks" || walkMode) setWalkPreview(null);
@@ -3104,7 +3106,7 @@ export function WalkPlannerApp({
       <aside
         className={`isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 @4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
           walkMode && !isDetailsOpen ? "hidden @4xl:block" : ""
-        } ${
+        } ${mapFull && !walkMode ? "hidden @4xl:block" : ""} ${
           walkMode && isDetailsOpen
             ? "absolute inset-x-0 bottom-0 z-[700] max-h-[70%] flex-none rounded-t-2xl shadow-[0_-4px_20px_rgba(30,61,47,0.18)] @4xl:static @4xl:max-h-none @4xl:flex-1 @4xl:rounded-none @4xl:shadow-none"
             : "relative"
@@ -3874,11 +3876,22 @@ export function WalkPlannerApp({
           leave the sidebar nothing. */}
       <section
         className={`relative order-1 overflow-hidden @4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1 ${
-          walkMode
+          walkMode || mapFull
             ? "h-full min-h-0 flex-1"
             : "h-[45%] min-h-[180px] shrink-0"
         }`}
       >
+        {!walkMode ? (
+          <button
+            type="button"
+            onClick={() => setMapFull((v) => !v)}
+            aria-pressed={mapFull}
+            className="absolute bottom-3 start-3 z-[700] flex h-11 items-center gap-2 rounded-full border border-forest/20 bg-paper px-4 text-sm font-semibold text-forest shadow-tk-card @4xl:hidden"
+          >
+            {mapFull ? <IconCollapse className="h-4 w-4" /> : <IconExpand className="h-4 w-4" />}
+            {mapFull ? "Back to plan" : "Full map"}
+          </button>
+        ) : null}
         <DynamicMap
           waypoints={walkPreview?.waypoints ?? waypoints}
           routeGeometry={

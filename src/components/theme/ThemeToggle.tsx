@@ -44,14 +44,14 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
           aria-label={o.label}
           title={o.label}
           onClick={() => setChoice(o.value)}
-          className={`flex h-6 w-6 items-center justify-center rounded-full transition-colors ${
+          className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
             choice === o.value ? "bg-terra text-on-accent" : "text-charcoal/60 hover:text-charcoal"
           }`}
         >
           <svg
             viewBox="0 0 24 24"
-            width="14"
-            height="14"
+            width="18"
+            height="18"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.5"

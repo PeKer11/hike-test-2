@@ -28,7 +28,7 @@ export async function AccountIndicator() {
         <details className="group relative">
           <summary
             aria-label="Account"
-            className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-full border border-charcoal/10 bg-paper/95 text-sm font-semibold uppercase text-terra shadow-sm [&::-webkit-details-marker]:hidden"
+            className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border border-charcoal/10 bg-paper/95 text-sm font-semibold uppercase text-terra shadow-sm [&::-webkit-details-marker]:hidden"
           >
             {user.email?.[0] ?? "?"}
           </summary>

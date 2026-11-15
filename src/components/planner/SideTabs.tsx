@@ -40,7 +40,7 @@ export function SideTabs({ value, onChange, friendsBadge = 0 }: SideTabsProps) {
       role="tablist"
       aria-label="Side panel"
       onKeyDown={onKeyDown}
-      className="sticky top-0 z-10 flex gap-1 rounded-full bg-cream/90 p-1 shadow-tk-card backdrop-blur"
+      className="z-10 flex sm:sticky sm:top-0 gap-1 rounded-full bg-cream/90 p-1 shadow-tk-card backdrop-blur"
     >
       {TABS.map((tab) => (
         <button
