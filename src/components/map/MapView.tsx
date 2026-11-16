@@ -8,6 +8,8 @@ import { AttributionControl, MapContainer, Polyline, TileLayer, useMap } from "r
 import { useEffect, useState } from "react";
 
 import { MapClickHandler } from "@/components/map/MapClickHandler";
+import { MapGlyphs } from "@/components/map/MapGlyphs";
+import { useIsPhone } from "@/lib/hooks/useIsPhone";
 import { CurrentPositionMarker } from "@/components/map/CurrentPositionMarker";
 import { MapMarkers } from "@/components/map/MapMarkers";
 import { OptionPreviewLines, type PreviewRoute } from "@/components/map/OptionPreviewLines";
@@ -42,8 +44,15 @@ export interface MapViewProps {
   onTogglePin?: (waypointId: string) => void;
   /** A walk HUD covers the map's bottom edge: keep the attribution above it. */
   hudInset?: boolean;
-  /** Embedded (not full-screen) frame: map overlays keep clear of the Map/Satellite switch. */
-  compactControls?: boolean;
+  /** Base map: our own Details control drives this (Google map only). */
+  mapType?: "map" | "satellite";
+  /** Walking only: the one stop whose name is shown on the map; null = none, undefined = label every stop. */
+  nextStopId?: string | null;
+  /** Top-rated layer on/off (Google map only), driven from Details. */
+  topRated?: boolean;
+  onTopRatedNote?: (note: string) => void;
+  /** The layers glyph: open the Details sheet at its display section. */
+  onOpenDetails?: () => void;
   /** Places the walker is being told about right now (walking only). */
   callouts?: Announcement[];
   onCalloutSelect?: (announcement: Announcement) => void;
@@ -107,9 +116,11 @@ function MapSizeInvalidator() {
 function PositionFollower({
   currentPosition,
   followPosition = false,
+  onLayers,
 }: {
   currentPosition?: Coordinates;
   followPosition?: boolean;
+  onLayers?: () => void;
 }) {
   const map = useMap();
   // The walker dragged the map: stop pulling it back until they tap "re-centre".
@@ -132,23 +143,16 @@ function PositionFollower({
   }, [currentPosition, followPosition, map, paused]);
 
   return (
-    <>
-      {paused ? (
-        <button
-          type="button"
-          onClick={() => setPaused(false)}
-          aria-label="Re-centre on me"
-          className="absolute left-[10px] top-[96px] z-[1000] flex h-11 w-11 items-center justify-center rounded-full border border-forest/20 bg-paper text-forest shadow-tk-card"
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-            <circle cx="12" cy="12" r="3.5" />
-            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
-          </svg>
-        </button>
-      ) : null}
-    </>
-  );
-}
+    <MapGlyphs
+      showFollow={followPosition}
+      following={!paused}
+      onFollow={() => {
+        setPaused(false);
+        if (currentPosition) map.panTo([currentPosition.lat, currentPosition.lng]);
+      }}
+      onLayers={onLayers}
+    />
+  );}
 
 export default function MapView({
   waypoints,
@@ -165,6 +169,7 @@ export default function MapView({
   pinnedIds,
   onTogglePin,
   hudInset = false,
+  onOpenDetails,
   callouts,
   onCalloutSelect,
   previewRoutes,
@@ -172,6 +177,7 @@ export default function MapView({
   onAddToWalk,
   addedIds,
 }: MapViewProps) {
+  const isPhone = useIsPhone();
   // ESA WorldCover (CC BY 4.0) is credited whenever a satellite find is on the map.
   const credits = [
     ...(callouts?.some((a) => a.place.verification === "detected")
@@ -187,6 +193,7 @@ export default function MapView({
         className="h-full w-full"
         style={{ height: "100%", width: "100%" }}
         attributionControl={false}
+        zoomControl={!isPhone}
       >
       {/* No "Leaflet" prefix (optional); the OpenStreetMap credit itself is a licence requirement and stays. */}
       <AttributionControl prefix={false} />
@@ -200,6 +207,7 @@ export default function MapView({
       <PositionFollower
         currentPosition={currentPosition}
         followPosition={followPosition}
+        onLayers={onOpenDetails}
       />
       <MapMarkers
         waypoints={waypoints}

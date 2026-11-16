@@ -4,6 +4,10 @@ import { APIProvider, ColorScheme, ControlPosition, Map, useMap, useMapsLibrary 
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import { useEffect, useRef, useState } from "react";
 
+import { MapCredits } from "@/components/map/MapCredits";
+import { MapGlyphs } from "@/components/map/MapGlyphs";
+import { useIsPhone } from "@/lib/hooks/useIsPhone";
+
 import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStopMarkers } from "@/components/map/GoogleMarkers";
 import { GoogleRecommendedLayer } from "@/components/map/GoogleRecommendedLayer";
 import type { MapViewProps } from "@/components/map/MapView";
@@ -48,7 +52,7 @@ function Line({ path, color, weight, opacity, zIndex, dashed = false, arrows = f
           : []),
         // Direction: a white arrow with the route's colour as its outline, repeated along the line.
         ...(arrows
-          ? [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.6, strokeColor: color, strokeOpacity: 1, strokeWeight: 1.5, fillColor: "#ffffff", fillOpacity: 1 }, offset: "40px", repeat: "110px" }]
+          ? [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.6, strokeColor: color, strokeOpacity: 1, strokeWeight: 1.5, fillColor: "#ffffff", fillOpacity: 1 }, offset: "40px", repeat: "160px" }]
           : []),
       ],
     });
@@ -79,7 +83,7 @@ function FitPath({ path }: { path?: Coordinates[] }) {
   return null;
 }
 
-function PositionFollower({ currentPosition, followPosition = false }: { currentPosition?: Coordinates; followPosition?: boolean }) {
+function PositionFollower({ currentPosition, followPosition = false, onLayers }: { currentPosition?: Coordinates; followPosition?: boolean; onLayers?: () => void }) {
   const map = useMap();
   // The walker dragged the map: stop pulling it back until they tap "re-centre".
   const [paused, setPaused] = useState(false);
@@ -92,21 +96,15 @@ function PositionFollower({ currentPosition, followPosition = false }: { current
     if (map && followPosition && currentPosition && !paused) map.panTo(currentPosition);
   }, [map, currentPosition, followPosition, paused]);
   return (
-    <>
-      {paused ? (
-        <button
-          type="button"
-          onClick={() => setPaused(false)}
-          aria-label="Re-centre on me"
-          className="absolute left-[10px] top-[96px] z-[1000] flex h-11 w-11 items-center justify-center rounded-full border border-forest/20 bg-paper text-forest shadow-tk-card"
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
-            <circle cx="12" cy="12" r="3.5" />
-            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
-          </svg>
-        </button>
-      ) : null}
-    </>
+    <MapGlyphs
+      showFollow={followPosition}
+      following={!paused}
+      onFollow={() => {
+        setPaused(false);
+        if (map && currentPosition) map.panTo(currentPosition);
+      }}
+      onLayers={onLayers}
+    />
   );
 }
 
@@ -126,7 +124,11 @@ export default function GoogleMapView({
   pinnedIds,
   onTogglePin,
   hudInset = false,
-  compactControls = false,
+  mapType = "map",
+  nextStopId,
+  topRated = false,
+  onTopRatedNote,
+  onOpenDetails,
   callouts,
   onCalloutSelect,
   previewRoutes,
@@ -136,6 +138,7 @@ export default function GoogleMapView({
   fitPath,
 }: MapViewProps) {
   const theme = useResolvedTheme();
+  const isPhone = useIsPhone();
   const credits = [
     "Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors",
     ...(callouts?.some((a) => a.place.verification === "detected") ? [WORLDCOVER_ATTRIBUTION] : []),
@@ -154,8 +157,11 @@ export default function GoogleMapView({
           gestureHandling="greedy"
           clickableIcons={false}
           streetViewControl={false}
-          zoomControl
-          zoomControlOptions={{ position: ControlPosition.RIGHT_BOTTOM }}
+          mapTypeControl={false}
+          cameraControl={false}
+          mapTypeId={mapType === "satellite" ? "hybrid" : "roadmap"}
+          zoomControl={!isPhone}
+          zoomControlOptions={{ position: ControlPosition.RIGHT_CENTER }}
           fullscreenControl={false}
           keyboardShortcuts={false}
           style={{ width: "100%", height: "100%" }}
@@ -166,23 +172,21 @@ export default function GoogleMapView({
         >
           <Viewport center={center} zoom={zoom} focusTick={focusTick} />
           <FitPath path={fitPath} />
-          <PositionFollower currentPosition={currentPosition} followPosition={followPosition} />
+          <PositionFollower currentPosition={currentPosition} followPosition={followPosition} onLayers={onOpenDetails} />
           {walkedGeometry && walkedGeometry.length > 1 ? <Line path={walkedGeometry} color="#94a3b8" weight={5} opacity={0.9} zIndex={1} /> : null}
           <Line path={routeGeometry} color="#1f8a4c" weight={5} opacity={0.9} zIndex={2} arrows />
           {previewRoutes?.map((r) => (
             <Line key={r.id} path={r.geometry} color={r.highlighted ? "#c15f3c" : "#1e3d2f"} weight={r.highlighted ? 5 : 3} opacity={r.highlighted ? 0.95 : 0.55} zIndex={3} dashed arrows />
           ))}
-          <GoogleStopMarkers waypoints={waypoints} pinnedIds={pinnedIds} onTogglePin={onTogglePin} />
+          <GoogleStopMarkers waypoints={waypoints} pinnedIds={pinnedIds} onTogglePin={onTogglePin} nextStopId={nextStopId} />
           <GooglePreviewMarkers places={previewPlaces ?? []} />
-          <GoogleRecommendedLayer compact={compactControls} onAddToWalk={onAddToWalk} addedIds={addedIds} />
+          <GoogleRecommendedLayer enabled={topRated} onNote={onTopRatedNote} onAddToWalk={onAddToWalk} addedIds={addedIds} />
           {currentPosition ? <GoogleCurrentPosition position={currentPosition} accuracyM={currentAccuracyM} /> : null}
           {callouts && onCalloutSelect ? <GoogleCallouts announcements={callouts} onSelect={onCalloutSelect} /> : null}
         </Map>
       </APIProvider>
-      {/* Our own credits sit small at the map's bottom edge, beside Google's logo. Google's logo and terms stay on the map: its terms require them. */}
-      <div className="pointer-events-none absolute bottom-0 left-24 z-[900] max-w-[40%] bg-paper/80 px-1.5 py-0.5 text-[9px] leading-tight text-slate-700">
-        {credits.join(" · ")}
-      </div>
+      {/* One small chip above Google's own logo and terms, which stay uncovered (its terms require them). */}
+      <MapCredits lines={credits} className="bottom-6 end-2" />
     </div>
   );
 }

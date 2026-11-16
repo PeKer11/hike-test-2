@@ -1,8 +1,9 @@
 "use client";
 
-import { AdvancedMarker, ControlPosition, InfoWindow, MapControl, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
-import { useState, type ReactNode } from "react";
+import { AdvancedMarker, InfoWindow, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
+import { useEffect, useState, type ReactNode } from "react";
 
+import { GROUPS, type Group } from "@/components/map/top-rated-groups";
 import { GooglePlaceCard } from "@/components/map/GooglePlaceCard";
 import { distanceM, namesOverlap } from "@/lib/places/match";
 import { notableEnabled, socialEnabled } from "@/lib/social/flag";
@@ -63,21 +64,6 @@ const GOOGLE_CATEGORY: [RegExp, AttractionCategory][] = [
   [/worship|church|synagogue|mosque/i, "religious"],
 ];
 
-const icon = (d: string) => (
-  <svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d={d} />
-  </svg>
-);
-
-type Group = "food" | "nature" | "culture" | "sights";
-
-/** One search per group, so a food-heavy area can't crowd out nature, museums and sights. */
-const GROUPS: Record<Group, { label: string; glyph: ReactNode; color: string; types: string[]; radius: number }> = {
-  food: { label: "Food", glyph: icon("M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 4-3 7h3v11"), color: "#e8742c", types: ["restaurant", "cafe", "bakery"], radius: 1500 },
-  nature: { label: "Nature", glyph: icon("M12 22v-5M12 3l6 8h-3l4 6H5l4-6H6z"), color: "#2f8f4e", types: ["park", "national_park", "hiking_area", "beach", "garden"], radius: 3000 },
-  culture: { label: "Museum & art", glyph: icon("M3 21h18M5 21V10M9 21V10M15 21V10M19 21V10M3 10l9-6 9 6"), color: "#7c4dbd", types: ["museum", "art_gallery"], radius: 3000 },
-  sights: { label: "Sights", glyph: icon("M4 8h3l2-3h6l2 3h3v11H4zM12 11.5a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4z"), color: "#2563eb", types: ["tourist_attraction", "historical_landmark", "synagogue", "church", "mosque"], radius: 3000 },
-};
 const GROUP_CATEGORY: Record<Group, AttractionCategory> = { food: "food", nature: "nature", culture: "museum", sights: "landmark" };
 const MIN_RATING = 4.0;
 const MIN_RATINGS = 25;
@@ -135,7 +121,7 @@ const goldStar = (
  * places around the map centre (rating + number of reviews), with Wikidata notable places and Traike-user
  * recommendations as the secondary "Recommended" layer. Google data is shown only on this Google map.
  */
-export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = false }: { compact?: boolean; onAddToWalk?: (place: Attraction) => void; addedIds?: string[] }) {
+export function GoogleRecommendedLayer({ enabled, onNote, onAddToWalk, addedIds = [] }: { enabled: boolean; onNote?: (note: string) => void; onAddToWalk?: (place: Attraction) => void; addedIds?: string[] }) {
   const map = useMap();
   const placesLib = useMapsLibrary("places");
   const [top, setTop] = useState<Item[]>([]);
@@ -145,11 +131,6 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = f
   const [reviewsFor, setReviewsFor] = useState<string | null>(null);
 
   const showTop = async () => {
-    if (top.length) {
-      setTop([]);
-      setNote("");
-      return;
-    }
     if (!map || !placesLib) return;
     if (!searchesLeft()) return setNote("Top-rated search limit reached for this session");
     const c = map.getCenter();
@@ -211,11 +192,6 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = f
   };
 
   const showExtra = async () => {
-    if (extra) {
-      setExtra(null);
-      setNote("");
-      return;
-    }
     if (!map) return;
     const b = map.getBounds();
     const c = map.getCenter();
@@ -271,49 +247,34 @@ export function GoogleRecommendedLayer({ onAddToWalk, addedIds = [], compact = f
   const secondary = (extra ?? []).filter((e) => !top.some((g) => distanceM(g.lat, g.lng, e.lat, e.lng) <= 60 && namesOverlap(g.name, e.name)));
   const all = [...top, ...secondary];
   const open = all.find((i) => i.key === openKey);
-  const enabled = socialEnabled() || notableEnabled();
-  // One button: Google's top rated plus the community/notable places, shown together and cleared together.
-  const toggleAll = () => {
-    if (top.length || extra !== null) {
+  const withExtra = socialEnabled() || notableEnabled();
+  // The toggle lives in Details; this layer follows it. Turning on searches around the map centre, off clears.
+  useEffect(() => {
+    if (!enabled) {
       setTop([]);
       setExtra(null);
       setNote("");
       return;
     }
-    // Say so here: showExtra finishing would otherwise wipe the limit note and the button would look pressed but empty.
+    if (!map || !placesLib) return;
+    // Say so here: showExtra finishing would otherwise wipe the limit note and the toggle would look on but empty.
     if (!searchesLeft()) return setNote("Top-rated search limit reached for this session");
     void showTop();
-    if (enabled) void showExtra();
-  };
-  const btn = (on: boolean) => `rounded-full border border-terra/60 px-3 py-1.5 text-sm font-medium shadow ${on ? "bg-terra text-on-accent" : "bg-paper text-charcoal"}`;
+    if (withExtra) void showExtra();
+    // Search once per switch-on (or when the map and Places library become ready), never on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, map, placesLib]);
+  useEffect(() => {
+    onNote?.(note);
+  }, [note, onNote]);
 
   return (
     <>
-      <MapControl position={ControlPosition.TOP_RIGHT}>
-        {/* Right-aligned and capped so it never reaches the Map/Satellite switch on the left; sm:mr clears the fixed account pill so both share one row. */}
-        <div className={`flex max-w-[min(640px,60vw)] gap-2 p-2.5 ${compact ? "flex-wrap items-center justify-end mr-11" : "flex-wrap items-center justify-end sm:mr-[9.5rem]"}`}>
-          {top.length ? (
-            <div className="pointer-events-none flex flex-wrap justify-end gap-x-2 rounded bg-paper/85 px-2 py-1 text-xs text-charcoal shadow">
-              {Object.values(GROUPS).map((g) => (
-                <span key={g.label} className="flex items-center gap-1">
-                  <span className="inline-flex h-4 w-4 rounded-full p-0.5 text-white" style={{ background: g.color }}>{g.glyph}</span>
-                  {g.label}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <button type="button" onClick={toggleAll} aria-pressed={top.length > 0 || extra !== null} className={btn(top.length > 0 || extra !== null)}>
-            🏆 Top rated
-          </button>
-          {note ? <p className="max-w-52 rounded bg-paper/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
-        </div>
-      </MapControl>
       {all.map((i) => (
         <AdvancedMarker key={i.key} position={{ lat: i.lat, lng: i.lng }} onClick={() => setOpenKey(i.key)} zIndex={i.source === "google" ? 300 : 200}>
           {i.source === "google" ? (
             <div className="flex items-center gap-1" data-testid="top-rated-marker">
               {pin(GROUPS[i.group ?? "sights"].color, "#fff", GROUPS[i.group ?? "sights"].glyph, 32)}
-              <span className="rounded bg-paper/95 px-1 text-xs font-semibold shadow">★ {i.rating?.toFixed(1)} ({i.ratingCount})</span>
             </div>
           ) : i.source === "notable" ? (
             goldStar

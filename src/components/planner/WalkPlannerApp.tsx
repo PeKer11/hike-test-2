@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { ConstraintPanel } from "@/components/constraints";
 import { DynamicMap } from "@/components/map";
+import { usesGoogleMap } from "@/components/map/DynamicMap";
+import { MapOptionsCard } from "@/components/map/MapOptionsCard";
 import {
   HikeSearchPanel,
   PlacePromptPanel,
@@ -514,6 +516,29 @@ export function WalkPlannerApp({
   walkPhaseRef.current = walkPhase;
   // The planning form is hidden while walking; this opens it as a bottom sheet.
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  // Map controls that used to float over the map live in Details now.
+  const [mapType, setMapTypeState] = useState<"map" | "satellite">("map");
+  const [topRated, setTopRated] = useState(false);
+  const [topRatedNote, setTopRatedNote] = useState("");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("traike.mapType.v1") === "satellite") setMapTypeState("satellite");
+    } catch {
+      // Storage blocked: the choice just won't persist.
+    }
+  }, []);
+  const setMapType = (type: "map" | "satellite") => {
+    setMapTypeState(type);
+    try {
+      localStorage.setItem("traike.mapType.v1", type);
+    } catch {
+      // Storage blocked: the choice just won't persist.
+    }
+  };
+  const openDetailsAtDisplay = () => {
+    setIsDetailsOpen(true);
+    window.setTimeout(() => document.getElementById("walk-details-display")?.scrollIntoView({ block: "start" }), 50);
+  };
   // Live-walk instruments. Refs, not state: they are fed on every fix, and only
   // the numbers that reach the screen go through setState (once a second).
   const speedEstimatorRef = useRef<SpeedEstimator | null>(null);
@@ -3896,6 +3921,15 @@ export function WalkPlannerApp({
             </>
           ) : null}
         </div>
+        <MapOptionsCard
+          mapType={mapType}
+          onMapType={setMapType}
+          showMapType={usesGoogleMap}
+          topRated={usesGoogleMap ? topRated : undefined}
+          onTopRated={usesGoogleMap ? setTopRated : undefined}
+          topRatedNote={topRatedNote}
+          signedIn={isSignedIn}
+        />
       </aside>
 
       {/* Percentage height, not viewport height: when stacked, the map takes a
@@ -3967,7 +4001,11 @@ export function WalkPlannerApp({
           // hand-drawn waypoints whose ids no pin means anything against.
           onTogglePin={walkPlan && !walkPreview ? toggleAttractionPin : undefined}
           hudInset={walkMode}
-          compactControls={!isExpanded}
+          mapType={mapType}
+          nextStopId={walkMode ? (waypoints.find((w) => !w.isStart && !visitedAttractionIds.includes(w.id))?.id ?? null) : undefined}
+          topRated={topRated}
+          onTopRatedNote={setTopRatedNote}
+          onOpenDetails={walkMode ? openDetailsAtDisplay : undefined}
           extraAttribution={walkMode && companion.attribution ? [companion.attribution] : undefined}
           callouts={walkMode ? callouts : undefined}
           onCalloutSelect={walkMode ? setSelectedCallout : undefined}

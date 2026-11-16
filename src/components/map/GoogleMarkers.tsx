@@ -15,10 +15,13 @@ export function GoogleStopMarkers({
   waypoints,
   pinnedIds = [],
   onTogglePin,
+  nextStopId,
 }: {
   waypoints: Waypoint[];
   pinnedIds?: string[];
   onTogglePin?: (waypointId: string) => void;
+  /** Walking: only this stop shows its name (null = none). Undefined = every stop is labelled. */
+  nextStopId?: string | null;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const open = waypoints.find((w) => w.id === openId);
@@ -40,9 +43,15 @@ export function GoogleStopMarkers({
           >
             <div className="flex items-center gap-1" data-testid="map-stop-marker">
               <span dangerouslySetInnerHTML={{ __html: markerIconHtml(label, color, pinnedIds.includes(waypoint.id)) }} />
-              <span dir="auto" className="rounded bg-paper/95 px-1 text-xs font-semibold shadow">
-                {label} – {waypoint.name}
-              </span>
+              {nextStopId === undefined ? (
+                <span dir="auto" className="rounded bg-paper/95 px-1 text-xs font-semibold shadow">
+                  {label} – {waypoint.name}
+                </span>
+              ) : nextStopId === waypoint.id ? (
+                <span dir="auto" className="max-w-[18ch] truncate rounded bg-paper/95 px-1.5 text-[13px] font-semibold shadow">
+                  {waypoint.name}
+                </span>
+              ) : null}
             </div>
           </AdvancedMarker>
         );
