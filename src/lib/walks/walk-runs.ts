@@ -10,6 +10,8 @@ export interface WalkRun {
   finishedAt: string | null;
   minutes: number | null;
   distanceM: number | null;
+  /** Next stop not yet reached when the run ended early; null for finished or older runs. */
+  lastStopIndex: number | null;
 }
 
 export interface NewWalkRun {
@@ -17,6 +19,7 @@ export interface NewWalkRun {
   finishedAt?: string;
   minutes?: number;
   distanceM?: number;
+  lastStopIndex?: number;
 }
 
 /** A walk with its runs: one entry in the list, however many times it was walked. */
@@ -37,9 +40,10 @@ interface Row {
   finished_at: string | null;
   minutes: number | null;
   distance_m: number | null;
+  last_stop_index: number | null;
 }
 
-const COLUMNS = "id, walk_id, started_at, finished_at, minutes, distance_m";
+const COLUMNS = "id, walk_id, started_at, finished_at, minutes, distance_m, last_stop_index";
 
 const fromRow = (r: Row): WalkRun => ({
   id: r.id,
@@ -48,6 +52,7 @@ const fromRow = (r: Row): WalkRun => ({
   finishedAt: r.finished_at,
   minutes: r.minutes,
   distanceM: r.distance_m,
+  lastStopIndex: r.last_stop_index,
 });
 
 const clampInt = (v: unknown, max: number): number | null =>
@@ -67,6 +72,7 @@ export async function addRun(client: SupabaseClient, userId: string, walkId: str
       finished_at: run.finishedAt ?? null,
       minutes: clampInt(run.minutes, 1440),
       distance_m: clampInt(run.distanceM, 200000),
+      last_stop_index: clampInt(run.lastStopIndex, 40),
     })
     .select("id")
     .single();
@@ -100,6 +106,12 @@ export async function listRunsForWalks(client: SupabaseClient, walkIds: string[]
 /** The walker's walks grouped with their runs. */
 export async function listMyWalksWithRuns(client: SupabaseClient, walks: SavedWalk[]): Promise<WalkWithRuns[]> {
   return groupRuns(walks, await listRunsForWalks(client, walks.map((w) => w.id)));
+}
+
+/** The run to offer "continue" from: the newest one, only if it ended early with a known next stop. */
+export function lastRunOf(runs: WalkRun[]): { finished: boolean; nextStopIndex: number } | undefined {
+  const r = runs[0];
+  return r && r.lastStopIndex !== null ? { finished: r.finishedAt !== null, nextStopIndex: r.lastStopIndex } : undefined;
 }
 
 /** Browser helpers: signed-out or any failure is swallowed (null / empty). */

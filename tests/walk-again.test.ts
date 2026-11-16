@@ -69,8 +69,14 @@ describe("decideWalkAgain: the situations of the plan, one by one", () => {
 
   it("3. an unfinished run near its next stop: continue where I stopped", () => {
     const d = decideWalkAgain(line, { lat: 32.0155, lng: 34.8005 }, { finished: false, nextStopIndex: 1 });
-    expect(d.primary.mode).toBe("resume");
+    expect(d.primary).toMatchObject({ mode: "resume", nextStopIndex: 1 });
     expect(d.alternatives.map((a) => a.mode)).toEqual(["walk_to_start", "join_nearest"]);
+  });
+
+  it("3a. a finished last run, or a missing next stop, does not offer resume", () => {
+    const here = { lat: 32.0155, lng: 34.8005 };
+    expect(decideWalkAgain(line, here, { finished: true, nextStopIndex: 1 }).primary.mode).not.toBe("resume");
+    expect(decideWalkAgain(line, here, { finished: false, nextStopIndex: 99 }).primary.mode).not.toBe("resume");
   });
 
   it("3b. an unfinished run far from its next stop is not offered", () => {

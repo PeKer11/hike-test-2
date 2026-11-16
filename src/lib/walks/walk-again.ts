@@ -32,6 +32,8 @@ export interface WalkAgainOption {
   approachMin?: number;
   /** Stops passed before the join point, which a join skips. */
   skippedStops?: number;
+  /** resume: index (in the saved stops) of the next stop the walker had not reached. */
+  nextStopIndex?: number;
 }
 
 export interface WalkAgainDecision {
@@ -116,7 +118,7 @@ export function decideWalkAgain(walk: SavedWalk, here: Coordinates | null, lastR
   if (lastRun && !lastRun.finished && walk.stops[lastRun.nextStopIndex]) {
     const next = walk.stops[lastRun.nextStopIndex];
     if (haversineDistance(here, { lat: next.lat, lng: next.lng }) <= NEAR_M) {
-      return build({ mode: "resume" }, [toStart, join]);
+      return build({ mode: "resume", nextStopIndex: lastRun.nextStopIndex }, [toStart, join]);
     }
   }
 

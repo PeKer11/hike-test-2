@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { addRun, groupRuns, isDraft, listRuns, type WalkRun } from "@/lib/walks/walk-runs";
+import { addRun, groupRuns, isDraft, lastRunOf, listRuns, type WalkRun } from "@/lib/walks/walk-runs";
 import type { SavedWalk } from "@/lib/walks/saved-walks";
 
 /** Chainable stand-in for the query builder: records the calls, resolves to `result`. */
@@ -20,7 +20,7 @@ function mockClient(result: { data?: unknown; error?: unknown }) {
 
 const walk = (id: string): SavedWalk =>
   ({ id, title: id, status: "planned", areaLabel: null, start: { lat: 1, lng: 2 }, totalMin: 60, distanceM: 1000, stops: [], params: {}, visibility: "private", createdAt: "2026-10-01", completedAt: null }) as SavedWalk;
-const run = (id: string, walkId: string, startedAt: string): WalkRun => ({ id, walkId, startedAt, finishedAt: null, minutes: 30, distanceM: 1000 });
+const run = (id: string, walkId: string, startedAt: string): WalkRun => ({ id, walkId, startedAt, finishedAt: null, minutes: 30, distanceM: 1000, lastStopIndex: null });
 
 describe("walk-runs", () => {
   it("groups runs under their walk, newest first, drafts have none", () => {
@@ -36,6 +36,17 @@ describe("walk-runs", () => {
     expect(await addRun(client, "u1", "w1", { minutes: 99999, distanceM: -5, finishedAt: "2026-10-24T10:00:00Z" })).toBe("r1");
     const insert = calls.find(([m]) => m === "insert")![1][0] as Record<string, unknown>;
     expect(insert).toMatchObject({ walk_id: "w1", user_id: "u1", minutes: 1440, distance_m: null, finished_at: "2026-10-24T10:00:00Z" });
+  });
+  it("addRun writes last_stop_index, clamped", async () => {
+    const { client, calls } = mockClient({ data: { id: "r2" } });
+    await addRun(client, "u1", "w1", { lastStopIndex: 2 });
+    expect(calls.find(([m]) => m === "insert")![1][0]).toMatchObject({ last_stop_index: 2, finished_at: null });
+  });
+  it("lastRunOf offers continue only for the newest run with a known next stop", () => {
+    expect(lastRunOf([])).toBeUndefined();
+    expect(lastRunOf([run("1", "a", "2026-10-05")])).toBeUndefined();
+    expect(lastRunOf([{ ...run("1", "a", "2026-10-05"), lastStopIndex: 1 }])).toEqual({ finished: false, nextStopIndex: 1 });
+    expect(lastRunOf([{ ...run("1", "a", "2026-10-05"), finishedAt: "x", lastStopIndex: 1 }])).toEqual({ finished: true, nextStopIndex: 1 });
   });
   it("addRun returns null on error; listRuns is empty on error", async () => {
     const { client } = mockClient({ error: { message: "x" } });

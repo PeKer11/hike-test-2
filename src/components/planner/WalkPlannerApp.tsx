@@ -43,7 +43,7 @@ import { listFriends } from "@/lib/walks/friends";
 import { SavedPlacePicker } from "@/components/places/SavedPlacePicker";
 import { SavedPlacesTab } from "@/components/places/SavedPlacesTab";
 import { markStopsVisited } from "@/lib/places/saved-places";
-import { recordRun } from "@/lib/walks/walk-runs";
+import { fetchRuns, lastRunOf, recordRun } from "@/lib/walks/walk-runs";
 import { geometryFacts, newWalkFromPlan, previewPathOf, rebuildFromSaved, saveBuiltWalk, stopsFromAttractions, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
@@ -298,6 +298,7 @@ interface WalkPlannerAppProps {
 /** The ways of walking again this app can run. (Reverse arrives with variants.) */
 const WALK_AGAIN_SUPPORTED: ReadonlySet<WalkAgainMode> = new Set<WalkAgainMode>([
   "start_now",
+  "resume",
   "join_nearest",
   "walk_to_start",
   "reroute_from_here",
@@ -1128,7 +1129,8 @@ export function WalkPlannerApp({
   const walkAgainFromSaved = (walk: SavedWalk) => {
     void (async () => {
       const here = await locateOnce(6000);
-      const decision = decideWalkAgain(walk, here);
+      const lastRun = walk.id && isSignedIn ? lastRunOf(await fetchRuns(walk.id)) : undefined;
+      const decision = decideWalkAgain(walk, here, lastRun);
       if (!decision.chooser) runWalkAgain(walk, decision.primary, here);
       else setAgainFlow({ walk, here, decision });
     })();
@@ -1168,6 +1170,12 @@ export function WalkPlannerApp({
         const s = startAsStop(walk);
         stops = [{ id: `walk-again-start-${walk.id}`, name: s.name, coordinates: { lat: s.lat, lng: s.lng }, category: "landmark" as Attraction["category"], avgVisitMinutes: 0, tags: {} }, ...attractions];
         minutes += option.approachMin ?? 0;
+      } else if (option.mode === "resume") {
+        const picks = walk.stops
+          .slice(option.nextStopIndex ?? 0)
+          .map((st) => attractions.find((a) => sameAs(a, st)))
+          .filter((a): a is Attraction => Boolean(a));
+        if (picks.length > 0) stops = picks;
       } else if (option.mode === "join_nearest") {
         const picks = stopsForJoin(walk, here)
           .map((st) => attractions.find((a) => sameAs(a, st)))
@@ -1931,11 +1939,15 @@ export function WalkPlannerApp({
     }
     if (walkMode && isSignedIn && savedWalkIdRef.current && (walkStats?.elapsedMin ?? 0) >= 1) {
       const row = savedWalkIdRef.current;
+      // Ended before the last stop: remember the next one, so "continue where I stopped" can pick it up.
+      const planned = walkPlanRef.current?.orderedAttractions ?? [];
+      const seenIds = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+      const nextStop = planned.findIndex((a) => !seenIds.has(a.id));
       const done = { status: "completed" as const, totalMin: walkStats?.elapsedMin ?? 0, distanceM: walkStats?.walkedM ?? 0 };
       void row
         .then(async (id) => {
           if (!id) return false;
-          void recordRun(id, { startedAt: new Date(walkStartTimeRef.current).toISOString(), finishedAt: new Date().toISOString(), minutes: done.totalMin, distanceM: done.distanceM });
+          void recordRun(id, { startedAt: new Date(walkStartTimeRef.current).toISOString(), ...(nextStop >= 0 ? { lastStopIndex: nextStop } : { finishedAt: new Date().toISOString() }), minutes: done.totalMin, distanceM: done.distanceM });
           return updateWalk(id, done);
         })
         .then(() => setWalksVersion((v) => v + 1));
