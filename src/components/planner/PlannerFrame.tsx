@@ -4,6 +4,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 
 import type { AttractionCategory } from "@/lib/types";
 
+import { PlannerBridge, type AppView } from "@/lib/shell/planner-bridge";
+
 import { WalkPlannerApp } from "./WalkPlannerApp";
 
 /* Iconoir-style glyphs (1.5px stroke, round caps) — DESIGN.md forbids icon
@@ -72,6 +74,14 @@ interface PlannerFrameProps {
    */
   suggestedPace?: number | null;
   suggestedCategories?: AttractionCategory[] | null;
+  /** Inside the app shell: always full-screen, shown only when `active`, and handed the screen to show. */
+  view?: AppView;
+  bridge?: PlannerBridge;
+  onNavigate?: (view: AppView) => void;
+  /** False on Home and Me: the planner stays mounted (GPS, chat, timers) but out of sight. */
+  active?: boolean;
+  /** A tab bar sits at the bottom of this screen. */
+  bottomBar?: boolean;
 }
 
 /**
@@ -88,14 +98,20 @@ interface PlannerFrameProps {
 export function PlannerFrame({
   suggestedPace = null,
   suggestedCategories = null,
+  view,
+  bridge,
+  onNavigate,
+  active = true,
+  bottomBar = false,
 }: PlannerFrameProps = {}) {
   const [isExpandedChoice, setIsExpanded] = useState(false);
   const isPhone = useIsPhone();
-  const isExpanded = isExpandedChoice || isPhone;
+  const inShell = view !== undefined;
+  const isExpanded = isExpandedChoice || isPhone || inShell;
 
   // Esc collapses, the same reflex a real fullscreen player trains.
   useEffect(() => {
-    if (!isExpanded) return;
+    if (!isExpanded || (inShell && !active)) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsExpanded(false);
@@ -109,7 +125,7 @@ export function PlannerFrame({
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [isExpanded]);
+  }, [isExpanded, inShell, active]);
 
   return (
     <div
@@ -117,7 +133,7 @@ export function PlannerFrame({
         isExpanded
           ? // z-[900] keeps it under the account indicator (z-[1000]) so logout
             // stays clickable while expanded.
-            "fixed inset-0 z-[900] overflow-hidden bg-cream"
+            `fixed inset-0 z-[900] overflow-hidden bg-cream ${inShell ? "lg:start-[72px]" : ""} ${inShell && !active ? "hidden" : ""} ${bottomBar ? "pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0" : ""}`
           : "relative h-[min(72vh,620px)] w-full overflow-hidden rounded-xl border border-charcoal/10 bg-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)]"
       }
     >
@@ -126,9 +142,12 @@ export function PlannerFrame({
         onRequestExpand={setIsExpanded}
         suggestedPace={suggestedPace}
         suggestedCategories={suggestedCategories}
+        view={view}
+        bridge={bridge}
+        onNavigate={onNavigate}
       />
 
-      {!isPhone && (
+      {!isPhone && !inShell && (
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpandedChoice)}

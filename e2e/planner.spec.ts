@@ -113,7 +113,7 @@ test("a walker fills in the form and gets a plan back", async ({ page }) => {
     );
   }
 
-  await page.goto("/app");
+  await page.goto("/app?view=plan");
 
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
@@ -178,7 +178,7 @@ test("a returning walker's stored settings hydrate without a mismatch", async ({
   );
 
   const watch = watchConsole(page);
-  await page.goto("/app");
+  await page.goto("/app?view=plan");
   await page.waitForFunction(() => "next" in window);
 
   // The stored blob is what the walker gets back, not the defaults the server
@@ -198,7 +198,7 @@ test("a walk setting survives a reload", async ({ page }) => {
   // fakes localStorage per test file, so the round trip a returning walker
   // actually makes -- change something, close the tab, come back -- has never
   // been exercised anywhere in `tests/`.
-  await page.goto("/app");
+  await page.goto("/app?view=plan");
   await page.getByRole("button", { name: "Walk settings" }).click();
 
   const toggle = page.getByRole("button", { name: "Remember my preferences" });

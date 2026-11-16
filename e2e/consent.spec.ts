@@ -10,7 +10,7 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 test("a new walker sees the consent screen once and it stays dismissed", async ({ page }) => {
   const watch = watchConsole(page);
-  await page.goto("/app");
+  await page.goto("/app?view=plan");
 
   const dialog = page.getByRole("dialog", { name: "Before your first walk" });
   await expect(dialog).toBeVisible();

@@ -93,7 +93,7 @@ test("Start Walk fills the phone screen with the map and keeps the HUD out of th
   await page.route("**/api/walk-plan", (route) => route.fulfill({ json: STUBBED_PLAN }));
   await page.route("**/api/nearby", (route) => route.fulfill({ json: { places: [] } }));
 
-  await page.goto("/app");
+  await page.goto("/app?view=plan");
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
   await page.getByRole("button", { name: "Build My Walk" }).click();
@@ -161,7 +161,7 @@ test("the OSM attribution stays above the HUD while an alert card is showing", a
     route.fulfill({ status: 500, json: { error: "stubbed" } }),
   );
 
-  await page.goto("/app");
+  await page.goto("/app?view=plan");
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
   await page.getByRole("button", { name: "Build My Walk" }).click();
@@ -219,7 +219,7 @@ test("the direction options sheet stays out of the account-pill corner and above
     }),
   );
 
-  await page.goto("/app");
+  await page.goto("/app?view=plan");
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
   await page.getByRole("button", { name: "Build My Walk" }).click();

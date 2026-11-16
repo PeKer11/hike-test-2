@@ -49,7 +49,7 @@ test.describe("dark theme", () => {
     await page.goto("/login");
     await expect(page.getByRole("radio")).toHaveCount(2);
     await page.screenshot({ path: "test-results/theme/login-dark-phone.png" });
-    await page.goto("/app");
+    await page.goto("/app?view=plan");
     await page.waitForTimeout(1000);
     await page.screenshot({ path: "test-results/theme/app-dark-phone.png" });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

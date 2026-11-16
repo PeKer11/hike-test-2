@@ -23,7 +23,7 @@ test("a walk survives two minutes offline and resumes lookups when the network r
   await page.route("**/api/walk-plan", (route) => route.fulfill({ json: STUBBED_PLAN }));
   await page.route("**/api/nearby", (route) => route.fulfill(nearby));
 
-  await page.goto("/app");
+  await page.goto("/app?view=plan");
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
   await page.getByRole("button", { name: "Build My Walk" }).click();

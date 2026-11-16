@@ -27,7 +27,7 @@ test("a Hebrew walk lays out right-to-left without overflow", async ({ page }, t
   await page.route("**/api/walk-plan", (route) => route.fulfill({ json: hebrewPlan }));
   await page.route("**/api/nearby", (route) => route.fulfill({ json: { places: [], ring: [], wikipedia: [], commons: [] } }));
 
-  await page.goto("/app");
+  await page.goto("/app?view=plan");
   await expect.poll(() => page.evaluate(() => document.documentElement.dir)).toBe("rtl");
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);

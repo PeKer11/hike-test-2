@@ -1,0 +1,59 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { MeView } from "@/components/shell/MeView";
+import { TabBar } from "@/components/shell/TabBar";
+import { PlannerBridge } from "@/lib/shell/planner-bridge";
+
+vi.mock("@/components/auth/LogoutButton", () => ({ LogoutButton: () => <button type="button">Log out</button> }));
+vi.mock("@/components/theme/ThemeToggle", () => ({ ThemeToggle: () => <div /> }));
+vi.mock("@/components/WalkSettingsPanel", () => ({ WalkSettingsPanel: () => <div /> }));
+vi.mock("@/components/StandingFactsPanel", () => ({ StandingFactsPanel: () => <div /> }));
+
+afterEach(cleanup);
+
+describe("tab bar", () => {
+  it("has the four hubs plus a raised new-route button, marks the current one, and shows the friend badge", () => {
+    const onNavigate = vi.fn();
+    render(<TabBar view="walks" lang="en" friendBadge={2} onNavigate={onNavigate} />);
+    expect(screen.getByRole("button", { name: /Walks/ }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: /Home/ }).getAttribute("aria-current")).toBeNull();
+    expect(screen.getByText("2")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "New route" }));
+    expect(onNavigate).toHaveBeenCalledWith("plan");
+  });
+
+  it("speaks Hebrew", () => {
+    render(<TabBar view="home" lang="he" friendBadge={0} onNavigate={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /הליכות/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "מסלול חדש" })).toBeTruthy();
+  });
+});
+
+describe("Me: refresh", () => {
+  const reload = vi.fn();
+  const setup = (walkLive: boolean) => {
+    vi.stubGlobal("location", { ...window.location, reload });
+    render(<MeView lang="en" settings={null} bridge={new PlannerBridge()} signedIn={false} walkLive={walkLive} />);
+  };
+
+  it("refreshes at once when no walk is live", () => {
+    reload.mockClear();
+    setup(false);
+    fireEvent.click(screen.getByText("Refresh the app"));
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks first when a walk is live, and Keep walking cancels", () => {
+    reload.mockClear();
+    setup(true);
+    fireEvent.click(screen.getByText("Refresh the app"));
+    expect(reload).not.toHaveBeenCalled();
+    expect(screen.getByText("A walk is live. Refresh anyway?")).toBeTruthy();
+    fireEvent.click(screen.getByText("Keep walking"));
+    expect(screen.queryByText("A walk is live. Refresh anyway?")).toBeNull();
+    fireEvent.click(screen.getByText("Refresh the app"));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+});

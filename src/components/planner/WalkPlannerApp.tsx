@@ -102,6 +102,8 @@ import {
 import { walkCopy } from "@/lib/walk/walk-copy";
 import { WalkRecorder } from "@/lib/walk/walk-recorder";
 import type { LocateState } from "@/lib/geo/locate";
+import { clearActiveWalk, saveActiveWalk, type ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
+import { PlannerBridge, type AppView } from "@/lib/shell/planner-bridge";
 import { WalkTracker } from "@/lib/walk/walk-tracker";
 import type { PaceUpdate } from "@/lib/walk/walk-tracker";
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
@@ -279,6 +281,12 @@ interface WalkPlannerAppProps {
       straight through to the companion form, which opens on them. */
   suggestedPace?: number | null;
   suggestedCategories?: AttractionCategory[] | null;
+  /** The shell's current screen. Walks and Social show this planner's side panel full-size (no map); Plan and Walk show it as before. Undefined = the planner on its own (tests, legacy). */
+  view?: AppView;
+  /** How the screens around the planner read from it and ask things of it. */
+  bridge?: PlannerBridge;
+  /** Ask the shell to move to another screen (e.g. after "walk again"). */
+  onNavigate?: (view: AppView) => void;
 }
 
 // The planner fills whatever box it is given: the small embedded frame on /app
@@ -290,6 +298,9 @@ export function WalkPlannerApp({
   onRequestExpand,
   suggestedPace = null,
   suggestedCategories = null,
+  view,
+  bridge,
+  onNavigate,
 }: WalkPlannerAppProps) {
   // Small-frame density. Never gates functionality — only padding and type size.
   const compact = !isExpanded;
@@ -852,7 +863,70 @@ export function WalkPlannerApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startRequested]);
 
+  // Continue a walk saved on this device (after a reload): put its plan and visited stops back, then
+  // start tracking on the next render, once the simulating flag has settled.
+  const [resumeWith, setResumeWith] = useState<WalkPlan | null>(null);
+  useEffect(() => {
+    if (!resumeWith) return;
+    const plan = resumeWith;
+    setResumeWith(null);
+    handleStartWalk(plan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeWith]);
+  const resumeActiveWalk = (snapshot: ActiveWalkSnapshot) => {
+    setIsSimulating(false);
+    showPlan(snapshot.plan, snapshot.geometry, true);
+    walkInputRef.current = { ...snapshot.input, origin: snapshot.lastFix ?? snapshot.input.origin };
+    const visits = new VisitTracker();
+    snapshot.visitedIds.forEach((id) => visits.markVisited(id));
+    visitTrackerRef.current = visits;
+    setVisitedAttractionIds(snapshot.visitedIds);
+    setResumeWith(snapshot.plan);
+  };
+
+  // A real walk is written to this device as it goes, so a reload can continue it; End walk clears it.
+  const lastWalkSaveRef = useRef(0);
+  const persistWalk = () => {
+    const plan = walkPlanRef.current;
+    const input = walkInputRef.current;
+    if (walkPhase !== "walking" || isSimulating || !plan || !input || walkGeometryRef.current.length < 2) return;
+    lastWalkSaveRef.current = Date.now();
+    saveActiveWalk({
+      plan,
+      geometry: walkGeometryRef.current,
+      input,
+      visitedIds: [...(visitTrackerRef.current?.visitedIds ?? [])],
+      startedAt: firstFixAtRef.current ?? Date.now(),
+      lastFix: currentPosition,
+    });
+  };
+  useEffect(() => {
+    persistWalk();
+    // Re-save when the walk, its plan or its visited stops change; position alone is throttled below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walkPhase, walkPlan, visitedAttractionIds]);
+  useEffect(() => {
+    if (Date.now() - lastWalkSaveRef.current >= 15_000) persistWalk();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPosition]);
+
+  // What the screens around the planner can read and ask: whether a walk is live, the settings, and two actions.
+  useEffect(() => {
+    bridge?.publish(
+      {
+        walkLive: walkMode,
+        settings: walkSettings,
+        signedIn: isSignedIn,
+        friendRequests,
+      },
+      setWalkSettings,
+      { walkAgain: walkAgainFromSaved, resumeWalk: resumeActiveWalk },
+    );
+    // The actions are rebuilt every render and always read the latest state; publishing them each render is the point.
+  });
+
   const handleEndWalk = () => {
+    clearActiveWalk();
     if (walkMode) {
       setFinishData({
         stops: walkPlanRef.current?.orderedAttractions.length ?? 0,
@@ -1008,6 +1082,21 @@ export function WalkPlannerApp({
   const savedWalkIdRef = useRef<Promise<string | null> | null>(null);
   const [walksVersion, setWalksVersion] = useState(0);
   const [sideTab, setSideTab] = useState<SideTab>("plan");
+  // The shell's screen picks the side panel: Walks (and its Places segment), Social, or the planner itself.
+  useEffect(() => {
+    if (!view) return;
+    if (view === "social") setSideTab("friends");
+    else if (view === "walks") setSideTab((t) => (t === "places" ? "places" : "walks"));
+    else setSideTab("plan");
+  }, [view]);
+  const hubTab = view === "walks" || view === "social";
+  const walkAgainFromSaved = (walk: SavedWalk) => {
+    const { input, attractions, routeRules } = rebuildFromSaved(walk);
+    setSideTab("plan");
+    onNavigate?.("plan");
+    // The saved rules come back with the walk (an empty set clears whatever the last build used).
+    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, existingWalkId: walk.id, routeRules: routeRules as AssistantBuild["routeRules"] });
+  };
   // Phone only: hide the side panel so the map fills the screen.
   const [mapFull, setMapFull] = useState(false);
   // Leaving the Walks tab or starting a walk puts the map back to the real plan.
@@ -3197,6 +3286,7 @@ export function WalkPlannerApp({
             : "relative"
         } planner-sidebar p-[14px] pb-[26px] @4xl:p-[12px] @4xl:pb-[20px] @6xl:p-[14px] @6xl:pb-[26px]`}
         style={{
+          width: hubTab ? "100%" : undefined,
           backgroundColor: "var(--tk-sidebar-bg)",
           backgroundImage: "var(--tk-sidebar-img)",
           backgroundRepeat: "no-repeat",
@@ -3352,19 +3442,30 @@ export function WalkPlannerApp({
             </>
           ) : !isAdvancedOpen || plannerMode === "walk-companion" ? (
             <>
-              {isSignedIn && !walkMode && <SideTabs value={sideTab} onChange={setSideTab} friendsBadge={sideTab === "friends" ? 0 : friendRequests} />}
+              {isSignedIn && !walkMode && view === undefined && <SideTabs value={sideTab} onChange={setSideTab} friendsBadge={sideTab === "friends" ? 0 : friendRequests} />}
+              {isSignedIn && !walkMode && view === "walks" && (
+                <div role="tablist" aria-label="Walks" className="flex gap-1 rounded-full bg-charcoal/5 p-1">
+                  {(["walks", "places"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      role="tab"
+                      aria-selected={sideTab === t}
+                      onClick={() => setSideTab(t)}
+                      className={`min-h-11 flex-1 rounded-full px-4 text-[15px] font-medium transition-colors ${sideTab === t ? "bg-paper text-forest shadow-tk-soft" : "text-charcoal/70"}`}
+                    >
+                      {t === "walks" ? "Walks" : "Places"}
+                    </button>
+                  ))}
+                </div>
+              )}
               {isSignedIn && !walkMode && sideTab === "walks" && (
                 <MyWalksPanel
                   isSignedIn={isSignedIn}
                   refreshKey={walksVersion}
                   previewId={walkPreview?.id ?? null}
                   onShowOnMap={showWalkOnMap}
-                  onWalkAgain={(walk) => {
-                    const { input, attractions, routeRules } = rebuildFromSaved(walk);
-                    setSideTab("plan");
-                    // The saved rules come back with the walk (an empty set clears whatever the last build used).
-                    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, existingWalkId: walk.id, routeRules: routeRules as AssistantBuild["routeRules"] });
-                  }}
+                  onWalkAgain={walkAgainFromSaved}
                 />
               )}
               {isSignedIn && !walkMode && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}
@@ -3382,6 +3483,7 @@ export function WalkPlannerApp({
                     }));
                     if (attractions.length === 0) return;
                     setSideTab("plan");
+                    onNavigate?.("plan");
                     void handleBuildWalk(
                       { origin: currentPosition && haversineDistance(currentPosition, attractions[0].coordinates) <= 3000 ? currentPosition : attractions[0].coordinates, availableMinutes: attractions.length * 45 + 120, walkingPaceMinPerKm: 15, radiusMeters: 3000 },
                       { keepAttractions: attractions, fixedOrder: true, aiDecided: true, routeRules: {} },
@@ -4031,7 +4133,7 @@ export function WalkPlannerApp({
           walkMode || mapFull
             ? "h-full min-h-0 flex-1"
             : "h-[45%] min-h-[180px] shrink-0"
-        }`}
+        } ${hubTab ? "hidden" : ""}`}
       >
         {walkMode && isOffRoute && offRouteDismissed ? (
           <button

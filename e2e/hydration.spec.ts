@@ -14,10 +14,11 @@ import { appErrors, watchConsole } from "./support/console-watch";
 
 const ROUTES = [
   { path: "/", heading: "A walk built around you" },
-  { path: "/app", heading: "City Walk Companion" },
+  { path: "/app", heading: /Good (morning|afternoon|evening)/ },
+  { path: "/app?view=plan", heading: "City Walk Companion" },
   { path: "/login", heading: "Welcome back" },
   { path: "/pricing", heading: "Walk first. Pay later." },
-] as const;
+];
 
 for (const route of ROUTES) {
   test(`${route.path} server-renders and hydrates cleanly`, async ({ page }) => {

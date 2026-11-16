@@ -13,7 +13,7 @@ import { expect, test } from "@playwright/test";
 test("the planner is public and the auth-backed surfaces stay quiet", async ({
   page,
 }) => {
-  const response = await page.goto("/app");
+  const response = await page.goto("/app?view=plan");
 
   // Not a redirect to /login: with Supabase unconfigured `src/proxy.ts` leaves
   // the route open, and the planner has to be usable on that path.
