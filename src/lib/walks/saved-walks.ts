@@ -109,6 +109,11 @@ const baseFromRow = (r: Row): SavedWalk => ({
 });
 
 /** One walk by id (the caller's own, or a friend's shared one: row-level security decides). Null when not found. */
+/** Postgres 42703 / PostgREST PGRST204: the column is not there. Anything else (network, RLS) proves nothing. */
+function isMissingColumn(error: { code?: string } | null | undefined): boolean {
+  return error?.code === "42703" || error?.code === "PGRST204";
+}
+
 export async function getWalkById(client: SupabaseClient, id: string): Promise<SavedWalk | null> {
   const query = (columns: string) => client.from("saved_walks").select(columns).eq("id", id).maybeSingle();
   if (newColumnsExist !== false) {
@@ -117,7 +122,7 @@ export async function getWalkById(client: SupabaseClient, id: string): Promise<S
       newColumnsExist = true;
       return data ? fromRow(data as unknown as Row) : null;
     }
-    if (newColumnsExist === null) newColumnsExist = false;
+    if (newColumnsExist === null && isMissingColumn(error)) newColumnsExist = false;
   }
   const { data, error } = await query(COLUMNS);
   return error || !data ? null : fromRow(data as unknown as Row);
@@ -133,7 +138,7 @@ export async function listMyWalksOrThrow(client: SupabaseClient, userId: string,
       return (data as unknown as Row[]).map(fromRow);
     }
     // Most likely the migration is not applied yet: use the old columns, and remember not to ask again.
-    if (newColumnsExist === null) newColumnsExist = false;
+    if (newColumnsExist === null && isMissingColumn(error)) newColumnsExist = false;
   }
   const { data, error } = await query(COLUMNS);
   if (error || !data) throw new Error("saved_walks query failed");
@@ -166,7 +171,7 @@ export async function insertWalk(client: SupabaseClient, userId: string, w: NewS
   const first = await insertRow(client, userId, w, extra);
   if (first || Object.keys(extra).length === 0) return first;
   // A failure with the new columns in it may just mean they do not exist yet: save the walk without them.
-  newColumnsExist = newColumnsExist === true ? true : false;
+  // (Only the read probes may conclude the columns are missing; an insert can fail for other reasons.)
   return insertRow(client, userId, w, {});
 }
 

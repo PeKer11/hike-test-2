@@ -13,6 +13,10 @@ export interface ActiveWalkSnapshot {
   visitedIds: string[];
   startedAt: number;
   lastFix: Coordinates | null;
+  /** The saved walk this run belongs to, so a resumed walk can still record its run. */
+  walkId?: string | null;
+  /** The route rules the walk was built with, so mid-walk rebuilds keep them. */
+  routeRules?: unknown;
   savedAt: number;
 }
 

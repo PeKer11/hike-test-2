@@ -106,7 +106,8 @@ import type { LocateState } from "@/lib/geo/locate";
 import { clearActiveWalk, saveActiveWalk, type ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
 import { locateOnce } from "@/lib/geo/here";
 import { requestVariant } from "@/lib/walks/variant-client";
-import { decideWalkAgain, startAsStop, stopsForJoin, transitLinkTo, type WalkAgainDecision, type WalkAgainMode, type WalkAgainOption } from "@/lib/walks/walk-again";
+import { upcomingStops as stopsAhead } from "@/lib/walk/upcoming-stops";
+import { decideWalkAgain, mayBackfillGeometry, startAsStop, stopsForJoin, transitLinkTo, type WalkAgainDecision, type WalkAgainMode, type WalkAgainOption } from "@/lib/walks/walk-again";
 import { WalkAgainSheet } from "@/components/walks/WalkAgainSheet";
 import { PlannerBridge, type AppView } from "@/lib/shell/planner-bridge";
 import { WalkTracker } from "@/lib/walk/walk-tracker";
@@ -892,6 +893,12 @@ export function WalkPlannerApp({
   const resumeActiveWalk = (snapshot: ActiveWalkSnapshot) => {
     setIsSimulating(false);
     showPlan(snapshot.plan, snapshot.geometry, true);
+    // Keep the walk's identity: its start time (so elapsed carries on), its saved row and its route rules.
+    resumedStartRef.current = snapshot.startedAt;
+    walkStartTimeRef.current = snapshot.startedAt;
+    walkIdCacheRef.current = snapshot.walkId ?? null;
+    savedWalkIdRef.current = snapshot.walkId ? Promise.resolve(snapshot.walkId) : null;
+    routeRulesRef.current = snapshot.routeRules as AssistantBuild["routeRules"];
     walkInputRef.current = { ...snapshot.input, origin: snapshot.lastFix ?? snapshot.input.origin };
     const visits = new VisitTracker();
     snapshot.visitedIds.forEach((id) => visits.markVisited(id));
@@ -902,18 +909,25 @@ export function WalkPlannerApp({
 
   // A real walk is written to this device as it goes, so a reload can continue it; End walk clears it.
   const lastWalkSaveRef = useRef(0);
+  const resumedStartRef = useRef<number | null>(null);
+  const walkIdCacheRef = useRef<string | null>(null);
   const persistWalk = () => {
     const plan = walkPlanRef.current;
     const input = walkInputRef.current;
     if (walkPhase !== "walking" || isSimulating || !plan || !input || walkGeometryRef.current.length < 2) return;
     lastWalkSaveRef.current = Date.now();
+    void savedWalkIdRef.current?.then((id) => {
+      walkIdCacheRef.current = id;
+    });
     saveActiveWalk({
       plan,
       geometry: walkGeometryRef.current,
       input,
       visitedIds: [...(visitTrackerRef.current?.visitedIds ?? [])],
-      startedAt: firstFixAtRef.current ?? Date.now(),
+      startedAt: firstFixAtRef.current ?? resumedStartRef.current ?? Date.now(),
       lastFix: currentPosition,
+      walkId: walkIdCacheRef.current,
+      routeRules: routeRulesRef.current,
     });
   };
   useEffect(() => {
@@ -943,6 +957,8 @@ export function WalkPlannerApp({
 
   const handleEndWalk = () => {
     clearActiveWalk();
+    resumedStartRef.current = null;
+    walkIdCacheRef.current = null;
     if (walkMode) {
       setFinishData({
         stops: walkPlanRef.current?.orderedAttractions.length ?? 0,
@@ -1164,7 +1180,7 @@ export function WalkPlannerApp({
     setSideTab("plan");
     onNavigate?.("plan");
     // The saved rules come back with the walk (an empty set clears whatever the last build used).
-    void handleBuildWalk({ ...input, origin, availableMinutes: minutes }, { keepAttractions: stops, fixedOrder, existingWalkId: walk.id || undefined, aiDecided: walk.id ? undefined : true, routeRules: routeRules as AssistantBuild["routeRules"], backfillGeometry: walk.id && !walk.geometry ? walk : undefined });
+    void handleBuildWalk({ ...input, origin, availableMinutes: minutes }, { keepAttractions: stops, fixedOrder, existingWalkId: walk.id || undefined, aiDecided: walk.id ? undefined : true, routeRules: routeRules as AssistantBuild["routeRules"], backfillGeometry: walk.id && !walk.geometry && mayBackfillGeometry(option.mode) ? walk : undefined });
   };
   // Phone only: hide the side panel so the map fills the screen.
   const [mapFull, setMapFull] = useState(false);
@@ -2308,7 +2324,7 @@ export function WalkPlannerApp({
       }
       latestPaceUpdateRef.current = update;
       lastFixWallRef.current = Date.now();
-      if (firstFixAtRef.current === null) firstFixAtRef.current = update.timestamp;
+      if (firstFixAtRef.current === null) firstFixAtRef.current = resumedStartRef.current ?? update.timestamp;
 
       speedEstimatorRef.current?.record({
         coordinates: update.currentPosition,
@@ -3288,7 +3304,7 @@ export function WalkPlannerApp({
 
   // The sheet's "next stop" line and its HALF state: the next unvisited stops and roughly how far each is.
   const upcomingStops = walkMode
-    ? waypoints.filter((w) => !w.isStart && !visitedAttractionIds.includes(w.id))
+    ? stopsAhead(waypoints, visitedAttractionIds)
     : [];
   const stopMinutes = (id: string): number | null => {
     const meters = attractionDistances[id];
@@ -4315,7 +4331,7 @@ export function WalkPlannerApp({
           onTogglePin={walkPlan && !walkPreview ? toggleAttractionPin : undefined}
           hudInset={walkMode}
           mapType={mapType}
-          nextStopId={walkMode ? (waypoints.find((w) => !w.isStart && !visitedAttractionIds.includes(w.id))?.id ?? null) : undefined}
+          nextStopId={walkMode ? (stopsAhead(waypoints, visitedAttractionIds)[0]?.id ?? null) : undefined}
           topRated={topRated}
           onTopRatedNote={setTopRatedNote}
           onOpenDetails={walkMode ? openDetailsAtDisplay : undefined}

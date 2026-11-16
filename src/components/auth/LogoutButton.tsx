@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { LAST_FIX_KEY } from "@/lib/geo/locate";
+import { clearActiveWalk } from "@/lib/walk/active-walk-store";
 import { createClient } from "@/lib/supabase/client";
 
 interface LogoutButtonProps {
@@ -19,6 +21,13 @@ export function LogoutButton({
     setIsSigningOut(true);
     const supabase = createClient();
     await supabase.auth.signOut();
+    // The next person on this device must not see this walker's route or position.
+    clearActiveWalk();
+    try {
+      localStorage.removeItem(LAST_FIX_KEY);
+    } catch {
+      // Storage blocked: nothing was stored.
+    }
     // Re-render the server components that read the (now cleared) session.
     router.refresh();
     router.push("/login");

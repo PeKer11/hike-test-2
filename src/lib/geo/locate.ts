@@ -58,6 +58,8 @@ const WATCH_TIMEOUT_MS = 20_000;
 const START_WATCH_CAP_MS = 25_000;
 const NO_FIX_STATE_MS = 12_000;
 const IP_FALLBACK_MS = 6_000;
+/** A walk ignores a fix older than this: a cached one would move the dot backwards and start the clock early. */
+const WALK_MAX_FIX_AGE_MS = 15_000;
 const RETRY_DELAYS_MS = [3_000, 6_000, 12_000];
 
 // GeolocationPositionError codes (the constants are not on every mocked error).
@@ -125,6 +127,7 @@ export function locate(options: LocateOptions): { stop(): void } {
   let lastErrorCode: number | null = null;
   let watchId: number | null = null;
   let retries = 0;
+  let lastWalkFixTs = 0;
   const timers = new Set<ReturnType<typeof setTimeout>>();
   let removeVisibility: (() => void) | null = null;
 
@@ -151,6 +154,10 @@ export function locate(options: LocateOptions): { stop(): void } {
 
   const handleFix = (fix: LocateFix) => {
     if (stopped) return;
+    if (purpose === "walk" && fix.source === "gps") {
+      if (Date.now() - fix.timestamp > WALK_MAX_FIX_AGE_MS || fix.timestamp < lastWalkFixTs) return;
+      lastWalkFixTs = fix.timestamp;
+    }
     if (fix.source === "gps") hasLiveFix = true;
     // A walk consumes every fix (the tracker filters). A start only wants an improving one.
     const improves = !best || fix.accuracyMeters <= best.accuracyMeters;

@@ -89,3 +89,9 @@ for (const viewport of [
     });
   });
 }
+
+test("a reload on ?view=walk with no walk running lands on Home, where Continue walk can be found", async ({ page }) => {
+  await page.goto("/app?view=walk");
+  await expect(page.locator("[data-view=home]")).toBeAttached();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});

@@ -44,7 +44,7 @@ export function WalkHud({ alert, sheet, chat, stats, gpsState = "idle", lang = "
   const t = walkCopy.hud.sheet[lang];
   const gpsCopy = walkCopy.hud.gps[lang];
   const gpsLabel =
-    gpsState === "searching" ? gpsCopy.searching : gpsState === "coarse" || gpsState === "timeout" || gpsState === "unavailable" ? gpsCopy.weak : null;
+    gpsState === "searching" ? gpsCopy.searching : gpsState === "denied" ? gpsCopy.denied : gpsState === "coarse" || gpsState === "timeout" || gpsState === "unavailable" ? gpsCopy.weak : null;
 
   useEffect(() => {
     if (!confirmEnd) return;

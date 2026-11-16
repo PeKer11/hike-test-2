@@ -182,7 +182,7 @@ function fakeClient(state: { migrated: boolean; inserted: Record<string, unknown
   ];
   const needsNew = (s: string) => s.includes("geometry");
   const chain = (cols: string) => ({
-    eq: () => ({ order: () => ({ limit: async () => (needsNew(cols) && !state.migrated ? { data: null, error: new Error("column does not exist") } : { data: needsNew(cols) ? rows : rows.map(({ geometry, end_lat, end_lng, is_loop, parent_walk_id, variant_kind, ...old }) => (void [geometry, end_lat, end_lng, is_loop, parent_walk_id, variant_kind], old)), error: null }) }) }),
+    eq: () => ({ order: () => ({ limit: async () => (needsNew(cols) && !state.migrated ? { data: null, error: Object.assign(new Error("column does not exist"), { code: "42703" }) } : { data: needsNew(cols) ? rows : rows.map(({ geometry, end_lat, end_lng, is_loop, parent_walk_id, variant_kind, ...old }) => (void [geometry, end_lat, end_lng, is_loop, parent_walk_id, variant_kind], old)), error: null }) }) }),
   });
   return {
     from: () => ({
@@ -215,6 +215,29 @@ describe("saved walks tolerate the migration not being applied", () => {
     expect(walks[0].geometry).toBeUndefined();
     await listMyWalksOrThrow(fakeClient(state), "u");
     expect(state.selects.filter((c) => c.includes("geometry"))).toHaveLength(1); // asked once, not every time
+  });
+
+  it("does not conclude the columns are missing from a transient error", async () => {
+    let calls = 0;
+    const flaky = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            order: () => ({
+              limit: async () => {
+                calls += 1;
+                return calls === 1 ? { data: null, error: new Error("network blip") } : { data: [], error: null };
+              },
+            }),
+          }),
+        }),
+      }),
+    } as never;
+    resetColumnProbe();
+    await listMyWalksOrThrow(flaky, "u"); // the blip fails the new columns; the old ones answer
+    const selects: string[] = [];
+    await listMyWalksOrThrow({ from: () => ({ select: (c: string) => { selects.push(c); return { eq: () => ({ order: () => ({ limit: async () => ({ data: [], error: null }) }) }) }; } }) } as never, "u");
+    expect(selects[0]).toContain("geometry"); // still tries the new columns
   });
 
   it("reads geometry, end and loop once the columns exist", async () => {

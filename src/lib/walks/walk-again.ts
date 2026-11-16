@@ -167,3 +167,11 @@ export function startAsStop(walk: SavedWalk): SavedStop {
 export function transitLinkTo(start: Coordinates): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${start.lat},${start.lng}&travelmode=transit`;
 }
+
+/**
+ * Only a build that follows the saved stops in order from the saved start is the original route, so only
+ * those may be written back onto the saved walk. "From here" builds (join, walk to start, reroute) are not.
+ */
+export function mayBackfillGeometry(mode: WalkAgainMode): boolean {
+  return mode === "start_now" || mode === "original_start_no_location";
+}

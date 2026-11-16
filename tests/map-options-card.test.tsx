@@ -48,9 +48,9 @@ describe("the two glyphs and the credits chip", () => {
     expect(onLayers).toHaveBeenCalled();
   });
 
-  it("keeps © OSM visible and opens the full lines on tap", () => {
+  it("keeps the openrouteservice credit visible and opens the full lines on tap", () => {
     render(<MapCredits lines={["Route: © openrouteservice", "Weather by Open-Meteo"]} />);
-    expect(screen.getByText("© OSM")).toBeTruthy();
+    expect(screen.getByText("© openrouteservice by HeiGIT | Data from OpenStreetMap")).toBeTruthy();
     expect(screen.queryByText("Weather by Open-Meteo")).toBeNull();
     fireEvent.click(screen.getByLabelText("Map credits"));
     expect(screen.getByText("Weather by Open-Meteo")).toBeTruthy();

@@ -56,8 +56,8 @@ export const walkCopy = {
     },
     /** The GPS chip: shown only while the position is still being found or is weak. */
     gps: {
-      en: { searching: "Finding your location…", weak: "Weak GPS" },
-      he: { searching: "מאתר מיקום…", weak: "GPS חלש" },
+      en: { searching: "Finding your location…", weak: "Weak GPS", denied: "Location is off. Allow it in your browser settings." },
+      he: { searching: "מאתר מיקום…", weak: "GPS חלש", denied: "המיקום כבוי. אפשר אותו בהגדרות הדפדפן." },
     },
   },
   stats: {

@@ -48,6 +48,17 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
     wasLive.current = live.walkLive;
   }, [live.walkLive, view]);
 
+  // A reload (or a deep link) on the live-walk screen with no walk running has nothing to show and no way out
+  // (no tab bar, no Back). Go Home, where "Continue walk" is offered. Wait for the planner's first publish
+  // (it sets `settings`) so this cannot race a walk that is just starting.
+  const walkSeen = useRef(false);
+  useEffect(() => {
+    if (live.walkLive) walkSeen.current = true;
+    if (view === "walk" && !live.walkLive && !walkSeen.current && bridge.actions && live.settings) {
+      window.history.replaceState(null, "", "/app");
+    }
+  }, [view, live.walkLive, live.settings, bridge]);
+
   const hub = HUB_VIEWS.includes(view);
   const plannerShown = view === "plan" || view === "walk" || view === "walks" || view === "social";
 
