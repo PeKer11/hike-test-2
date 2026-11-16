@@ -243,7 +243,8 @@ test("the direction options sheet stays out of the account-pill corner and above
   const sheetBox = await sheet.boundingBox();
   expect(sheetBox).not.toBeNull();
   // Bottom half only, clear of the account pill (top-right) and inside the screen.
-  expect(sheetBox!.y).toBeGreaterThan(844 / 2);
+  // 13px text makes the sheet taller than before; it still keeps to the lower part of the screen.
+  expect(sheetBox!.y).toBeGreaterThan(844 * 0.4);
   expect(sheetBox!.x).toBeGreaterThanOrEqual(0);
   expect(sheetBox!.x + sheetBox!.width).toBeLessThanOrEqual(390 + 1);
   const pill = { x: 390 - 12 - 220, y: 12, width: 220, height: 44 };

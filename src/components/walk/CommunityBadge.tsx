@@ -22,7 +22,7 @@ export function CommunityBadge({
   const similar = data.similar[poiKey];
   if (!bucket && !similar) return null;
   return (
-    <p className="text-xs text-forest/80" data-testid="community-badge">
+    <p className="text-[13px] text-forest/80" data-testid="community-badge">
       {bucket ? <span>🤝 {supportBadgeText(lang, bucket)}</span> : null}
       {bucket && similar ? " · " : null}
       {similar ? <span>{similarBadgeText(lang, similar)}</span> : null}

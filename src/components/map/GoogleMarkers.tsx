@@ -42,9 +42,9 @@ export function GoogleStopMarkers({
             }}
           >
             <div className="flex items-center gap-1" data-testid="map-stop-marker">
-              <span dangerouslySetInnerHTML={{ __html: markerIconHtml(label, color, pinnedIds.includes(waypoint.id)) }} />
+              <span className="rounded-full" style={nextStopId === waypoint.id ? { boxShadow: "0 0 0 3px var(--tk-sun)" } : undefined} dangerouslySetInnerHTML={{ __html: markerIconHtml(label, color, pinnedIds.includes(waypoint.id)) }} />
               {nextStopId === undefined ? (
-                <span dir="auto" className="rounded bg-paper/95 px-1 text-xs font-semibold shadow">
+                <span dir="auto" className="rounded bg-paper/95 px-1 text-[13px] font-semibold shadow">
                   {label} – {waypoint.name}
                 </span>
               ) : nextStopId === waypoint.id ? (
@@ -61,13 +61,13 @@ export function GoogleStopMarkers({
           <div className="space-y-1">
             <div className="text-sm font-semibold">{open.name}</div>
             {onTogglePin ? (
-              <div className="text-xs text-amber-700">
+              <div className="text-[13px] text-amber-700">
                 {pinnedIds.includes(open.id)
-                  ? "📌 Pinned — kept when the walk is rebuilt. Tap again to unpin."
+                  ? "Pinned — kept when the walk is rebuilt. Tap again to unpin."
                   : "Tap to pin — keeps this stop when the walk is rebuilt."}
               </div>
             ) : null}
-            <div className="text-xs text-slate-600 dark:text-slate-300">
+            <div className="text-[13px] text-charcoal/80">
               {open.coordinates.lat.toFixed(5)}, {open.coordinates.lng.toFixed(5)}
             </div>
             <span className="sr-only">{openIndex + 1}</span>
@@ -93,8 +93,8 @@ export function GooglePreviewMarkers({ places }: { places: Attraction[] }) {
         <InfoWindow position={open.coordinates} pixelOffset={[0, -12]} onCloseClick={() => setOpenId(null)}>
           <div className="space-y-1">
             <div className="text-sm font-semibold">{open.name}</div>
-            <div className="text-xs text-amber-700">Candidate stop — not in your walk yet</div>
-            <div className="text-xs text-slate-600 dark:text-slate-300">
+            <div className="text-[13px] text-amber-700">Candidate stop — not in your walk yet</div>
+            <div className="text-[13px] text-charcoal/80">
               {open.coordinates.lat.toFixed(5)}, {open.coordinates.lng.toFixed(5)}
             </div>
           </div>

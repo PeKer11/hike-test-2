@@ -55,7 +55,7 @@ export function DroppedStopsPanel({ stops, onRecall, onDismiss }: Props) {
               <p className="truncate text-sm text-amber-900">
                 {attraction.name}
               </p>
-              <p className="text-xs text-amber-700/80">
+              <p className="text-[13px] text-amber-700/80">
                 {reason === "behind"
                   ? "Behind you now — you'd have to turn back"
                   : "Didn't fit the time you have left"}
@@ -64,7 +64,7 @@ export function DroppedStopsPanel({ stops, onRecall, onDismiss }: Props) {
             <button
               onClick={() => onRecall(attraction.id)}
               aria-label={`Put ${attraction.name} back in the walk`}
-              className="shrink-0 rounded-full border border-amber-400 bg-paper px-2 py-0.5 text-xs font-medium text-amber-800 transition hover:bg-amber-100"
+              className="shrink-0 rounded-full border border-amber-400 bg-paper px-2 py-0.5 text-[13px] font-medium text-amber-800 transition hover:bg-amber-100"
             >
               Put it back
             </button>
@@ -74,7 +74,7 @@ export function DroppedStopsPanel({ stops, onRecall, onDismiss }: Props) {
       {/* Said up front rather than discovered afterwards: recall pins, and a pin
           is the one thing the planner will not drop, so it can push the walk
           over budget. */}
-      <p className="text-xs text-amber-700/80">
+      <p className="text-[13px] text-amber-700/80">
         Putting a stop back pins it, so it stays through later rebuilds — even if
         that runs the walk over your remaining time.
       </p>

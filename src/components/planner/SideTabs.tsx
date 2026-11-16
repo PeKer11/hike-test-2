@@ -59,7 +59,7 @@ export function SideTabs({ value, onChange, friendsBadge = 0 }: SideTabsProps) {
           </svg>
           {tab.label}
           {tab.id === "friends" && friendsBadge > 0 && (
-            <span className="ml-1 rounded-full bg-terra px-1.5 text-xs text-cream">{friendsBadge}</span>
+            <span className="ml-1 rounded-full bg-terra px-1.5 text-[13px] text-cream">{friendsBadge}</span>
           )}
         </button>
       ))}

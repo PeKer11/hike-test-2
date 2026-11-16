@@ -2,6 +2,8 @@
 
 import { Pane, Polyline } from "react-leaflet";
 
+import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
+import { routeColors } from "@/lib/map/route-colors";
 import { RouteArrows } from "@/components/map/RouteArrows";
 import type { Coordinates } from "@/lib/types";
 
@@ -10,6 +12,7 @@ interface RoutePolylineProps {
 }
 
 export function RoutePolyline({ geometry }: RoutePolylineProps) {
+  const colors = routeColors(useResolvedTheme() === "dark" ? "dark" : "light");
   if (geometry.length < 2) {
     return null;
   }
@@ -21,9 +24,14 @@ export function RoutePolyline({ geometry }: RoutePolylineProps) {
       <Polyline
         pane="remaining-route"
         positions={geometry.map((point) => [point.lat, point.lng])}
-        pathOptions={{ color: "#1f8a4c", weight: 5, opacity: 0.9 }}
+        pathOptions={{ color: colors.casing, weight: 9, opacity: 0.9 }}
       />
-      <RouteArrows geometry={geometry} color="#1f8a4c" />
+      <Polyline
+        pane="remaining-route"
+        positions={geometry.map((point) => [point.lat, point.lng])}
+        pathOptions={{ color: colors.route, weight: 5, opacity: 0.95 }}
+      />
+      <RouteArrows geometry={geometry} color={colors.route} />
     </Pane>
   );
 }

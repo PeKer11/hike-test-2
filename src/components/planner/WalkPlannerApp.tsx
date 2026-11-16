@@ -3592,13 +3592,13 @@ export function WalkPlannerApp({
                       .then(() => setWalksVersion((v) => v + 1));
                   }}
                 >
-                  {walkBookmarked ? "Saved for later" : "🔖 Save for later"}
+                  {walkBookmarked ? "Saved for later" : "Save for later"}
                 </Button>
               )}
               {/* Pinned stop no longer fits the remaining time — ask, don't drop it */}
               {pinnedTimeWarning && (
                 <Card className="space-y-2 border-amber-300! bg-amber-50!">
-                  <p className="text-sm text-amber-800">📌 {pinnedTimeWarning}</p>
+                  <p className="text-sm text-amber-800">{pinnedTimeWarning}</p>
                   <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="secondary"
@@ -3633,7 +3633,7 @@ export function WalkPlannerApp({
               {walkPlan?.warnings?.some((w) => w.includes("geometry")) && (
                 <Card>
                   <p className="text-sm text-amber-700">
-                    ⚠️ We couldn&apos;t draw the walking route for this plan, so
+                    We couldn&apos;t draw the walking route for this plan, so
                     live walking isn&apos;t available right now.
                   </p>
                 </Card>
@@ -3643,7 +3643,7 @@ export function WalkPlannerApp({
                 <Card>
                   <ul className="space-y-1 text-sm text-amber-700">
                     {(walkPlan?.warnings ?? []).filter((w) => !w.includes("geometry")).map((w) => (
-                      <li key={w}>⚠️ {w}</li>
+                      <li key={w}>{w}</li>
                     ))}
                   </ul>
                 </Card>
@@ -3694,7 +3694,7 @@ export function WalkPlannerApp({
                       Said out loud, because a skeleton that has been pulsing
                       for half a minute reads as broken. */}
                   {isWalkPlanSlow && (
-                    <p role="status" className="text-xs text-charcoal/60">
+                    <p role="status" className="text-[13px] text-charcoal/60">
                       Still building — this one&apos;s taking longer than usual.
                       Lots of stops or a wide radius means more places to check.
                     </p>
@@ -3768,7 +3768,7 @@ export function WalkPlannerApp({
                   real detector on a real position stream. */}
               {walkPhase === "walking" && isSimulating && (
                 <div style={walkMode ? { order: 83 } : undefined} className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-paper px-3 py-2">
-                  <p className="text-xs text-charcoal/60">
+                  <p className="text-[13px] text-charcoal/60">
                     {isStrayLoading
                       ? "Finding a real side street to wander down…"
                       : isSimulatedStray
@@ -3823,7 +3823,7 @@ export function WalkPlannerApp({
                   real position stream. At 10× that is ~90 seconds of watching. */}
               {walkPhase === "walking" && isSimulating && (
                 <div style={walkMode ? { order: 83 } : undefined} className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-paper px-3 py-2">
-                  <p className="text-xs text-charcoal/60">
+                  <p className="text-[13px] text-charcoal/60">
                     {simulatedPaceDrift === null
                       ? "Walk the route at the wrong speed for it to exercise the pace re-plan. Takes about 90 seconds to trigger."
                       : `Walking ${simulatedPaceDrift === "slow" ? "60% slower" : "40% faster"} than planned.`}

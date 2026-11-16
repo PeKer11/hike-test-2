@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { MapCredits } from "@/components/map/MapCredits";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
+import { routeColors } from "@/lib/map/route-colors";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
 
 import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStopMarkers } from "@/components/map/GoogleMarkers";
@@ -139,6 +140,7 @@ export default function GoogleMapView({
 }: MapViewProps) {
   const theme = useResolvedTheme();
   const isPhone = useIsPhone();
+  const colors = routeColors(theme === "dark" ? "dark" : "light");
   const credits = [
     "Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors",
     ...(callouts?.some((a) => a.place.verification === "detected") ? [WORLDCOVER_ATTRIBUTION] : []),
@@ -173,8 +175,9 @@ export default function GoogleMapView({
           <Viewport center={center} zoom={zoom} focusTick={focusTick} />
           <FitPath path={fitPath} />
           <PositionFollower currentPosition={currentPosition} followPosition={followPosition} onLayers={onOpenDetails} />
-          {walkedGeometry && walkedGeometry.length > 1 ? <Line path={walkedGeometry} color="#94a3b8" weight={5} opacity={0.9} zIndex={1} /> : null}
-          <Line path={routeGeometry} color="#1f8a4c" weight={5} opacity={0.9} zIndex={2} arrows />
+          {walkedGeometry && walkedGeometry.length > 1 ? <Line path={walkedGeometry} color={colors.walked} weight={5} opacity={0.9} zIndex={1} /> : null}
+          <Line path={routeGeometry} color={colors.casing} weight={9} opacity={0.9} zIndex={2} />
+          <Line path={routeGeometry} color={colors.route} weight={5} opacity={0.95} zIndex={3} arrows />
           {previewRoutes?.map((r) => (
             <Line key={r.id} path={r.geometry} color={r.highlighted ? "#c15f3c" : "#1e3d2f"} weight={r.highlighted ? 5 : 3} opacity={r.highlighted ? 0.95 : 0.55} zIndex={3} dashed arrows />
           ))}

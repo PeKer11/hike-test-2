@@ -59,12 +59,12 @@ export function detectedCardHtml(a: Announcement): string {
   return `<div class="w-64 rounded-xl border border-terra/40 bg-cream/95 p-2 text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)]">
     <span class="flex items-start justify-between gap-2">
       <span dir="auto" class="min-w-0 flex-1 truncate text-sm font-semibold">${escapeHtml(a.place.name)}</span>
-      <span class="rounded bg-forest/10 px-1 text-[10px] font-semibold">${escapeHtml(en["badge.detected"])} · ${escapeHtml(he["badge.detected"])}</span>
+      <span class="rounded bg-forest/10 px-1 text-[13px] font-semibold">${escapeHtml(en["badge.detected"])} · ${escapeHtml(he["badge.detected"])}</span>
     </span>
-    ${pair(lead, "mt-0.5 text-[10px] leading-tight text-charcoal/80")}
-    ${hazards.map((h) => pair(HAZARD_KEY[h], "mt-0.5 text-[10px] leading-tight text-terra")).join("")}
-    ${pair("detected.checkSigns", "mt-0.5 text-[10px] font-semibold leading-tight")}
-    ${pair("detected.footer", "mt-0.5 text-[9px] leading-tight text-charcoal/60")}
+    ${pair(lead, "mt-0.5 text-[13px] leading-tight text-charcoal/80")}
+    ${hazards.map((h) => pair(HAZARD_KEY[h], "mt-0.5 text-[13px] leading-tight text-terra")).join("")}
+    ${pair("detected.checkSigns", "mt-0.5 text-[13px] font-semibold leading-tight")}
+    ${pair("detected.footer", "mt-0.5 text-[13px] leading-tight text-charcoal/60")}
   </div>`;
 }
 
@@ -96,10 +96,10 @@ export function calloutHtml(a: Announcement): string {
     <span aria-hidden="true" class="text-lg leading-none">${icon}</span>
     <span class="min-w-0 flex-1">
       <span dir="auto" class="block truncate text-sm font-semibold">${escapeHtml(a.place.name)}</span>
-      <span class="block text-[11px] text-charcoal/70">${escapeHtml(line)}</span>
-      ${warning ? `<span class="mt-0.5 block text-[10px] leading-tight text-terra">${escapeHtml(warning)}</span>` : ""}
+      <span class="block text-[13px] text-charcoal/70">${escapeHtml(line)}</span>
+      ${warning ? `<span class="mt-0.5 block text-[13px] leading-tight text-terra">${escapeHtml(warning)}</span>` : ""}
     </span>
-    <span class="rounded bg-forest/10 px-1 text-[10px] font-semibold">${escapeHtml(badge)}</span>
+    <span class="rounded bg-forest/10 px-1 text-[13px] font-semibold">${escapeHtml(badge)}</span>
   </div>`;
 }
 

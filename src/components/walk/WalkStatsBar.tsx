@@ -20,7 +20,7 @@ export interface WalkStatsData {
 
 const TONE_DOT: Record<PaceTone, string> = {
   good: "bg-forest",
-  warn: "bg-amber-500",
+  warn: "bg-warn",
   bad: "bg-terra",
 };
 

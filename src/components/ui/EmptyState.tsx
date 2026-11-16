@@ -13,7 +13,7 @@ export function EmptyState({ image, title, hint }: EmptyStateProps) {
     <div className="flex flex-col items-center gap-1 py-3 text-center">
       <img src={`/images/traike/${image}`} alt="" width={120} height={120} className="h-24 w-24 object-contain" />
       <p className="font-display text-[15px] text-tk-ink">{title}</p>
-      {hint && <p className="text-xs text-tk-sage">{hint}</p>}
+      {hint && <p className="text-[13px] text-tk-sage">{hint}</p>}
     </div>
   );
 }

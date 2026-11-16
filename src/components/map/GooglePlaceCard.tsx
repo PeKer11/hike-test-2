@@ -89,12 +89,12 @@ export function GooglePlaceCard({ name, lat, lng, placeId: knownId, startWithRev
       }}
       className="pt-1"
     >
-      {state === "loading" ? <p className="text-xs text-slate-600">Loading Google rating…</p> : null}
-      {state === "none" ? <p className="text-xs text-slate-600">No Google match for this place.</p> : null}
-      {state === "error" || (placeId && !safeId) ? <p className="text-xs text-slate-600">Could not load Google reviews.</p> : null}
-      {state === "ready" && matchedName ? <p className="text-xs text-slate-600">Google: {matchedName}</p> : null}
+      {state === "loading" ? <p className="text-[13px] text-charcoal/80">Loading Google rating…</p> : null}
+      {state === "none" ? <p className="text-[13px] text-charcoal/80">No Google match for this place.</p> : null}
+      {state === "error" || (placeId && !safeId) ? <p className="text-[13px] text-charcoal/80">Could not load Google reviews.</p> : null}
+      {state === "ready" && matchedName ? <p className="text-[13px] text-charcoal/80">Google: {matchedName}</p> : null}
       {state === "ready" ? (
-        <button type="button" className="mb-1 text-xs underline" onClick={() => setShowReviews((v) => !v)}>
+        <button type="button" className="mb-1 text-[13px] underline" onClick={() => setShowReviews((v) => !v)}>
           {showReviews ? "← Back" : "See reviews"}
         </button>
       ) : null}

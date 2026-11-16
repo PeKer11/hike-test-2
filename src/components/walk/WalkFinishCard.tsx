@@ -69,15 +69,15 @@ export function WalkFinishCard({
         <div className="grid grid-cols-3 divide-x divide-charcoal/10 rounded-xl bg-paper/70 py-3">
           <div>
             <div className="font-display text-lg font-bold text-forest">{duration}</div>
-            <div className="text-xs text-charcoal/60">{he ? "משך" : "Duration"}</div>
+            <div className="text-[13px] text-charcoal/60">{he ? "משך" : "Duration"}</div>
           </div>
           <div>
             <div className="font-display text-lg font-bold text-forest">{data.walkedKm.toFixed(1)} km</div>
-            <div className="text-xs text-charcoal/60">{he ? "מרחק" : "Distance"}</div>
+            <div className="text-[13px] text-charcoal/60">{he ? "מרחק" : "Distance"}</div>
           </div>
           <div>
             <div className="font-display text-lg font-bold text-forest">{data.stops}</div>
-            <div className="text-xs text-charcoal/60">{he ? "עצירות" : "Stops"}</div>
+            <div className="text-[13px] text-charcoal/60">{he ? "עצירות" : "Stops"}</div>
           </div>
         </div>
         <Button variant="secondary" fullWidth onClick={onClose}>

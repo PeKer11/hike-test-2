@@ -63,10 +63,10 @@ export function AttractionDistancesPanel({
     <section className="rounded-lg border border-charcoal/10 bg-paper shadow-sm">
       <div className="space-y-1.5 border-b border-charcoal/10 px-3 py-2">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-charcoal/60">
+          <span className="text-[13px] font-semibold text-charcoal/60">
             Attractions ahead
           </span>
-          <span className="text-xs font-medium tabular-nums text-charcoal/60">
+          <span className="text-[13px] font-medium tabular-nums text-charcoal/60">
             {doneCount} of {items.length} stops
           </span>
         </div>
@@ -88,7 +88,7 @@ export function AttractionDistancesPanel({
         <button
           type="button"
           onClick={() => setShowDone((v) => !v)}
-          className="w-full border-b border-charcoal/10 px-3 py-1.5 text-start text-xs font-medium text-charcoal/50 hover:bg-charcoal/5"
+          className="w-full border-b border-charcoal/10 px-3 py-1.5 text-start text-[13px] font-medium text-charcoal/50 hover:bg-charcoal/5"
         >
           {showDone ? "Hide" : "Show"} {doneCount} done {doneCount === 1 ? "stop" : "stops"}
         </button>
@@ -118,7 +118,7 @@ export function AttractionDistancesPanel({
                   {attraction.name}
                 </span>
                 {isNext && (
-                  <span className="shrink-0 rounded-full bg-terra/15 px-1.5 py-0.5 text-xs font-medium text-terra">
+                  <span className="shrink-0 rounded-full bg-terra/15 px-1.5 py-0.5 text-[13px] font-medium text-terra">
                     next
                   </span>
                 )}
@@ -138,7 +138,7 @@ export function AttractionDistancesPanel({
                       ? `Confirm skipping pinned ${attraction.name}`
                       : `Skip ${attraction.name}`
                   }
-                  className="ml-2 shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium text-charcoal/50 transition hover:bg-charcoal/5 hover:text-charcoal/80"
+                  className="ml-2 shrink-0 rounded-full px-1.5 py-0.5 text-[13px] font-medium text-charcoal/50 transition hover:bg-charcoal/5 hover:text-charcoal/80"
                 >
                   {isPendingSkip ? "Skip pinned?" : "Skip"}
                 </button>

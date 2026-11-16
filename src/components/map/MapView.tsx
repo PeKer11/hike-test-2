@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 
 import { MapClickHandler } from "@/components/map/MapClickHandler";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
+import { routeColors } from "@/lib/map/route-colors";
+import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
 import { CurrentPositionMarker } from "@/components/map/CurrentPositionMarker";
 import { MapMarkers } from "@/components/map/MapMarkers";
@@ -178,6 +180,7 @@ export default function MapView({
   addedIds,
 }: MapViewProps) {
   const isPhone = useIsPhone();
+  const theme = useResolvedTheme();
   // ESA WorldCover (CC BY 4.0) is credited whenever a satellite find is on the map.
   const credits = [
     ...(callouts?.some((a) => a.place.verification === "detected")
@@ -220,7 +223,7 @@ export default function MapView({
       {walkedGeometry && walkedGeometry.length > 1 ? (
         <Polyline
           positions={walkedGeometry.map((p) => [p.lat, p.lng])}
-          pathOptions={{ color: "#94a3b8", weight: 5, opacity: 0.9 }}
+          pathOptions={{ color: routeColors(theme === "dark" ? "dark" : "light").walked, weight: 5, opacity: 0.9 }}
         />
       ) : null}
       <RoutePolyline geometry={routeGeometry} />

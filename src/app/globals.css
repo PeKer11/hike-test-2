@@ -28,6 +28,11 @@
   --tk-tk-sage: #5f6f5d;
   --tk-shadow-card: 0 3px 12px rgba(50, 32, 16, 0.28), 0 1px 2px rgba(50, 32, 16, 0.1);
   --tk-shadow-soft: 0 2px 8px rgba(50, 32, 16, 0.16);
+  /* Walk: route line, walked trail, weak-GPS / pace warning, one sparing accent. */
+  --tk-route: #25604b;
+  --tk-walked: #b9ad9c;
+  --tk-warn: #d99a1e;
+  --tk-sun: #f6b81c;
 }
 
 /* Dark: warm forest night. Brand tokens swap as pairs, so text and fills that
@@ -57,6 +62,9 @@
   --tk-tk-sage: #a5b3a1;
   --tk-shadow-card: 0 0 0 1px rgba(242, 235, 225, 0.06), 0 8px 24px rgba(0, 0, 0, 0.45);
   --tk-shadow-soft: 0 0 0 1px rgba(242, 235, 225, 0.05), 0 2px 10px rgba(0, 0, 0, 0.35);
+  --tk-route: #7fc4a0;
+  --tk-walked: #6e655a;
+  --tk-warn: #f0c36a;
 
   /* Status shades used as text/tints on light cards. */
   --color-rose-50: #3a1f22;
@@ -131,6 +139,10 @@
   --color-tk-line: var(--tk-tk-line);
   --color-tk-field: var(--tk-tk-field);
   --color-tk-sage: var(--tk-tk-sage);
+  --color-route: var(--tk-route);
+  --color-walked: var(--tk-walked);
+  --color-warn: var(--tk-warn);
+  --color-sun: var(--tk-sun);
   --shadow-tk-card: var(--tk-shadow-card);
   --shadow-tk-soft: var(--tk-shadow-soft);
   --radius-tk-card: 14px;

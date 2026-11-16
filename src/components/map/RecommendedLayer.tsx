@@ -59,7 +59,7 @@ function AddToWalkButton({ attraction, onAdd, added }: { attraction: Attraction;
       type="button"
       disabled={added}
       onClick={() => onAdd(attraction)}
-      className="mt-1 rounded-full bg-terra px-3 py-1 text-xs font-medium text-on-accent disabled:bg-forest/70"
+      className="mt-1 rounded-full bg-terra px-3 py-1 text-[13px] font-medium text-on-accent disabled:bg-forest/70"
     >
       {added ? "✓ Added to walk" : "＋ Add to walk"}
     </button>
@@ -141,11 +141,11 @@ export function RecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddToWalk?:
             type="button"
             onClick={() => void toggle()}
             aria-pressed={places !== null}
-            className={`rounded-full border border-terra/60 px-3 py-1.5 text-sm font-medium shadow ${places ? "bg-terra text-on-accent" : "bg-paper text-charcoal"}`}
+            className={`min-h-11 rounded-full px-4 text-[15px] font-medium shadow-tk-soft ${places ? "bg-terra/10 text-terra" : "bg-paper text-charcoal"}`}
           >
-            ⭐ Recommended
+            Recommended
           </button>
-          {note ? <p className="mt-1 max-w-52 rounded bg-paper/90 px-2 py-1 text-xs text-charcoal shadow">{note}</p> : null}
+          {note ? <p className="mt-1 max-w-52 rounded bg-paper/90 px-2 py-1 text-[13px] text-charcoal shadow">{note}</p> : null}
         </div>
       </div>
       {notable.map((p) => (
@@ -153,8 +153,8 @@ export function RecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddToWalk?:
           <Popup>
             <div className="space-y-1">
               <div className="text-sm font-semibold">{p.name}</div>
-              <div className="text-xs text-slate-600">Notable place · {p.kind}</div>
-              <a className="text-xs underline" href={`https://www.wikidata.org/wiki/${p.id}`} target="_blank" rel="noreferrer">
+              <div className="text-[13px] text-charcoal/80">Notable place · {p.kind}</div>
+              <a className="text-[13px] underline" href={`https://www.wikidata.org/wiki/${p.id}`} target="_blank" rel="noreferrer">
                 Source: Wikidata
               </a>
               <GooglePlaceCard name={p.name} lat={p.lat} lng={p.lng} />
@@ -168,11 +168,11 @@ export function RecommendedLayer({ onAddToWalk, addedIds = [] }: { onAddToWalk?:
           <Popup>
             <div className="space-y-1">
               <div className="text-sm font-semibold">{p.name}</div>
-              <div className="text-xs text-slate-600">{p.supporters === 1 ? "Recommended by a Traike user" : `Recommended by ${p.supporters} Traike users`}</div>
-              {p.tags.length ? <div className="text-xs text-slate-600">{p.tags.join(" · ")}</div> : null}
+              <div className="text-[13px] text-charcoal/80">{p.supporters === 1 ? "Recommended by a Traike user" : `Recommended by ${p.supporters} Traike users`}</div>
+              {p.tags.length ? <div className="text-[13px] text-charcoal/80">{p.tags.join(" · ")}</div> : null}
               {p.reviews.map((r, i) => (
-                <blockquote key={i} className="border-l-2 border-terra/50 pl-2 text-xs text-slate-700">
-                  {r} <span className="text-slate-500">— a Traike user</span>
+                <blockquote key={i} className="border-l-2 border-terra/50 pl-2 text-[13px] text-charcoal/80">
+                  {r} <span className="text-charcoal/80">— a Traike user</span>
                 </blockquote>
               ))}
               <GooglePlaceCard name={p.name} lat={p.lat} lng={p.lng} />

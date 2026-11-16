@@ -97,7 +97,7 @@ export function MapMarkers({
           >
             {/* Always-on label beside the marker: "E – <place name>". */}
             <Tooltip permanent direction="right" offset={[14, 0]} opacity={0.95}>
-              <span dir="auto" className="text-xs font-semibold">
+              <span dir="auto" className="text-[13px] font-semibold">
                 {label} – {waypoint.name}
               </span>
             </Tooltip>
@@ -105,13 +105,13 @@ export function MapMarkers({
               <div className="space-y-1">
                 <div className="text-sm font-semibold">{waypoint.name}</div>
                 {onTogglePin && (
-                  <div className="text-xs text-amber-700">
+                  <div className="text-[13px] text-amber-700">
                     {isPinned
-                      ? "📌 Pinned — kept when the walk is rebuilt. Tap again to unpin."
+                      ? "Pinned — kept when the walk is rebuilt. Tap again to unpin."
                       : "Tap to pin — keeps this stop when the walk is rebuilt."}
                   </div>
                 )}
-                <div className="text-xs text-slate-600">
+                <div className="text-[13px] text-charcoal/80">
                   {waypoint.coordinates.lat.toFixed(5)}, {waypoint.coordinates.lng.toFixed(5)}
                 </div>
               </div>

@@ -30,10 +30,10 @@ export function PreviewMarkers({ places }: PreviewMarkersProps) {
           <Popup>
             <div className="space-y-1">
               <div className="text-sm font-semibold">{place.name}</div>
-              <div className="text-xs text-amber-700">
+              <div className="text-[13px] text-amber-700">
                 Candidate stop — not in your walk yet
               </div>
-              <div className="text-xs text-slate-600">
+              <div className="text-[13px] text-charcoal/80">
                 {place.coordinates.lat.toFixed(5)}, {place.coordinates.lng.toFixed(5)}
               </div>
             </div>

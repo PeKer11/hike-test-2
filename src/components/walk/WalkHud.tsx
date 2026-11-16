@@ -83,7 +83,7 @@ export function WalkHud({ alert, sheet, chat, stats, gpsState = "idle", lang = "
           >
             <span
               aria-hidden
-              className={`h-2 w-2 rounded-full ${gpsState === "searching" ? "animate-pulse bg-forest" : "bg-amber-500"}`}
+              className={`h-2 w-2 rounded-full ${gpsState === "searching" ? "animate-pulse bg-forest" : "bg-warn"}`}
             />
             {gpsLabel}
           </div>

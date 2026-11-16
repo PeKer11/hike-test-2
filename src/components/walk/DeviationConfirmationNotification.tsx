@@ -57,13 +57,13 @@ export function DeviationConfirmationNotification({
       <div className="flex gap-2">
         <button
           onClick={onConfirm}
-          className="flex-1 rounded-md bg-terra px-3 py-2 text-xs font-semibold text-on-accent transition hover:bg-terra/90"
+          className="flex-1 rounded-md bg-terra px-3 py-2 text-[13px] font-semibold text-on-accent transition hover:bg-terra/90"
         >
           Redraw from here
         </button>
         <button
           onClick={onDismiss}
-          className="flex-1 rounded-md border border-cream/30 px-3 py-2 text-xs font-semibold text-cream/90 transition hover:bg-paper/10"
+          className="flex-1 rounded-md border border-cream/30 px-3 py-2 text-[13px] font-semibold text-cream/90 transition hover:bg-paper/10"
         >
           I know where I&apos;m going
         </button>

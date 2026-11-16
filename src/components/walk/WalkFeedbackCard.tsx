@@ -106,7 +106,7 @@ export function WalkFeedbackCard({
           <h2 className="font-display text-base font-bold text-forest">
             How were the stops?
           </h2>
-          <p className="text-xs text-charcoal/60">
+          <p className="text-[13px] text-charcoal/60">
             Thanks for your feedback — it helps us learn what you like, so your next hikes are even better. One tap each, skip the rest.
           </p>
         </div>
@@ -186,7 +186,7 @@ export function WalkFeedbackCard({
           .filter((attraction) => recommended[attraction.id])
           .map((attraction) => (
             <div key={attraction.id} className="space-y-1">
-              <label className="block text-xs font-medium text-charcoal/80">Short review of {attraction.name} (optional)</label>
+              <label className="block text-[13px] font-medium text-charcoal/80">Short review of {attraction.name} (optional)</label>
               <textarea
                 value={reviews[attraction.id] ?? ""}
                 onChange={(event) => setReviews((current) => ({ ...current, [attraction.id]: event.target.value.slice(0, 280) }))}
@@ -194,12 +194,12 @@ export function WalkFeedbackCard({
                 rows={2}
                 className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
               />
-              <p className="text-xs text-charcoal/60">Shown publicly to other Traike users as &ldquo;a Traike user&rdquo;, with no name.</p>
+              <p className="text-[13px] text-charcoal/60">Shown publicly to other Traike users as &ldquo;a Traike user&rdquo;, with no name.</p>
             </div>
           ))}
 
       <div className="space-y-2">
-        <label className="block text-xs font-medium text-charcoal/80">
+        <label className="block text-[13px] font-medium text-charcoal/80">
           Anything else about this walk? (optional)
         </label>
         <textarea
@@ -221,7 +221,7 @@ export function WalkFeedbackCard({
       <button
         type="button"
         onClick={ratedCount > 0 ? () => setIsDone(true) : onDismiss}
-        className="w-full cursor-pointer text-center text-xs text-charcoal/40 transition hover:text-charcoal/70"
+        className="w-full cursor-pointer text-center text-[13px] text-charcoal/40 transition hover:text-charcoal/70"
       >
         {ratedCount > 0 ? "Done" : "Skip"}
       </button>

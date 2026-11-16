@@ -59,12 +59,12 @@ export function WalkAlertCard({ alert }: { alert: WalkAlert }) {
             </p>
           ) : null}
           {alert.body ? (
-            <p className="mt-0.5 text-xs leading-snug text-charcoal/70">
+            <p className="mt-0.5 text-[13px] leading-snug text-charcoal/70">
               {alert.body}
             </p>
           ) : null}
           {alert.note ? (
-            <p dir="auto" className="mt-1 text-xs leading-snug text-forest">
+            <p dir="auto" className="mt-1 text-[13px] leading-snug text-forest">
               {alert.note}
             </p>
           ) : null}
@@ -85,8 +85,8 @@ export function WalkAlertCard({ alert }: { alert: WalkAlert }) {
               onClick={action.onClick}
               className={
                 action.primary
-                  ? "flex-1 rounded-lg bg-terra px-3 py-2 text-xs font-semibold text-on-accent transition hover:bg-terra/90"
-                  : "flex-1 rounded-lg border border-forest/25 px-3 py-2 text-xs font-semibold text-forest transition hover:bg-forest/10"
+                  ? "flex-1 rounded-lg bg-terra px-3 py-2 text-[13px] font-semibold text-on-accent transition hover:bg-terra/90"
+                  : "flex-1 rounded-lg border border-forest/25 px-3 py-2 text-[13px] font-semibold text-forest transition hover:bg-forest/10"
               }
             >
               {action.label}
@@ -95,7 +95,7 @@ export function WalkAlertCard({ alert }: { alert: WalkAlert }) {
         </div>
       ) : null}
       {alert.footnote ? (
-        <p className="mt-1.5 text-[10px] leading-tight text-charcoal/50">
+        <p className="mt-1.5 text-[13px] leading-tight text-charcoal/50">
           {alert.footnote}
         </p>
       ) : null}

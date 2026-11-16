@@ -93,7 +93,7 @@ function countSearch() {
 function AddToWalkButton({ attraction, onAdd, added }: { attraction: Attraction; onAdd?: (a: Attraction) => void; added: boolean }) {
   if (!onAdd) return null;
   return (
-    <button type="button" disabled={added} onClick={() => onAdd(attraction)} className="mt-1 rounded-full bg-terra px-3 py-1 text-xs font-medium text-on-accent disabled:bg-forest/70">
+    <button type="button" disabled={added} onClick={() => onAdd(attraction)} className="mt-1 rounded-full bg-terra px-3 py-1 text-[13px] font-medium text-on-accent disabled:bg-forest/70">
       {added ? "✓ Added to walk" : "＋ Add to walk"}
     </button>
   );
@@ -279,7 +279,7 @@ export function GoogleRecommendedLayer({ enabled, onNote, onAddToWalk, addedIds 
           ) : i.source === "notable" ? (
             goldStar
           ) : (
-            pin("#fff", "#c2652f", "⭐", 26)
+            pin("#fff", "#c2652f", "★", 26)
           )}
         </AdvancedMarker>
       ))}
@@ -289,14 +289,14 @@ export function GoogleRecommendedLayer({ enabled, onNote, onAddToWalk, addedIds 
             <div className="text-sm font-semibold">{open.name}</div>
             {open.source === "google" ? (
               <>
-                <div className="text-xs text-slate-700">
+                <div className="text-[13px] text-charcoal/80">
                   {GROUPS[open.group ?? "sights"].label} · ★ {open.rating?.toFixed(1)} · {open.ratingCount} Google reviews
                 </div>
                 {reviewsFor === open.key ? (
                   <GooglePlaceCard name={open.name} lat={open.lat} lng={open.lng} placeId={open.placeId} startWithReviews />
                 ) : (
                   <div>
-                    <button type="button" className="text-xs underline" onClick={() => setReviewsFor(open.key)}>
+                    <button type="button" className="text-[13px] underline" onClick={() => setReviewsFor(open.key)}>
                       See reviews
                     </button>
                   </div>
@@ -305,8 +305,8 @@ export function GoogleRecommendedLayer({ enabled, onNote, onAddToWalk, addedIds 
             ) : null}
             {open.source === "notable" ? (
               <>
-                <div className="text-xs text-slate-600">Notable place · {open.kind}</div>
-                <a className="text-xs underline" href={`https://www.wikidata.org/wiki/${open.wikidataId}`} target="_blank" rel="noreferrer">
+                <div className="text-[13px] text-charcoal/80">Notable place · {open.kind}</div>
+                <a className="text-[13px] underline" href={`https://www.wikidata.org/wiki/${open.wikidataId}`} target="_blank" rel="noreferrer">
                   Source: Wikidata
                 </a>
                 <GooglePlaceCard name={open.name} lat={open.lat} lng={open.lng} />
@@ -314,11 +314,11 @@ export function GoogleRecommendedLayer({ enabled, onNote, onAddToWalk, addedIds 
             ) : null}
             {open.source === "community" ? (
               <>
-                <div className="text-xs text-slate-600">{open.supporters === 1 ? "Recommended by a Traike user" : `Recommended by ${open.supporters} Traike users`}</div>
-                {open.tags?.length ? <div className="text-xs text-slate-600">{open.tags.join(" · ")}</div> : null}
+                <div className="text-[13px] text-charcoal/80">{open.supporters === 1 ? "Recommended by a Traike user" : `Recommended by ${open.supporters} Traike users`}</div>
+                {open.tags?.length ? <div className="text-[13px] text-charcoal/80">{open.tags.join(" · ")}</div> : null}
                 {open.reviews?.map((r, n) => (
-                  <blockquote key={n} className="border-l-2 border-terra/50 pl-2 text-xs text-slate-700">
-                    {r} <span className="text-slate-500">— a Traike user</span>
+                  <blockquote key={n} className="border-l-2 border-terra/50 pl-2 text-[13px] text-charcoal/80">
+                    {r} <span className="text-charcoal/80">— a Traike user</span>
                   </blockquote>
                 ))}
                 <GooglePlaceCard name={open.name} lat={open.lat} lng={open.lng} />

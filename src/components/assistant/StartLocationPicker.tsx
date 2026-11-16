@@ -164,7 +164,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
           onClick={() => startLocating(false)}
           className="shrink-0 whitespace-nowrap rounded-full border border-tk-send/60 bg-transparent px-[10px] py-[4px] font-brand text-[12px] font-semibold text-tk-wordmark transition-colors hover:bg-paper"
         >
-          📍 My location
+          My location
         </button>
       </div>
       {denied ? <LocationDeniedCard onSearch={() => inputRef.current?.focus()} /> : null}

@@ -59,7 +59,7 @@ export function DirectionOptionsSheet({
       className="pointer-events-auto rounded-2xl bg-cream/95 p-3 text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur"
     >
       <p className="text-sm font-semibold leading-snug">{t("options.title")}</p>
-      <p className="mt-0.5 text-xs text-charcoal/70">{t("options.hint")}</p>
+      <p className="mt-0.5 text-[13px] text-charcoal/70">{t("options.hint")}</p>
 
       <div className="-mx-1 mt-2 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1">
         {options.map((option, index) => {
@@ -80,7 +80,7 @@ export function DirectionOptionsSheet({
                 <span aria-hidden>{THEME_ICON[option.theme]}</span>
                 {t(THEME_KEY[option.theme])}
               </span>
-              <span className="mt-0.5 block text-xs text-charcoal/70">
+              <span className="mt-0.5 block text-[13px] text-charcoal/70">
                 {t("options.stats", {
                   min: Math.round(option.minutes),
                   km: (option.distanceM / 1000).toFixed(1),
@@ -93,7 +93,7 @@ export function DirectionOptionsSheet({
                     <span
                       key={name}
                       dir="auto"
-                      className="max-w-full truncate rounded-full bg-forest/10 px-2 py-0.5 text-[11px]"
+                      className="max-w-full truncate rounded-full bg-forest/10 px-2 py-0.5 text-[13px]"
                     >
                       {name}
                     </span>
@@ -109,14 +109,14 @@ export function DirectionOptionsSheet({
         <button
           type="button"
           onClick={() => onChoose(highlight)}
-          className="flex-1 rounded-lg bg-terra px-3 py-2 text-xs font-semibold text-on-accent transition hover:bg-terra/90"
+          className="flex-1 rounded-lg bg-terra px-3 py-2 text-[13px] font-semibold text-on-accent transition hover:bg-terra/90"
         >
           {t("options.choose")}
         </button>
         <button
           type="button"
           onClick={onBack}
-          className="rounded-full border border-forest/25 px-3 py-1.5 text-xs font-semibold text-forest transition hover:bg-forest/10"
+          className="rounded-full border border-forest/25 px-3 py-1.5 text-[13px] font-semibold text-forest transition hover:bg-forest/10"
         >
           {t("options.back")}
         </button>
