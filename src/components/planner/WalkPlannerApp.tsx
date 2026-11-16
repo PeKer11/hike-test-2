@@ -43,7 +43,7 @@ import { SavedPlacePicker } from "@/components/places/SavedPlacePicker";
 import { SavedPlacesTab } from "@/components/places/SavedPlacesTab";
 import { markStopsVisited } from "@/lib/places/saved-places";
 import { recordRun } from "@/lib/walks/walk-runs";
-import { newWalkFromPlan, previewPathOf, rebuildFromSaved, saveBuiltWalk, stopsFromAttractions, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
+import { geometryFacts, newWalkFromPlan, previewPathOf, rebuildFromSaved, saveBuiltWalk, stopsFromAttractions, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
 import { PlaceSearch, WaypointList } from "@/components/waypoints";
 import {
   useCollapseFlow,
@@ -103,6 +103,9 @@ import { walkCopy } from "@/lib/walk/walk-copy";
 import { WalkRecorder } from "@/lib/walk/walk-recorder";
 import type { LocateState } from "@/lib/geo/locate";
 import { clearActiveWalk, saveActiveWalk, type ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
+import { locateOnce } from "@/lib/geo/here";
+import { decideWalkAgain, startAsStop, stopsForJoin, transitLinkTo, type WalkAgainDecision, type WalkAgainMode, type WalkAgainOption } from "@/lib/walks/walk-again";
+import { WalkAgainSheet } from "@/components/walks/WalkAgainSheet";
 import { PlannerBridge, type AppView } from "@/lib/shell/planner-bridge";
 import { WalkTracker } from "@/lib/walk/walk-tracker";
 import type { PaceUpdate } from "@/lib/walk/walk-tracker";
@@ -288,6 +291,16 @@ interface WalkPlannerAppProps {
   /** Ask the shell to move to another screen (e.g. after "walk again"). */
   onNavigate?: (view: AppView) => void;
 }
+
+/** The ways of walking again this app can run. (Reverse arrives with variants.) */
+const WALK_AGAIN_SUPPORTED: ReadonlySet<WalkAgainMode> = new Set<WalkAgainMode>([
+  "start_now",
+  "join_nearest",
+  "walk_to_start",
+  "reroute_from_here",
+  "same_style_here",
+  "transit_to_start",
+]);
 
 // The planner fills whatever box it is given: the small embedded frame on /app
 // and the same frame expanded to the viewport are the same mounted component,
@@ -1090,12 +1103,55 @@ export function WalkPlannerApp({
     else setSideTab("plan");
   }, [view]);
   const hubTab = view === "walks" || view === "social";
+  // Walk again, from wherever the walker is: find them, decide what to offer, and either just start or ask once.
+  const [againFlow, setAgainFlow] = useState<{ walk: SavedWalk; here: Coordinates | null; decision: WalkAgainDecision } | null>(null);
+  const [chatPrefill, setChatPrefill] = useState<{ text: string; tick: number } | null>(null);
   const walkAgainFromSaved = (walk: SavedWalk) => {
+    void (async () => {
+      const here = await locateOnce(6000);
+      const decision = decideWalkAgain(walk, here);
+      if (!decision.chooser) runWalkAgain(walk, decision.primary, here);
+      else setAgainFlow({ walk, here, decision });
+    })();
+  };
+  const runWalkAgain = (walk: SavedWalk, option: WalkAgainOption, here: Coordinates | null) => {
+    setAgainFlow(null);
+    if (option.mode === "transit_to_start") {
+      window.open(transitLinkTo(walk.start), "_blank", "noopener");
+      return;
+    }
+    if (option.mode === "same_style_here" && isSignedIn) {
+      setSideTab("plan");
+      onNavigate?.("plan");
+      const he = uiLang === "he";
+      setChatPrefill({ text: he ? `כמו "${walk.title}" אבל כאן` : `Like "${walk.title}" but here`, tick: Date.now() });
+      return;
+    }
     const { input, attractions, routeRules } = rebuildFromSaved(walk);
+    const sameAs = (a: Attraction, s: { lat: number; lng: number }) => a.coordinates.lat === s.lat && a.coordinates.lng === s.lng;
+    let origin = input.origin;
+    let stops = attractions;
+    let fixedOrder = true;
+    let minutes = input.availableMinutes;
+    if (here && option.mode !== "start_now" && option.mode !== "original_start_no_location") {
+      origin = here;
+      if (option.mode === "walk_to_start") {
+        const s = startAsStop(walk);
+        stops = [{ id: `walk-again-start-${walk.id}`, name: s.name, coordinates: { lat: s.lat, lng: s.lng }, category: "landmark" as Attraction["category"], avgVisitMinutes: 0, tags: {} }, ...attractions];
+        minutes += option.approachMin ?? 0;
+      } else if (option.mode === "join_nearest") {
+        const picks = stopsForJoin(walk, here)
+          .map((st) => attractions.find((a) => sameAs(a, st)))
+          .filter((a): a is Attraction => Boolean(a));
+        if (picks.length > 0) stops = picks;
+      } else if (option.mode === "reroute_from_here" || option.mode === "same_style_here") {
+        fixedOrder = false;
+      }
+    }
     setSideTab("plan");
     onNavigate?.("plan");
     // The saved rules come back with the walk (an empty set clears whatever the last build used).
-    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, existingWalkId: walk.id, routeRules: routeRules as AssistantBuild["routeRules"] });
+    void handleBuildWalk({ ...input, origin, availableMinutes: minutes }, { keepAttractions: stops, fixedOrder, existingWalkId: walk.id || undefined, aiDecided: walk.id ? undefined : true, routeRules: routeRules as AssistantBuild["routeRules"], backfillGeometry: walk.id && !walk.geometry ? walk : undefined });
   };
   // Phone only: hide the side panel so the map fills the screen.
   const [mapFull, setMapFull] = useState(false);
@@ -1138,6 +1194,8 @@ export function WalkPlannerApp({
       heading?: number;
       /** Walk again: this build is another run of an existing saved walk, not a new history entry. */
       existingWalkId?: string;
+      /** The saved walk had no stored route: write this build's route onto it (a quiet no-op before the migration). */
+      backfillGeometry?: SavedWalk;
       /** The stops were already chosen by the AI (the chat); skip the AI builder. */
       aiDecided?: boolean;
     },
@@ -1333,13 +1391,19 @@ export function WalkPlannerApp({
         setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
       } else {
         showPlan(data, data.geometry ?? [], options?.autoResume === true);
+        if (options?.backfillGeometry && data.geometry && data.geometry.length >= 2) {
+          const facts = geometryFacts(data.geometry);
+          const walkId = options.backfillGeometry.id;
+          const geometry = data.geometry;
+          void withWalkClient(async (client) => (await import("@/lib/walks/saved-walks")).backfillWalkGeometry(client, walkId, geometry, facts.end, facts.isLoop));
+        }
         // A walk the walker asked for is saved as "planned"; automatic rebuilds are the same walk.
         if (!options?.autoResume && isSignedIn && data.orderedAttractions.length > 0) {
           setWalkBookmarked(false);
           savedWalkIdRef.current = options?.existingWalkId
             ? Promise.resolve(options.existingWalkId)
             : saveBuiltWalk(
-                newWalkFromPlan(input, data.orderedAttractions, data.totalMinutes, data.totalDistanceMeters, routeRulesRef.current as Record<string, unknown> | undefined),
+                newWalkFromPlan(input, data.orderedAttractions, data.totalMinutes, data.totalDistanceMeters, routeRulesRef.current as Record<string, unknown> | undefined, data.geometry),
               ).then((id) => {
                 setWalksVersion((v) => v + 1);
                 return id;
@@ -3482,12 +3546,22 @@ export function WalkPlannerApp({
                       tags: {},
                     }));
                     if (attractions.length === 0) return;
-                    setSideTab("plan");
-                    onNavigate?.("plan");
-                    void handleBuildWalk(
-                      { origin: currentPosition && haversineDistance(currentPosition, attractions[0].coordinates) <= 3000 ? currentPosition : attractions[0].coordinates, availableMinutes: attractions.length * 45 + 120, walkingPaceMinPerKm: 15, radiusMeters: 3000 },
-                      { keepAttractions: attractions, fixedOrder: true, aiDecided: true, routeRules: {} },
-                    );
+                    // The same chooser as any walk again: start, join, walk to it, or the same style here.
+                    const shared: SavedWalk = {
+                      id: "",
+                      title: w.title,
+                      status: "planned",
+                      areaLabel: null,
+                      start: attractions[0].coordinates,
+                      totalMin: attractions.length * 45 + 120,
+                      distanceM: null,
+                      stops: w.stops,
+                      params: { availableMinutes: attractions.length * 45 + 120, walkingPaceMinPerKm: 15, radiusMeters: 3000 },
+                      visibility: "private",
+                      createdAt: "",
+                      completedAt: null,
+                    };
+                    walkAgainFromSaved(shared);
                   }}
                 />}
               {/* "contents" keeps the plan column's layout; hidden keeps the chat and form mounted. */}
@@ -3499,6 +3573,7 @@ export function WalkPlannerApp({
                   onToggle={(e) => { if (walkMode) setChatOpen(e.currentTarget.open); }}>
                 <summary className="cursor-pointer px-4 py-2.5 font-brand text-sm font-semibold text-tk-ink">Chat with Traike · re-plan</summary>
                 <AssistantChat
+                  prefill={chatPrefill}
                   origin={currentPosition ?? mapClickedCoords ?? null}
                   isBuilding={isWalkPlanLoading}
                   onPlacesChange={setPreviewPlaces}
@@ -4124,6 +4199,18 @@ export function WalkPlannerApp({
           signedIn={isSignedIn}
         />}
       </aside>
+
+      {againFlow && (
+        <WalkAgainSheet
+          walk={againFlow.walk}
+          here={againFlow.here}
+          decision={againFlow.decision}
+          lang={uiLang === "he" ? "he" : "en"}
+          supported={WALK_AGAIN_SUPPORTED}
+          onChoose={(option) => runWalkAgain(againFlow.walk, option, againFlow.here)}
+          onClose={() => setAgainFlow(null)}
+        />
+      )}
 
       {/* Percentage height, not viewport height: when stacked, the map takes a
           share of the frame it is in — a 45vh map inside a 560px frame would

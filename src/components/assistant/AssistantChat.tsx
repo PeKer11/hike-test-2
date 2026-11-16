@@ -80,6 +80,8 @@ interface AssistantChatProps {
   onSetOrigin: (coordinates: Coordinates) => void;
   /** Only a rough (IP-city) position is known: show that area, without choosing a start. */
   onFocusArea?: (coordinates: Coordinates) => void;
+  /** Text to put in the message box (e.g. "like my last walk, but here"); a new `tick` puts it there again. */
+  prefill?: { text: string; tick: number } | null;
 }
 
 const MAX_IMAGES = 5;
@@ -305,7 +307,7 @@ function toAttraction(c: Candidate, params?: WalkParams): Attraction {
   };
 }
 
-export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, queuedPlaces, walking, onFocusPlace, walkReady, onStart, onSetOrigin, onFocusArea }: AssistantChatProps) {
+export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, queuedPlaces, walking, onFocusPlace, walkReady, onStart, onSetOrigin, onFocusArea, prefill }: AssistantChatProps) {
   const queuedRef = useRef(queuedPlaces ?? []);
   queuedRef.current = queuedPlaces ?? [];
   const walkingRef = useRef(walking ?? false);
@@ -319,6 +321,9 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
   // The server HTML is typable but dead until hydration: keep it disabled so nothing typed there is lost.
   const hydrated = useHydrated();
   const [text, setText] = useState("");
+  useEffect(() => {
+    if (prefill) setText(prefill.text);
+  }, [prefill]);
   const dictationBase = useRef("");
   // The browser recognises one language per tap and cannot tell Hebrew from English by ear: the walker picks it (עב / EN).
   const [micLang, setMicLang] = useState<"he" | "en" | null>(null);

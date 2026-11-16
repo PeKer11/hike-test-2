@@ -2,6 +2,7 @@ import type { WalkCompanionInput } from "@/lib/types/walk-companion";
 import type { Coordinates } from "@/lib/types";
 import type { Attraction, AttractionCategory } from "@/lib/types/walk-plan";
 
+import { haversineDistance } from "@/lib/utils/geo";
 import { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 import type { NewSavedWalk, SavedStop, SavedWalk } from "./saved-walks";
 
@@ -41,6 +42,15 @@ export function paramsFromInput(input: WalkCompanionInput): Record<string, unkno
   };
 }
 
+/** A walk that ends within this of where it started counts as a loop. */
+export const LOOP_END_M = 150;
+
+/** Where a route ends and whether it comes back to its start. */
+export function geometryFacts(geometry: Coordinates[]): { end: Coordinates; isLoop: boolean } {
+  const end = geometry[geometry.length - 1];
+  return { end, isLoop: haversineDistance(geometry[0], end) <= LOOP_END_M };
+}
+
 export function titleForWalk(stops: SavedStop[], now: Date = new Date()): string {
   const day = now.toLocaleDateString("en", { month: "short", day: "numeric" });
   if (stops.length === 0) return `Walk, ${day}`;
@@ -54,9 +64,12 @@ export function newWalkFromPlan(
   totalMin: number,
   distanceM: number,
   routeRules?: Record<string, unknown>,
+  geometry?: Coordinates[],
 ): NewSavedWalk {
   const stops = stopsFromAttractions(attractions);
+  const shape = geometry && geometry.length >= 2 ? geometryFacts(geometry) : null;
   return {
+    ...(shape ? { geometry, end: shape.end, isLoop: shape.isLoop } : {}),
     title: titleForWalk(stops),
     start: { lat: input.origin.lat, lng: input.origin.lng },
     stops,
