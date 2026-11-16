@@ -78,11 +78,11 @@ export function SavedPlacePicker({ addedIds, inWalkIds = [], onAdd }: SavedPlace
       </button>
       {open && (
         <>
-          {loading && <p className="text-xs text-charcoal/60">Loading…</p>}
-          {!loading && places.length === 0 && <p className="text-xs text-charcoal/60">No unvisited saved places. Add some in the Places tab.</p>}
+          {loading && <p className="text-[13px] text-charcoal/60">Loading…</p>}
+          {!loading && places.length === 0 && <p className="text-[13px] text-charcoal/60">No unvisited saved places. Add some in the Places tab.</p>}
           <ul aria-label="Saved places to add" className="space-y-1">
             {places.map((p) => (
-              <li key={p.id} className="rounded-md bg-paper/70 p-2 text-xs">
+              <li key={p.id} className="rounded-md bg-paper/70 p-2 text-[13px]">
                 <label className="flex cursor-pointer items-center gap-2">
                   <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} />
                   <span className="text-charcoal">{p.label}</span>
@@ -95,9 +95,9 @@ export function SavedPlacePicker({ addedIds, inWalkIds = [], onAdd }: SavedPlace
               </li>
             ))}
           </ul>
-          {error && <p role="alert" className="text-xs text-terra">{error}</p>}
+          {error && <p role="alert" className="text-[13px] text-terra">{error}</p>}
           {picked.size > 0 && (
-            <button type="button" onClick={() => void add()} className="cursor-pointer rounded-full bg-forest px-3 py-1 text-xs font-medium text-cream">
+            <button type="button" onClick={() => void add()} className="cursor-pointer rounded-full bg-forest px-3 py-1 text-[13px] font-medium text-cream">
               Add {picked.size} to walk
             </button>
           )}

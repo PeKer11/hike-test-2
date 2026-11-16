@@ -15,7 +15,8 @@ const parent = mk("p", "Market walk");
 const child = mk("c", "Market walk · reversed", { parentWalkId: "p", variantKind: "reverse" });
 let listed: WalkWithRuns[] = [wrap(parent), wrap(child)];
 
-vi.mock("@/lib/walks/walk-history", () => ({
+vi.mock("@/lib/walks/walk-history", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/walks/walk-history")>()),
   withWalkClient: async (fn: (c: unknown, u: string) => unknown) => fn({}, "u"),
   updateWalk: vi.fn(),
   deleteWalk: vi.fn(),

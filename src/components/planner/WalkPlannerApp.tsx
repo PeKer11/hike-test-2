@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ConstraintPanel } from "@/components/constraints";
 import { DynamicMap } from "@/components/map";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { usesGoogleMap } from "@/components/map/DynamicMap";
 import { AccountRows, DisplaySection, MapOptionsCard, PlacesSection } from "@/components/map/MapOptionsCard";
 import { WalkSectionTitle, WalkSlot } from "@/components/walk/WalkDetails";
@@ -3380,7 +3381,7 @@ export function WalkPlannerApp({
             {walkCopy.hud.closeDetails}
           </button>
         )}
-        <div className={`${walkMode ? "hidden " : ""}relative z-10 mx-auto mb-[17px] max-w-[440px] ps-[7px] pt-[7px] @4xl:mb-[14px] @4xl:pt-[5px] @6xl:mb-[17px] @6xl:pt-[7px]`}>
+        <div className={`${walkMode || hubTab ? "hidden " : ""}relative z-10 mx-auto mb-[17px] max-w-[440px] ps-[7px] pt-[7px] @4xl:mb-[14px] @4xl:pt-[5px] @6xl:mb-[17px] @6xl:pt-[7px]`}>
           {!compact && (
             <>
           {/* Dotted route + pin that trail off the wordmark. */}
@@ -3429,7 +3430,20 @@ export function WalkPlannerApp({
           </button>
         </div>
 
-        <div className={`relative z-10 mx-auto max-w-[440px] ${walkMode ? "flex flex-col gap-[15px]" : "space-y-[15px]"}`}>
+        {hubTab && (
+          <h1 className="relative z-10 mx-auto mb-3 max-w-[440px] pt-6 font-display text-[28px] leading-[34px] text-tk-ink">
+            {uiLang === "he" ? (view === "walks" ? "הליכות" : "חברים") : view === "walks" ? "Walks" : "Friends"}
+          </h1>
+        )}
+        {hubTab && !isSignedIn && (
+          <div className="relative z-10 mx-auto max-w-[440px] space-y-3 rounded-tk-card bg-paper p-4 text-center shadow-tk-card">
+            <EmptyState image="signed-out.png" title={uiLang === "he" ? (view === "walks" ? "התחברו כדי לראות את ההליכות שלכם" : "התחברו כדי לראות את החברים שלכם") : view === "walks" ? "Log in to see your walks" : "Log in to see your friends"} />
+            <Link href="/login" className="inline-flex min-h-12 items-center rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-tk-soft">
+              {uiLang === "he" ? "התחברות" : "Log in"}
+            </Link>
+          </div>
+        )}
+        <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : "space-y-[15px]"}`}>
           {isAdvancedOpen && (
             <Card className="space-y-2">
               <div className="text-sm font-semibold text-forest">Planning mode</div>
@@ -4208,7 +4222,7 @@ export function WalkPlannerApp({
             </>
           ) : null}
         </div>
-        {!walkMode && <MapOptionsCard
+        {!walkMode && !hubTab && <MapOptionsCard
           mapType={mapType}
           onMapType={setMapType}
           showMapType={usesGoogleMap}

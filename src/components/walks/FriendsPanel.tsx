@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Accessory } from "@/components/ui/Accessory";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { BTN_PRIMARY, BTN_SOFT, FIELD, PANEL, PANEL_SUB, PANEL_TITLE, ROW } from "@/components/ui/panel-style";
+import { BTN_PRIMARY, BTN_SOFT, FIELD, PANEL, PANEL_TITLE, ROW } from "@/components/ui/panel-style";
 import {
   acceptFriend,
   getMyFriendCode,
@@ -60,7 +60,7 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
     };
   }, [refresh]);
 
-  if (!signedIn || !client) return expanded ? <p className="p-3 text-xs text-tk-sage">Loading…</p> : null;
+  if (!signedIn || !client) return expanded ? <p className="p-3 text-[13px] text-tk-sage">Loading…</p> : null;
 
   const act = async (fn: () => Promise<boolean>, fail: string) => {
     setNote((await fn()) ? null : fail);
@@ -79,7 +79,6 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
           <Accessory name="tent" className="absolute -right-1 top-1 w-[72px]" />
           <div className="pr-16">
             <h2 className={PANEL_TITLE}>Friends</h2>
-            <p className={PANEL_SUB}>Share walks and plan the next one together.</p>
           </div>
         </>
       )}
@@ -134,7 +133,7 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
               Add
             </button>
           </form>
-          {note && <p role="status" className="text-xs text-tk-check">{note}</p>}
+          {note && <p role="status" className="text-[13px] text-tk-check">{note}</p>}
 
           {incoming.length > 0 && (
             <ul aria-label="Friend requests" className="space-y-1">

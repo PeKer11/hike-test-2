@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { routeColors } from "@/lib/map/route-colors";
 
-const FOLDERS = ["walk", "map", "ui", "planner"].map((d) => join(process.cwd(), "src/components", d));
+const FOLDERS = ["walk", "map", "ui", "planner", "walks", "places"].map((d) => join(process.cwd(), "src/components", d));
 
 function sources(): { file: string; text: string }[] {
   return FOLDERS.flatMap((dir) =>
