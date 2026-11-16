@@ -104,6 +104,7 @@ import { WalkRecorder } from "@/lib/walk/walk-recorder";
 import type { LocateState } from "@/lib/geo/locate";
 import { clearActiveWalk, saveActiveWalk, type ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
 import { locateOnce } from "@/lib/geo/here";
+import { requestVariant } from "@/lib/walks/variant-client";
 import { decideWalkAgain, startAsStop, stopsForJoin, transitLinkTo, type WalkAgainDecision, type WalkAgainMode, type WalkAgainOption } from "@/lib/walks/walk-again";
 import { WalkAgainSheet } from "@/components/walks/WalkAgainSheet";
 import { PlannerBridge, type AppView } from "@/lib/shell/planner-bridge";
@@ -300,6 +301,7 @@ const WALK_AGAIN_SUPPORTED: ReadonlySet<WalkAgainMode> = new Set<WalkAgainMode>(
   "reroute_from_here",
   "same_style_here",
   "transit_to_start",
+  "reverse",
 ]);
 
 // The planner fills whatever box it is given: the small embedded frame on /app
@@ -1125,6 +1127,16 @@ export function WalkPlannerApp({
       onNavigate?.("plan");
       const he = uiLang === "he";
       setChatPrefill({ text: he ? `כמו "${walk.title}" אבל כאן` : `Like "${walk.title}" but here`, tick: Date.now() });
+      return;
+    }
+    if (option.mode === "reverse" && walk.id && isSignedIn) {
+      // The other way round is a new, re-routed walk; once it exists, decide how to join it from here like any other.
+      void requestVariant(walk.id, { kind: "reverse" }).then((answer) => {
+        if (answer.ok) {
+          setWalksVersion((v) => v + 1);
+          walkAgainFromSaved(answer.walk);
+        }
+      });
       return;
     }
     const { input, attractions, routeRules } = rebuildFromSaved(walk);
@@ -3530,6 +3542,13 @@ export function WalkPlannerApp({
                   previewId={walkPreview?.id ?? null}
                   onShowOnMap={showWalkOnMap}
                   onWalkAgain={walkAgainFromSaved}
+                  onEditAsNew={(walk) => {
+                    // The stops open as a fresh draft: building it saves a new walk, the original stays as it is.
+                    const { input, attractions, routeRules } = rebuildFromSaved(walk);
+                    setSideTab("plan");
+                    onNavigate?.("plan");
+                    void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, routeRules: routeRules as AssistantBuild["routeRules"] });
+                  }}
                 />
               )}
               {isSignedIn && !walkMode && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}

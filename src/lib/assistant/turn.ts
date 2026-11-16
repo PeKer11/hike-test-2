@@ -16,7 +16,7 @@ import { ASSISTANT_SYSTEM } from "./prompt";
 import type { AssistantState, BuildAction } from "./state";
 import { makeBudget } from "@/lib/walk/routing-budget";
 import { TURN_ROUTING_CALLS } from "./route-check";
-import { ASSISTANT_TOOLS, runTool } from "./tools";
+import { ASSISTANT_TOOLS, runTool, type MakeVariantFn } from "./tools";
 import type { LoadWalks } from "./recall-walks";
 
 /** A user turn is at most this many model calls (each tool round is one). */
@@ -77,6 +77,8 @@ export async function runAssistantTurn(
     cancel?: AbortSignal;
     /** Loads the signed-in walker's saved walks for the recall_walks tool. */
     loadWalks?: LoadWalks;
+    /** Makes and saves a variant of one of those walks for the make_variant tool. */
+    makeVariantFn?: MakeVariantFn;
     /** Most one turn may spend, in micro-dollars (default ASSISTANT_TURN_CEILING_USD, $0.25). */
     costCeilingMicros?: number;
     /** Per-walker Google Places budget for this turn. */
@@ -178,7 +180,7 @@ export async function runAssistantTurn(
         continue;
       }
       toolCalls += 1;
-      const run = await runTool(tc.function.name, tc.function.arguments, state, budget, input.loadWalks, input.places);
+      const run = await runTool(tc.function.name, tc.function.arguments, state, budget, input.loadWalks, input.places, input.makeVariantFn);
       // A picture cannot carry an order to loosen a safety rule: that needs a typed message from the walker.
       if (imageTurn && relaxations(state, run.state).some((r) => r.rule !== "start_moved")) {
         messages.push({

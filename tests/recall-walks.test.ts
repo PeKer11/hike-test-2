@@ -24,6 +24,7 @@ describe("formatRecalledWalks", () => {
   it("returns title, date, area, minutes and stops without coordinates or place ids", () => {
     const [first] = formatRecalledWalks(walks, 5);
     expect(first).toEqual({
+      id: expect.any(String),
       title: "Pizza day",
       date: "2026-10-23",
       areaLabel: "Tel Aviv",

@@ -2,6 +2,7 @@ import { searchNearbyPlaces, searchTextPlaces } from "@/lib/api/google-places-cl
 import type { PlacesGate } from "@/lib/api/places-quota";
 import { cleanUntrustedText, coarseCoords } from "@/lib/llm/sanitize";
 import { redactForLog } from "@/lib/utils/redact";
+import type { VariantRequest } from "@/lib/walks/variants";
 import { ASSISTANT_TOOL_ARGS, MAX_NEARBY_RADIUS_M, parseToolArgs } from "./tool-schemas";
 import type { ToolDef } from "@/lib/llm/providers/openai-tools";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
@@ -344,6 +345,26 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "make_variant",
+      description:
+        "Make a variant of one of the walker's saved walks (use the id from recall_walks): reverse = the same walk the other way (re-routed), shorter = fewer stops to fit `minutes`, start_here = from the start point already set, skip_stop = without the stop named in stop_name. The variant is saved as a NEW walk linked to the original and its minutes/km are returned. longer / add_stop / swap_type return the saved stops so you can search and build from them. For 'same walk but ...' requests ALWAYS call recall_walks first, then this; never rebuild from scratch.",
+      parameters: {
+        type: "object",
+        properties: {
+          walk_id: { type: "string", description: "id of the saved walk, from recall_walks" },
+          kind: { type: "string", enum: ["reverse", "shorter", "start_here", "skip_stop", "longer", "add_stop", "swap_type"] },
+          minutes: { type: "number", description: "target total minutes (shorter)" },
+          stop_name: { type: "string", description: "the stop to leave out (skip_stop)" },
+          category: { type: "string", description: "kind of place to add or swap in (add_stop, swap_type)" },
+        },
+        required: ["walk_id", "kind"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "recall_walks",
       description:
         "The walker's own saved walks, newest first, with stop names and categories. Call it first for 'like yesterday', 'like my last walks', 'other X instead'. Returns an error when none are saved: then say no saved walks were found; never invent history.",
@@ -550,6 +571,9 @@ function dayLabel(todayIso: string, dateIso: string): string {
   return diff === 0 ? "today" : diff === 1 ? "tomorrow" : dateIso;
 }
 
+/** Makes and saves one variant of the walker's walk; the answer is what the model is told (no coordinates). */
+export type MakeVariantFn = (walkId: string, request: VariantRequest) => Promise<Record<string, unknown>>;
+
 export async function runTool(
   name: string,
   rawArgs: string,
@@ -560,6 +584,8 @@ export async function runTool(
   loadWalks?: LoadWalks,
   /** The walker's Google Places budget; a search is refused once it is spent. */
   placesGate?: PlacesGate,
+  /** Makes and saves a deterministic variant of one of the walker's walks; absent for guests. */
+  makeVariantFn?: MakeVariantFn,
 ): Promise<ToolRun> {
   let notChecked: RuleResult[] = [];
   let builtVerdict: Verdict | undefined;
@@ -1104,6 +1130,36 @@ export async function runTool(
       } catch {
         return { output: JSON.stringify({ error: "warnings unavailable: say safety warnings were not checked" }), state };
       }
+    }
+
+    if (name === "make_variant") {
+      const kind = String(args.kind);
+      const walkId = String(args.walk_id);
+      if (!makeVariantFn) return { output: JSON.stringify({ error: "variants need a signed-in walker: tell them to sign in" }), state };
+      if (kind === "longer" || kind === "add_stop" || kind === "swap_type") {
+        // These need new places, so they go through the normal loop: look at the saved walk, then search and build.
+        const walks = loadWalks ? await loadWalks().catch(() => []) : [];
+        const parent = walks.find((w) => w.id === walkId);
+        if (!parent) return { output: JSON.stringify({ error: "no such saved walk: call recall_walks first" }), state };
+        return {
+          output: JSON.stringify({
+            ai: true,
+            instruction: `Do not rebuild from scratch. Keep the stops below, then ${kind === "longer" ? "find extra stops nearby to lengthen it" : kind === "add_stop" ? `find a ${String(args.category ?? "place")} near the route to add` : `replace stops with ${String(args.category ?? "the new kind of place")}`}, then estimate_walk and build_walk.`,
+            parent: { title: cleanUntrustedText(parent.title, 120), totalMin: parent.totalMin, stops: parent.stops.map((s) => ({ name: cleanUntrustedText(s.name, 120), category: s.category })) },
+          }),
+          state,
+        };
+      }
+      let request: VariantRequest | null = null;
+      if (kind === "reverse") request = { kind: "reverse" };
+      else if (kind === "shorter" && typeof args.minutes === "number") request = { kind: "shorter", minutes: args.minutes };
+      else if (kind === "skip_stop" && typeof args.stop_name === "string" && args.stop_name.trim()) request = { kind: "skip_stop", stopName: args.stop_name };
+      else if (kind === "start_here") {
+        if (!state.origin) return { output: JSON.stringify({ error: "no start point yet: ask where they are" }), state };
+        request = { kind: "start_here", at: state.origin };
+      }
+      if (!request) return { output: JSON.stringify({ error: "missing detail: shorter needs minutes, skip_stop needs stop_name" }), state };
+      return { output: JSON.stringify(await makeVariantFn(walkId, request)), state };
     }
 
     if (name === "recall_walks") {

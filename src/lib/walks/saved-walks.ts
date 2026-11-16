@@ -108,6 +108,21 @@ const baseFromRow = (r: Row): SavedWalk => ({
   completedAt: r.completed_at,
 });
 
+/** One walk by id (the caller's own, or a friend's shared one: row-level security decides). Null when not found. */
+export async function getWalkById(client: SupabaseClient, id: string): Promise<SavedWalk | null> {
+  const query = (columns: string) => client.from("saved_walks").select(columns).eq("id", id).maybeSingle();
+  if (newColumnsExist !== false) {
+    const { data, error } = await query(COLUMNS_V2);
+    if (!error) {
+      newColumnsExist = true;
+      return data ? fromRow(data as unknown as Row) : null;
+    }
+    if (newColumnsExist === null) newColumnsExist = false;
+  }
+  const { data, error } = await query(COLUMNS);
+  return error || !data ? null : fromRow(data as unknown as Row);
+}
+
 /** The signed-in walker's own walks, newest first. Throws on a query failure. */
 export async function listMyWalksOrThrow(client: SupabaseClient, userId: string, limit = 50): Promise<SavedWalk[]> {
   const query = (columns: string) => client.from("saved_walks").select(columns).eq("user_id", userId).order("created_at", { ascending: false }).limit(limit);

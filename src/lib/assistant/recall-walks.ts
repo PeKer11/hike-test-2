@@ -11,6 +11,8 @@ export function formatRecalledWalks(walks: SavedWalk[], limit: number, contains?
     .filter((w) => !q || w.title.toLowerCase().includes(q) || w.stops.some((s) => s.name.toLowerCase().includes(q)))
     .slice(0, limit)
     .map((w) => ({
+      // The id lets make_variant name the walk; it is an opaque uuid, not personal data.
+      id: w.id,
       title: cleanUntrustedText(w.title, 120),
       date: w.createdAt.slice(0, 10),
       areaLabel: w.areaLabel ? cleanUntrustedText(w.areaLabel, 60) : w.areaLabel,

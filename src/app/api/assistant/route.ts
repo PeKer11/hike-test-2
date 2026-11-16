@@ -26,6 +26,10 @@ import { hasLearningConsent } from "@/lib/preferences/consent";
 import { redactForLog } from "@/lib/utils/redact";
 import { placesNote } from "@/lib/assistant/places-note";
 import { listPlaces } from "@/lib/places/saved-places";
+import type { MakeVariantFn } from "@/lib/assistant/tools";
+import { getWalkById, insertWalk } from "@/lib/walks/saved-walks";
+import { orsRouteFn } from "@/lib/walks/variant-route";
+import { makeVariant } from "@/lib/walks/variants";
 import { createClient } from "@/lib/supabase/server";
 import { listMyWalks } from "@/lib/walks/saved-walks";
 
@@ -87,6 +91,20 @@ function parseImages(value: unknown): string[] {
  * summary plus the recent messages; the chat, its messages and the working
  * state (places found, limits) are stored under the walker's own RLS session.
  */
+/** The make_variant tool's backend: read the walk (own or a friend's shared one), route the variant, save it as a new walk. */
+function variantMaker(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): MakeVariantFn {
+  return async (walkId, request) => {
+    const walk = await getWalkById(supabase, walkId);
+    if (!walk) return { error: "no such saved walk: call recall_walks first" };
+    const outcome = await makeVariant(walk, request, orsRouteFn);
+    if (!outcome.ok) return { error: outcome.error, ...(outcome.needsAi ? { needsAi: true } : {}) };
+    const { ascentM, ...draft } = outcome.draft;
+    const id = await insertWalk(supabase, userId, draft);
+    if (!id) return { error: "could not save the variant: tell the walker" };
+    return { ok: true, saved_walk_id: id, title: draft.title, totalMin: draft.totalMin, km: Math.round((draft.distanceM ?? 0) / 100) / 10, ascentM, note: "saved as a new walk in My walks; the original is unchanged" };
+  };
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
   const verdict = assistantRateLimiter.check(callerKey(request));
   if (!verdict.allowed) return rateLimitedResponse(verdict);
@@ -216,7 +234,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           void defaultTurnLock().isCancelled(`assistant:${user.id}`).then((c) => c && stop.abort()).catch(() => undefined);
         }, 1500);
         try {
-        const turn = await runAssistantTurn({ summary, history, state, choice, effort: choice.provider === "anthropic" && !process.env.LLM_REASONING_EFFORT_T3 && needsDeepThinking(message, state) ? "high" : effort, tasteNote: taste, memoryNote, cancel: AbortSignal.any([request.signal, stop.signal]), loadWalks: () => listMyWalks(supabase, user.id, 50), costCeilingMicros: turnCeiling, places });
+        const turn = await runAssistantTurn({ summary, history, state, choice, effort: choice.provider === "anthropic" && !process.env.LLM_REASONING_EFFORT_T3 && needsDeepThinking(message, state) ? "high" : effort, tasteNote: taste, memoryNote, cancel: AbortSignal.any([request.signal, stop.signal]), loadWalks: () => listMyWalks(supabase, user.id, 50), makeVariantFn: variantMaker(supabase, user.id), costCeilingMicros: turnCeiling, places });
         let billed = turn.billedMicros;
         let newSummary = summary;
         let newSummarized = summarizedCount;

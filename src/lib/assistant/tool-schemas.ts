@@ -98,6 +98,15 @@ export const ASSISTANT_TOOL_ARGS = {
   check_safety: z.object({ start_in_hours: hoursAhead.optional(), duration_minutes: walkMin.optional() }).strict(),
   check_nature_hazards: z.object({ start_in_hours: hoursAhead.optional() }).strict(),
   recall_walks: z.object({ limit: z.number().min(1).max(10).optional(), contains: z.string().max(120).optional() }).strict(),
+  make_variant: z
+    .object({
+      walk_id: z.string().regex(/^[0-9a-fA-F-]{36}$/),
+      kind: z.enum(["reverse", "shorter", "start_here", "skip_stop", "longer", "add_stop", "swap_type"]),
+      minutes: z.number().min(10).max(600).optional(),
+      stop_name: z.string().max(120).optional(),
+      category: z.string().max(40).optional(),
+    })
+    .strict(),
   find_clean_walk: z.object({ count: z.number().min(1).max(12), must_ids: z.array(id).max(12).optional() }).strict(),
   build_walk: z.object({ stop_ids: z.array(id).max(20), ordered: z.boolean().optional() }).strict(),
 } as const;
