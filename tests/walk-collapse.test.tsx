@@ -398,6 +398,7 @@ describe("a walker who has gone a different way (collapse)", () => {
     expect(sheet()).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "End walk" }));
+    fireEvent.click(screen.getByRole("button", { name: /End walk/ })); // second tap confirms
     await flush(2);
     expect(screen.queryByTestId("walk-hud")).toBeNull();
     expect(screen.getByRole("button", { name: "Build My Walk" })).toBeTruthy();
@@ -442,6 +443,7 @@ describe("Show me something different", () => {
     await advance(3_000);
 
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek, half, details
     fireEvent.click(screen.getByRole("button", { name: "Show me something different" }));
     await flush(6);
 
@@ -464,12 +466,14 @@ describe("Show me something different while a collapse is pending (A7)", () => {
     await startSimulatedWalk();
     await advance(3_000);
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek, half, details
     const different = () => screen.getByRole("button", { name: "Show me something different" }) as HTMLButtonElement;
     expect(different().disabled).toBe(false);
     fireEvent.click(different());
     await flush(6);
     expect(sheet()).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek, half, details
     expect(different().disabled).toBe(true);
   });
 });

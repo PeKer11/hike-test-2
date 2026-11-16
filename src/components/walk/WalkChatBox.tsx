@@ -26,11 +26,11 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
 
   if (!open) {
     return (
-      <div className="pointer-events-none flex">
+      <div className="flex min-w-0 flex-1">
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="pointer-events-auto rounded-full border border-forest/20 bg-cream/95 px-4 py-2 text-xs font-semibold text-forest shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur transition hover:bg-forest/10"
+          className="min-h-12 w-full rounded-full bg-terra px-5 text-[15px] font-semibold text-on-accent shadow-tk-soft transition-colors hover:bg-terra/90"
         >
           {copy.ask}
         </button>
@@ -41,14 +41,14 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
   return (
     <div
       data-testid="walk-chat"
-      className="pointer-events-auto space-y-2 rounded-2xl border border-forest/15 bg-cream/95 p-3 shadow-[0_4px_20px_rgba(30,61,47,0.12)] backdrop-blur"
+      className="basis-full space-y-2 rounded-2xl bg-forest/5 p-3"
     >
       <div className="flex justify-end">
         <button
           type="button"
           onClick={() => setOpen(false)}
           aria-label="Minimize"
-          className="rounded-full px-2 text-sm font-semibold leading-none text-forest/70 hover:bg-forest/10"
+          className="min-h-9 min-w-9 rounded-full px-2 text-[15px] font-semibold leading-none text-forest/70 hover:bg-forest/10"
         >
           ⌄
         </button>
@@ -64,7 +64,7 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
           {chat.messages.slice(-SHOWN_MESSAGES).map((m) => (
             <li key={m.id} dir="auto" className={m.role === "user" ? "text-end" : "text-start"}>
               <p
-                className={`inline-block rounded-xl px-3 py-1.5 text-xs ${
+                className={`inline-block rounded-xl px-3 py-1.5 text-[15px] ${
                   m.role === "user" ? "bg-forest/10 text-forest" : "bg-paper text-charcoal/80"
                 }`}
               >
@@ -77,7 +77,7 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
                       key={i}
                       type="button"
                       onClick={() => chat.runAction(m.id, i)}
-                      className="rounded-full bg-terra px-3 py-1 text-xs font-semibold text-on-accent transition hover:bg-terra/90"
+                      className="min-h-9 rounded-full bg-terra px-3 text-[13px] font-semibold text-on-accent transition hover:bg-terra/90"
                     >
                       {action.label}
                     </button>
@@ -97,12 +97,12 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
           onChange={(event) => setText(event.target.value)}
           placeholder={copy.placeholder}
           aria-label={copy.ask}
-          className="min-w-0 flex-1 rounded-full border border-charcoal/15 bg-paper px-3 py-1.5 text-base focus:border-terra focus:outline-none sm:text-sm"
+          className="min-h-11 min-w-0 flex-1 rounded-full bg-paper px-4 text-base shadow-tk-soft focus:outline-none focus:ring-2 focus:ring-terra/30"
         />
         <button
           type="submit"
           disabled={chat.pending || text.trim().length === 0}
-          className="rounded-full bg-forest px-4 py-1.5 text-xs font-semibold text-on-accent disabled:opacity-50"
+          className="min-h-11 rounded-full bg-forest px-4 text-[15px] font-semibold text-on-accent disabled:opacity-50"
         >
           {copy.send}
         </button>

@@ -143,6 +143,7 @@ test("Start Walk fills the phone screen with the map and keeps the HUD out of th
 
   // Ending the walk brings the form back.
   await page.getByRole("button", { name: "End walk" }).click();
+  await page.getByRole("button", { name: /End walk/ }).click();
   await expect(page.getByPlaceholder("Latitude")).toBeVisible();
 
   expect(watch.hydrationErrors).toEqual([]);
@@ -172,6 +173,7 @@ test("the OSM attribution stays above the HUD while an alert card is showing", a
   await expect(page.getByTestId("walk-hud")).toBeVisible();
 
   // The stray control lives in the Details sheet; open it, send the walker off, close it.
+  await page.getByRole("button", { name: "Details" }).click();
   await page.getByRole("button", { name: "Details" }).click();
   await page.getByRole("button", { name: /Stray \d+ m off route/ }).click();
   await page.getByRole("button", { name: "Close", exact: false }).first().click();
@@ -230,6 +232,7 @@ test("the direction options sheet stays out of the account-pill corner and above
   // The stats bar appears with the first GPS fix; options need a position.
   await expect(page.getByTestId("walk-stats")).toBeVisible();
 
+  await page.getByRole("button", { name: "Details" }).click();
   await page.getByRole("button", { name: "Details" }).click();
   await page.getByRole("button", { name: "Show me something different" }).click();
 

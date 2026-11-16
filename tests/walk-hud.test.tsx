@@ -273,6 +273,7 @@ describe("the live-walk HUD", () => {
     const aside = document.querySelector("aside") as HTMLElement;
     expect(aside.className).toContain("hidden");
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek, half, details
     expect(aside.className).not.toMatch(/(^| )hidden( |$)/);
     expect(aside.className).toContain("z-[700]");
   });
@@ -335,6 +336,7 @@ describe("ending the walk during a mid-walk rebuild", () => {
   it("does not restart the walk when the held rebuild later succeeds", async () => {
     await startRebuild();
     fireEvent.click(screen.getByRole("button", { name: "End walk" }));
+    fireEvent.click(screen.getByRole("button", { name: /End walk/ })); // second tap confirms
     await flush();
     expectWalkEnded();
     holdPlan = false;
@@ -347,6 +349,7 @@ describe("ending the walk during a mid-walk rebuild", () => {
   it("does not restart the walk when the held rebuild later fails", async () => {
     await startRebuild();
     fireEvent.click(screen.getByRole("button", { name: "End walk" }));
+    fireEvent.click(screen.getByRole("button", { name: /End walk/ })); // second tap confirms
     await flush();
     expectWalkEnded();
     await act(async () => heldPlan!.reject());

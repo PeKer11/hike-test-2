@@ -296,6 +296,7 @@ describe("a mid-walk rebuild that never answers", () => {
     expect(walkPlanSignals[0].aborted).toBe(false);
 
     fireEvent.click(screen.getAllByRole("button", { name: /End walk/i })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /End walk/i })[0]); // second tap confirms
     await flush();
 
     expect(walkPlanSignals[0].aborted).toBe(true);

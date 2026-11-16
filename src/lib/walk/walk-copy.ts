@@ -31,6 +31,29 @@ export const walkCopy = {
     endWalk: "End walk",
     closeDetails: "Back to walk",
     detailsTitle: "Walk details",
+    /** The sheet's own words (the English strings above stay the default). */
+    sheet: {
+      en: {
+        details: "Details",
+        endWalk: "End walk",
+        endConfirm: "End walk?",
+        nextStop: "Next stop",
+        overBudget: (min: number) => `+${min} min over plan`,
+        upcoming: "Coming up",
+        sections: { walk: "The walk", conditions: "Conditions", places: "Places around", display: "Display", about: "About the map" },
+        backToPlan: "Back to previous plan",
+      },
+      he: {
+        details: "פרטים",
+        endWalk: "סיום",
+        endConfirm: "לסיים?",
+        nextStop: "התחנה הבאה",
+        overBudget: (min: number) => `+${min} דק׳ מעבר לתכנון`,
+        upcoming: "בהמשך",
+        sections: { walk: "ההליכה", conditions: "תנאים", places: "מקומות סביבי", display: "תצוגה", about: "על המפה" },
+        backToPlan: "חזרה לתכנון הקודם",
+      },
+    },
     /** The GPS chip: shown only while the position is still being found or is weak. */
     gps: {
       en: { searching: "Finding your location…", weak: "Weak GPS" },
@@ -46,6 +69,16 @@ export const walkCopy = {
     timeUnit: "min",
     distanceToFinish: "Distance to finish",
     distanceUnit: "km",
+  },
+  statsHe: {
+    pace: "קצב הליכה",
+    paceUnit: 'קמ"ש',
+    paused: "עצירה",
+    unknown: "—",
+    timeToFinish: "דקות לסיום",
+    timeUnit: "דק׳",
+    distanceToFinish: 'ק"מ לסיום',
+    distanceUnit: 'ק"מ',
   },
   pace: {
     slowTitle: "You're going slower than planned",

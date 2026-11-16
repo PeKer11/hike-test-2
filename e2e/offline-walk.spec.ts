@@ -61,6 +61,7 @@ test("a walk survives two minutes offline and resumes lookups when the network r
 
   await expect(page.getByTestId("walk-hud")).toBeVisible();
   await page.getByRole("button", { name: "End walk" }).click();
+  await page.getByRole("button", { name: /End walk/ }).click();
   await expect(page.getByPlaceholder("Latitude")).toBeVisible();
   expect(watch.hydrationErrors).toEqual([]);
   expect(appErrors(watch)).toEqual([]);

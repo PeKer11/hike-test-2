@@ -8,7 +8,9 @@ import { useEffect, useRef, useState } from "react";
 import { ConstraintPanel } from "@/components/constraints";
 import { DynamicMap } from "@/components/map";
 import { usesGoogleMap } from "@/components/map/DynamicMap";
-import { MapOptionsCard } from "@/components/map/MapOptionsCard";
+import { AccountRows, DisplaySection, MapOptionsCard, PlacesSection } from "@/components/map/MapOptionsCard";
+import { WalkSectionTitle, WalkSlot } from "@/components/walk/WalkDetails";
+import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
 import {
   HikeSearchPanel,
   PlacePromptPanel,
@@ -517,6 +519,7 @@ export function WalkPlannerApp({
   // The planning form is hidden while walking; this opens it as a bottom sheet.
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   // Map controls that used to float over the map live in Details now.
+  const asideRef = useRef<HTMLElement>(null);
   const [mapType, setMapTypeState] = useState<"map" | "satellite">("map");
   const [topRated, setTopRated] = useState(false);
   const [topRatedNote, setTopRatedNote] = useState("");
@@ -535,6 +538,10 @@ export function WalkPlannerApp({
       // Storage blocked: the choice just won't persist.
     }
   };
+  // Details always open at the top, whatever the panel was scrolled to before.
+  useEffect(() => {
+    if (isDetailsOpen && asideRef.current) asideRef.current.scrollTop = 0;
+  }, [isDetailsOpen]);
   const openDetailsAtDisplay = () => {
     setIsDetailsOpen(true);
     window.setTimeout(() => document.getElementById("walk-details-display")?.scrollIntoView({ block: "start" }), 50);
@@ -749,6 +756,7 @@ export function WalkPlannerApp({
       distanceToFinishKm: remainingM / 1000,
       walkedM,
       remainingM,
+      allowedMin: input.availableMinutes,
     });
   };
 
@@ -3111,6 +3119,31 @@ export function WalkPlannerApp({
 
   // For the per-fix callout gate (a closure): is any card, or the options sheet, up?
   const optionsOffer = walkMode ? collapseFlow.offer : null;
+
+  // The sheet's "next stop" line and its HALF state: the next unvisited stops and roughly how far each is.
+  const upcomingStops = walkMode
+    ? waypoints.filter((w) => !w.isStart && !visitedAttractionIds.includes(w.id))
+    : [];
+  const stopMinutes = (id: string): number | null => {
+    const meters = attractionDistances[id];
+    const pace = walkInputRef.current?.walkingPaceMinPerKm;
+    return typeof meters === "number" && pace ? Math.max(1, Math.round((meters / 1000) * pace)) : null;
+  };
+  const nextStopInfo = upcomingStops[0] ? { name: upcomingStops[0].name, minutes: stopMinutes(upcomingStops[0].id) } : null;
+  const sheetLang = uiLang === "he" ? "he" : "en";
+  const halfContent = walkMode ? (
+    <div className="space-y-2">
+      <p className="text-[13px] font-medium text-charcoal/60">{walkCopy.hud.sheet[sheetLang].upcoming}</p>
+      <ul className="space-y-1">
+        {upcomingStops.slice(0, 3).map((w) => (
+          <li key={w.id} dir="auto" className="flex items-baseline justify-between gap-3 text-[16px] text-tk-ink">
+            <span className="min-w-0 truncate">{w.name}</span>
+            {stopMinutes(w.id) !== null ? <span className="shrink-0 text-[13px] text-charcoal/60">{stopMinutes(w.id)} {sheetLang === "he" ? "דק׳" : "min"}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  ) : null;
   useEffect(() => {
     cardVisibleRef.current = walkAlert !== null || optionsOffer !== null;
     // WalkHud shows the options sheet over the alert, so a card under the sheet is not shown yet.
@@ -3155,6 +3188,7 @@ export function WalkPlannerApp({
           narrow frame it is hidden until "Details" lifts it as a bottom sheet;
           from @4xl up it is simply the sidebar it always was. */}
       <aside
+        ref={asideRef}
         className={`isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 @4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
           walkMode && !isDetailsOpen ? "hidden @4xl:block" : ""
         } ${mapFull && !walkMode ? "hidden @4xl:block" : ""} ${
@@ -3180,7 +3214,7 @@ export function WalkPlannerApp({
             {walkCopy.hud.closeDetails}
           </button>
         )}
-        <div className="relative z-10 mx-auto mb-[17px] max-w-[440px] ps-[7px] pt-[7px] @4xl:mb-[14px] @4xl:pt-[5px] @6xl:mb-[17px] @6xl:pt-[7px]">
+        <div className={`${walkMode ? "hidden " : ""}relative z-10 mx-auto mb-[17px] max-w-[440px] ps-[7px] pt-[7px] @4xl:mb-[14px] @4xl:pt-[5px] @6xl:mb-[17px] @6xl:pt-[7px]`}>
           {!compact && (
             <>
           {/* Dotted route + pin that trail off the wordmark. */}
@@ -3229,7 +3263,7 @@ export function WalkPlannerApp({
           </button>
         </div>
 
-        <div className="relative z-10 mx-auto max-w-[440px] space-y-[15px]">
+        <div className={`relative z-10 mx-auto max-w-[440px] ${walkMode ? "flex flex-col gap-[15px]" : "space-y-[15px]"}`}>
           {isAdvancedOpen && (
             <Card className="space-y-2">
               <div className="text-sm font-semibold text-forest">Planning mode</div>
@@ -3358,6 +3392,7 @@ export function WalkPlannerApp({
               <div className={sideTab === "plan" || !isSignedIn || walkMode ? "contents" : "hidden"}>
               {isSignedIn && (
                 // Stays mounted while walking so the conversation continues; collapsed then, so it never pushes End Walk down.
+                <WalkSlot walking={walkMode} order={15}>
                 <details className={walkMode ? "rounded-tk-card bg-tk-card shadow-tk-card" : "[&>summary]:hidden"} open={!walkMode || chatOpen}
                   onToggle={(e) => { if (walkMode) setChatOpen(e.currentTarget.open); }}>
                 <summary className="cursor-pointer px-4 py-2.5 font-brand text-sm font-semibold text-tk-ink">Chat with Traike · re-plan</summary>
@@ -3410,6 +3445,7 @@ export function WalkPlannerApp({
                   }}
                 />
                 </details>
+                </WalkSlot>
               )}
               {isSignedIn && !walkMode && <SavedPlacePicker addedIds={wishlist.map((w) => w.id)} inWalkIds={(walkPlan?.orderedAttractions ?? []).map((a) => a.id)} onAdd={addSavedPlacesToWalk} />}
               {!walkMode && !isSignedIn && (
@@ -3455,6 +3491,7 @@ export function WalkPlannerApp({
                   a cut stop underneath the whole form meant scrolling past
                   it on a narrow screen to notice anything was lost. */}
               {walkPhase === "walking" && (
+                <WalkSlot walking={walkMode} order={13}>
                 <Button
                   variant="secondary"
                   fullWidth
@@ -3474,8 +3511,10 @@ export function WalkPlannerApp({
                     ? walkCopy.discovery.text("en", "options.loading")
                     : walkCopy.discovery.text("en", "options.different")}
                 </Button>
+                </WalkSlot>
               )}
               {walkPhase === "walking" && voiceSupported && (
+                <WalkSlot walking={walkMode} order={52}>
                 <Button
                   variant="secondary"
                   fullWidth
@@ -3486,16 +3525,27 @@ export function WalkPlannerApp({
                 >
                   {companionText(uiLang, voiceOn ? "ui.voiceOn" : "ui.voiceOff")}
                 </Button>
+                </WalkSlot>
               )}
               {walkPhase === "walking" && (
-                <DroppedStopsPanel
-                  stops={lostStops}
-                  onRecall={recallDroppedStop}
-                  onDismiss={() => setLostStops([])}
-                />
+                <WalkSlot walking={walkMode} order={12}>
+                  <DroppedStopsPanel
+                    stops={lostStops}
+                    onRecall={recallDroppedStop}
+                    onDismiss={() => setLostStops([])}
+                  />
+                </WalkSlot>
+              )}
+              {walkMode && previousPlan !== null && (
+                <WalkSlot walking order={14}>
+                  <Button variant="secondary" fullWidth onClick={handleRevertPlan}>
+                    {walkCopy.hud.sheet[uiLang === "he" ? "he" : "en"].backToPlan}
+                  </Button>
+                </WalkSlot>
               )}
               {/* Signed-in users build through the assistant chat only; the form returns once a plan exists. */}
               {(!isSignedIn || walkPhase !== "idle") && (
+              <div className={walkMode ? "hidden" : "contents"}>
               <WalkCompanionPanel
                 chatOnly={isSignedIn}
                 isSignedIn={isSignedIn}
@@ -3528,6 +3578,7 @@ export function WalkPlannerApp({
                 canRevertPlan={previousPlan !== null}
                 isWalking={walkPhase === "walking"}
               />
+              </div>
               )}
               {isSignedIn && walkPhase === "planned" && savedWalkIdRef.current && (
                 <Button
@@ -3597,6 +3648,7 @@ export function WalkPlannerApp({
                   </ul>
                 </Card>
               )}
+              <WalkSlot walking={walkMode} order={81}>
               <WalkRecordingPanel
                 isRecording={isRecording}
                 pointCount={recordedPointCount}
@@ -3609,12 +3661,16 @@ export function WalkPlannerApp({
                   if (points.length > 0) downloadCsv(points, walkPlan?.orderedAttractions ?? [], "My Walk");
                 }}
               />
+              </WalkSlot>
               {walkPhase === "walking" && (
-                <Button variant="secondary" fullWidth onClick={() => setShowWalkedPath((v) => !v)}>
-                  {showWalkedPath ? "Hide the path I walked" : "Show the path I walked (gray)"}
-                </Button>
+                <WalkSlot walking={walkMode} order={53}>
+                  <Button variant="secondary" fullWidth onClick={() => setShowWalkedPath((v) => !v)}>
+                    {showWalkedPath ? "Hide the path I walked" : "Show the path I walked (gray)"}
+                  </Button>
+                </WalkSlot>
               )}
               {walkPhase === "walking" && walkPlan && (
+                <WalkSlot walking={walkMode} order={11}>
                 <AttractionDistancesPanel
                   attractions={walkPlan.orderedAttractions}
                   attractionDistances={attractionDistances}
@@ -3623,6 +3679,7 @@ export function WalkPlannerApp({
                   visitedIds={visitedAttractionIds}
                   onSkip={skipAttraction}
                 />
+                </WalkSlot>
               )}
               {/* Loading skeleton while plan is being built (MEDIUM-5) */}
               {isWalkPlanLoading && (
@@ -3679,12 +3736,15 @@ export function WalkPlannerApp({
                   }
                 />
               )}
-              <WalkPlanResults
-                plan={walkPlan}
-                error={walkPlanError}
-                community={communityAggregates}
-                lang={uiLang}
-              />
+              {/* While walking, the stops list in "The walk" replaces the plan card. */}
+              <div className={walkMode ? "hidden" : "contents"}>
+                <WalkPlanResults
+                  plan={walkPlan}
+                  error={walkPlanError}
+                  community={communityAggregates}
+                  lang={uiLang}
+                />
+              </div>
               {walkPhase !== "walking" && (
                 <label className="@container relative flex h-[36px] cursor-pointer items-center gap-[9px] overflow-hidden rounded-[10px] border border-dashed border-[#dccdb9] bg-tk-card ps-[14px] pe-[12px] text-[13px] leading-none text-[#1d1712] shadow-tk-card">
                   <input
@@ -3707,7 +3767,7 @@ export function WalkPlannerApp({
                   moves the reported position, so what fires downstream is the
                   real detector on a real position stream. */}
               {walkPhase === "walking" && isSimulating && (
-                <div className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-paper px-3 py-2">
+                <div style={walkMode ? { order: 83 } : undefined} className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-paper px-3 py-2">
                   <p className="text-xs text-charcoal/60">
                     {isStrayLoading
                       ? "Finding a real side street to wander down…"
@@ -3762,7 +3822,7 @@ export function WalkPlannerApp({
                   for it, so the real ReplanTrigger measures a real drift off a
                   real position stream. At 10× that is ~90 seconds of watching. */}
               {walkPhase === "walking" && isSimulating && (
-                <div className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-paper px-3 py-2">
+                <div style={walkMode ? { order: 83 } : undefined} className="space-y-2 rounded-[10px] border border-dashed border-charcoal/20 bg-paper px-3 py-2">
                   <p className="text-xs text-charcoal/60">
                     {simulatedPaceDrift === null
                       ? "Walk the route at the wrong speed for it to exercise the pace re-plan. Takes about 90 seconds to trigger."
@@ -3793,15 +3853,46 @@ export function WalkPlannerApp({
                   </div>
                 </div>
               )}
-              <TrailIntelligencePanel
-                report={trailBriefing}
-                isLoading={isTrailBriefingLoading}
-                error={trailBriefingError}
-              />
+              <WalkSlot walking={walkMode} order={31}>
+                <TrailIntelligencePanel
+                  report={trailBriefing}
+                  isLoading={isTrailBriefingLoading}
+                  error={trailBriefingError}
+                />
+              </WalkSlot>
+              {walkMode && (
+                <>
+                  <WalkSectionTitle walking order={10}>{walkCopy.hud.sheet[uiLang === "he" ? "he" : "en"].sections.walk}</WalkSectionTitle>
+                  <WalkSectionTitle walking order={30}>{walkCopy.hud.sheet[uiLang === "he" ? "he" : "en"].sections.conditions}</WalkSectionTitle>
+                  {usesGoogleMap && <WalkSectionTitle walking order={40}>{walkCopy.hud.sheet[uiLang === "he" ? "he" : "en"].sections.places}</WalkSectionTitle>}
+                  <WalkSectionTitle walking order={50}>{walkCopy.hud.sheet[uiLang === "he" ? "he" : "en"].sections.display}</WalkSectionTitle>
+                  <WalkSectionTitle walking order={80}>{walkCopy.hud.sheet[uiLang === "he" ? "he" : "en"].sections.about}</WalkSectionTitle>
+                  <WalkSlot walking order={41}>
+                    <PlacesSection topRated={usesGoogleMap ? topRated : undefined} onTopRated={usesGoogleMap ? setTopRated : undefined} topRatedNote={topRatedNote} />
+                  </WalkSlot>
+                  <WalkSlot walking order={51}>
+                    <DisplaySection mapType={mapType} onMapType={setMapType} showMapType={usesGoogleMap} />
+                  </WalkSlot>
+                  <WalkSlot walking order={70}>
+                    <WalkSettingsPanel settings={walkSettings} onChange={setWalkSettings} />
+                  </WalkSlot>
+                  <WalkSlot walking order={84}>
+                    <div className="space-y-1 text-[13px] leading-[18px] text-charcoal/80">
+                      <p>Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors</p>
+                      {companion.attribution ? <p>{companion.attribution}</p> : null}
+                    </div>
+                  </WalkSlot>
+                  <WalkSlot walking order={90}>
+                    <AccountRows signedIn={isSignedIn} />
+                  </WalkSlot>
+                </>
+              )}
               {walkTrackingMessage ? (
-                <Card>
-                  <p className="text-sm text-amber-700">{walkTrackingMessage}</p>
-                </Card>
+                <WalkSlot walking={walkMode} order={82}>
+                  <Card>
+                    <p className="text-[13px] text-amber-700">{walkTrackingMessage}</p>
+                  </Card>
+                </WalkSlot>
               ) : null}
               </div>
             </>
@@ -3898,7 +3989,7 @@ export function WalkPlannerApp({
             <button
               type="button"
               onClick={handleClearAll}
-              className="mx-auto flex items-center gap-[8px] py-2 text-[12.75px] font-semibold leading-[20px] text-tk-body"
+              className={`${walkMode ? "hidden " : ""}mx-auto flex items-center gap-[8px] py-2 text-[12.75px] font-semibold leading-[20px] text-tk-body`}
             >
               <svg aria-hidden viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 12a8 8 0 1 1-2.5-5.8" />
@@ -3921,7 +4012,7 @@ export function WalkPlannerApp({
             </>
           ) : null}
         </div>
-        <MapOptionsCard
+        {!walkMode && <MapOptionsCard
           mapType={mapType}
           onMapType={setMapType}
           showMapType={usesGoogleMap}
@@ -3929,7 +4020,7 @@ export function WalkPlannerApp({
           onTopRated={usesGoogleMap ? setTopRated : undefined}
           topRatedNote={topRatedNote}
           signedIn={isSignedIn}
-        />
+        />}
       </aside>
 
       {/* Percentage height, not viewport height: when stacked, the map takes a
@@ -4030,6 +4121,8 @@ export function WalkPlannerApp({
             chat={<WalkChatBox chat={walkChat} lang={uiLang === "he" ? "he" : "en"} />}
             sheet={directionSheet}
             stats={walkStats}
+            nextStop={nextStopInfo}
+            half={halfContent}
             gpsState={gpsState}
             lang={uiLang === "he" ? "he" : "en"}
             onDetails={() => setIsDetailsOpen(true)}
