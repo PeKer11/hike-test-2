@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Coordinates } from "@/lib/types";
+import { isAffirm } from "@/lib/walk/chat/affirm";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
 import { parseIntent, type ParsedIntent } from "@/lib/walk/chat/intent";
 import {
@@ -89,6 +90,15 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, text, actions } : m)));
   }, []);
 
+  const runAction = useCallback((messageId: number, actionIndex: number) => {
+    const message = messagesRef.current.find((m) => m.id === messageId);
+    const action = message?.actions[actionIndex];
+    if (!message || message.used || !action || usedIds.current.has(messageId)) return;
+    usedIds.current.add(messageId);
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, used: true } : m)));
+    depsRef.current.onAction(action);
+  }, []);
+
   const autoRun = (id: number, text: string, actions: ChatAction[]) => {
     if (actions.length !== 1 || actions[0].kind !== "detour" || !GO_WORDS.test(text)) return;
     usedIds.current.add(id);
@@ -108,6 +118,22 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
       if (!ctx) {
         push("app", copy.noWalk);
         return;
+      }
+      // A typed "yes" confirms the newest proposal that still has buttons, on the device, with no model call.
+      if (isAffirm(text)) {
+        const recent = messagesRef.current.filter((m) => m.role === "app").slice(-3);
+        const open = [...recent].reverse().find((m) => !m.used && !usedIds.current.has(m.id) && m.actions.length > 0);
+        if (open) {
+          const applyAll = open.actions.findIndex((a) => a.kind === "apply-changes");
+          const index = applyAll >= 0 ? applyAll : open.actions.length === 1 ? 0 : -1;
+          if (index >= 0) {
+            push("app", lang === "he" ? "מוסיפים…" : "On it…");
+            runAction(open.id, index);
+          } else {
+            push("app", lang === "he" ? "על איזה מהם? אפשר ללחוץ על הכפתור" : "Which one? Tap its button");
+          }
+          return;
+        }
       }
       const legacy = () => {
       const parsed = parseIntent(text, ctx.stops);
@@ -264,7 +290,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
         }
       })();
     },
-    [push, replace],
+    [push, replace, runAction],
   );
 
   const openWith = useCallback(
@@ -274,15 +300,6 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     },
     [send],
   );
-
-  const runAction = useCallback((messageId: number, actionIndex: number) => {
-    const message = messagesRef.current.find((m) => m.id === messageId);
-    const action = message?.actions[actionIndex];
-    if (!message || message.used || !action || usedIds.current.has(messageId)) return;
-    usedIds.current.add(messageId);
-    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, used: true } : m)));
-    depsRef.current.onAction(action);
-  }, []);
 
   const reset = useCallback(() => {
     requestId.current += 1;

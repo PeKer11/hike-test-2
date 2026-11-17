@@ -21,7 +21,8 @@ import {
   WalkPlanResults,
 } from "@/components/route";
 import { DirectionOptionsSheet } from "@/components/walk/DirectionOptionsSheet";
-import { WalkHud } from "@/components/walk/WalkHud";
+import type { DiscoveryItem } from "@/lib/types/discovery";
+import { WalkHud, type WalkNotice } from "@/components/walk/WalkHud";
 import { detectedNote, mayAddToWalk } from "@/lib/walk/detected-note";
 import type { WalkAlert } from "@/components/walk/WalkAlertCard";
 import type { WalkStatsData } from "@/components/walk/WalkStatsBar";
@@ -138,6 +139,7 @@ import {
   buildDropStopsRebuildRequest,
   buildPaceRebuildRequest,
   MIN_REBUILD_MINUTES,
+  buildAddPlaceRebuildRequest,
   buildRecallRebuildRequest,
   promptWalkBuildOptions,
   setSimulatedPaceDrift,
@@ -1205,6 +1207,23 @@ export function WalkPlannerApp({
   }, [isSignedIn, sideTab]);
   const [walkBookmarked, setWalkBookmarked] = useState(false);
 
+  // The result line on the walk sheet (visible on a phone, unlike the Details log).
+  const [walkNotice, setWalkNotice] = useState<(Omit<WalkNotice, "action"> & { undo?: boolean }) | null>(null);
+  const noticeSeqRef = useRef(0);
+  const showWalkNotice = (text: string, tone: "ok" | "warn", undo = false) => {
+    noticeSeqRef.current += 1;
+    setWalkNotice({ id: noticeSeqRef.current, text, tone, undo });
+  };
+  useEffect(() => {
+    if (!walkNotice) return;
+    const timer = window.setTimeout(() => setWalkNotice(null), 8_000);
+    return () => window.clearTimeout(timer);
+  }, [walkNotice]);
+  const reportReplanFailed = () => {
+    setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
+    showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].replanFailed, "warn");
+  };
+
   const handleBuildWalk = async (
     input: WalkCompanionInput,
     options?: {
@@ -1236,7 +1255,7 @@ export function WalkPlannerApp({
       /** The stops were already chosen by the AI (the chat); skip the AI builder. */
       aiDecided?: boolean;
     },
-  ) => {
+  ): Promise<WalkPlan | null> => {
     const rulesBefore = routeRulesRef.current; // for the undo snapshot: the rules the current plan was built with
     if (options?.routeRules !== undefined) routeRulesRef.current = options.routeRules;
     else if (options?.keepAttractions === undefined) routeRulesRef.current = undefined;
@@ -1326,6 +1345,7 @@ export function WalkPlannerApp({
       }
     }, WALK_PLAN_SLOW_AFTER_MS);
 
+    let built: WalkPlan | null = null;
     try {
       // The AI decides the stops and their order; the planner below only measures that walk.
       // Skipped for a replay of a saved walk and for a route the chat's AI already built.
@@ -1361,17 +1381,17 @@ export function WalkPlannerApp({
           }),
         });
         const ai = (await aiRes.json().catch(() => ({}))) as { stops?: Attraction[]; geometry?: Coordinates[] | null; error?: string };
-        if (requestId !== buildWalkRequestIdRef.current) return;
+        if (requestId !== buildWalkRequestIdRef.current) return null;
         if (!aiRes.ok || !ai.stops?.length) {
           if (snapshot) {
             revertToSnapshot(snapshot);
-            setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
-            return;
+            reportReplanFailed();
+            return null;
           }
           // The AI itself failed (not sign-in, budget or bad input): the rule-based planner can still build the walk.
           if (aiRes.status < 500) {
             setWalkPlanError(ai.error ?? "The AI could not build a walk that fits.");
-            return;
+            return null;
           }
           // The AI used up the clock; the planner gets a fresh one.
           window.clearTimeout(deadline);
@@ -1410,7 +1430,7 @@ export function WalkPlannerApp({
       const data = (await res.json()) as WalkPlan & { error?: string; habitHints?: HabitHint[] };
 
       // Bail if a newer request has superseded this one
-      if (requestId !== buildWalkRequestIdRef.current) return;
+      if (requestId !== buildWalkRequestIdRef.current) return null;
 
       if (!res.ok || data.error) {
         // Tracking was already torn down for the rebuild. Dropping the walker
@@ -1418,16 +1438,17 @@ export function WalkPlannerApp({
         // they were on, so put it back and say so.
         if (snapshot) {
           revertToSnapshot(snapshot);
-          setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
+          reportReplanFailed();
         } else {
           setWalkPlanError(data.error ?? "Failed to build walk plan.");
         }
       } else if (snapshot && (data.orderedAttractions.length === 0 || (data.geometry?.length ?? 0) < 2)) {
         // A route with no stops or no line would drop the walker out of the walk; keep the one they were on.
         revertToSnapshot(snapshot);
-        setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
+        reportReplanFailed();
       } else {
         showPlan(data, data.geometry ?? [], options?.autoResume === true);
+        built = data;
         if (options?.backfillGeometry && data.geometry && data.geometry.length >= 2) {
           const facts = geometryFacts(data.geometry);
           const walkId = options.backfillGeometry.id;
@@ -1495,18 +1516,18 @@ export function WalkPlannerApp({
             // plan is on screen, so all that's missing is telling the walker why
             // they're looking at it.
             setWalkTrackingMessage(MANUAL_RESUME_MESSAGE);
+            showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].manualResume, "ok");
           } else {
             handleStartWalk(data);
           }
         }
       }
     } catch {
-      if (requestId !== buildWalkRequestIdRef.current) return;
+      if (requestId !== buildWalkRequestIdRef.current) return null;
       if (snapshot) {
         revertToSnapshot(snapshot);
-        setWalkTrackingMessage(
-          cancelled ? REPLAN_CANCELLED_MESSAGE : REPLAN_FAILED_MESSAGE,
-        );
+        if (cancelled) setWalkTrackingMessage(REPLAN_CANCELLED_MESSAGE);
+        else reportReplanFailed();
       } else {
         // Our own deadline firing and the network dropping are different
         // things, and telling them apart is the difference between "try again"
@@ -1527,6 +1548,7 @@ export function WalkPlannerApp({
         setRebuildingMidWalk(false);
       }
     }
+    return built;
   };
 
   // The rebuild a pace trigger asks for: re-time the walk the walker is already
@@ -1565,13 +1587,10 @@ export function WalkPlannerApp({
     };
   };
 
-  // "Add a stop" buttons hand the choice to the chat model (owner only for now; the chat
-  // falls back to the plain rebuild for everyone else). TODO: paid tier.
+  // "Add a stop" buttons add a real place (best one ahead). Only the "ask" setting, or a walk
+  // with nothing to offer, opens the chat. `askForStopRef` is assigned on every render.
   const askForStopRef = useRef<(() => void) | null>(null);
-  const addStopViaChat = (reason: ReplanReason) => {
-    if (askForStopRef.current) askForStopRef.current();
-    else runPaceTriggeredRebuild(reason);
-  };
+  const addStopViaChat = () => addStopFromOffer();
 
   const runPaceTriggeredRebuild = (reason: ReplanReason) => {
     const state = midWalkRebuildState();
@@ -1605,7 +1624,88 @@ export function WalkPlannerApp({
       currentAttractions: [...(state.currentAttractions ?? []), added],
       pinnedIds: [...state.pinnedIds, id],
     });
-    void handleBuildWalk(input, options);
+    const before = walkPlanRef.current;
+    void handleBuildWalk(input, options).then((plan) => announceAdded(name, id, before, plan));
+  };
+
+  // After a rebuild that was meant to add one place: say what happened on the sheet.
+  // A failed rebuild has already said so (reportReplanFailed), so `null` stays quiet here.
+  const announceAdded = (name: string, id: string, before: WalkPlan | null, plan: WalkPlan | null) => {
+    if (!plan) return;
+    const t = walkCopy.notice[uiLang === "he" ? "he" : "en"];
+    if (!plan.orderedAttractions.some((a) => a.id === id)) {
+      showWalkNotice(t.nothingFit, "warn");
+      return;
+    }
+    const minutesBefore = walkStats?.timeToFinishMin ?? before?.totalMinutes ?? null;
+    const extra = minutesBefore === null ? 0 : Math.round(plan.totalMinutes - minutesBefore);
+    showWalkNotice(t.added(name, extra), "ok", before !== null);
+  };
+
+  // "Yes, add that place": the exact place, pinned, with the clock grown to fit. No discovery, no model.
+  const addPlaceToLiveWalk = async (attraction: Attraction) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const before = walkPlanRef.current;
+    const pinsBefore = pinnedAttractionIdsRef.current;
+    discoveryRef.current?.setState(attraction.id, "added");
+    const nextPinned = pinsBefore.includes(attraction.id) ? pinsBefore : [...pinsBefore, attraction.id];
+    pinnedAttractionIdsRef.current = nextPinned;
+    setPinnedAttractionIds(nextPinned);
+    const { input, options } = buildAddPlaceRebuildRequest({ ...state, pinnedIds: nextPinned }, attraction);
+    const plan = await handleBuildWalk(input, options);
+    if (!plan) {
+      discoveryRef.current?.setState(attraction.id, "new");
+      pinnedAttractionIdsRef.current = pinsBefore;
+      setPinnedAttractionIds(pinsBefore);
+      return;
+    }
+    announceAdded(attraction.name, attraction.id, before, plan);
+  };
+
+  // The best registered place ahead that the walker can still afford, or null.
+  const pickBestAddItem = (): DiscoveryItem | null => {
+    const snap = getCompanionSnapshot();
+    const discovery = discoveryRef.current;
+    if (!snap || !discovery) return null;
+    const pick = pickAddPlace(discovery.items(), {
+      speedMpm: snap.tick.speedMpm,
+      remainingWalkMin: snap.tick.remainingWalkMin,
+      environment: snap.tick.environment,
+      excludeIds: snap.tick.remainingStops.map((st) => st.id),
+    });
+    return pick ? discovery.collection.items.get(pick.id) ?? null : null;
+  };
+
+  // The "Extend the hike" / "Add a stop" buttons: add a real place. Only the "ask" setting, or
+  // a walk with nothing to offer, hands the choice to the chat.
+  const addStopFromOffer = () => {
+    if (walkSettingsRef.current.stopSuggestionMode === "ask") {
+      askForStopRef.current?.();
+      return;
+    }
+    const item = pickBestAddItem();
+    if (item) void addPlaceToLiveWalk(item.attraction);
+    else askForStopRef.current?.();
+  };
+
+  // The keyword chat's "Add a stop": add the best place, else fill the time and say if nothing fit.
+  const addBestStopOrFill = async () => {
+    const item = pickBestAddItem();
+    if (item) {
+      void addPlaceToLiveWalk(item.attraction);
+      return;
+    }
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const idsBefore = (walkPlanRef.current?.orderedAttractions ?? []).map((a) => a.id).join(",");
+    const lastFix = latestPaceUpdateRef.current;
+    const heading = lastFix ? headingMonitorRef.current?.recentHeading(lastFix.timestamp) ?? undefined : undefined;
+    const { input, options } = buildPaceRebuildRequest("sustained-fast-pace", state, heading);
+    const plan = await handleBuildWalk(input, options);
+    if (plan && plan.orderedAttractions.map((a) => a.id).join(",") === idsBefore) {
+      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].nothingFit, "warn");
+    }
   };
 
   // Several chat proposals at once: drop the skipped stops, pin the new ones, one rebuild.
@@ -1627,7 +1727,10 @@ export function WalkPlannerApp({
       currentAttractions: [...kept, ...added],
       pinnedIds: [...state.pinnedIds.filter((id) => !drop.has(id)), ...added.map((a) => a.id)],
     });
-    void handleBuildWalk(input, options);
+    const before = walkPlanRef.current;
+    void handleBuildWalk(input, options).then((plan) => {
+      if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added[0].id, before, plan);
+    });
   };
 
   // --- Walk companion --------------------------------------------------------
@@ -1734,7 +1837,7 @@ export function WalkPlannerApp({
         pace,
         addPlace:
           paceAdvisory?.kind === "fast"
-            ? pickAddPlace(items, { speedMpm, remainingWalkMin, environment })
+            ? pickAddPlace(items, { speedMpm, remainingWalkMin, environment, excludeIds: remainingStops.map((st) => st.id) })
             : null,
         amenities: [
           ...amenityItemsFromPlaces(discovery.amenities(), (p) => discovery.frameOf(p)),
@@ -1847,6 +1950,7 @@ export function WalkPlannerApp({
     if (walkTrackerRef.current === null || walkGeometryRef.current !== requestGeometry) return;
     if (!spliced) {
       setWalkTrackingMessage(companionText(uiLang, "notice.amenityFailed"));
+      showWalkNotice(companionText(uiLang, "notice.amenityFailed"), "warn");
       return;
     }
     walkGeometryRef.current = spliced;
@@ -1885,6 +1989,12 @@ export function WalkPlannerApp({
       case "head-back":
         void runThemedOption("short");
         return;
+      case "add-place": {
+        const item = discoveryRef.current?.collection.items.get(action.placeId);
+        if (item) void addPlaceToLiveWalk(item.attraction);
+        else showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].gone, "warn");
+        return;
+      }
       default: {
         const never: never = action;
         return never;
@@ -3158,7 +3268,7 @@ export function WalkPlannerApp({
             onClick: () => {
               const reason = paceConfirmation;
               clearPaceConfirmation();
-              if (!slow) addStopViaChat(reason);
+              if (!slow) addStopViaChat();
               else runPaceTriggeredRebuild(reason);
             },
           },
@@ -3238,7 +3348,7 @@ export function WalkPlannerApp({
             primary: true,
             onClick: () => {
               setPaceAdvisory(null);
-              if (!slow) addStopViaChat("sustained-fast-pace");
+              if (!slow) addStopViaChat();
               else runPaceTriggeredRebuild("sustained-slow-pace");
             },
           },
@@ -3289,7 +3399,7 @@ export function WalkPlannerApp({
       } else if (action.kind === "drop") {
         runDropStopsRebuild([action.stopId]);
       } else if (action.kind === "add-stop") {
-        runPaceTriggeredRebuild("sustained-fast-pace");
+        void addBestStopOrFill();
       } else if (action.kind === "apply-changes") {
         runApplyChangesRebuild(action.adds, action.dropStopIds);
       } else if (action.kind === "add-place") {
@@ -4368,6 +4478,25 @@ export function WalkPlannerApp({
         {walkMode && (
           <WalkHud
             alert={walkAlert}
+            notice={
+              walkNotice
+                ? {
+                    id: walkNotice.id,
+                    text: walkNotice.text,
+                    tone: walkNotice.tone,
+                    action:
+                      walkNotice.undo && previousPlan
+                        ? {
+                            label: walkCopy.notice[uiLang === "he" ? "he" : "en"].undo,
+                            onClick: () => {
+                              handleRevertPlan();
+                              setWalkNotice(null);
+                            },
+                          }
+                        : undefined,
+                  }
+                : null
+            }
             chat={<WalkChatBox chat={walkChat} lang={uiLang === "he" ? "he" : "en"} />}
             sheet={directionSheet}
             stats={walkStats}

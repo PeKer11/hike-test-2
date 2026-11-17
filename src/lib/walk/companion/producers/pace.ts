@@ -15,7 +15,7 @@ export interface PaceProducerInput {
   /** Stops still ahead, in visit order. */
   remainingStops: PaceStop[];
   /** Fast only: a collection place worth adding. */
-  addPlace?: { name: string; detourMin: number };
+  addPlace?: { id: string; name: string; detourMin: number };
   nowMs: number;
   ttlMs?: number;
 }
@@ -66,7 +66,7 @@ export function paceCandidate(input: PaceProducerInput): Candidate | null {
     urgency: 1,
     value: Math.min(1, spareMin / 30),
     answers: [
-      { id: "add", label: "answer.add", operator: { op: "extend", addFrom: "collection" } },
+      { id: "add", label: "answer.add", operator: { op: "add-place", placeId: input.addPlace.id } },
       { id: "finish-early", label: "answer.finishEarly", operator: { op: "head-back" } },
     ],
     expiresAtMs,

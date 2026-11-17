@@ -7,6 +7,7 @@ import {
   type WalkSettings,
 } from "@/lib/types/walk-settings";
 import {
+  buildAddPlaceRebuildRequest,
   buildDeviationRebuildRequest,
   buildExtendedTimeRebuildRequest,
   buildHeadingContinuedRebuildRequest,
@@ -854,6 +855,36 @@ describe("stopsLostInRebuild", () => {
     });
 
     expect(later).toEqual([]);
+  });
+});
+
+describe("buildAddPlaceRebuildRequest", () => {
+  it("keeps every unvisited stop, appends the place once and pins it", () => {
+    const { options } = buildAddPlaceRebuildRequest(state(), attraction("cafe"));
+
+    expect(keptIds(options)).toEqual(["a", "b", "cafe"]);
+    expect(options.pinnedIds).toEqual(["a", "cafe"]);
+  });
+
+  it("does not duplicate a place that is already on the walk", () => {
+    const { options } = buildAddPlaceRebuildRequest(state({ pinnedIds: ["a", "b"] }), attraction("b"));
+
+    expect(keptIds(options)).toEqual(["a", "b"]);
+    expect(options.pinnedIds).toEqual(["a", "b"]);
+  });
+
+  it("adds exactly that place: no discovery around it", () => {
+    const { options } = buildAddPlaceRebuildRequest(state(), attraction("cafe"));
+
+    expect(options.fillRemainingTime).toBe(false);
+  });
+
+  it("grows the clock to hold the chain including the new place", () => {
+    const long = { ...attraction("long"), avgVisitMinutes: 90 };
+    const { input } = buildAddPlaceRebuildRequest(state(), long);
+
+    // 60 min were left; the visits alone (10 + 10 + 90) need more.
+    expect(input.availableMinutes).toBeGreaterThanOrEqual(110);
   });
 });
 

@@ -378,6 +378,28 @@ export function buildRecallRebuildRequest<TInput extends RebuildInput>(
 }
 
 /**
+ * "Yes, add that place": the exact place the walker was offered, mid-walk.
+ *
+ * Keeps every unvisited stop, appends the place once, pins it, and lets the
+ * clock grow to fit all of them. Discovery stays off: the walker named one
+ * place, so nothing else is added around it.
+ */
+export function buildAddPlaceRebuildRequest<TInput extends RebuildInput>(
+  state: PaceRebuildState<TInput>,
+  place: Attraction,
+): { input: TInput; options: BuildWalkOptions } {
+  const kept = state.currentAttractions ?? [];
+  return buildMidWalkRebuildRequest(
+    {
+      ...state,
+      currentAttractions: kept.some((a) => a.id === place.id) ? kept : [...kept, place],
+      pinnedIds: state.pinnedIds.includes(place.id) ? state.pinnedIds : [...state.pinnedIds, place.id],
+    },
+    { fillRemainingTime: false, extendToFitRemainingStops: true },
+  );
+}
+
+/**
  * Straight line to street network. Every leg below is measured as the crow
  * flies, but the walk is done on pavements that turn corners, so a budget built
  * from raw haversine legs would be short of the distance actually walked. The

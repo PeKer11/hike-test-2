@@ -8,8 +8,17 @@ import { WalkStatsBar, type WalkStatsData } from "@/components/walk/WalkStatsBar
 import type { LocateState } from "@/lib/geo/locate";
 import { walkCopy } from "@/lib/walk/walk-copy";
 
+/** The result of a rebuild, shown for a few seconds above the next-stop line. */
+export interface WalkNotice {
+  id: number;
+  text: string;
+  tone: "ok" | "warn";
+  action?: { label: string; onClick: () => void };
+}
+
 interface WalkHudProps {
   alert: WalkAlert | null;
+  notice?: WalkNotice | null;
   /** The direction options after a collapse; takes the alert's slot (one card, never two). */
   sheet?: ReactNode;
   /** The in-walk chat (the "Ask" pill); shares the bottom row with End walk. */
@@ -37,7 +46,7 @@ interface WalkHudProps {
  * map ends exactly above it (Google's logo and terms stay visible; Leaflet's
  * attribution is lifted clear of it).
  */
-export function WalkHud({ alert, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, half, onDetails, onEndWalk }: WalkHudProps) {
+export function WalkHud({ alert, notice = null, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, half, onDetails, onEndWalk }: WalkHudProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -86,6 +95,24 @@ export function WalkHud({ alert, sheet, chat, stats, gpsState = "idle", lang = "
               className={`h-2 w-2 rounded-full ${gpsState === "searching" ? "animate-pulse bg-forest" : "bg-warn"}`}
             />
             {gpsLabel}
+          </div>
+        ) : null}
+        {notice ? (
+          <div
+            key={notice.id}
+            role="status"
+            data-testid="walk-notice"
+            className={`flex items-center gap-2 rounded-2xl px-3 py-1 text-[15px] font-medium ${notice.tone === "ok" ? "bg-forest/10 text-forest" : "bg-warn/15 text-tk-ink"}`}
+          >
+            <svg aria-hidden viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              {notice.tone === "ok" ? <path d="M5 12.5l4.5 4.5L19 7.5" /> : <path d="M12 8v5m0 3.5h.01M10.3 3.9L2.6 17.5A2 2 0 004.3 20.5h15.4a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" />}
+            </svg>
+            <span dir="auto" className="min-w-0 flex-1 py-2">{notice.text}</span>
+            {notice.action ? (
+              <button type="button" onClick={notice.action.onClick} className="min-h-11 shrink-0 rounded-full px-3 text-[15px] font-semibold text-terra">
+                {notice.action.label}
+              </button>
+            ) : null}
           </div>
         ) : null}
         {nextStop ? (

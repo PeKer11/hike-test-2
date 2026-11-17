@@ -11,6 +11,7 @@ import type { AmenityKind, PlanOperator } from "./companion-types";
  */
 export type OperatorAction =
   | { run: "pace-rebuild"; reason: ReplanReason; capMin?: number } // runPaceTriggeredRebuild / buildPaceRebuildRequest
+  | { run: "add-place"; placeId: string } // addPlaceToLiveWalk / buildAddPlaceRebuildRequest
   | { run: "drop-stops"; dropStopIds: string[]; capMin?: number } // buildDropStopsRebuildRequest (new)
   | { run: "extended-time-rebuild" } // runExtendedTimeRebuild / buildExtendedTimeRebuildRequest
   | { run: "walk-options-roundtrip"; theme: "nature" } // /api/walk-options roundtrip
@@ -36,8 +37,8 @@ export function resolveOperator(op: PlanOperator | null): OperatorAction {
           };
     case "keep-all-extend":
       return { run: "extended-time-rebuild" };
-    case "extend":
-      return { run: "pace-rebuild", reason: "sustained-fast-pace" };
+    case "add-place":
+      return { run: "add-place", placeId: op.placeId };
     case "loop-from-here":
       return { run: "walk-options-roundtrip", theme: op.theme };
     case "find-amenity":

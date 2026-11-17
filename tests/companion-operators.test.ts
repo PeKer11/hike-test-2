@@ -41,7 +41,7 @@ describe("resolveOperator", () => {
       [{ op: "shorten" }, { run: "pace-rebuild", reason: "sustained-slow-pace" }],
       [{ op: "shorten", dropStopIds: ["a"] }, { run: "drop-stops", dropStopIds: ["a"] }],
       [{ op: "keep-all-extend" }, { run: "extended-time-rebuild" }],
-      [{ op: "extend", addFrom: "collection" }, { run: "pace-rebuild", reason: "sustained-fast-pace" }],
+      [{ op: "add-place", placeId: "osm-node-777" }, { run: "add-place", placeId: "osm-node-777" }],
       [{ op: "loop-from-here", theme: "nature" }, { run: "walk-options-roundtrip", theme: "nature" }],
       [{ op: "find-amenity", kind: "bench" }, { run: "amenity-detour", kind: "bench" }],
       [{ op: "head-back" }, { run: "head-back" }],

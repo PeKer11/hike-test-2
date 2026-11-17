@@ -60,6 +60,25 @@ export const walkCopy = {
       he: { searching: "מאתר מיקום…", weak: "GPS חלש", denied: "המיקום כבוי. אפשר אותו בהגדרות הדפדפן." },
     },
   },
+  /** The result line on the walk sheet after a rebuild (added, nothing fit, failed). */
+  notice: {
+    en: {
+      added: (name: string, min: number) => `Added: ${name}${min > 0 ? ` · +${min} min` : ""}`,
+      undo: "Undo",
+      nothingFit: "No place fits the time that is left",
+      gone: "That place is no longer within reach",
+      replanFailed: "Couldn't update your route just now. Staying on the current one.",
+      manualResume: "We reshaped your walk for your pace. Take a look, then press Start Walk.",
+    },
+    he: {
+      added: (name: string, min: number) => `נוסף: ${name}${min > 0 ? ` · +${min} דק׳` : ""}`,
+      undo: "ביטול",
+      nothingFit: "לא נמצא מקום שנכנס בזמן שנשאר",
+      gone: "המקום כבר לא בהישג יד",
+      replanFailed: "לא הצלחנו לבנות מסלול מעודכן. ממשיכים במסלול הנוכחי.",
+      manualResume: "התאמנו את ההליכה לקצב שלכם. הציצו, ולחצו על התחלה.",
+    },
+  },
   stats: {
     pace: "Walking pace",
     paceUnit: "km/h",

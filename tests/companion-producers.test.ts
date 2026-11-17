@@ -88,10 +88,10 @@ describe("paceCandidate", () => {
       ...base,
       advice: "fast",
       currentPaceMinPerKm: 9,
-      addPlace: { name: "Cafe", detourMin: 4.4 },
+      addPlace: { id: "osm-node-777", name: "Cafe", detourMin: 4.4 },
     })!;
     expect(c.kind).toBe("pace-fast");
-    expect(c.answers[0].operator).toEqual({ op: "extend", addFrom: "collection" });
+    expect(c.answers[0].operator).toEqual({ op: "add-place", placeId: "osm-node-777" });
     expect(c.context).toEqual({ place: "Cafe", d: 4 });
     expect(c.value).toBeCloseTo(0.5); // spare 15 / 30
   });
@@ -216,7 +216,7 @@ describe("conditions producers", () => {
       plannedPaceMinPerKm: 12,
       remainingPlannedMin: 60,
       remainingStops: [],
-      addPlace: { name: "Cafe", detourMin: 4 },
+      addPlace: { id: "osm-node-777", name: "Cafe", detourMin: 4 },
       nowMs: T0,
     })!;
     expect(c.answers.find((a) => a.id === "finish-early")!.operator).toEqual({ op: "head-back" });

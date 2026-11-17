@@ -96,7 +96,7 @@ export interface TickInput {
   remainingStops: PaceStop[];
   pace: PaceAdviceInput | null;
   /** A collection place worth adding when the walker is ahead of time. */
-  addPlace: { name: string; detourMin: number } | null;
+  addPlace: { id: string; name: string; detourMin: number } | null;
   conditions: ConditionsSnapshot | null;
   amenities: AmenityItem[];
   walkerAlongM: number | null;
@@ -314,11 +314,18 @@ export function interactionsFromItems(items: DiscoveryItem[]): WalkEndInput["int
 /** Add-offer: the best collection place the walker can afford to add right now. */
 export function pickAddPlace(
   items: DiscoveryItem[],
-  args: { speedMpm: number; remainingWalkMin: number; environment: WalkEnvironment },
-): { name: string; detourMin: number } | null {
+  args: {
+    speedMpm: number;
+    remainingWalkMin: number;
+    environment: WalkEnvironment;
+    /** Places already on the walk: offering one of those as "add" would add nothing. */
+    excludeIds?: readonly string[];
+  },
+): { id: string; name: string; detourMin: number } | null {
   let best: DiscoveryItem | null = null;
   for (const item of items) {
     if (item.tier !== "registered" || item.state !== "new" || item.frame === null) continue;
+    if (args.excludeIds?.includes(item.id)) continue;
     if (
       !canOfferAdd({
         lateralM: item.frame.lateralM,
@@ -332,5 +339,5 @@ export function pickAddPlace(
     }
     if (best === null || item.score > best.score) best = item;
   }
-  return best ? { name: best.attraction.name, detourMin: best.detourMin } : null;
+  return best ? { id: best.attraction.id, name: best.attraction.name, detourMin: best.detourMin } : null;
 }

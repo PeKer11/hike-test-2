@@ -23,7 +23,7 @@ export type AmenityKind = "drinking_water" | "toilets" | "bench" | "shade" | "ca
 export type PlanOperator =
   | { op: "shorten"; dropStopIds?: string[]; capMin?: number }
   | { op: "keep-all-extend" }
-  | { op: "extend"; addFrom: "collection" }
+  | { op: "add-place"; placeId: string }
   | { op: "loop-from-here"; theme: "nature" }
   | { op: "find-amenity"; kind: AmenityKind }
   | { op: "head-back" }
