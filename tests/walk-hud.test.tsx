@@ -415,6 +415,19 @@ describe("the centred off-route card", () => {
     expect(screen.getByTestId("off-route-card")).toBeTruthy();
   });
 
+  it("buzzes once per episode: answering the ask card does not raise a second card or a second buzz", async () => {
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, "vibrate", { configurable: true, value: vibrate });
+    await startSimulatedWalk();
+    await stray();
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush();
+    await advance(2_000);
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    expect(screen.queryAllByTestId("off-route-card").length).toBeLessThanOrEqual(1);
+  });
+
   it("speaks Hebrew with a Hebrew turn hint", async () => {
     settingsStore["walk-settings"] = JSON.stringify({ deviationMode: "ask", uiLanguage: "he" });
     await startSimulatedWalk();
@@ -423,7 +436,7 @@ describe("the centred off-route card", () => {
     const card = screen.getByTestId("off-route-card");
     expect(card.textContent).toContain("סטיתם מהמסלול");
     expect(screen.getByRole("button", { name: "חזרה למסלול" })).toBeTruthy();
-    expect(card.textContent).toMatch(/מ׳/);
+    expect(card.textContent).toMatch(/פנו|המשיכו|הסתובבו|לכו/);
   });
 });
 

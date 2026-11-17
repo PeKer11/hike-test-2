@@ -395,7 +395,7 @@ export function buildAddPlaceRebuildRequest<TInput extends RebuildInput>(
       currentAttractions: kept.some((a) => a.id === place.id) ? kept : [...kept, place],
       pinnedIds: state.pinnedIds.includes(place.id) ? state.pinnedIds : [...state.pinnedIds, place.id],
     },
-    { fillRemainingTime: false, extendToFitRemainingStops: true },
+    { fillRemainingTime: false, extendToFitRemainingStops: true, priceAtPlannedPace: true },
   );
 }
 
@@ -445,14 +445,16 @@ export function buildExtendedTimeRebuildRequest<TInput extends RebuildInput>(
 
 function minutesToFinishRemainingStops<TInput extends RebuildInput>(
   state: PaceRebuildState<TInput>,
+  atPlannedPace = false,
 ): number {
   const stops = state.currentAttractions ?? [];
   if (stops.length === 0) return 0;
 
   const { originalInput: orig } = state;
   const measured = state.currentPaceMinPerKm;
-  const paceMinPerKm =
-    measured !== null && measured !== undefined && measured > 0
+  const paceMinPerKm = atPlannedPace
+    ? orig.walkingPaceMinPerKm
+    : measured !== null && measured !== undefined && measured > 0
       ? Math.max(measured, orig.walkingPaceMinPerKm * SLOW_PACE_RATIO)
       : orig.walkingPaceMinPerKm * SLOW_PACE_RATIO;
 
@@ -487,6 +489,11 @@ interface MidWalkRebuildOptions {
   fillRemainingTime: boolean;
   extendToFitRemainingStops?: boolean;
   continueHeading?: number;
+  /**
+   * Price the extension at the walk's own planned pace instead of the slow-walker
+   * floor: for a walker who is ahead (adding a stop), 1.3 x planned would oversize the clock.
+   */
+  priceAtPlannedPace?: boolean;
 }
 
 function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
@@ -495,6 +502,7 @@ function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
     fillRemainingTime,
     extendToFitRemainingStops = false,
     continueHeading,
+    priceAtPlannedPace = false,
   }: MidWalkRebuildOptions,
 ): { input: TInput; options: BuildWalkOptions } {
   const { originalInput: orig } = state;
@@ -502,7 +510,7 @@ function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
   const uncapped = Math.max(
     MIN_REBUILD_MINUTES,
     orig.availableMinutes - elapsedMinutes,
-    extendToFitRemainingStops ? minutesToFinishRemainingStops(state) : 0,
+    extendToFitRemainingStops ? minutesToFinishRemainingStops(state, priceAtPlannedPace) : 0,
   );
   const remainingMinutes =
     state.capMin !== undefined && Number.isFinite(state.capMin)

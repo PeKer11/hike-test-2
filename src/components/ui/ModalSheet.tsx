@@ -5,6 +5,11 @@ import { useEffect, useRef, type ReactNode } from "react";
 /** A bottom sheet on phones and a centred 480px dialog on desktop. Focus stays inside; Esc and the scrim close it. */
 export function ModalSheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Kept in a ref so an inline `onClose` does not re-run the focus effect on every parent render.
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -14,7 +19,7 @@ export function ModalSheet({ open, onClose, title, children }: { open: boolean; 
     (focusables()[0] ?? ref.current)?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        closeRef.current();
         return;
       }
       if (e.key !== "Tab") return;
@@ -35,12 +40,12 @@ export function ModalSheet({ open, onClose, title, children }: { open: boolean; 
       document.removeEventListener("keydown", onKey);
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[1200] flex items-end justify-center lg:items-center">
-      <button type="button" tabIndex={-1} aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/30" />
+      <button type="button" tabIndex={-1} aria-label="Close" onClick={() => closeRef.current()} className="absolute inset-0 bg-black/30" />
       <div
         ref={ref}
         role="dialog"

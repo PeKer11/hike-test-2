@@ -44,14 +44,30 @@ describe("a typed yes after a proposal", () => {
     expect(h.result.current.messages.find((m) => m.actions.length > 0)?.used).toBe(true);
   });
 
-  it("does nothing the second time", async () => {
+  it("treats a second yes as a true no-op: no fetch, no second action", async () => {
     const h = setup([CAFE]);
     await propose(h);
     act(() => h.result.current.send("yes"));
     const fetches = vi.mocked(h.doFetch).mock.calls.length;
     act(() => h.result.current.send("yes"));
+    act(() => h.result.current.send("כן"));
     expect(h.onAction).toHaveBeenCalledTimes(1);
-    // The second yes is not an action, so it falls through to the assistant like any other sentence.
+    expect(vi.mocked(h.doFetch).mock.calls.length).toBe(fetches);
+    expect(h.result.current.messages.at(-1)!.text).toBe("Already on it");
+  });
+
+  it("only confirms the newest reply: an older proposal is not what 'ok' answers", async () => {
+    const h = setup([CAFE]);
+    await propose(h);
+    // The walker asks something else; the next reply has no buttons.
+    vi.mocked(h.doFetch).mockImplementationOnce(
+      async () => ({ ok: true, status: 200, json: async () => ({ reply: "No rain expected.", actions: [] }) }) as unknown as Response,
+    );
+    act(() => h.result.current.send("will it rain?"));
+    await waitFor(() => expect(h.result.current.messages.at(-1)?.text).toBe("No rain expected."));
+    const fetches = vi.mocked(h.doFetch).mock.calls.length;
+    act(() => h.result.current.send("ok"));
+    expect(h.onAction).not.toHaveBeenCalled();
     expect(vi.mocked(h.doFetch).mock.calls.length).toBe(fetches + 1);
   });
 

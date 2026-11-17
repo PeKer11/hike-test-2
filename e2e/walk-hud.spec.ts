@@ -308,4 +308,5 @@ test("the off-route card is centred in the map area, wide, with tall actions", a
     const b = (await page.getByRole("button", { name }).boundingBox())!;
     expect(b.height).toBeGreaterThanOrEqual(56);
   }
+  // Clear of the map controls above it (top 112 px) is not asserted here: signed in is covered by screenshots.
 });

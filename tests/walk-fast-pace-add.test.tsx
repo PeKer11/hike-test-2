@@ -4,7 +4,7 @@
  * `/api/nearby` returns one café just off the route ahead; `/api/walk-plan` echoes
  * the stops it is asked to keep, so the assertions read what the planner was told.
  */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Attraction, Coordinates, WalkPlan } from "@/lib/types";
@@ -87,12 +87,14 @@ type Body = Record<string, unknown>;
 let walkPlanCalls: Body[];
 let assistantCalls: number;
 let failRebuild: boolean;
+let dropAdded: boolean;
 let settingsStore: Record<string, string>;
 
 function installFetch() {
   walkPlanCalls = [];
   assistantCalls = 0;
   failRebuild = false;
+  dropAdded = false;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -100,7 +102,8 @@ function installFetch() {
         const body = JSON.parse(String(init?.body)) as Body;
         walkPlanCalls.push(body);
         if (failRebuild && body.explicitAttractions) return { ok: false, json: async () => ({ error: "boom" }) };
-        const kept = (body.explicitAttractions as Attraction[] | undefined) ?? [MUSEUM, CATHEDRAL];
+        let kept = (body.explicitAttractions as Attraction[] | undefined) ?? [MUSEUM, CATHEDRAL];
+        if (dropAdded) kept = kept.filter((a) => a.id !== CAFE.id);
         return { ok: true, json: async () => planOf(kept) };
       }
       if (url === "/api/nearby") {
@@ -209,5 +212,37 @@ describe("ahead of pace: yes adds the named place", () => {
     await flush();
     expect(screen.getByTestId("walk-notice").textContent).toContain("Couldn't update your route");
     expect(screen.getByTestId("walk-hud")).toBeTruthy();
+  });
+
+  it("Undo takes the add back out: the place is unpinned and the notice goes", async () => {
+    await startFastWalk();
+    fireEvent.click(screen.getByRole("button", { name: "Add it" }));
+    await flush();
+    expect(screen.getByTestId("map").getAttribute("data-pinned")).toContain(CAFE.id);
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await flush();
+    expect(screen.getByTestId("map").getAttribute("data-pinned") ?? "").not.toContain(CAFE.id);
+    expect(screen.queryByTestId("walk-notice")).toBeNull();
+  });
+
+  it("says nothing fits when the rebuild comes back without the place", async () => {
+    await startFastWalk();
+    dropAdded = true;
+    fireEvent.click(screen.getByRole("button", { name: "Add it" }));
+    await flush();
+    expect(screen.getByTestId("walk-notice").textContent).toContain("No place fits");
+  });
+
+  it("the keyword chat's Add a stop adds the best place ahead, not a generic fill", async () => {
+    await startFastWalk(false);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
+    fireEvent.change(box, { target: { value: "add a stop" } });
+    fireEvent.submit(box.closest("form")!);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Add a stop" }));
+    await flush();
+    expectCafeAdded();
+    expect(assistantCalls).toBe(0);
   });
 });

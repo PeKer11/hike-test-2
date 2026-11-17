@@ -301,6 +301,8 @@ describe("a walker who has gone a different way (collapse)", () => {
 
     // One card: the sheet takes the alert's slot; no alert alongside it.
     expect(screen.queryAllByRole("alert")).toHaveLength(0);
+    expect(screen.queryByTestId("off-route-card")).toBeNull();
+    expect(screen.queryAllByRole("alertdialog")).toHaveLength(0);
     expect(within(card!).getByRole("button", { name: "Back to my plan" })).toBeTruthy();
 
     // Every option the server let through avoids the walked track (<= 25% overlap).

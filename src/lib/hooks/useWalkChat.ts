@@ -71,6 +71,8 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
   const usedIds = useRef(new Set<number>());
+  // The "On it…" reply of the last typed yes: while it is the newest reply, another yes is a no-op.
+  const affirmReplyId = useRef<number | null>(null);
   const [pending, setPending] = useState(false);
   const [llmUsed, setLlmUsed] = useState(0);
   const llmUsedRef = useRef(0);
@@ -119,16 +121,22 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
         push("app", copy.noWalk);
         return;
       }
-      // A typed "yes" confirms the newest proposal that still has buttons, on the device, with no model call.
+      // A typed "yes" confirms the proposal in the newest app reply, on the device, with no model call.
+      // Only the newest reply counts (an older proposal is not what "ok" answers), and a reply still
+      // being fetched is newest too, so nothing older runs while it is pending.
       if (isAffirm(text)) {
-        const recent = messagesRef.current.filter((m) => m.role === "app").slice(-3);
-        const open = [...recent].reverse().find((m) => !m.used && !usedIds.current.has(m.id) && m.actions.length > 0);
-        if (open) {
-          const applyAll = open.actions.findIndex((a) => a.kind === "apply-changes");
-          const index = applyAll >= 0 ? applyAll : open.actions.length === 1 ? 0 : -1;
+        const newest = [...messagesRef.current].reverse().find((m) => m.role === "app");
+        if (newest && newest.id === affirmReplyId.current) {
+          // A second yes while (or just after) the first one ran: nothing to do, and no model turn.
+          affirmReplyId.current = push("app", lang === "he" ? "כבר על זה" : "Already on it");
+          return;
+        }
+        if (newest && !newest.used && !usedIds.current.has(newest.id) && newest.actions.length > 0) {
+          const applyAll = newest.actions.findIndex((a) => a.kind === "apply-changes");
+          const index = applyAll >= 0 ? applyAll : newest.actions.length === 1 ? 0 : -1;
           if (index >= 0) {
-            push("app", lang === "he" ? "מוסיפים…" : "On it…");
-            runAction(open.id, index);
+            affirmReplyId.current = push("app", lang === "he" ? "מטפלים בזה…" : "On it…");
+            runAction(newest.id, index);
           } else {
             push("app", lang === "he" ? "על איזה מהם? אפשר ללחוץ על הכפתור" : "Which one? Tap its button");
           }
@@ -309,6 +317,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     setLlmUsed(0);
     setPending(false);
     usedIds.current.clear();
+    affirmReplyId.current = null;
     setMessages([]);
   }, []);
 

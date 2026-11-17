@@ -138,6 +138,14 @@ describe("pickAddPlace", () => {
     const out = pickAddPlace([sat, seen, good], { speedMpm: 80, remainingWalkMin: 60, environment: "urban" });
     expect(out?.name).toBe("g");
   });
+
+  it("skips places already on the walk (adding one would add nothing)", () => {
+    const frame = { alongM: 100, lateralM: 40, side: "left" as const, segIdx: 0 };
+    const onWalk = item("stop", at(40, 100), { frame, detourMin: 2, score: 9 });
+    const other = item("cafe", at(40, 120), { frame, detourMin: 2, score: 1 });
+    const out = pickAddPlace([onWalk, other], { speedMpm: 80, remainingWalkMin: 60, environment: "urban", excludeIds: ["stop"] });
+    expect(out?.id).toBe("cafe");
+  });
 });
 
 describe("amenities", () => {

@@ -115,7 +115,9 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   const variantsOf = (id: string) => items.filter((i) => i.walk.parentWalkId === id);
   const isNested = (i: WalkWithRuns) => Boolean(i.walk.parentWalkId && ids.has(i.walk.parentWalkId));
   const base = segment ? filterBySegment(items, segment) : filter === "drafts" ? items.filter((i) => i.isDraft) : items;
-  const shown = base.filter((i) => !isNested(i) || segment !== undefined || filter === "drafts");
+  // A variant nests under its parent only when the parent is in this list too; otherwise it stands alone.
+  const baseIds = new Set(base.map((i) => i.walk.id));
+  const shown = base.filter((i) => (segment !== undefined ? !(i.walk.parentWalkId && baseIds.has(i.walk.parentWalkId)) : !isNested(i) || filter === "drafts"));
   const fmt = (iso: string) => new Date(iso).toLocaleDateString("en", { month: "short", day: "numeric" });
 
   const card = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => (

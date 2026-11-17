@@ -879,6 +879,15 @@ describe("buildAddPlaceRebuildRequest", () => {
     expect(options.fillRemainingTime).toBe(false);
   });
 
+  it("sizes the clock at the planned pace, not the slow-walker floor", () => {
+    const far = { ...attraction("far"), coordinates: { lat: 32.15, lng: 34.78 }, avgVisitMinutes: 10 };
+    const add = buildAddPlaceRebuildRequest(state({ currentPaceMinPerKm: 9 }), far).input.availableMinutes;
+    const slowRule = buildExtendedTimeRebuildRequest(
+      state({ currentPaceMinPerKm: 9, currentAttractions: [attraction("a"), attraction("b"), far] }),
+    ).input.availableMinutes;
+    expect(add).toBeLessThan(slowRule);
+  });
+
   it("grows the clock to hold the chain including the new place", () => {
     const long = { ...attraction("long"), avgVisitMinutes: 90 };
     const { input } = buildAddPlaceRebuildRequest(state(), long);

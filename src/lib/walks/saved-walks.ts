@@ -146,6 +146,15 @@ export async function listMyWalksOrThrow(client: SupabaseClient, userId: string,
 }
 
 /** Same, but empty on any failure. */
+/**
+ * How many walks the History list will show (completed ones), as a head count: no rows are fetched.
+ * Null when the query fails.
+ */
+export async function countMyWalkedWalks(client: SupabaseClient, userId: string): Promise<number | null> {
+  const { count, error } = await client.from("saved_walks").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "completed");
+  return error ? null : (count ?? 0);
+}
+
 export async function listMyWalks(client: SupabaseClient, userId: string, limit = 50): Promise<SavedWalk[]> {
   try {
     return await listMyWalksOrThrow(client, userId, limit);

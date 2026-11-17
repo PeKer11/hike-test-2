@@ -1226,11 +1226,11 @@ export function WalkPlannerApp({
   const [walkBookmarked, setWalkBookmarked] = useState(false);
 
   // The result line on the walk sheet (visible on a phone, unlike the Details log).
-  const [walkNotice, setWalkNotice] = useState<(Omit<WalkNotice, "action"> & { undo?: boolean }) | null>(null);
+  const [walkNotice, setWalkNotice] = useState<(Omit<WalkNotice, "action"> & { undo?: boolean; placeId?: string }) | null>(null);
   const noticeSeqRef = useRef(0);
-  const showWalkNotice = (text: string, tone: "ok" | "warn", undo = false) => {
+  const showWalkNotice = (text: string, tone: "ok" | "warn", undo = false, placeId?: string) => {
     noticeSeqRef.current += 1;
-    setWalkNotice({ id: noticeSeqRef.current, text, tone, undo });
+    setWalkNotice({ id: noticeSeqRef.current, text, tone, undo, placeId });
   };
   useEffect(() => {
     if (!walkNotice) return;
@@ -1636,49 +1636,61 @@ export function WalkPlannerApp({
     const state = midWalkRebuildState();
     if (!state) return;
     const id = `chat-${Math.round(coordinates.lat * 1e5)}-${Math.round(coordinates.lng * 1e5)}`;
+    // The same place proposed twice must not go on the walk twice.
+    if ((state.currentAttractions ?? []).some((a) => a.id === id)) {
+      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].added(name, 0), "ok");
+      return;
+    }
     const added = { id, name, coordinates, category: "other" as const, avgVisitMinutes: 20, tags: { name } };
     const { input, options } = buildExtendedTimeRebuildRequest({
       ...state,
       currentAttractions: [...(state.currentAttractions ?? []), added],
       pinnedIds: [...state.pinnedIds, id],
     });
-    const before = walkPlanRef.current;
-    void handleBuildWalk(input, options).then((plan) => announceAdded(name, id, before, plan));
+    const undoable = previousPlan === null;
+    void handleBuildWalk(input, options).then((plan) => announceAdded(name, id, plan, added.avgVisitMinutes, undoable));
   };
 
   // After a rebuild that was meant to add one place: say what happened on the sheet.
   // A failed rebuild has already said so (reportReplanFailed), so `null` stays quiet here.
-  const announceAdded = (name: string, id: string, before: WalkPlan | null, plan: WalkPlan | null) => {
+  // "+n min" is the place's own cost (detour + visit), not a difference of two clocks that
+  // run at different paces. Undo is offered only when this add started the undo chain.
+  const announceAdded = (name: string, id: string, plan: WalkPlan | null, extraMin: number, undoable: boolean) => {
     if (!plan) return;
     const t = walkCopy.notice[uiLang === "he" ? "he" : "en"];
     if (!plan.orderedAttractions.some((a) => a.id === id)) {
       showWalkNotice(t.nothingFit, "warn");
       return;
     }
-    const minutesBefore = walkStats?.timeToFinishMin ?? before?.totalMinutes ?? null;
-    const extra = minutesBefore === null ? 0 : Math.round(plan.totalMinutes - minutesBefore);
-    showWalkNotice(t.added(name, extra), "ok", before !== null);
+    showWalkNotice(t.added(name, Math.round(extraMin)), "ok", undoable, id);
   };
 
   // "Yes, add that place": the exact place, pinned, with the clock grown to fit. No discovery, no model.
-  const addPlaceToLiveWalk = async (attraction: Attraction) => {
+  const addPlaceToLiveWalk = async (attraction: Attraction, detourMin?: number) => {
     const state = midWalkRebuildState();
-    if (!state) return;
-    const before = walkPlanRef.current;
+    if (!state) {
+      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].gone, "warn");
+      return;
+    }
+    const undoable = previousPlan === null;
     const pinsBefore = pinnedAttractionIdsRef.current;
     discoveryRef.current?.setState(attraction.id, "added");
     const nextPinned = pinsBefore.includes(attraction.id) ? pinsBefore : [...pinsBefore, attraction.id];
     pinnedAttractionIdsRef.current = nextPinned;
     setPinnedAttractionIds(nextPinned);
     const { input, options } = buildAddPlaceRebuildRequest({ ...state, pinnedIds: nextPinned }, attraction);
+    const requestBefore = buildWalkRequestIdRef.current;
     const plan = await handleBuildWalk(input, options);
     if (!plan) {
-      discoveryRef.current?.setState(attraction.id, "new");
-      pinnedAttractionIdsRef.current = pinsBefore;
-      setPinnedAttractionIds(pinsBefore);
+      // A build the walker asked for in the meantime owns the pins now: only undo our own change.
+      if (buildWalkRequestIdRef.current === requestBefore + 1) {
+        discoveryRef.current?.setState(attraction.id, "new");
+        pinnedAttractionIdsRef.current = pinsBefore;
+        setPinnedAttractionIds(pinsBefore);
+      }
       return;
     }
-    announceAdded(attraction.name, attraction.id, before, plan);
+    announceAdded(attraction.name, attraction.id, plan, (detourMin ?? 0) + attraction.avgVisitMinutes, undoable);
   };
 
   // The best registered place ahead that the walker can still afford, or null.
@@ -1703,7 +1715,7 @@ export function WalkPlannerApp({
       return;
     }
     const item = pickBestAddItem();
-    if (item) void addPlaceToLiveWalk(item.attraction);
+    if (item) void addPlaceToLiveWalk(item.attraction, item.detourMin);
     else askForStopRef.current?.();
   };
 
@@ -1711,7 +1723,7 @@ export function WalkPlannerApp({
   const addBestStopOrFill = async () => {
     const item = pickBestAddItem();
     if (item) {
-      void addPlaceToLiveWalk(item.attraction);
+      void addPlaceToLiveWalk(item.attraction, item.detourMin);
       return;
     }
     const state = midWalkRebuildState();
@@ -1731,23 +1743,27 @@ export function WalkPlannerApp({
     const state = midWalkRebuildState();
     if (!state) return;
     const drop = new Set(dropStopIds);
-    const added = adds.map(({ name, coordinates }) => ({
-      id: `chat-${Math.round(coordinates.lat * 1e5)}-${Math.round(coordinates.lng * 1e5)}`,
-      name,
-      coordinates,
-      category: "other" as const,
-      avgVisitMinutes: 20,
-      tags: { name },
-    }));
+    const onWalk = new Set((state.currentAttractions ?? []).map((a) => a.id));
+    // Never add the same proposed place twice (ids are position based).
+    const added = adds
+      .map(({ name, coordinates }) => ({
+        id: `chat-${Math.round(coordinates.lat * 1e5)}-${Math.round(coordinates.lng * 1e5)}`,
+        name,
+        coordinates,
+        category: "other" as const,
+        avgVisitMinutes: 20,
+        tags: { name },
+      }))
+      .filter((a, i, all) => !onWalk.has(a.id) && all.findIndex((b) => b.id === a.id) === i);
     const kept = (state.currentAttractions ?? []).filter((a) => !drop.has(a.id));
     const { input, options } = buildExtendedTimeRebuildRequest({
       ...state,
       currentAttractions: [...kept, ...added],
       pinnedIds: [...state.pinnedIds.filter((id) => !drop.has(id)), ...added.map((a) => a.id)],
     });
-    const before = walkPlanRef.current;
+    const undoable = previousPlan === null;
     void handleBuildWalk(input, options).then((plan) => {
-      if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added[0].id, before, plan);
+      if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added[0].id, plan, added.length * 20, undoable);
     });
   };
 
@@ -2009,7 +2025,7 @@ export function WalkPlannerApp({
         return;
       case "add-place": {
         const item = discoveryRef.current?.collection.items.get(action.placeId);
-        if (item) void addPlaceToLiveWalk(item.attraction);
+        if (item) void addPlaceToLiveWalk(item.attraction, item.detourMin);
         else showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].gone, "warn");
         return;
       }
@@ -3409,9 +3425,8 @@ export function WalkPlannerApp({
   // The off-route card. `walkAlert` above still marks "a card is up" for the callout gate and the companion;
   // the card itself is drawn centred over the map by WalkHud, with the same three answers in both modes.
   const offRouteCard =
-    walkMode && offRouteMode !== null ? (
+    walkMode && offRouteMode !== null && optionsOffer === null ? (
       <OffRouteCard
-        key={offRouteMode}
         mode={offRouteMode}
         lang={uiLang === "he" ? "he" : "en"}
         distanceM={offRouteMeters}
@@ -4492,6 +4507,14 @@ export function WalkPlannerApp({
                             label: walkCopy.notice[uiLang === "he" ? "he" : "en"].undo,
                             onClick: () => {
                               handleRevertPlan();
+                              // Undo takes this add out for good: unpin it and let it be offered again.
+                              const placeId = walkNotice.placeId;
+                              if (placeId) {
+                                const pins = pinnedAttractionIdsRef.current.filter((p) => p !== placeId);
+                                pinnedAttractionIdsRef.current = pins;
+                                setPinnedAttractionIds(pins);
+                                discoveryRef.current?.setState(placeId, "new");
+                              }
                               setWalkNotice(null);
                             },
                           }

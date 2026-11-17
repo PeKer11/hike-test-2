@@ -91,10 +91,15 @@ export function HomeView({
   useEffect(() => {
     if (!signedIn) return;
     let live = true;
-    void withWalkClient(async (client, userId) => (await import("@/lib/walks/saved-walks")).listMyWalks(client, userId, 200)).then((walks) => {
-      if (!live || !walks) return;
-      setWalkCount(walks.length);
-      if (walks[0]) setLast(walks[0]);
+    void withWalkClient(async (client, userId) => {
+      const saved = await import("@/lib/walks/saved-walks");
+      // One row for the last-walk card and a head count for the tile: never a page of full rows.
+      const [latest, count] = await Promise.all([saved.listMyWalks(client, userId, 1), saved.countMyWalkedWalks(client, userId)]);
+      return { latest, count };
+    }).then((result) => {
+      if (!live || !result) return;
+      setWalkCount(result.count);
+      if (result.latest[0]) setLast(result.latest[0]);
     });
     return () => {
       live = false;
