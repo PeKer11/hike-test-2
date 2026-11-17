@@ -52,3 +52,24 @@ describe("friends sanitizers", () => {
     expect(sanitizeFriendCode(5)).toBeNull();
   });
 });
+
+describe("friends after migration A", () => {
+  it("keeps the display name and avatar when present, and nothing when absent", () => {
+    const [a, b] = sanitizeFriends([
+      { friendship_id: ID, friend_id: ID, label: "Dana", status: "accepted", display_name: "Dana", avatar: "boot" },
+      { friendship_id: ID, friend_id: ID, label: "Friend AB12", status: "accepted" },
+    ]);
+    expect(a).toMatchObject({ displayName: "Dana", avatar: "boot" });
+    expect(b.displayName).toBeUndefined();
+  });
+
+  it("accepts a Google stop with only a category and a place id, and a named one", () => {
+    const [w] = sanitizeFriendWalks([
+      { id: ID, title: "t", status: "saved", created_at: "2026-10-24T10:00:00Z",
+        stops: [{ category: "food", placeId: "ChIJabcdefghij12345" }, { name: "Park", category: "park", lat: 32, lng: 34 }, { category: "food" }] },
+    ]);
+    expect(w.stops).toHaveLength(2);
+    expect(w.stops[0]).toMatchObject({ name: "", placeId: "ChIJabcdefghij12345" });
+    expect(w.stops[1].name).toBe("Park");
+  });
+});

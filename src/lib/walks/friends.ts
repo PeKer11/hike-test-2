@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { avatarOr, type AvatarId } from "@/lib/social/avatars";
+
 import type { SavedStop } from "./saved-walks";
 
 export interface FriendRow {
@@ -9,6 +11,9 @@ export interface FriendRow {
   status: "pending" | "accepted";
   /** True when the other person sent the request to me. */
   incoming: boolean;
+  /** The social profile's name and avatar, when migration A is applied and they have one (the label is then the name). */
+  displayName?: string;
+  avatar?: AvatarId;
 }
 
 export interface FriendWalk {
@@ -46,22 +51,42 @@ export function sanitizeFriends(raw: unknown): FriendRow[] {
     const label = str(r.label, 40);
     if (!friendshipId || !friendId || !label) continue;
     if (r.status !== "pending" && r.status !== "accepted") continue;
-    out.push({ friendshipId, friendId, label, status: r.status, incoming: r.incoming === true });
+    const displayName = str(r.display_name, 30);
+    out.push({
+      friendshipId,
+      friendId,
+      label,
+      status: r.status,
+      incoming: r.incoming === true,
+      ...(displayName ? { displayName, avatar: avatarOr(r.avatar) } : {}),
+    });
   }
   return out;
 }
 
+/**
+ * A shared stop has one of three shapes: named with a position (migration A not applied, or a non-Google stop),
+ * `{category, placeId}` (a Google stop after migration A: the name and position are looked up again), or just
+ * a category (hidden). Only the first two can be planned; the third is dropped here.
+ */
 function sanitizeStops(raw: unknown): SavedStop[] {
   if (!Array.isArray(raw)) return [];
   const out: SavedStop[] = [];
   for (const item of raw.slice(0, 40)) {
     const r = rec(item);
-    const name = r ? str(r.name, 120) : null;
-    const lat = r ? num(r.lat) : null;
-    const lng = r ? num(r.lng) : null;
-    if (!r || !name || lat === null || lng === null) continue;
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
-    out.push({ name, category: str(r.category, 40) ?? "other", lat, lng });
+    if (!r) continue;
+    const category = str(r.category, 40) ?? "other";
+    const placeId = typeof r.placeId === "string" && /^[A-Za-z0-9_-]{10,200}$/.test(r.placeId) ? r.placeId : undefined;
+    const name = str(r.name, 120);
+    const lat = num(r.lat);
+    const lng = num(r.lng);
+    const positioned = lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+    if (placeId && !(name && positioned)) {
+      // Resolved later through /api/places/resolve; the zero position is a placeholder that is never used.
+      out.push({ name: "", category, lat: 0, lng: 0, placeId });
+    } else if (name && positioned) {
+      out.push({ name, category, lat: lat as number, lng: lng as number, ...(placeId ? { placeId } : {}) });
+    }
   }
   return out;
 }

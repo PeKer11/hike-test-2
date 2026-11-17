@@ -15,10 +15,11 @@ import {
   type FriendRow,
   type FriendWalk,
 } from "@/lib/walks/friends";
+import type { SavedStop } from "@/lib/walks/saved-walks";
 
 export interface PlannableWalk {
   title: string;
-  stops: { name: string; category: string; lat: number; lng: number }[];
+  stops: SavedStop[];
 }
 
 /** Friends: my code, add by code, requests, friends, and the walks they shared. Renders nothing when signed out. */
@@ -187,7 +188,7 @@ export function FriendsPanel({ onPlan, expanded = false }: { onPlan?: (w: Planna
                           {w.totalMin !== null ? ` · ${w.totalMin} min` : ""}
                           {w.distanceM !== null ? ` · ${(w.distanceM / 1000).toFixed(1)} km` : ""}
                         </p>
-                        {w.stops.length > 0 && <p className="text-tk-sage">{w.stops.map((s) => s.name).join(" → ")}</p>}
+                        {w.stops.length > 0 && <p className="text-tk-sage">{w.stops.filter((s) => s.name).map((s) => s.name).join(" → ")}{w.stops.some((s) => !s.name) ? ` +${w.stops.filter((s) => !s.name).length}` : ""}</p>}
                       </div>
                       {onPlan && w.stops.length > 0 && (
                         <button type="button" className={`${BTN_PRIMARY} shrink-0 !bg-tk-send`} onClick={() => onPlan({ title: w.title, stops: w.stops })}>

@@ -24,7 +24,15 @@ export const MEMORY_TABLES = [
   // Each walk's runs (also cascade with the walk) and the walker's saved places list.
   "walk_runs",
   "saved_places",
+  // Round 2 social (migrations A-E; the tables may not exist yet, which is fine). Deleting the profile cascades to
+  // presence (walk_presence) and walk requests. abuse_reports is kept on purpose (safety); counsel item.
+  "social_profiles",
+  "taste_summaries",
 ] as const;
+
+/** Tables that may not exist yet (their migration is not applied): a missing table is not a failure. */
+const OPTIONAL_TABLES: readonly string[] = ["social_profiles", "taste_summaries", "user_blocks"];
+const isMissingTable = (e: { code?: string } | null) => e?.code === "42P01" || e?.code === "PGRST205";
 
 /**
  * Learned columns on `profiles`, reset to their column defaults. `callout_level`
@@ -52,8 +60,11 @@ export async function DELETE(): Promise<NextResponse> {
   const failed: string[] = [];
   for (const table of MEMORY_TABLES) {
     const { error } = await supabase.from(table).delete().eq("user_id", user.id);
-    if (error) failed.push(table);
+    if (error && !(OPTIONAL_TABLES.includes(table) && isMissingTable(error))) failed.push(table);
   }
+  // Blocks the walker made (blocks against them are kept: they protect the other person).
+  const { error: blocksError } = await supabase.from("user_blocks").delete().eq("blocker", user.id);
+  if (blocksError && !isMissingTable(blocksError)) failed.push("user_blocks");
   // friendships has no user_id: the walker is either side of the link.
   const { error: friendsError } = await supabase
     .from("friendships")

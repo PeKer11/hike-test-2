@@ -13,8 +13,8 @@ const input = { origin: { lat: 3, lng: 4 }, availableMinutes: 90, walkingPaceMin
 describe("walk-history", () => {
   it("maps stops and keeps google place ids only", () => {
     expect(stopsFromAttractions([a("google-ABC", "Cafe"), a("osm-1", "Park")])).toEqual([
-      { name: "Cafe", category: "park", lat: 1, lng: 2, visitMinutes: 5, placeId: "ABC" },
-      { name: "Park", category: "park", lat: 1, lng: 2, visitMinutes: 5 },
+      { name: "Cafe", category: "park", lat: 1, lng: 2, visitMinutes: 5, placeId: "ABC", source: "google" },
+      { name: "Park", category: "park", lat: 1, lng: 2, visitMinutes: 5, source: "other" },
     ]);
   });
   it("keeps params small and omits unset ones", () => {
@@ -33,5 +33,14 @@ describe("walk-history", () => {
     expect(r.input).toMatchObject({ origin: { lat: 3, lng: 4 }, availableMinutes: 90, radiusMeters: 2000 });
     expect(r.attractions[0].id).toBe("google-ABC");
     expect(r.attractions[0].avgVisitMinutes).toBe(5);
+  });
+});
+
+describe("stops carry where they came from", () => {
+  it("marks OSM, Google and other stops (shared history shows OSM names only)", async () => {
+    const { stopsFromAttractions } = await import("@/lib/walks/walk-history");
+    const mk = (id: string, tags: Record<string, string> = {}) => ({ id, name: id, coordinates: { lat: 32, lng: 34 }, category: "park" as const, avgVisitMinutes: 10, tags });
+    const stops = stopsFromAttractions([mk("osm-node-777"), mk("google-ChIJabcdefghij12345"), mk("friend-0-1,2"), mk("osm-way-9")]);
+    expect(stops.map((s) => s.source)).toEqual(["osm", "google", "other", "osm"]);
   });
 });

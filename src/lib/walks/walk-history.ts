@@ -17,8 +17,15 @@ function placeIdOf(a: Attraction): string | undefined {
   return typeof tagged === "string" && /^[A-Za-z0-9_-]{10,200}$/.test(tagged) ? tagged : undefined;
 }
 
+/** Where a stop's data comes from, so shared history can show OSM names and keep only the id for Google ones. */
+function sourceOf(a: Attraction): SavedStop["source"] {
+  if (placeIdOf(a)) return "google";
+  return /^osm-(node|way|relation)-\d+$/.test(a.id) ? "osm" : "other";
+}
+
 export function stopsFromAttractions(items: Attraction[]): SavedStop[] {
   return items.map((a) => ({
+    source: sourceOf(a),
     name: a.name,
     category: a.category,
     lat: a.coordinates.lat,
@@ -141,12 +148,13 @@ export const saveBuiltWalk = (w: NewSavedWalk): Promise<string | null> =>
 
 export async function updateWalk(
   id: string,
-  patch: { status?: "saved" | "completed"; visibility?: "private" | "friends"; totalMin?: number; distanceM?: number },
+  patch: { status?: "saved" | "completed"; visibility?: "private" | "friends"; totalMin?: number; distanceM?: number; hiddenFromProfile?: boolean },
 ): Promise<boolean> {
   const row: Record<string, unknown> = {};
   if (patch.status) row.status = patch.status;
   if (patch.status === "completed") row.completed_at = new Date().toISOString();
   if (patch.visibility) row.visibility = patch.visibility;
+  if (patch.hiddenFromProfile !== undefined) row.hidden_from_profile = patch.hiddenFromProfile;
   if (patch.totalMin !== undefined) row.total_min = Math.round(patch.totalMin);
   if (patch.distanceM !== undefined) row.distance_m = Math.round(patch.distanceM);
   const ok = await withWalkClient(async (c) => !(await c.from("saved_walks").update(row).eq("id", id)).error);

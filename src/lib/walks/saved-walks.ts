@@ -13,6 +13,8 @@ export interface SavedStop {
   lng: number;
   /** Google place_id when the stop came from Google (kept so the stop can be looked up again). */
   placeId?: string;
+  /** Where the stop's data came from (set when the walk is saved). Shared history shows only OSM names. */
+  source?: "osm" | "google" | "other";
   /** Minutes planned at this stop, so "walk again" keeps the same total time. */
   visitMinutes?: number;
   /** The walker's own pace (min/km) for the leg arriving at this stop. */

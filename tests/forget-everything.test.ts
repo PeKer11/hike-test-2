@@ -44,6 +44,7 @@ beforeEach(() => {
 /** Tables with a user_id column that deliberately are not in MEMORY_TABLES. */
 const ALLOWED_NOT_FORGOTTEN: Record<string, string> = {
   llm_usage: "spend accounting for the budget guard, not walker-learned content",
+  walk_presence: "has no delete policy; deleting social_profiles cascades to it (on delete cascade)",
 };
 
 function tablesWithUserId(): string[] {
@@ -77,6 +78,9 @@ describe("forget everything", () => {
     expect(deleted).toContain("walk_runs");
     expect(deleted).toContain("saved_places");
     expect(deleted).toContain("friendships");
+    expect(deleted).toContain("social_profiles");
+    expect(deleted).toContain("taste_summaries");
+    expect(deleted).toContain("user_blocks");
     expect(profileUpdate).toEqual(PROFILE_LEARNED_RESET);
     for (const col of ["pace_by_env", "walking_pace_min_per_km", "typical_walk_minutes", "session_count"]) {
       expect(profileUpdate).toHaveProperty(col);
