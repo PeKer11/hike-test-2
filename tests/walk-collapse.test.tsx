@@ -34,7 +34,7 @@ vi.mock("@/components/map", () => ({
     mapRenders.push(entry);
     selectCallout = (props as { onCalloutSelect?: (a: Announcement) => void }).onCalloutSelect;
     useEffect(() => {
-      entry.alertUp = document.querySelector('[role="alert"]') !== null;
+      entry.alertUp = document.querySelector('[role="alert"], [role="alertdialog"]') !== null;
     });
     return <div data-testid="map" data-previews={props.previewRoutes?.length ?? 0} />;
   },
@@ -506,7 +506,9 @@ describe("what the collection adds on the way", () => {
     expect(seen.some((c) => c.relation === "left")).toBe(false);
   });
 
-  it("puts ONE 'While you're here' line on the off-route card", async () => {
+  // Round 2: the centred off-route card carries no "While you're here" line (a distraction when lost);
+  // the callout system announces those places once the card is gone.
+  it("keeps the 'While you're here' line off the centred off-route card", async () => {
     scanPlaces = [
       place("fountain", "Old Fountain", at(150, 5), "landmark", { tags: { historic: "fountain" } }),
       place("kiosk", "Corner Kiosk", at(160, 8), "food"),
@@ -515,12 +517,9 @@ describe("what the collection adds on the way", () => {
     await clickStray();
     await advance(8_000);
 
-    const card = screen.getByRole("alert");
+    const card = screen.getByRole("alertdialog");
     expect(card.textContent).toMatch(/You've gone off the planned route/);
-    const lines = screen.getAllByText(/While you're here:/);
-    expect(lines).toHaveLength(1);
-    expect(lines[0].textContent).toContain("Old Fountain");
-    expect(lines[0].getAttribute("dir")).toBe("auto");
+    expect(screen.queryAllByText(/While you're here:/)).toHaveLength(0);
   });
   it("announces nothing while the off-route ask card is up, and answering it lets them walk, with a rebuild button", async () => {
     // ~100 m off the line and staying there, so the 400 m collapse never triggers.

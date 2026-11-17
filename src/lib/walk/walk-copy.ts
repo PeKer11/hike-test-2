@@ -137,6 +137,54 @@ export const walkCopy = {
     // Appended to the card title once a direction is known.
     toGetBack: (instruction: string) => `${instruction} to get back on track`,
   },
+  /** The big centred off-route card (the English strings match `offRoute`, which existing tests read). */
+  offRouteCard: {
+    en: {
+      askTitle: "You've gone off the planned route",
+      title: "You're off the route",
+      meters: "m from the route",
+      back: "Back to my route",
+      best: "Best route from here",
+      talk: "Tell me what you want",
+      dismiss: "I know where I'm going",
+      finding: "Finding the way back…",
+      autoReturn: "Returns to your route automatically if you do nothing",
+      minimise: "Minimise",
+      pill: (m: number) => `Off route · ${m} m`,
+      hint: (kind: string, m: number, bearing: number) => {
+        switch (kind) {
+          case "straight": return `Keep straight, ${m} m`;
+          case "left": return `Turn left, ${m} m`;
+          case "right": return `Turn right, ${m} m`;
+          case "around": return `Turn around, ${m} m`;
+          default: return `Head ${COMPASS_POINTS[Math.round((((bearing % 360) + 360) % 360) / 45) % 8]}, ${m} m`;
+        }
+      },
+    },
+    he: {
+      askTitle: "סטיתם מהמסלול",
+      title: "אתם מחוץ למסלול",
+      meters: "מ׳ מהמסלול",
+      back: "חזרה למסלול",
+      best: "המסלול הכי טוב מכאן",
+      talk: "ספרו לי מה אתם רוצים",
+      dismiss: "הכול בסדר, ממשיכים ככה",
+      finding: "מחפשים דרך חזרה…",
+      autoReturn: "אם לא תבחרו, תחזרו למסלול אוטומטית",
+      minimise: "הקטנה",
+      pill: (m: number) => `מחוץ למסלול · ${m} מ׳`,
+      hint: (kind: string, m: number, bearing: number) => {
+        const north = ["צפונה", "צפון-מזרחה", "מזרחה", "דרום-מזרחה", "דרומה", "דרום-מערבה", "מערבה", "צפון-מערבה"];
+        switch (kind) {
+          case "straight": return `המשיכו ישר, ${m} מ׳`;
+          case "left": return `פנו שמאלה, ${m} מ׳`;
+          case "right": return `פנו ימינה, ${m} מ׳`;
+          case "around": return `הסתובבו, ${m} מ׳`;
+          default: return `לכו ${north[Math.round((((bearing % 360) + 360) % 360) / 45) % 8]}, ${m} מ׳`;
+        }
+      },
+    },
+  },
   callout: {
     nextStop: "Next stop",
     osmBadge: "OSM",

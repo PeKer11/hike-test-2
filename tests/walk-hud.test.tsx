@@ -388,3 +388,42 @@ describe("the local way back", () => {
     expect(walkPlanCalls).toHaveLength(1);
   });
 });
+
+describe("the centred off-route card", () => {
+  it("is an alertdialog outside the sheet, with 56px actions and a quiet dismiss", async () => {
+    await startSimulatedWalk();
+    await stray();
+
+    const card = screen.getByTestId("off-route-card");
+    expect(card.getAttribute("role")).toBe("alertdialog");
+    expect(screen.getByTestId("walk-hud").contains(card)).toBe(false);
+    for (const name of ["Back to my route", "Best route from here"]) {
+      expect(screen.getByRole("button", { name }).className).toContain("min-h-14");
+    }
+    expect(screen.getByRole("button", { name: "I know where I'm going" }).className).toContain("min-h-11");
+    // Ask mode: the silent return is shown as a countdown bar.
+    expect(screen.getByTestId("off-route-countdown")).toBeTruthy();
+  });
+
+  it("folds into a pill when the scrim is tapped, and opens again from the pill", async () => {
+    await startSimulatedWalk();
+    await stray();
+
+    fireEvent.click(screen.getByTestId("off-route-scrim"));
+    expect(screen.queryByTestId("off-route-card")).toBeNull();
+    fireEvent.click(screen.getByTestId("off-route-pill"));
+    expect(screen.getByTestId("off-route-card")).toBeTruthy();
+  });
+
+  it("speaks Hebrew with a Hebrew turn hint", async () => {
+    settingsStore["walk-settings"] = JSON.stringify({ deviationMode: "ask", uiLanguage: "he" });
+    await startSimulatedWalk();
+    await stray();
+
+    const card = screen.getByTestId("off-route-card");
+    expect(card.textContent).toContain("סטיתם מהמסלול");
+    expect(screen.getByRole("button", { name: "חזרה למסלול" })).toBeTruthy();
+    expect(card.textContent).toMatch(/מ׳/);
+  });
+});
+

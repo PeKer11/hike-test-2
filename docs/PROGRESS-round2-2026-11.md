@@ -11,3 +11,13 @@
 - Mutations checked: add-place mapped back to pace-rebuild fails operators test and the companion e2e-style test; affirm branch disabled fails 4 of 6 affirm tests.
 - Screenshots (390x844, built app, simulator Fast pace): he/dark question and Added+Undo, en/light Added+Undo.
 - Not verified: real fast walk on a phone; owner Sol chat; "Extend the hike" path in a browser with a real discovery scan (jsdom covers it).
+
+## P2. Off-route card (2026-11-17)
+- New `src/components/walk/OffRouteCard.tsx`: `role="alertdialog"` centred over the map area (a sibling of the sheet via the new `WalkHud` `center` prop), one big number (distance, rounded to 10 m), title, one hint line, three 56px actions, quiet dismiss, countdown bar on the primary button in ask mode (hidden under reduced motion), scrim tap or corner glyph folds it into a pill, one vibrate per episode, signpost accessory.
+- Both off-route branches (ask and auto/off) now draw this card with the same actions; `walkAlert` is kept as a marker so the callout gate and the companion still see "a card is up". Behaviour unchanged: silence returns to the route after 90 s.
+- `turnInstruction` additionally returns `distanceM` and `bearing`; Hebrew card copy and Hebrew turn hints in `walkCopy.offRouteCard`. English strings unchanged.
+- "While you're here" is no longer on this card (plan 2.3). `tests/walk-collapse.test.tsx` updated for that and for the `alertdialog` role; it detected the card by `[role="alert"]`.
+- Tests: three new cases in `tests/walk-hud.test.tsx` (structure and sizes, minimise/restore, Hebrew); `walk-planner-silence` unchanged and green; new e2e geometry test in `e2e/walk-hud.spec.ts` (not run, see below).
+- Screenshots (390x844 built app, simulator Stray 80 m): en/light, en/dark, he/dark, 1440x900 en/light, and the pill.
+- Deviation: the card is centred in the map area below the map's own controls (top padding about 104 px), not in the exact middle, so the layers and locate buttons do not sit on the card. Card box measured at x 16, width 358, y 107 to 510 of a 526 px map area. The pill sits below the controls too.
+- Not verified: the Playwright e2e specs were not run (the walk-hud e2e has the known pre-existing failure and a full e2e build was not run); sunlight legibility, one-hand reach, vibration on a real Android phone.

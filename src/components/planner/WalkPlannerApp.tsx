@@ -22,6 +22,7 @@ import {
 } from "@/components/route";
 import { DirectionOptionsSheet } from "@/components/walk/DirectionOptionsSheet";
 import type { DiscoveryItem } from "@/lib/types/discovery";
+import { OffRouteCard } from "@/components/walk/OffRouteCard";
 import { WalkHud, type WalkNotice } from "@/components/walk/WalkHud";
 import { detectedNote, mayAddToWalk } from "@/lib/walk/detected-note";
 import type { WalkAlert } from "@/components/walk/WalkAlertCard";
@@ -596,7 +597,10 @@ export function WalkPlannerApp({
     null,
   );
   // "Turn left, 80 m" while off route; null otherwise.
-  const [offRouteHint, setOffRouteHint] = useState<string | null>(null);
+  const [offRouteHint, setOffRouteHint] = useState<{ kind: string; distanceM: number; bearing: number } | null>(null);
+  // How far off, rounded to 10 m so the card's number does not flicker; and when the question was raised.
+  const [offRouteMeters, setOffRouteMeters] = useState(0);
+  const [deviationAskedAt, setDeviationAskedAt] = useState<number | null>(null);
   const [offRouteDismissed, setOffRouteDismissed] = useState(false);
   // Off the route for minutes: stop quietly showing a turn-back hint and ask whether to redraw from here.
   useEffect(() => {
@@ -742,6 +746,7 @@ export function WalkPlannerApp({
     }
     deviationConfirmationRef.current = false;
     setDeviationConfirmation(false);
+    setDeviationAskedAt(null);
   };
 
   // The fix clock's "now": the last fix's timestamp plus however much wall time
@@ -2302,11 +2307,13 @@ export function WalkPlannerApp({
     clearDeviationConfirmation();
     deviationConfirmationRef.current = true;
     setDeviationConfirmation(true);
+    setDeviationAskedAt(Date.now());
 
     deviationConfirmTimeoutRef.current = setTimeout(() => {
       deviationConfirmTimeoutRef.current = null;
       deviationConfirmationRef.current = false;
       setDeviationConfirmation(false);
+      setDeviationAskedAt(null);
       // No answer: take the walker back to the original shortest route.
       if (isOffRouteRef.current) void runLocalRejoin();
     }, DEVIATION_CONFIRMATION_TIMEOUT_MS);
@@ -2550,13 +2557,20 @@ export function WalkPlannerApp({
       // movement gives a heading, a compass direction if it does not.
       setOffRouteHint(
         offRoute
-          ? turnInstruction(
-              headingMonitorRef.current?.recentHeading(update.timestamp) ?? null,
-              update.currentPosition,
-              deviation.closestPointOnRoute,
-            ).text
+          ? (() => {
+              const turn = turnInstruction(
+                headingMonitorRef.current?.recentHeading(update.timestamp) ?? null,
+                update.currentPosition,
+                deviation.closestPointOnRoute,
+              );
+              return { kind: turn.kind, distanceM: turn.distanceM, bearing: turn.bearing };
+            })()
           : null,
       );
+      if (offRoute) {
+        const rounded = Math.max(10, Math.round(deviation.deviationMeters / 10) * 10);
+        setOffRouteMeters((prev) => (Math.abs(rounded - prev) >= 10 ? rounded : prev));
+      }
       if (!offRoute) {
         offRouteDismissedRef.current = false;
         setOffRouteDismissed(false);
@@ -3094,7 +3108,7 @@ export function WalkPlannerApp({
 
   // The one card the walk HUD may show. A single slot: the walker takes in one
   // question at a time, so something decides which of these wins.
-  const turnBody = offRouteHint ? walkCopy.turn.toGetBack(offRouteHint) : undefined;
+  let offRouteMode: "ask" | "notice" | null = null;
   let walkAlert: WalkAlert | null = null;
   if (walkMode) {
     if (rebuildingMidWalk && isWalkPlanLoading) {
@@ -3176,81 +3190,12 @@ export function WalkPlannerApp({
         ],
       };
     } else if (deviationConfirmation) {
-      walkAlert = {
-        id: "off-route-ask",
-        tone: "alert",
-        title: walkCopy.offRoute.askTitle,
-        body: isFindingWayBack ? walkCopy.offRoute.findingWay : turnBody,
-        note: whileHereNote ?? undefined,
-        actions: [
-          // 1. Back to the planned route (also what happens if nobody answers).
-          {
-            label: walkCopy.offRoute.showWayBack,
-            primary: true,
-            onClick: () => {
-              clearDeviationConfirmation();
-              void runLocalRejoin();
-            },
-          },
-          // 2. Best route from here through the remaining stops.
-          {
-            label: walkCopy.offRoute.replan,
-            onClick: () => {
-              clearDeviationConfirmation();
-              runDeviationTriggeredRebuild();
-            },
-          },
-          // "I know where I'm going": let them walk. A "Rebuild route" button stays on the map for when they want it.
-          {
-            label: walkCopy.offRoute.dismiss,
-            onClick: () => {
-              clearDeviationConfirmation();
-              offRouteDismissedRef.current = true;
-              setOffRouteDismissed(true);
-            },
-          },
-          ...(isSignedIn
-            ? [
-                {
-                  label: walkCopy.offRoute.talk,
-                  onClick: () => {
-                    // Keep the question up: the walker may still tap an answer after talking.
-                    walkChat.openWith(
-                      uiLang === "he"
-                        ? "סטיתי מהמסלול ואני רוצה לבחור בעצמי מה לעשות (למשל להישאר על הכביש הזה, או שתחפש באינטרנט משהו עדכני בסביבה). שאל אותי מה אני רוצה ותבנה לפי זה."
-                        : "I've gone off the planned route and want to choose what happens (e.g. stay on this road, or look up something current nearby). Ask what I want and build the route around it.",
-                    );
-                  },
-                },
-              ]
-            : []),
-        ],
-      };
+      // The question is the big centred card, not a sheet alert (`offRouteCard` below).
+      offRouteMode = "ask";
+      walkAlert = { id: "off-route-ask", tone: "alert", title: walkCopy.offRoute.askTitle, actions: [] };
     } else if (isOffRoute && !offRouteDismissed) {
-      walkAlert = {
-        id: "off-route",
-        tone: "alert",
-        title: walkCopy.offRoute.title,
-        body: isFindingWayBack ? walkCopy.offRoute.findingWay : turnBody,
-        note: whileHereNote ?? undefined,
-        // Without this, auto/off mode could never dismiss the card, so callouts
-        // stayed held back until the walker rejoined.
-        actions: [
-          // A walker who is off the route wants a route from where they are: offer it here too, not only in "ask" mode.
-          {
-            label: walkCopy.offRoute.replan,
-            primary: true,
-            onClick: () => runDeviationTriggeredRebuild(),
-          },
-          {
-            label: walkCopy.offRoute.dismiss,
-            onClick: () => {
-              offRouteDismissedRef.current = true;
-              setOffRouteDismissed(true);
-            },
-          },
-        ],
-      };
+      offRouteMode = "notice";
+      walkAlert = { id: "off-route", tone: "alert", title: walkCopy.offRoute.title, actions: [] };
     } else if (paceConfirmation) {
       const slow = replanPaceDirection(paceConfirmation) === "slow";
       walkAlert = {
@@ -3448,6 +3393,46 @@ export function WalkPlannerApp({
       </ul>
     </div>
   ) : null;
+  // The off-route card. `walkAlert` above still marks "a card is up" for the callout gate and the companion;
+  // the card itself is drawn centred over the map by WalkHud, with the same three answers in both modes.
+  const offRouteCard =
+    walkMode && offRouteMode !== null ? (
+      <OffRouteCard
+        key={offRouteMode}
+        mode={offRouteMode}
+        lang={uiLang === "he" ? "he" : "en"}
+        distanceM={offRouteMeters}
+        hint={offRouteHint}
+        busy={isFindingWayBack}
+        countdown={
+          offRouteMode === "ask" && deviationAskedAt !== null
+            ? { askedAtMs: deviationAskedAt, durationMs: DEVIATION_CONFIRMATION_TIMEOUT_MS }
+            : null
+        }
+        signedIn={isSignedIn}
+        onBack={() => {
+          if (offRouteMode === "ask") clearDeviationConfirmation();
+          void runLocalRejoin();
+        }}
+        onBest={() => {
+          if (offRouteMode === "ask") clearDeviationConfirmation();
+          runDeviationTriggeredRebuild();
+        }}
+        onTalk={() =>
+          // Keep the card up: the walker may still tap an answer after talking.
+          walkChat.openWith(
+            uiLang === "he"
+              ? "סטיתי מהמסלול ואני רוצה לבחור בעצמי מה לעשות (למשל להישאר על הכביש הזה, או שתחפש באינטרנט משהו עדכני בסביבה). שאל אותי מה אני רוצה ותבנה לפי זה."
+              : "I've gone off the planned route and want to choose what happens (e.g. stay on this road, or look up something current nearby). Ask what I want and build the route around it.",
+          )
+        }
+        onDismiss={() => {
+          if (offRouteMode === "ask") clearDeviationConfirmation();
+          offRouteDismissedRef.current = true;
+          setOffRouteDismissed(true);
+        }}
+      />
+    ) : null;
   useEffect(() => {
     cardVisibleRef.current = walkAlert !== null || optionsOffer !== null;
     // WalkHud shows the options sheet over the alert, so a card under the sheet is not shown yet.
@@ -4477,7 +4462,8 @@ export function WalkPlannerApp({
         )}
         {walkMode && (
           <WalkHud
-            alert={walkAlert}
+            alert={offRouteCard ? null : walkAlert}
+            center={offRouteCard}
             notice={
               walkNotice
                 ? {

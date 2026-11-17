@@ -275,3 +275,36 @@ test("the direction options sheet stays out of the account-pill corner and above
   expect(watch.hydrationErrors).toEqual([]);
   expect(appErrors(watch)).toEqual([]);
 });
+
+test("the off-route card is centred in the map area, wide, with tall actions", async ({ page }) => {
+  await page.route("**/api/walk-plan", (route) => route.fulfill({ json: STUBBED_PLAN }));
+  await page.route("**/api/nearby", (route) => route.fulfill({ json: { places: [] } }));
+  await page.route("**/api/directions", (route) => route.fulfill({ status: 500, json: { error: "stubbed" } }));
+
+  await page.goto("/app?view=plan");
+  await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
+  await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
+  await page.getByRole("button", { name: "Build My Walk" }).click();
+  await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible({ timeout: 15_000 });
+  await page.getByLabel(/Simulate this walk/).check();
+  await page.getByRole("button", { name: "Start Walk" }).click();
+  await expect(page.getByTestId("walk-hud")).toBeVisible();
+  await page.getByRole("button", { name: "Details" }).click();
+  await page.getByRole("button", { name: "Details" }).click();
+  await page.getByRole("button", { name: /Stray \d+ m off route/ }).click();
+  await page.getByRole("button", { name: "Close", exact: false }).first().click();
+
+  const card = page.getByTestId("off-route-card");
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  const box = (await card.boundingBox())!;
+  const hud = (await page.getByTestId("walk-hud").boundingBox())!;
+  expect(Math.abs(box.x - (390 - box.x - box.width))).toBeLessThanOrEqual(2);
+  expect(box.width).toBeGreaterThanOrEqual(340);
+  expect(box.y + box.height).toBeLessThanOrEqual(hud.y + 1);
+  const mapMid = hud.y / 2;
+  expect(Math.abs(box.y + box.height / 2 - mapMid)).toBeLessThanOrEqual(60);
+  for (const name of ["Back to my route", "Best route from here"]) {
+    const b = (await page.getByRole("button", { name }).boundingBox())!;
+    expect(b.height).toBeGreaterThanOrEqual(56);
+  }
+});

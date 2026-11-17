@@ -19,6 +19,8 @@ export interface WalkNotice {
 interface WalkHudProps {
   alert: WalkAlert | null;
   notice?: WalkNotice | null;
+  /** A card centred over the map area (the off-route card); a sibling of the sheet, never inside it. */
+  center?: ReactNode;
   /** The direction options after a collapse; takes the alert's slot (one card, never two). */
   sheet?: ReactNode;
   /** The in-walk chat (the "Ask" pill); shares the bottom row with End walk. */
@@ -46,7 +48,7 @@ interface WalkHudProps {
  * map ends exactly above it (Google's logo and terms stay visible; Leaflet's
  * attribution is lifted clear of it).
  */
-export function WalkHud({ alert, notice = null, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, half, onDetails, onEndWalk }: WalkHudProps) {
+export function WalkHud({ alert, notice = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, half, onDetails, onEndWalk }: WalkHudProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -82,6 +84,7 @@ export function WalkHud({ alert, notice = null, sheet, chat, stats, gpsState = "
 
   return (
     <div ref={outerRef} className="pointer-events-none absolute inset-0 z-[600]">
+      {center}
       <WalkSheet sheetRef={stackRef} half={half} onFull={onDetails} label={t.details}>
         {sheet ?? (alert ? <WalkAlertCard key={alert.id} alert={alert} /> : null)}
         {gpsLabel ? (

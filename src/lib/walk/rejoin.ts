@@ -125,23 +125,23 @@ export function turnInstruction(
   headingDeg: number | null,
   pos: Coordinates,
   target: Coordinates,
-): { kind: TurnKind; text: string } {
+): { kind: TurnKind; text: string; distanceM: number; bearing: number } {
   const distanceM = haversineDistance(pos, target);
   const bearing = bearingBetween(pos, target);
 
   if (headingDeg === null) {
-    return { kind: "compass", text: walkCopy.turn.compass(bearing, distanceM) };
+    return { kind: "compass", text: walkCopy.turn.compass(bearing, distanceM), distanceM, bearing };
   }
 
   const rel = relativeBearing(headingDeg, bearing);
   if (Math.abs(rel) <= 30) {
-    return { kind: "straight", text: walkCopy.turn.straight(distanceM) };
+    return { kind: "straight", text: walkCopy.turn.straight(distanceM), distanceM, bearing };
   }
   if (rel > 30 && rel <= 150) {
-    return { kind: "right", text: walkCopy.turn.right(distanceM) };
+    return { kind: "right", text: walkCopy.turn.right(distanceM), distanceM, bearing };
   }
   if (rel < -30 && rel >= -150) {
-    return { kind: "left", text: walkCopy.turn.left(distanceM) };
+    return { kind: "left", text: walkCopy.turn.left(distanceM), distanceM, bearing };
   }
-  return { kind: "around", text: walkCopy.turn.around(distanceM) };
+  return { kind: "around", text: walkCopy.turn.around(distanceM), distanceM, bearing };
 }
