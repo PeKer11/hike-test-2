@@ -13,8 +13,9 @@ import { ScreenHeader } from "@/components/shell/ScreenHeader";
 import { useSocialClient } from "@/lib/hooks/useSocialClient";
 import type { PlannerBridge } from "@/lib/shell/planner-bridge";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
-import { socialProfilesEnabled } from "@/lib/social/flag";
-import { getMyProfile, type MyProfile } from "@/lib/social/profiles";
+import { presenceEnabled, socialProfilesEnabled } from "@/lib/social/flag";
+import { distanceCopy, fetchWalkingNow, sinceCopy, type WalkingNowRow } from "@/lib/social/presence";
+import { getMyProfile, saveProfile, type MyProfile, type PresenceAudience } from "@/lib/social/profiles";
 import {
   acceptFriend, getMyFriendCode, listFriends, listFriendsWalks, removeFriendship, requestFriend,
   type FriendRow as Friend, type FriendWalk,
@@ -78,6 +79,33 @@ export function SocialView({
   }, [refresh]);
 
   const profilesOn = socialProfilesEnabled() && mine.status !== "unavailable";
+
+  // Who is walking now: polled once a minute, only while this screen is open and visible.
+  const showPresence = presenceEnabled() && mine.status === "ok";
+  const [now, setNow] = useState<{ available: boolean; rows: WalkingNowRow[] } | null>(null);
+  useEffect(() => {
+    if (!showPresence || profileId) return;
+    let live = true;
+    const load = () => {
+      if (document.visibilityState === "hidden") return;
+      void fetchWalkingNow().then((r) => live && setNow(r));
+    };
+    load();
+    const id = window.setInterval(load, 60_000);
+    return () => {
+      live = false;
+      window.clearInterval(id);
+    };
+  }, [showPresence, profileId]);
+
+  const myAudience: PresenceAudience = mine.status === "ok" ? mine.profile.presenceAudience : "off";
+  const toggleAudience = async () => {
+    if (mine.status !== "ok" || !session) return;
+    const p = mine.profile;
+    const next: PresenceAudience = p.presenceAudience === "off" ? "friends" : "off";
+    await saveProfile(session.client, { displayName: p.displayName, avatar: p.avatar, visibility: p.visibility, showHistory: p.showHistory, showTaste: p.showTaste, presenceAudience: next, adult: true });
+    await refresh();
+  };
 
   if (!signedIn) {
     return (
@@ -166,6 +194,39 @@ export function SocialView({
           <button type="button" className={PRIMARY} onClick={() => setEdit(true)}>
             {t.createCta}
           </button>
+        </section>
+      ) : null}
+
+      {showPresence && now?.available ? (
+        <section className={`${CARD} space-y-2`} aria-label={t.walkingNow}>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-[20px] font-semibold text-tk-ink">{t.walkingNow}</h2>
+            <button type="button" aria-pressed={myAudience !== "off"} onClick={() => void toggleAudience()} className={`min-h-11 rounded-full px-4 text-[15px] font-semibold ${myAudience === "off" ? "bg-charcoal/5 text-charcoal" : "bg-forest/10 text-forest"}`}>
+              {myAudience === "off" ? t.shareOff : myAudience === "friends" ? t.shareFriends : t.shareNearby}
+            </button>
+          </div>
+          {myAudience === "off" ? (
+            <p className="text-[16px] text-charcoal/70">{t.turnOnToSee}</p>
+          ) : now.rows.length === 0 ? (
+            <p className="text-[16px] text-charcoal/70">{t.nobodyWalking}</p>
+          ) : (
+            <ul>
+              {now.rows.map((r) => (
+                <li key={r.token} className="flex min-h-14 items-center gap-3">
+                  <button type="button" disabled={!r.profileVisible || !r.friendId} onClick={() => r.friendId && openProfile(r.friendId)} className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-start">
+                    <Avatar id={r.avatar} size={40} seed={r.friendId ?? r.token} />
+                    <span className="min-w-0">
+                      <span dir="auto" className="block truncate text-[17px] font-medium text-tk-ink">{r.displayName}</span>
+                      <span dir="auto" className="block truncate text-[15px] text-charcoal/70">
+                        {[r.areaLabel, r.distance && r.distance !== "far" ? distanceCopy[lang][r.distance] : null, sinceCopy[lang][r.since]].filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[15px] text-charcoal/70">{t.shareLine}</p>
         </section>
       ) : null}
 

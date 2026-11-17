@@ -7,6 +7,9 @@ import { ChoiceTile } from "@/components/shell/ChoiceTile";
 import type { PlannerBridge, AppView } from "@/lib/shell/planner-bridge";
 import { loadActiveWalk, type ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
 import { socialProfilesEnabled } from "@/lib/social/flag";
+import { socialCopy } from "@/lib/social/copy";
+import { presenceEnabled } from "@/lib/social/flag";
+import { fetchWalkingNow } from "@/lib/social/presence";
 import { getMyProfile } from "@/lib/social/profiles";
 import { withWalkClient } from "@/lib/walks/walk-history";
 import type { SavedWalk } from "@/lib/walks/saved-walks";
@@ -85,6 +88,7 @@ export function HomeView({
   const [walkCount, setWalkCount] = useState<number | null>(null);
   const [hour, setHour] = useState(12);
   const [socialName, setSocialName] = useState<string | null>(null);
+  const [walkingNames, setWalkingNames] = useState<string[]>([]);
 
   // Read on the client only: the server cannot know the time of day or this device's storage.
   useEffect(() => {
@@ -114,7 +118,13 @@ export function HomeView({
     if (!signedIn || !socialProfilesEnabled()) return;
     let live = true;
     void withWalkClient((client, userId) => getMyProfile(client, userId)).then((p) => {
-      if (live && p?.status === "ok") setSocialName(p.profile.displayName);
+      if (live && p?.status === "ok") {
+        setSocialName(p.profile.displayName);
+        // Friends walking now: only when I share too (no lurking) and the feature is on.
+        if (presenceEnabled() && p.profile.presenceAudience !== "off") {
+          void fetchWalkingNow().then((r) => live && setWalkingNames(r.rows.slice(0, 3).map((x) => x.displayName)));
+        }
+      }
     });
     return () => {
       live = false;
@@ -159,7 +169,14 @@ export function HomeView({
           <ChoiceTile title={t.myWalks} line={walkCount === null ? t.myWalksLine : undefined} number={walkCount} image="/images/traike/3d/boot.png" onClick={() => onNavigate("walks")} />
         </div>
 
-        {last ? (
+        {walkingNames.length > 0 ? (
+          <button type="button" onClick={() => onNavigate("social")} className={`${CARD} flex min-h-16 items-center justify-between text-start`}>
+            <span dir="auto" className="text-[20px] font-semibold leading-[26px] text-tk-ink">
+              {socialCopy[lang].friendsWalking(walkingNames.join(lang === "he" ? " ו" : ", "))}
+            </span>
+            <span aria-hidden className="text-charcoal/50">›</span>
+          </button>
+        ) : last ? (
           <section className={CARD} aria-label={t.last}>
             <p className="text-[13px] font-medium text-charcoal/60">{t.last}</p>
             <h2 dir="auto" className="mt-0.5 text-[20px] font-semibold leading-[26px] text-tk-ink">

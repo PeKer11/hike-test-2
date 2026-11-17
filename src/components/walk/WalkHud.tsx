@@ -19,6 +19,8 @@ export interface WalkNotice {
 interface WalkHudProps {
   alert: WalkAlert | null;
   notice?: WalkNotice | null;
+  /** Shown only while a rough position is really being shared with others; one tap hides it. */
+  sharing?: { label: string; hideLabel: string; onHide: () => void } | null;
   /** A card centred over the map area (the off-route card); a sibling of the sheet, never inside it. */
   center?: ReactNode;
   /** The direction options after a collapse; takes the alert's slot (one card, never two). */
@@ -48,7 +50,7 @@ interface WalkHudProps {
  * map ends exactly above it (Google's logo and terms stay visible; Leaflet's
  * attribution is lifted clear of it).
  */
-export function WalkHud({ alert, notice = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, half, onDetails, onEndWalk }: WalkHudProps) {
+export function WalkHud({ alert, notice = null, sharing = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, half, onDetails, onEndWalk }: WalkHudProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -98,6 +100,17 @@ export function WalkHud({ alert, notice = null, center, sheet, chat, stats, gpsS
               className={`h-2 w-2 rounded-full ${gpsState === "searching" ? "animate-pulse bg-forest" : "bg-warn"}`}
             />
             {gpsLabel}
+          </div>
+        ) : null}
+        {sharing ? (
+          <div data-testid="walk-sharing" className="flex items-center justify-between gap-2 rounded-2xl bg-forest/10 px-3 text-[15px] font-medium text-forest">
+            <span className="flex items-center gap-2 py-2">
+              <span aria-hidden className="h-2 w-2 rounded-full bg-forest" />
+              {sharing.label}
+            </span>
+            <button type="button" onClick={sharing.onHide} className="min-h-11 shrink-0 rounded-full px-3 text-[15px] font-semibold text-terra">
+              {sharing.hideLabel}
+            </button>
           </div>
         ) : null}
         {notice ? (

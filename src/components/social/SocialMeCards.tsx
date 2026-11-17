@@ -6,7 +6,7 @@ import { Avatar } from "@/components/social/Avatar";
 import { ProfileEditSheet } from "@/components/social/ProfileEditSheet";
 import { useSocialClient } from "@/lib/hooks/useSocialClient";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
-import { socialProfilesEnabled } from "@/lib/social/flag";
+import { presenceEnabled, socialProfilesEnabled } from "@/lib/social/flag";
 import { getMyProfile, listMyBlocks, unblockUser, type BlockedUser, type MyProfile } from "@/lib/social/profiles";
 
 const CARD = "space-y-3 rounded-tk-card bg-paper p-4 shadow-tk-card";
@@ -43,6 +43,11 @@ export function SocialMeCards({ lang, signedIn }: { lang: SocialLang; signedIn: 
             <div className="min-w-0 flex-1">
               <p dir="auto" className="truncate text-[18px] font-semibold text-tk-ink">{mine.profile.displayName}</p>
               <span className="mt-1 inline-block rounded-full bg-forest/10 px-3 py-0.5 text-[15px] text-forest">{vLabel}</span>
+              {presenceEnabled() ? (
+                <span className="ms-2 mt-1 inline-block rounded-full bg-charcoal/5 px-3 py-0.5 text-[15px] text-charcoal/80">
+                  {t.meSharing}: {mine.profile.presenceAudience === "off" ? t.shareOff : mine.profile.presenceAudience === "friends" ? t.vFriends : t.shareNearby}
+                </span>
+              ) : null}
             </div>
             <button type="button" onClick={() => setEdit(true)} className="min-h-11 rounded-full bg-charcoal/5 px-4 text-[15px] font-semibold">
               {t.edit}

@@ -334,3 +334,9 @@ export const walkPlanRateLimiter = createRateLimiter([
   { limit: 300, windowMs: DAY_MS },
 ]);
 export const notableRateLimiter = createRateLimiter([{ limit: 30, windowMs: MINUTE_MS }]);
+
+/** `/api/social/presence`: at most 6 writes a minute per signed-in walker (the publisher sends far fewer). */
+export const presenceRateLimiter = createRateLimiter([{ limit: 6, windowMs: MINUTE_MS }]);
+
+/** `/api/social/walking-now`: the Social screen polls once a minute; 4 a minute leaves room for refreshes. */
+export const walkingNowRateLimiter = createRateLimiter([{ limit: 4, windowMs: MINUTE_MS }]);

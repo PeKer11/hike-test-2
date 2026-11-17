@@ -146,3 +146,38 @@ describe("ProfileEditSheet", () => {
     expect(f.calls.find((c) => c.name === "save_social_profile")?.args).toMatchObject({ p_display_name: "Dana", p_visibility: "private", p_presence_audience: "off", p_adult: true });
   });
 });
+
+describe("Walking now on the Social screen", () => {
+  const rows = [{ token: OTHER, friendId: OTHER, displayName: "Dana", avatar: "boot", relation: "friend", areaLabel: "Jaffa", since: "about_30", distance: "near", profileVisible: true }];
+  const mineRow = { user_id: "u1", display_name: "Tester", avatar: "tent", visibility: "private", show_history: true, show_taste: false, presence_audience: "friends", suspended_at: null };
+  const rpc = { list_friends: { data: [] }, friends_walks: { data: [] }, my_friend_code: { data: "ABCDEFGH" } };
+
+  it("lists friends who walk, with words from buckets and no position", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SOCIAL_PRESENCE", "1");
+    const f = fakeSupabase({ rpc, tables: { social_profiles: { data: mineRow } } });
+    session.current = { client: f.client, userId: "u1" };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ available: true, rows }))));
+    render(<SocialView lang="en" bridge={new PlannerBridge()} signedIn profileId={null} addCode={null} />);
+    expect(await screen.findByText("Dana")).toBeTruthy();
+    expect(screen.getByText("Jaffa · nearby · about 30 min")).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
+  it("is hidden with the presence flag off (and nothing is fetched), or when the route says unavailable", async () => {
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ available: false, rows: [] })));
+    vi.stubGlobal("fetch", fetchSpy);
+    const f = fakeSupabase({ rpc, tables: { social_profiles: { data: mineRow } } });
+    session.current = { client: f.client, userId: "u1" };
+    render(<SocialView lang="en" bridge={new PlannerBridge()} signedIn profileId={null} addCode={null} />);
+    expect(await screen.findByText("My friends")).toBeTruthy();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText("Walking now")).toBeNull();
+    cleanup();
+    vi.stubEnv("NEXT_PUBLIC_SOCIAL_PRESENCE", "1");
+    render(<SocialView lang="en" bridge={new PlannerBridge()} signedIn profileId={null} addCode={null} />);
+    await screen.findByText("My friends");
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    expect(screen.queryByText("Walking now")).toBeNull();
+    vi.unstubAllGlobals();
+  });
+});

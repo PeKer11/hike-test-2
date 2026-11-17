@@ -43,6 +43,10 @@ import { FriendsPanel } from "@/components/walks/FriendsPanel";
 import { MyWalksPanel } from "@/components/walks/MyWalksPanel";
 import { ScreenHeader } from "@/components/shell/ScreenHeader";
 import { Segmented } from "@/components/shell/Segmented";
+import { classifyPoint } from "@/lib/places/safety-zones";
+import { presenceEnabled } from "@/lib/social/flag";
+import { PresencePublisher } from "@/lib/social/presence-publisher";
+import { getMyProfile, type PresenceAudience } from "@/lib/social/profiles";
 import { listFriends } from "@/lib/walks/friends";
 import { resolveSharedStops } from "@/lib/walks/friend-plan";
 import { SavedPlacePicker } from "@/components/places/SavedPlacePicker";
@@ -968,6 +972,60 @@ export function WalkPlannerApp({
     );
     // The actions are rebuilt every render and always read the latest state; publishing them each render is the point.
   });
+
+  // Walking now (friends): only when the flag is on and the walker chose an audience. The publisher decides what, if
+  // anything, to send (nothing in the first 10 minutes or 800 m, nothing outside allowed zones); the position is
+  // reduced to a ~1 km cell on the server and never stored. The chip is visible only while a cell is really shared.
+  const [presenceAudience, setPresenceAudience] = useState<PresenceAudience>("off");
+  const [presenceGhost, setPresenceGhost] = useState(false);
+  const [presenceSharing, setPresenceSharing] = useState(false);
+  const presenceRef = useRef<PresencePublisher | null>(null);
+  const presenceLive = useRef({ position: null as Coordinates | null, accuracy: null as number | null, ghost: false, audience: "off" as PresenceAudience });
+  const hiddenSinceRef = useRef<number | null>(null);
+  useEffect(() => {
+    presenceLive.current = { position: currentPosition, accuracy: currentAccuracyM, ghost: presenceGhost, audience: presenceAudience };
+  });
+  useEffect(() => {
+    if (!walkMode || !isSignedIn || !presenceEnabled()) return;
+    let live = true;
+    void withWalkClient((c, uid) => getMyProfile(c, uid)).then((p) => {
+      if (live) setPresenceAudience(p?.status === "ok" ? p.profile.presenceAudience : "off");
+    });
+    const publisher = new PresencePublisher();
+    presenceRef.current = publisher;
+    const startedAt = firstFixAtRef.current ?? resumedStartRef.current ?? Date.now();
+    const onVisibility = () => {
+      hiddenSinceRef.current = document.visibilityState === "hidden" ? (hiddenSinceRef.current ?? Date.now()) : null;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    const tick = () => {
+      const s = presenceLive.current;
+      void publisher
+        .tick({
+          walking: true,
+          startedAtMs: firstFixAtRef.current ?? resumedStartRef.current ?? startedAt,
+          startPoint: walkStartPointRef.current,
+          position: s.position,
+          accuracyM: s.accuracy,
+          pageVisible: typeof document === "undefined" || document.visibilityState !== "hidden",
+          hiddenSinceMs: hiddenSinceRef.current,
+          ghost: s.ghost,
+          audience: s.audience,
+          zoneAllowed: s.position ? classifyPoint(s.position).status === "allowed" : false,
+        })
+        .then(() => live && setPresenceSharing(publisher.sharing));
+    };
+    const id = window.setInterval(tick, 20_000);
+    return () => {
+      live = false;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+      void publisher.clear();
+      presenceRef.current = null;
+      setPresenceSharing(false);
+      setPresenceGhost(false);
+    };
+  }, [walkMode, isSignedIn]);
 
   const handleEndWalk = () => {
     clearActiveWalk();
@@ -4493,6 +4551,19 @@ export function WalkPlannerApp({
           <WalkHud
             alert={offRouteCard ? null : walkAlert}
             center={offRouteCard}
+            sharing={
+              presenceSharing && !presenceGhost
+                ? {
+                    label: uiLang === "he" ? (presenceAudience === "public" ? "משתפים · כולם" : "משתפים · חברים") : presenceAudience === "public" ? "Sharing · nearby" : "Sharing · friends",
+                    hideLabel: uiLang === "he" ? "הסתרה" : "Hide",
+                    onHide: () => {
+                      setPresenceGhost(true);
+                      setPresenceSharing(false);
+                      void presenceRef.current?.clear();
+                    },
+                  }
+                : null
+            }
             notice={
               walkNotice
                 ? {

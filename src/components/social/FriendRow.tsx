@@ -27,7 +27,7 @@ export function FriendRow({
   );
   return (
     <div className={stacked ? "space-y-2 py-2" : "flex min-h-14 items-center gap-3"}>
-      <div className="flex min-h-12 items-center gap-3">
+      <div className="flex min-h-12 w-full items-center gap-3">
       {onOpen ? (
         <button type="button" onClick={onOpen} className="flex min-h-12 min-w-0 flex-1 items-center gap-3">
           {body}

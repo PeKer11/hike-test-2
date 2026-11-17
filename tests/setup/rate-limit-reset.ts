@@ -22,7 +22,9 @@ import {
   orsRateLimiter,
   overpassRateLimiter,
   placesResolveRateLimiter,
+  presenceRateLimiter,
   socialRateLimiter,
+  walkingNowRateLimiter,
   walkAssistantUserRateLimiter,
   walkPlanRateLimiter,
 } from "@/lib/api/rate-limit";
@@ -57,5 +59,7 @@ beforeEach(() => {
   placesResolveRateLimiter.reset();
   walkPlanRateLimiter.reset();
   notableRateLimiter.reset();
+  presenceRateLimiter.reset();
+  walkingNowRateLimiter.reset();
   resetAllCircuitBreakers();
 });
