@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Avatar } from "@/components/social/Avatar";
 import { BlockReportSheet } from "@/components/social/BlockReportSheet";
 import { ProfileEditSheet } from "@/components/social/ProfileEditSheet";
+import { WalkTogetherSheet } from "@/components/social/WalkTogetherSheet";
 import { useSocialClient } from "@/lib/hooks/useSocialClient";
 import type { PlannerBridge } from "@/lib/shell/planner-bridge";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
@@ -13,6 +14,7 @@ import {
   getMyProfile, getProfileCard, getProfileWalks, requestFriendById,
   type ProfileCard, type ProfileWalk, type SocialProfile,
 } from "@/lib/social/profiles";
+import { mapProviderNow, type MeetChoice } from "@/lib/social/walk-requests";
 import { resolvePlaces } from "@/lib/walks/friend-plan";
 import type { SavedStop } from "@/lib/walks/saved-walks";
 
@@ -26,7 +28,10 @@ export function ProfileView({
   lang,
   bridge,
   onBack,
+  canWalkTogether = false,
 }: {
+  /** Walk-together is available (flag on, migration C applied). */
+  canWalkTogether?: boolean;
   userId: string;
   lang: SocialLang;
   bridge: PlannerBridge;
@@ -43,6 +48,7 @@ export function ProfileView({
   const [menu, setMenu] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  const [together, setTogether] = useState<MeetChoice[] | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -205,7 +211,14 @@ export function ProfileView({
         ) : card.friendState === "pending_out" ? (
           <span className="min-h-12 content-center text-[16px] text-charcoal/70">{t.pending}</span>
         ) : card.friendState === "friends" ? (
-          <span className="min-h-12 content-center text-[16px] font-medium text-forest">{t.friendsNow}</span>
+          <>
+            <span className="min-h-12 content-center text-[16px] font-medium text-forest">{t.friendsNow}</span>
+            {canWalkTogether ? (
+              <button type="button" onClick={() => setTogether(bridge.actions?.meetingChoices() ?? [])} className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft">
+                {t.walkTogether}
+              </button>
+            ) : null}
+          </>
         ) : null}
       </div>
       {note ? <p role="status" className="text-[15px] text-forest">{note}</p> : null}
@@ -255,6 +268,9 @@ export function ProfileView({
         </ul>
       )}
 
+      {together ? (
+        <WalkTogetherSheet open onClose={() => setTogether(null)} lang={lang} client={session.client} friend={{ id: target, name: card.displayName }} choices={together} mapProvider={mapProviderNow()} onSent={() => { setNote(t.requestSent); bridge.actions?.refreshInbox(); }} />
+      ) : null}
       {sheet === "edit" ? (
         <ProfileEditSheet open onClose={() => setSheet(null)} lang={lang} client={session.client} userId={session.userId} initial={mine} onSaved={() => setVersion((v) => v + 1)} onDeleted={onBack} />
       ) : null}

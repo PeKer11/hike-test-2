@@ -1,5 +1,6 @@
 import type { SavedStop, SavedWalk } from "@/lib/walks/saved-walks";
 import type { ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
+import type { MeetChoice, MeetPlace, WalkRequest } from "@/lib/social/walk-requests";
 import type { WalkSettings } from "@/lib/types/walk-settings";
 
 export type AppView = "home" | "plan" | "walk" | "walks" | "social" | "me";
@@ -22,6 +23,12 @@ export interface PlannerActions {
   resumeWalk: (snapshot: ActiveWalkSnapshot) => void;
   /** Plan a shared walk (a friend's or a public profile's). Google stops may carry only a place id. */
   planSharedWalk: (walk: { title: string; stops: SavedStop[] }) => void;
+  /** Reload walk-together requests now (after answering one). */
+  refreshInbox: () => void;
+  /** Places the walker could meet at: the next two stops of the current plan and the nearest registered place. */
+  meetingChoices: () => MeetChoice[];
+  /** Add an agreed meeting place to the live walk (looks a Google place up first). */
+  addMeetingToWalk: (place: MeetPlace) => void;
 }
 
 interface BridgeState {
@@ -29,6 +36,9 @@ interface BridgeState {
   settings: WalkSettings | null;
   signedIn: boolean;
   friendRequests: number;
+  /** Walk-together requests (last 24 h), and whether the feature is available (flag on and migration C applied). */
+  walkRequests: readonly WalkRequest[];
+  requestsAvailable: boolean;
 }
 
 /**
@@ -36,7 +46,7 @@ interface BridgeState {
  * The planner owns all walk state; the shell only reads this and calls `actions`.
  */
 export class PlannerBridge {
-  private state: BridgeState = { walkLive: false, settings: null, signedIn: false, friendRequests: 0 };
+  private state: BridgeState = { walkLive: false, settings: null, signedIn: false, friendRequests: 0, walkRequests: [], requestsAvailable: false };
   private listeners = new Set<() => void>();
   /** Rebuilt by the planner every render and read only on a tap, so it never notifies. */
   actions: PlannerActions | null = null;

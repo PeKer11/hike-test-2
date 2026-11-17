@@ -7,15 +7,19 @@ import { useCallback, useEffect, useState } from "react";
 import { Avatar } from "@/components/social/Avatar";
 import { BlockReportSheet } from "@/components/social/BlockReportSheet";
 import { FriendRow } from "@/components/social/FriendRow";
+import { MeetCard, RequestCard } from "@/components/social/RequestCard";
+import { WalkTogetherSheet } from "@/components/social/WalkTogetherSheet";
 import { ProfileEditSheet } from "@/components/social/ProfileEditSheet";
 import { ProfileView } from "@/components/social/ProfileView";
 import { ScreenHeader } from "@/components/shell/ScreenHeader";
+import { meetLabel, useMeetNames } from "@/lib/hooks/useMeetNames";
 import { useSocialClient } from "@/lib/hooks/useSocialClient";
 import type { PlannerBridge } from "@/lib/shell/planner-bridge";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
 import { presenceEnabled, socialProfilesEnabled } from "@/lib/social/flag";
 import { distanceCopy, fetchWalkingNow, sinceCopy, type WalkingNowRow } from "@/lib/social/presence";
 import { getMyProfile, saveProfile, type MyProfile, type PresenceAudience } from "@/lib/social/profiles";
+import { cancelRequest, mapProviderNow, respondToRequest, setRequestNote, type MeetChoice, type WalkRequest } from "@/lib/social/walk-requests";
 import {
   acceptFriend, getMyFriendCode, listFriends, listFriendsWalks, removeFriendship, requestFriend,
   type FriendRow as Friend, type FriendWalk,
@@ -37,6 +41,9 @@ export function SocialView({
   signedIn,
   profileId,
   addCode,
+  requests = [],
+  requestsAvailable = false,
+  walkLive = false,
 }: {
   lang: SocialLang;
   bridge: PlannerBridge;
@@ -45,6 +52,10 @@ export function SocialView({
   profileId: string | null;
   /** `?add=`: an invite link, to confirm. */
   addCode: string | null;
+  /** Walk-together requests from the planner's inbox (last 24 h). */
+  requests?: readonly WalkRequest[];
+  requestsAvailable?: boolean;
+  walkLive?: boolean;
 }) {
   const t = socialCopy[lang];
   const session = useSocialClient(signedIn);
@@ -58,6 +69,9 @@ export function SocialView({
   const [edit, setEdit] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ friend: Friend; mode: "report" | "block" } | null>(null);
+  const [together, setTogether] = useState<{ friend: { id: string; name: string }; choices: MeetChoice[] } | null>(null);
+  const [senderSheet, setSenderSheet] = useState<WalkRequest | null>(null);
+  const meetNames = useMeetNames(requests);
 
   const refresh = useCallback(async () => {
     if (!session) return;
@@ -123,11 +137,12 @@ export function SocialView({
   if (profileId && session) {
     return (
       <Shell lang={lang} title={null}>
-        <ProfileView userId={profileId} lang={lang} bridge={bridge} onBack={() => { go(""); void refresh(); }} />
+        <ProfileView userId={profileId} lang={lang} bridge={bridge} canWalkTogether={requestsAvailable} onBack={() => { go(""); void refresh(); }} />
       </Shell>
     );
   }
 
+  const withClient = (fn: (c: NonNullable<typeof session>["client"]) => Promise<boolean>) => (session ? fn(session.client) : Promise.resolve(false));
   const act = async (fn: () => Promise<boolean>, fail: string) => {
     setNote((await fn()) ? null : fail);
     await refresh();
@@ -152,6 +167,10 @@ export function SocialView({
   };
 
   const openProfile = (id: string) => go(`&u=${id}`);
+  const openTogether = (id: string, name: string) => setTogether({ friend: { id, name }, choices: bridge.actions?.meetingChoices() ?? [] });
+  const answer = (fn: () => Promise<boolean>) => void fn().then(() => bridge.actions?.refreshInbox());
+  const openRequests = requestsAvailable ? requests.filter((r) => r.status === "pending" || r.status === "accepted") : [];
+  const fallbackPlace = t.publicPlace;
 
   const headerActions = (
     <>
@@ -222,11 +241,47 @@ export function SocialView({
                       </span>
                     </span>
                   </button>
+                  {requestsAvailable && r.friendId ? (
+                    <button type="button" className={SOFT} onClick={() => openTogether(r.friendId as string, r.displayName)}>
+                      {t.walkTogether}
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
           )}
           <p className="text-[15px] text-charcoal/70">{t.shareLine}</p>
+        </section>
+      ) : null}
+
+      {openRequests.length > 0 ? (
+        <section className="space-y-3" aria-label={t.walkRequests}>
+          <h2 className="text-[20px] font-semibold text-tk-ink">{t.walkRequests}</h2>
+          {openRequests.map((r) =>
+            r.status === "accepted" ? (
+              <MeetCard
+                key={r.id}
+                request={r}
+                lang={lang}
+                placeName={meetLabel(r, meetNames, fallbackPlace)}
+                canAddToRoute={walkLive}
+                onNote={(code) => answer(() => withClient((c) => setRequestNote(c, r.id, code)))}
+                onAddToRoute={() => bridge.actions?.addMeetingToWalk(r.meet)}
+                onCancel={() => answer(() => withClient((c) => cancelRequest(c, r.id)))}
+              />
+            ) : (
+              <RequestCard
+                key={r.id}
+                request={r}
+                lang={lang}
+                placeName={meetLabel(r, meetNames, fallbackPlace)}
+                onAccept={() => answer(() => withClient((c) => respondToRequest(c, r.id, true)))}
+                onDecline={() => answer(() => withClient((c) => respondToRequest(c, r.id, false)))}
+                onCancel={() => answer(() => withClient((c) => cancelRequest(c, r.id)))}
+                onMore={() => setSenderSheet(r)}
+              />
+            ),
+          )}
         </section>
       ) : null}
 
@@ -351,6 +406,30 @@ export function SocialView({
 
       {edit && session ? (
         <ProfileEditSheet open onClose={() => setEdit(false)} lang={lang} client={session.client} userId={session.userId} initial={null} onSaved={() => void refresh()} onDeleted={() => void refresh()} />
+      ) : null}
+      {together && session ? (
+        <WalkTogetherSheet
+          open
+          onClose={() => setTogether(null)}
+          lang={lang}
+          client={session.client}
+          friend={together.friend}
+          choices={together.choices}
+          mapProvider={mapProviderNow()}
+          onSent={() => { setNote(t.requestSent); bridge.actions?.refreshInbox(); }}
+        />
+      ) : null}
+      {senderSheet && session ? (
+        <BlockReportSheet
+          open
+          onClose={() => setSenderSheet(null)}
+          lang={lang}
+          client={session.client}
+          target={senderSheet.otherId}
+          targetName={senderSheet.otherName}
+          context="walk_request"
+          onDone={() => bridge.actions?.refreshInbox()}
+        />
       ) : null}
       {sheet && session ? (
         <BlockReportSheet

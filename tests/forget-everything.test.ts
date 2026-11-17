@@ -45,6 +45,7 @@ beforeEach(() => {
 const ALLOWED_NOT_FORGOTTEN: Record<string, string> = {
   llm_usage: "spend accounting for the budget guard, not walker-learned content",
   walk_presence: "has no delete policy; deleting social_profiles cascades to it (on delete cascade)",
+  walk_requests: "has no delete policy; deleting social_profiles cascades to it (both from_user and to_user are on delete cascade)",
 };
 
 function tablesWithUserId(): string[] {

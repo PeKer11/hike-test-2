@@ -82,10 +82,10 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
         bottomBar={view === "walks"}
       />
       {view === "home" ? (
-        <HomeView greetingName={greetingName} lang={lang} bridge={bridge} walkLive={live.walkLive} signedIn={live.signedIn} onNavigate={navigate} />
+        <HomeView greetingName={greetingName} lang={lang} bridge={bridge} walkLive={live.walkLive} signedIn={live.signedIn} requests={live.walkRequests} onNavigate={navigate} />
       ) : null}
       {view === "social" ? (
-        <SocialView lang={lang === "he" ? "he" : "en"} bridge={bridge} signedIn={live.signedIn} profileId={profileId} addCode={addCode} />
+        <SocialView lang={lang === "he" ? "he" : "en"} bridge={bridge} signedIn={live.signedIn} profileId={profileId} addCode={addCode} requests={live.walkRequests} requestsAvailable={live.requestsAvailable} walkLive={live.walkLive} />
       ) : null}
       {view === "me" ? <MeView lang={lang} settings={live.settings} bridge={bridge} signedIn={live.signedIn} walkLive={live.walkLive} /> : null}
 

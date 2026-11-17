@@ -11,6 +11,7 @@ import { socialCopy } from "@/lib/social/copy";
 import { presenceEnabled } from "@/lib/social/flag";
 import { fetchWalkingNow } from "@/lib/social/presence";
 import { getMyProfile } from "@/lib/social/profiles";
+import { incomingPending, type WalkRequest } from "@/lib/social/walk-requests";
 import { withWalkClient } from "@/lib/walks/walk-history";
 import type { SavedWalk } from "@/lib/walks/saved-walks";
 
@@ -73,6 +74,7 @@ export function HomeView({
   bridge,
   walkLive,
   signedIn,
+  requests = [],
   onNavigate,
 }: {
   greetingName: string | null;
@@ -80,6 +82,8 @@ export function HomeView({
   bridge: PlannerBridge;
   walkLive: boolean;
   signedIn: boolean;
+  /** Walk-together requests; an incoming one is the first context card. */
+  requests?: readonly WalkRequest[];
   onNavigate: (view: AppView) => void;
 }) {
   const t = COPY[lang];
@@ -131,6 +135,8 @@ export function HomeView({
     };
   }, [signedIn]);
 
+  const incomingRequest = incomingPending(requests)[0];
+
   const done = snapshot ? snapshot.visitedIds.length : 0;
   const total = snapshot ? snapshot.plan.orderedAttractions.length : 0;
 
@@ -169,7 +175,14 @@ export function HomeView({
           <ChoiceTile title={t.myWalks} line={walkCount === null ? t.myWalksLine : undefined} number={walkCount} image="/images/traike/3d/boot.png" onClick={() => onNavigate("walks")} />
         </div>
 
-        {walkingNames.length > 0 ? (
+        {incomingRequest ? (
+          <button type="button" onClick={() => onNavigate("social")} className={`${CARD} flex min-h-16 items-center justify-between text-start`}>
+            <span dir="auto" className="text-[20px] font-semibold leading-[26px] text-tk-ink">
+              {socialCopy[lang].wantsToWalk(incomingRequest.otherName)}
+            </span>
+            <span aria-hidden className="text-charcoal/50">›</span>
+          </button>
+        ) : walkingNames.length > 0 ? (
           <button type="button" onClick={() => onNavigate("social")} className={`${CARD} flex min-h-16 items-center justify-between text-start`}>
             <span dir="auto" className="text-[20px] font-semibold leading-[26px] text-tk-ink">
               {socialCopy[lang].friendsWalking(walkingNames.join(lang === "he" ? " ו" : ", "))}

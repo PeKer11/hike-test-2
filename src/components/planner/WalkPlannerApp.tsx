@@ -47,8 +47,11 @@ import { classifyPoint } from "@/lib/places/safety-zones";
 import { presenceEnabled } from "@/lib/social/flag";
 import { PresencePublisher } from "@/lib/social/presence-publisher";
 import { getMyProfile, type PresenceAudience } from "@/lib/social/profiles";
+import { useMeetNames, meetLabel } from "@/lib/hooks/useMeetNames";
+import { useSocialInbox } from "@/lib/hooks/useSocialInbox";
+import { incomingPending, meetPlaceFromAttraction, respondToRequest, type MeetChoice, type MeetPlace } from "@/lib/social/walk-requests";
 import { listFriends } from "@/lib/walks/friends";
-import { resolveSharedStops } from "@/lib/walks/friend-plan";
+import { resolvePlaces, resolveSharedStops } from "@/lib/walks/friend-plan";
 import { SavedPlacePicker } from "@/components/places/SavedPlacePicker";
 import { SavedPlacesTab } from "@/components/places/SavedPlacesTab";
 import { markStopsVisited } from "@/lib/places/saved-places";
@@ -965,10 +968,13 @@ export function WalkPlannerApp({
         walkLive: walkMode,
         settings: walkSettings,
         signedIn: isSignedIn,
-        friendRequests,
+        // The Social tab badge counts friend requests and walk requests waiting for an answer.
+        friendRequests: friendRequests + incomingPending(inbox.requests).length,
+        walkRequests: inbox.requests,
+        requestsAvailable: inbox.available,
       },
       setWalkSettings,
-      { walkAgain: walkAgainFromSaved, resumeWalk: resumeActiveWalk, planSharedWalk },
+      { walkAgain: walkAgainFromSaved, resumeWalk: resumeActiveWalk, planSharedWalk, refreshInbox: inbox.refresh, meetingChoices, addMeetingToWalk },
     );
     // The actions are rebuilt every render and always read the latest state; publishing them each render is the point.
   });
@@ -1299,6 +1305,53 @@ export function WalkPlannerApp({
   useEffect(() => {
     if (sideTab !== "walks" || walkMode) setWalkPreview(null);
   }, [sideTab, walkMode]);
+  // Walk-together requests: polled every 30 s while visible (flag on, signed in, migration C applied).
+  const inbox = useSocialInbox(isSignedIn);
+  const meetNames = useMeetNames(inbox.requests);
+  // Where the walker could meet someone: the next two stops of the plan (OSM or Google ones only) and the nearest
+  // registered place around. A Google place is kept as its id; its label here is for this screen only.
+  const meetingChoices = (): MeetChoice[] => {
+    const choices: MeetChoice[] = [];
+    const seen = new Set<string>();
+    const add = (a: Attraction) => {
+      const place = meetPlaceFromAttraction(a);
+      if (place && !seen.has(place.ref)) {
+        seen.add(place.ref);
+        choices.push({ place, label: a.name });
+      }
+    };
+    const visited = new Set(visitedAttractionIds);
+    (walkPlanRef.current?.orderedAttractions ?? walkPlan?.orderedAttractions ?? []).filter((a) => !visited.has(a.id)).slice(0, 2).forEach(add);
+    const here = currentPosition;
+    const near = here
+      ? (discoveryRef.current?.items() ?? [])
+          .filter((i) => i.tier === "registered" && !seen.has(i.id))
+          .sort((x, y) => haversineDistance(x.attraction.coordinates, here) - haversineDistance(y.attraction.coordinates, here))[0]
+      : undefined;
+    if (near) add(near.attraction);
+    return choices;
+  };
+  const addMeetingToWalk = (place: MeetPlace) => {
+    void (async () => {
+      if (place.kind === "osm") {
+        await addPlaceToLiveWalk({ id: place.ref, name: place.name, coordinates: { lat: place.lat, lng: place.lng }, category: "other", avgVisitMinutes: 15, tags: {} });
+        return;
+      }
+      const found = (await resolvePlaces([place.ref])).get(place.ref);
+      if (!found) {
+        showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].gone, "warn");
+        return;
+      }
+      await addPlaceToLiveWalk({
+        id: `google-${place.ref}`,
+        name: found.name,
+        coordinates: { lat: found.lat, lng: found.lng },
+        category: (found.category as Attraction["category"]) ?? "other",
+        avgVisitMinutes: 15,
+        tags: { placeId: place.ref },
+      });
+    })();
+  };
   const [friendRequests, setFriendRequests] = useState(0);
   useEffect(() => {
     if (!isSignedIn || sideTab === "friends") return;
@@ -3357,6 +3410,23 @@ export function WalkPlannerApp({
                 },
               ]
             : []),
+        ],
+      };
+    } else if (incomingPending(inbox.requests)[0]) {
+      // A friend asks to walk together: one question, after the pace and route cards (plan 3.8).
+      const rq = incomingPending(inbox.requests)[0];
+      const he = uiLang === "he";
+      const place = meetLabel(rq, meetNames, he ? "מקום ציבורי" : "A public place");
+      const time = new Date(rq.meetAt).toLocaleTimeString(he ? "he-IL" : "en", { hour: "2-digit", minute: "2-digit" });
+      walkAlert = {
+        id: `walk-request-${rq.id}`,
+        tone: "info",
+        variant: "question",
+        title: he ? `${rq.otherName} רוצה ללכת איתכם` : `${rq.otherName} wants to walk with you`,
+        subject: `${place} · ${time}`,
+        actions: [
+          { label: he ? "אישור" : "Accept", primary: true, onClick: () => void withWalkClient((c) => respondToRequest(c, rq.id, true)).then(inbox.refresh) },
+          { label: he ? "לא עכשיו" : "Not now", onClick: () => void withWalkClient((c) => respondToRequest(c, rq.id, false)).then(inbox.refresh) },
         ],
       };
     } else if (companion.card) {
