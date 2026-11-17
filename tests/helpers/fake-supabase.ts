@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type Reply = { data?: unknown; error?: { code?: string } | null };
+type Reply = { data?: unknown; error?: { code?: string } | null; count?: number };
 
 /** A minimal Supabase stand-in: rpc by name, tables by name (every query chain resolves to the same reply). Records calls. */
 export function fakeSupabase(opts: { rpc?: Record<string, Reply | ((args: Record<string, unknown>) => Reply)>; tables?: Record<string, Reply> } = {}) {
   const calls: { kind: "rpc" | "from"; name: string; args?: Record<string, unknown> }[] = [];
-  const reply = (r: Reply | undefined) => ({ data: r?.data ?? null, error: r?.error ?? null });
+  const reply = (r: Reply | undefined) => ({ data: r?.data ?? null, error: r?.error ?? null, count: r?.count ?? null });
   const chain = (table: string): unknown => {
     const result = Promise.resolve(reply(opts.tables?.[table]));
     const handler: ProxyHandler<object> = {

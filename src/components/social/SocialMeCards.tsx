@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Avatar } from "@/components/social/Avatar";
+import { TasteCard } from "@/components/social/TasteCard";
 import { ProfileEditSheet } from "@/components/social/ProfileEditSheet";
 import { useSocialClient } from "@/lib/hooks/useSocialClient";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
@@ -62,6 +63,8 @@ export function SocialMeCards({ lang, signedIn }: { lang: SocialLang; signedIn: 
           </>
         )}
       </section>
+
+      {mine.status === "ok" ? <TasteCard lang={lang} profile={mine.profile} client={session.client} onProfileChanged={() => void refresh()} /> : null}
 
       {blocks.length > 0 ? (
       <section className={CARD} aria-label={t.meAudience}>

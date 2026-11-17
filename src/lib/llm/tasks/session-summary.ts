@@ -104,7 +104,7 @@ const NAME_NUMBER =
 /** `preferences[].item`: a category or a short lowercase / Hebrew phrase, never digits or punctuation. */
 const ITEM = /^[a-z֐-׿]+(?:[ -][a-z֐-׿]+){0,3}$/;
 
-function unsafeText(t: string): boolean {
+export function unsafeText(t: string): boolean {
   return DIGIT_RUN.test(t) || ADDRESS.test(t) || EMAIL.test(t) || NAME_NUMBER.test(t);
 }
 

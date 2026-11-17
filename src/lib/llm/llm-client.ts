@@ -75,7 +75,7 @@ function composePrompt<T>(
 ): { system: string; user: string } {
   // New tasks (no legacy baseline) always carry the shared CORE; the legacy
   // tier-1 prompts stay byte-identical unless the flag is on.
-  const ownsMode = task.name === "plan" || task.name === "session-summary";
+  const ownsMode = task.name === "plan" || task.name === "session-summary" || task.name === "taste-summary";
   const base = ownsMode
     ? `${PLANNER_CORE}\n\n${task.system}`
     : plannerPromptEnabled(env) && task.tier === 1

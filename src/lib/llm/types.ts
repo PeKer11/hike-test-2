@@ -14,6 +14,7 @@ export type LlmTaskName =
   | "narrate"
   | "plan"
   | "session-summary"
+  | "taste-summary"
   | "eval";
 
 export type LlmProviderName = "gemini" | "anthropic" | "openai" | "openai-compatible";
