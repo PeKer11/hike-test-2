@@ -41,6 +41,8 @@ import { Button, Card } from "@/components/ui";
 import { SideTabs, type SideTab } from "@/components/planner/SideTabs";
 import { FriendsPanel } from "@/components/walks/FriendsPanel";
 import { MyWalksPanel } from "@/components/walks/MyWalksPanel";
+import { ScreenHeader } from "@/components/shell/ScreenHeader";
+import { Segmented } from "@/components/shell/Segmented";
 import { listFriends } from "@/lib/walks/friends";
 import { SavedPlacePicker } from "@/components/places/SavedPlacePicker";
 import { SavedPlacesTab } from "@/components/places/SavedPlacesTab";
@@ -111,7 +113,7 @@ import { requestVariant } from "@/lib/walks/variant-client";
 import { upcomingStops as stopsAhead } from "@/lib/walk/upcoming-stops";
 import { decideWalkAgain, mayBackfillGeometry, startAsStop, stopsForJoin, transitLinkTo, type WalkAgainDecision, type WalkAgainMode, type WalkAgainOption } from "@/lib/walks/walk-again";
 import { WalkAgainSheet } from "@/components/walks/WalkAgainSheet";
-import { PlannerBridge, type AppView } from "@/lib/shell/planner-bridge";
+import { PlannerBridge, type AppView, type WalksTab } from "@/lib/shell/planner-bridge";
 import { WalkTracker } from "@/lib/walk/walk-tracker";
 import type { PaceUpdate } from "@/lib/walk/walk-tracker";
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
@@ -292,6 +294,8 @@ interface WalkPlannerAppProps {
   suggestedCategories?: AttractionCategory[] | null;
   /** The shell's current screen. Walks and Social show this planner's side panel full-size (no map); Plan and Walk show it as before. Undefined = the planner on its own (tests, legacy). */
   view?: AppView;
+  /** Which Walks segment the URL asks for (?view=walks&tab=…). */
+  walksTab?: WalksTab;
   /** How the screens around the planner read from it and ask things of it. */
   bridge?: PlannerBridge;
   /** Ask the shell to move to another screen (e.g. after "walk again"). */
@@ -320,6 +324,7 @@ export function WalkPlannerApp({
   suggestedPace = null,
   suggestedCategories = null,
   view,
+  walksTab,
   bridge,
   onNavigate,
 }: WalkPlannerAppProps) {
@@ -1123,12 +1128,20 @@ export function WalkPlannerApp({
   const [walksVersion, setWalksVersion] = useState(0);
   const [sideTab, setSideTab] = useState<SideTab>("plan");
   // The shell's screen picks the side panel: Walks (and its Places segment), Social, or the planner itself.
+  const [walksSegment, setWalksSegment] = useState<"history" | "saved">("history");
   useEffect(() => {
     if (!view) return;
     if (view === "social") setSideTab("friends");
-    else if (view === "walks") setSideTab((t) => (t === "places" ? "places" : "walks"));
-    else setSideTab("plan");
-  }, [view]);
+    else if (view === "walks") {
+      setSideTab(walksTab === "places" ? "places" : "walks");
+      if (walksTab === "saved" || walksTab === "history" || walksTab === undefined) setWalksSegment(walksTab === "saved" ? "saved" : "history");
+    } else setSideTab("plan");
+  }, [view, walksTab]);
+  const chooseWalksTab = (tab: WalksTab) => {
+    setSideTab(tab === "places" ? "places" : "walks");
+    if (tab !== "places") setWalksSegment(tab);
+    window.history.replaceState(null, "", `/app?view=walks&tab=${tab}`);
+  };
   const hubTab = view === "walks" || view === "social";
   // Walk again, from wherever the walker is: find them, decide what to offer, and either just start or ask once.
   const [againFlow, setAgainFlow] = useState<{ walk: SavedWalk; here: Coordinates | null; decision: WalkAgainDecision } | null>(null);
@@ -3554,9 +3567,10 @@ export function WalkPlannerApp({
         </div>
 
         {hubTab && (
-          <h1 className="relative z-10 mx-auto mb-3 max-w-[440px] pt-6 font-display text-[28px] leading-[34px] text-tk-ink">
-            {uiLang === "he" ? (view === "walks" ? "הליכות" : "חברים") : view === "walks" ? "Walks" : "Friends"}
-          </h1>
+          <div className="relative z-10 mx-auto mb-3 max-w-[440px]">
+            <div aria-hidden className="pointer-events-none absolute -inset-x-4 top-0 -z-10 h-44 bg-[url('/images/traike/folded-map.svg')] bg-cover bg-center opacity-20" />
+            <ScreenHeader title={uiLang === "he" ? (view === "walks" ? "הליכות" : "חברים") : view === "walks" ? "Walks" : "Friends"} />
+          </div>
         )}
         {hubTab && !isSignedIn && (
           <div className="relative z-10 mx-auto max-w-[440px] space-y-3 rounded-tk-card bg-paper p-4 text-center shadow-tk-card">
@@ -3657,23 +3671,25 @@ export function WalkPlannerApp({
             <>
               {isSignedIn && !walkMode && view === undefined && <SideTabs value={sideTab} onChange={setSideTab} friendsBadge={sideTab === "friends" ? 0 : friendRequests} />}
               {isSignedIn && !walkMode && view === "walks" && (
-                <div role="tablist" aria-label="Walks" className="flex gap-1 rounded-full bg-charcoal/5 p-1">
-                  {(["walks", "places"] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      role="tab"
-                      aria-selected={sideTab === t}
-                      onClick={() => setSideTab(t)}
-                      className={`min-h-11 flex-1 rounded-full px-4 text-[15px] font-medium transition-colors ${sideTab === t ? "bg-paper text-forest shadow-tk-soft" : "text-charcoal/70"}`}
-                    >
-                      {t === "walks" ? "Walks" : "Places"}
-                    </button>
-                  ))}
-                </div>
+                <Segmented
+                  label={uiLang === "he" ? "הליכות" : "Walks"}
+                  value={sideTab === "places" ? "places" : walksSegment}
+                  onChange={chooseWalksTab}
+                  items={
+                    uiLang === "he"
+                      ? [{ id: "history", label: "היסטוריה" }, { id: "saved", label: "שמורים" }, { id: "places", label: "מקומות" }]
+                      : [{ id: "history", label: "History" }, { id: "saved", label: "Saved" }, { id: "places", label: "Places" }]
+                  }
+                />
               )}
               {isSignedIn && !walkMode && sideTab === "walks" && (
                 <MyWalksPanel
+                  segment={view === "walks" ? walksSegment : undefined}
+                  lang={uiLang === "he" ? "he" : "en"}
+                  onNewRoute={() => {
+                    setSideTab("plan");
+                    onNavigate?.("plan");
+                  }}
                   isSignedIn={isSignedIn}
                   refreshKey={walksVersion}
                   previewId={walkPreview?.id ?? null}

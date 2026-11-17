@@ -23,6 +23,18 @@ interface MyWalksPanelProps {
   /** The walk currently drawn on the map from this list, and the toggle that draws or clears it (null clears). */
   previewId?: string | null;
   onShowOnMap?: (walk: SavedWalk | null) => void;
+  /** Walks screen: show only the walked ones (history) or the saved and draft ones. Without it, the old All / Drafts filter. */
+  segment?: WalksSegment;
+  lang?: "he" | "en";
+  /** The empty state's button (Walks screen). */
+  onNewRoute?: () => void;
+}
+
+export type WalksSegment = "history" | "saved";
+
+/** History: walked at least once or completed. Saved: bookmarked, plus drafts (planned, never walked). */
+export function filterBySegment(items: WalkWithRuns[], segment: WalksSegment): WalkWithRuns[] {
+  return items.filter((i) => (segment === "history" ? i.walk.status === "completed" || i.runCount > 0 : !(i.walk.status === "completed" || i.runCount > 0) && (i.walk.status === "saved" || i.isDraft)));
 }
 
 const CHIP: Record<SavedWalk["status"], string> = {
@@ -31,7 +43,7 @@ const CHIP: Record<SavedWalk["status"], string> = {
   completed: "bg-tk-ink/10 text-tk-ink",
 };
 
-export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew, previewId = null, onShowOnMap }: MyWalksPanelProps) {
+export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew, previewId = null, onShowOnMap, segment, lang = "en", onNewRoute }: MyWalksPanelProps) {
   const [items, setItems] = useState<WalkWithRuns[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -102,7 +114,8 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   const ids = new Set(items.map((i) => i.walk.id));
   const variantsOf = (id: string) => items.filter((i) => i.walk.parentWalkId === id);
   const isNested = (i: WalkWithRuns) => Boolean(i.walk.parentWalkId && ids.has(i.walk.parentWalkId));
-  const shown = (filter === "drafts" ? items.filter((i) => i.isDraft) : items).filter((i) => !isNested(i) || filter === "drafts");
+  const base = segment ? filterBySegment(items, segment) : filter === "drafts" ? items.filter((i) => i.isDraft) : items;
+  const shown = base.filter((i) => !isNested(i) || segment !== undefined || filter === "drafts");
   const fmt = (iso: string) => new Date(iso).toLocaleDateString("en", { month: "short", day: "numeric" });
 
   const card = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => (
@@ -200,10 +213,12 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   return (
     <section className={`${PANEL} space-y-3`}>
       <Accessory name="boot" className="absolute -right-1 top-1 w-[68px] -rotate-6" />
+      {segment ? null : (
       <div className="pr-16">
         <h2 className={PANEL_TITLE}>My walks{loading ? "" : ` (${items.length})`}</h2>
       </div>
-      <div role="group" aria-label="Filter walks" className="flex gap-2 text-[13px]">
+      )}
+      <div role="group" aria-label="Filter walks" className={segment !== undefined ? "hidden" : "flex gap-2 text-[13px]"}>
         {(["all", "drafts"] as const).map((f) => (
           <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`min-h-11 cursor-pointer rounded-full px-4 font-medium shadow-tk-soft ${filter === f ? "bg-terra/10 text-terra" : "bg-tk-well text-tk-sage"}`}>
             {f === "all" ? "All" : "Drafts"}
@@ -217,7 +232,20 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
           {notice && <p role="status" className="text-[13px] text-tk-body">{notice}</p>}
           {!loading && failed && <EmptyState image="load-error.png" title="Couldn't load your walks" hint="Check your connection and reopen this tab." />}
           {!loading && !failed && shown.length === 0 && (
-            <EmptyState image="empty-walks.png" title={filter === "drafts" ? "No drafts" : "No walks yet"} hint="Build one and it shows up here." />
+            <>
+              <EmptyState
+                image="empty-walks.png"
+                title={lang === "he" ? (segment === "saved" ? "עוד אין הליכות שמורות" : "עוד אין הליכות") : filter === "drafts" ? "No drafts" : segment === "saved" ? "No saved walks yet" : "No walks yet"}
+                hint={segment ? undefined : "Build one and it shows up here."}
+              />
+              {segment && onNewRoute ? (
+                <div className="flex justify-center pb-2">
+                  <button type="button" onClick={onNewRoute} className="min-h-12 rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-tk-soft">
+                    {lang === "he" ? "מסלול חדש" : "New route"}
+                  </button>
+                </div>
+              ) : null}
+            </>
           )}
           <ul aria-label="My walks" className="space-y-2.5">
             {shown.map((item) => (

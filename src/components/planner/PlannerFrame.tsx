@@ -4,7 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 
 import type { AttractionCategory } from "@/lib/types";
 
-import { PlannerBridge, type AppView } from "@/lib/shell/planner-bridge";
+import { PlannerBridge, type AppView, type WalksTab } from "@/lib/shell/planner-bridge";
 
 import { WalkPlannerApp } from "./WalkPlannerApp";
 
@@ -76,6 +76,7 @@ interface PlannerFrameProps {
   suggestedCategories?: AttractionCategory[] | null;
   /** Inside the app shell: always full-screen, shown only when `active`, and handed the screen to show. */
   view?: AppView;
+  walksTab?: WalksTab;
   bridge?: PlannerBridge;
   onNavigate?: (view: AppView) => void;
   /** False on Home and Me: the planner stays mounted (GPS, chat, timers) but out of sight. */
@@ -99,6 +100,7 @@ export function PlannerFrame({
   suggestedPace = null,
   suggestedCategories = null,
   view,
+  walksTab,
   bridge,
   onNavigate,
   active = true,
@@ -143,6 +145,7 @@ export function PlannerFrame({
         suggestedPace={suggestedPace}
         suggestedCategories={suggestedCategories}
         view={view}
+        walksTab={walksTab}
         bridge={bridge}
         onNavigate={onNavigate}
       />

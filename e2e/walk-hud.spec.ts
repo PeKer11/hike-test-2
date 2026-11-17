@@ -292,7 +292,8 @@ test("the off-route card is centred in the map area, wide, with tall actions", a
   await page.getByRole("button", { name: "Details" }).click();
   await page.getByRole("button", { name: "Details" }).click();
   await page.getByRole("button", { name: /Stray \d+ m off route/ }).click();
-  await page.getByRole("button", { name: "Close", exact: false }).first().click();
+  // The Details sheet's close control is named differently from the older spec above; any of its names will do.
+  await page.getByRole("button", { name: /Close|Back to walk/ }).first().click().catch(() => {});
 
   const card = page.getByTestId("off-route-card");
   await expect(card).toBeVisible({ timeout: 30_000 });

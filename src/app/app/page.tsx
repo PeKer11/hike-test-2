@@ -28,7 +28,9 @@ export default async function AppHubPage() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    greetingName = user?.email?.split("@")[0] ?? null;
+    // The first word of the profile name, never the email address.
+    const fullName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim() : "";
+    greetingName = fullName ? fullName.split(/\s+/)[0] : null;
     if (user) {
       profileDefaults = await getProfileDefaults(supabase, user.id);
     }

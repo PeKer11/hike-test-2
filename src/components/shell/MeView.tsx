@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { RefreshIcon } from "@/components/shell/icons";
+import { ScreenHeader } from "@/components/shell/ScreenHeader";
 import { StandingFactsPanel } from "@/components/StandingFactsPanel";
 import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -87,8 +89,10 @@ export function MeView({
 
   return (
     <div className="fixed inset-0 z-[900] overflow-y-auto bg-cream font-brand text-charcoal lg:start-[72px]">
-      <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4 px-4 pt-10 pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12">
-        <h1 className="font-display text-[28px] leading-[34px] text-forest">{t.title}</h1>
+      <Image src="/images/hero-tent-sunrise.jpg" alt="" fill priority sizes="100vw" aria-hidden className="scale-105 object-cover object-center blur-lg dark:hidden" />
+      <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-cream/85 via-cream/75 to-cream/90 dark:from-cream dark:via-cream dark:to-cream" />
+      <div className="relative mx-auto flex w-full max-w-[560px] flex-col gap-4 px-4 pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12">
+        <ScreenHeader title={t.title} />
 
         <section className={CARD} aria-label={t.account}>
           {signedIn ? (

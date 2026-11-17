@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 
+import { ChoiceTile } from "@/components/shell/ChoiceTile";
 import type { PlannerBridge, AppView } from "@/lib/shell/planner-bridge";
 import { loadActiveWalk, type ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
 import { withWalkClient } from "@/lib/walks/walk-history";
@@ -15,6 +16,10 @@ const COPY = {
     evening: "Good evening",
     newRoute: "New route",
     newRouteCta: "How much time do you have?",
+    myWalks: "My walks",
+    myWalksLine: "Walked and saved",
+    invite: "Invite a friend",
+    inviteLine: "Walk together",
     continueWalk: "Continue walk",
     backToWalk: "Back to the walk",
     stops: (done: number, total: number) => `${done} of ${total} stops`,
@@ -31,6 +36,10 @@ const COPY = {
     evening: "ערב טוב",
     newRoute: "מסלול חדש",
     newRouteCta: "כמה זמן יש לכם?",
+    myWalks: "ההליכות שלי",
+    myWalksLine: "מה שהלכתם ושמרתם",
+    invite: "הזמנת חבר",
+    inviteLine: "הולכים ביחד",
     continueWalk: "המשך הליכה",
     backToWalk: "חזרה להליכה",
     stops: (done: number, total: number) => `${done} מתוך ${total} תחנות`,
@@ -52,7 +61,7 @@ function greetingKey(hour: number): "morning" | "afternoon" | "evening" {
 const CARD = "relative rounded-tk-card bg-paper p-5 shadow-tk-card";
 const PRIMARY = "min-h-12 rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-tk-soft transition-colors hover:bg-terra/90";
 
-/** Home: at most four blocks: greeting, new route, a walk to continue, the last walk. */
+/** Home: at most four blocks: greeting, a walk to continue, the two big choices, one context card (last walk, else invite). */
 export function HomeView({
   greetingName,
   lang,
@@ -71,6 +80,7 @@ export function HomeView({
   const t = COPY[lang];
   const [snapshot, setSnapshot] = useState<ActiveWalkSnapshot | null>(null);
   const [last, setLast] = useState<SavedWalk | null>(null);
+  const [walkCount, setWalkCount] = useState<number | null>(null);
   const [hour, setHour] = useState(12);
 
   // Read on the client only: the server cannot know the time of day or this device's storage.
@@ -81,8 +91,10 @@ export function HomeView({
   useEffect(() => {
     if (!signedIn) return;
     let live = true;
-    void withWalkClient(async (client, userId) => (await import("@/lib/walks/saved-walks")).listMyWalks(client, userId, 1)).then((walks) => {
-      if (live && walks && walks[0]) setLast(walks[0]);
+    void withWalkClient(async (client, userId) => (await import("@/lib/walks/saved-walks")).listMyWalks(client, userId, 200)).then((walks) => {
+      if (!live || !walks) return;
+      setWalkCount(walks.length);
+      if (walks[0]) setLast(walks[0]);
     });
     return () => {
       live = false;
@@ -98,7 +110,7 @@ export function HomeView({
       <Image src="/images/hub-night.jpg" alt="" fill sizes="100vw" aria-hidden className="hidden scale-105 object-cover object-center blur-lg dark:block" />
       <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-cream/80 via-cream/60 to-cream/85" />
       <div className="relative mx-auto flex w-full max-w-[960px] flex-col gap-4 px-4 pt-10 pb-[calc(96px+env(safe-area-inset-bottom))] lg:px-8 lg:pb-12">
-        <h1 className="font-display text-[40px] leading-[44px] text-forest">
+        <h1 className="font-display text-[36px] leading-[40px] text-forest">
           {t[greetingKey(hour)]}
           {greetingName ? `, ${greetingName}` : ""}
         </h1>
@@ -120,19 +132,17 @@ export function HomeView({
           </section>
         ) : null}
 
-        <section className={CARD} aria-label={t.newRoute}>
-          <Image src="/images/traike/3d/compass.png" alt="" width={96} height={113} aria-hidden className="pointer-events-none absolute -top-8 end-4 h-[96px] w-auto drop-shadow-xl" />
-          <h2 className="text-[20px] font-semibold leading-[26px] text-tk-ink">{t.newRoute}</h2>
-          <button type="button" className={`${PRIMARY} mt-4`} onClick={() => onNavigate("plan")}>
-            {t.newRouteCta}
-          </button>
-        </section>
+        <div className="grid grid-cols-2 gap-3.5 pt-6 lg:grid-cols-3" aria-label={t.newRoute}>
+          <div className="lg:col-span-2 [&>button]:h-full [&>button]:w-full">
+            <ChoiceTile variant="primary" title={t.newRoute} line={t.newRouteCta} image="/images/traike/3d/compass.png" onClick={() => onNavigate("plan")} />
+          </div>
+          <ChoiceTile title={t.myWalks} line={walkCount === null ? t.myWalksLine : undefined} number={walkCount} image="/images/traike/3d/boot.png" onClick={() => onNavigate("walks")} />
+        </div>
 
         {last ? (
           <section className={CARD} aria-label={t.last}>
-            <Image src="/images/traike/3d/boot.png" alt="" width={96} height={90} aria-hidden className="pointer-events-none absolute -top-6 end-4 h-[84px] w-auto drop-shadow-xl" />
             <p className="text-[13px] font-medium text-charcoal/60">{t.last}</p>
-            <h2 dir="auto" className="mt-0.5 pe-24 text-[20px] font-semibold leading-[26px] text-tk-ink">
+            <h2 dir="auto" className="mt-0.5 text-[20px] font-semibold leading-[26px] text-tk-ink">
               {last.title}
             </h2>
             <p className="mt-1 text-[16px] text-charcoal/70">
@@ -144,6 +154,13 @@ export function HomeView({
               {t.again}
             </button>
           </section>
+        ) : signedIn ? (
+          <button type="button" onClick={() => onNavigate("social")} className={`${CARD} flex min-h-16 items-center justify-between text-start`}>
+            <span>
+              <span className="block text-[20px] font-semibold leading-[26px] text-tk-ink">{t.invite}</span>
+              <span className="block text-[16px] text-charcoal/70">{t.inviteLine}</span>
+            </span>
+          </button>
         ) : null}
       </div>
     </div>

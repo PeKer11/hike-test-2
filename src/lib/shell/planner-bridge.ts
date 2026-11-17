@@ -10,6 +10,12 @@ export function parseView(value: string | null | undefined): AppView {
   return APP_VIEWS.includes(value as AppView) ? (value as AppView) : "home";
 }
 
+export type WalksTab = "history" | "saved" | "places";
+
+export function parseWalksTab(value: string | null | undefined): WalksTab {
+  return value === "saved" || value === "places" ? value : "history";
+}
+
 /** What the screens around the planner can ask of it. The planner publishes these; it never unmounts. */
 export interface PlannerActions {
   walkAgain: (walk: SavedWalk) => void;

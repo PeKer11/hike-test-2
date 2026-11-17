@@ -11,7 +11,7 @@ import { BackIcon } from "@/components/shell/icons";
 import { HUB_VIEWS } from "@/components/shell/nav";
 import { shellLang } from "@/components/shell/useShellLang";
 import { PlannerFrame } from "@/components/planner/PlannerFrame";
-import { PlannerBridge, parseView, type AppView } from "@/lib/shell/planner-bridge";
+import { PlannerBridge, parseView, parseWalksTab, type AppView } from "@/lib/shell/planner-bridge";
 import type { AttractionCategory } from "@/lib/types";
 
 interface AppShellProps {
@@ -29,6 +29,7 @@ interface AppShellProps {
 function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellProps) {
   const params = useSearchParams();
   const view = parseView(params.get("view"));
+  const walksTab = parseWalksTab(params.get("tab"));
   const [bridge] = useState(() => new PlannerBridge());
   const live = useSyncExternalStore(bridge.subscribe, bridge.getState, bridge.getState);
   const lang = shellLang(live.settings);
@@ -68,6 +69,7 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
         suggestedPace={suggestedPace}
         suggestedCategories={suggestedCategories}
         view={view}
+        walksTab={walksTab}
         bridge={bridge}
         onNavigate={navigate}
         active={plannerShown}
