@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { avatarOr, type AvatarId } from "./avatars";
-import { socialProfilesEnabled } from "./flag";
+import { nearbyEnabled, socialProfilesEnabled } from "./flag";
 
 export type Visibility = "private" | "friends" | "public";
 export type PresenceAudience = "off" | "friends" | "public";
@@ -207,13 +207,15 @@ export async function saveProfile(client: SupabaseClient, input: SaveProfileInpu
   if (!socialProfilesEnabled()) return "unavailable";
   const local = validateDisplayName(input.displayName);
   if (local) return local;
+  // "Everyone nearby" exists only when the nearby feature is on (it needs counsel's sign-off first): never sent otherwise.
+  const presenceAudience: PresenceAudience = input.presenceAudience === "public" && !nearbyEnabled() ? "friends" : input.presenceAudience;
   const { data, error } = await client.rpc("save_social_profile", {
     p_display_name: input.displayName.replace(/\s+/g, " ").trim(),
     p_avatar: input.avatar,
     p_visibility: input.visibility,
     p_show_history: input.showHistory,
     p_show_taste: input.showTaste,
-    p_presence_audience: input.presenceAudience,
+    p_presence_audience: presenceAudience,
     p_adult: input.adult,
   });
   if (error) return isMissingRpc(error) ? "unavailable" : "error";
@@ -279,4 +281,15 @@ export async function requestFriendById(client: SupabaseClient, target: string):
   if (!socialProfilesEnabled() || !UUID.test(target)) return false;
   const { data, error } = await client.rpc("request_friend_by_id", { p_target: target });
   return !error && data === true;
+}
+
+/** The card of a nearby stranger, by their presence token (phase 8). Null unless the nearby flag is on, migration D is applied and they are public. */
+export async function getCardByToken(client: SupabaseClient, token: string): Promise<{ userId: string; card: ProfileCard } | null> {
+  if (!socialProfilesEnabled() || !nearbyEnabled() || !UUID.test(token)) return null;
+  const { data, error } = await client.rpc("social_profile_card_by_token", { p_token: token });
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  const userId = rec(row) && typeof (row as Record<string, unknown>).user_id === "string" ? ((row as Record<string, unknown>).user_id as string) : null;
+  const card = sanitizeCard(row);
+  return userId && UUID.test(userId) && card ? { userId, card } : null;
 }

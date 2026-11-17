@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { avatarOr, type AvatarId } from "./avatars";
-import { presenceEnabled } from "./flag";
+import { nearbyEnabled, presenceEnabled } from "./flag";
 
 export type NoteCode = "on_my_way" | "late_10" | "here" | "cant_make_it";
 export const NOTE_CODES: readonly NoteCode[] = ["on_my_way", "late_10", "here", "cant_make_it"];
@@ -110,6 +110,21 @@ export async function sendRequest(client: SupabaseClient, toUser: string, place:
     p_meet_kind: place.kind,
     p_meet_ref: place.ref,
     // A Google place: no name, no position. Only its id travels.
+    p_meet_name: place.kind === "osm" ? place.name : null,
+    p_meet_lat: place.kind === "osm" ? place.lat : null,
+    p_meet_lng: place.kind === "osm" ? place.lng : null,
+    p_meet_in_min: inMinutes,
+  });
+  return !error && typeof data === "string" && UUID.test(data) ? data : null;
+}
+
+/** A stranger walking nearby, by presence token. Needs the nearby flag AND migration D; any refusal is null. */
+export async function sendNearbyRequest(client: SupabaseClient, token: string, place: MeetPlace, inMinutes: number): Promise<string | null> {
+  if (!presenceEnabled() || !nearbyEnabled() || !UUID.test(token)) return null;
+  const { data, error } = await client.rpc("send_walk_request_nearby", {
+    p_token: token,
+    p_meet_kind: place.kind,
+    p_meet_ref: place.ref,
     p_meet_name: place.kind === "osm" ? place.name : null,
     p_meet_lat: place.kind === "osm" ? place.lat : null,
     p_meet_lng: place.kind === "osm" ? place.lng : null,

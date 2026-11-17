@@ -34,6 +34,8 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const profileParam = params.get("u");
   const profileId = profileParam && uuid.test(profileParam) ? profileParam : null;
+  const tokenParam = params.get("w");
+  const nearbyToken = tokenParam && uuid.test(tokenParam) ? tokenParam : null;
   const addParam = params.get("add");
   const addCode = addParam && /^[A-Z0-9]{6,12}$/.test(addParam) ? addParam : null;
   const [bridge] = useState(() => new PlannerBridge());
@@ -85,7 +87,7 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
         <HomeView greetingName={greetingName} lang={lang} bridge={bridge} walkLive={live.walkLive} signedIn={live.signedIn} requests={live.walkRequests} onNavigate={navigate} />
       ) : null}
       {view === "social" ? (
-        <SocialView lang={lang === "he" ? "he" : "en"} bridge={bridge} signedIn={live.signedIn} profileId={profileId} addCode={addCode} requests={live.walkRequests} requestsAvailable={live.requestsAvailable} walkLive={live.walkLive} />
+        <SocialView lang={lang === "he" ? "he" : "en"} bridge={bridge} signedIn={live.signedIn} profileId={profileId} nearbyToken={nearbyToken} addCode={addCode} requests={live.walkRequests} requestsAvailable={live.requestsAvailable} walkLive={live.walkLive} />
       ) : null}
       {view === "me" ? <MeView lang={lang} settings={live.settings} bridge={bridge} signedIn={live.signedIn} walkLive={live.walkLive} /> : null}
 

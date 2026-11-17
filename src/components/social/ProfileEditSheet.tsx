@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { Avatar } from "@/components/social/Avatar";
 import { Segmented } from "@/components/shell/Segmented";
+import { NearbyConsentSheet } from "@/components/social/NearbyConsentSheet";
 import { ModalSheet } from "@/components/ui/ModalSheet";
 import { AVATARS, type AvatarId } from "@/lib/social/avatars";
 import { profileErrorCopy, socialCopy, type SocialLang } from "@/lib/social/copy";
@@ -43,6 +44,7 @@ export function ProfileEditSheet({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [consent, setConsent] = useState(false);
 
   const save = async () => {
     setBusy(true);
@@ -112,7 +114,7 @@ export function ProfileEditSheet({
         {presenceEnabled() ? (
           <div className="space-y-2">
             <span className="text-[15px] font-medium">{lang === "he" ? "הולכים עכשיו" : "Walking now"}</span>
-            <Segmented items={pItems} value={presence} onChange={setPresence} label={lang === "he" ? "הולכים עכשיו" : "Walking now"} />
+            <Segmented items={pItems} value={presence} onChange={(next) => (next === "public" && presence !== "public" ? setConsent(true) : setPresence(next))} label={lang === "he" ? "הולכים עכשיו" : "Walking now"} />
           </div>
         ) : null}
         {!initial ? (
@@ -155,6 +157,7 @@ export function ProfileEditSheet({
           )
         ) : null}
       </div>
+      <NearbyConsentSheet open={consent} onClose={() => setConsent(false)} onConfirm={() => { setPresence("public"); setConsent(false); }} lang={lang} />
     </ModalSheet>
   );
 }

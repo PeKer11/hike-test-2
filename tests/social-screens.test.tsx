@@ -181,3 +181,13 @@ describe("Walking now on the Social screen", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("a nearby walker's link (?w=)", () => {
+  it("is ignored while the nearby flag is off: the normal Social screen shows", async () => {
+    const f = fakeSupabase({ rpc: { list_friends: { data: [] }, friends_walks: { data: [] }, my_friend_code: { data: "ABCDEFGH" }, social_profile_card_by_token: { data: [{ user_id: OTHER, display_name: "Noa" }] } }, tables: { social_profiles: { data: null } } });
+    session.current = { client: f.client, userId: "u1" };
+    render(<SocialView lang="en" bridge={new PlannerBridge()} signedIn profileId={null} nearbyToken={OTHER} addCode={null} />);
+    expect(await screen.findByText("My friends")).toBeTruthy();
+    expect(f.calls.some((c) => c.name === "social_profile_card_by_token")).toBe(false);
+  });
+});

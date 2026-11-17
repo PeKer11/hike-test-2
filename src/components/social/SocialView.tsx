@@ -16,7 +16,7 @@ import { meetLabel, useMeetNames } from "@/lib/hooks/useMeetNames";
 import { useSocialClient } from "@/lib/hooks/useSocialClient";
 import type { PlannerBridge } from "@/lib/shell/planner-bridge";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
-import { presenceEnabled, socialProfilesEnabled } from "@/lib/social/flag";
+import { nearbyEnabled, presenceEnabled, socialProfilesEnabled } from "@/lib/social/flag";
 import { distanceCopy, fetchWalkingNow, sinceCopy, type WalkingNowRow } from "@/lib/social/presence";
 import { getMyProfile, saveProfile, type MyProfile, type PresenceAudience } from "@/lib/social/profiles";
 import { cancelRequest, mapProviderNow, respondToRequest, setRequestNote, type MeetChoice, type WalkRequest } from "@/lib/social/walk-requests";
@@ -40,6 +40,7 @@ export function SocialView({
   bridge,
   signedIn,
   profileId,
+  nearbyToken = null,
   addCode,
   requests = [],
   requestsAvailable = false,
@@ -50,6 +51,8 @@ export function SocialView({
   signedIn: boolean;
   /** `?u=`: show this person's profile. */
   profileId: string | null;
+  /** `?w=`: a nearby walker's card, by presence token (phase 8, only with the nearby flag). */
+  nearbyToken?: string | null;
   /** `?add=`: an invite link, to confirm. */
   addCode: string | null;
   /** Walk-together requests from the planner's inbox (last 24 h). */
@@ -69,7 +72,7 @@ export function SocialView({
   const [edit, setEdit] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [sheet, setSheet] = useState<{ friend: Friend; mode: "report" | "block" } | null>(null);
-  const [together, setTogether] = useState<{ friend: { id: string; name: string }; choices: MeetChoice[] } | null>(null);
+  const [together, setTogether] = useState<{ friend: { id: string; name: string }; choices: MeetChoice[]; token?: string } | null>(null);
   const [senderSheet, setSenderSheet] = useState<WalkRequest | null>(null);
   const meetNames = useMeetNames(requests);
 
@@ -130,6 +133,14 @@ export function SocialView({
             {t.logIn}
           </Link>
         </section>
+      </Shell>
+    );
+  }
+
+  if (nearbyToken && nearbyEnabled() && session) {
+    return (
+      <Shell lang={lang} title={null}>
+        <ProfileView userId={null} nearbyToken={nearbyToken} lang={lang} bridge={bridge} canWalkTogether={requestsAvailable} onBack={() => { go(""); void refresh(); }} />
       </Shell>
     );
   }
@@ -232,10 +243,13 @@ export function SocialView({
             <ul>
               {now.rows.map((r) => (
                 <li key={r.token} className="flex min-h-14 items-center gap-3">
-                  <button type="button" disabled={!r.profileVisible || !r.friendId} onClick={() => r.friendId && openProfile(r.friendId)} className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-start">
+                  <button type="button" disabled={!r.profileVisible} onClick={() => (r.friendId ? openProfile(r.friendId) : go(`&w=${r.token}`))} className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-start">
                     <Avatar id={r.avatar} size={40} seed={r.friendId ?? r.token} />
                     <span className="min-w-0">
-                      <span dir="auto" className="block truncate text-[17px] font-medium text-tk-ink">{r.displayName}</span>
+                      <span dir="auto" className="block truncate text-[17px] font-medium text-tk-ink">
+                        {r.displayName}
+                        {r.relation === "nearby" ? <span className="ms-2 rounded-full bg-skysoft/30 px-2 py-0.5 text-[13px] font-medium text-forest">{t.nearby}</span> : null}
+                      </span>
                       <span dir="auto" className="block truncate text-[15px] text-charcoal/70">
                         {[r.areaLabel, r.distance && r.distance !== "far" ? distanceCopy[lang][r.distance] : null, sinceCopy[lang][r.since]].filter(Boolean).join(" · ")}
                       </span>
@@ -246,11 +260,16 @@ export function SocialView({
                       {t.walkTogether}
                     </button>
                   ) : null}
+                  {requestsAvailable && !r.friendId && nearbyEnabled() ? (
+                    <button type="button" className={SOFT} onClick={() => setTogether({ friend: { id: "", name: r.displayName }, choices: bridge.actions?.meetingChoices() ?? [], token: r.token })}>
+                      {t.walkTogether}
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
           )}
-          <p className="text-[15px] text-charcoal/70">{t.shareLine}</p>
+          <p className="text-[15px] text-charcoal/70">{myAudience === "public" ? t.nearbyLine1 : t.shareLine}</p>
         </section>
       ) : null}
 
@@ -416,6 +435,7 @@ export function SocialView({
           friend={together.friend}
           choices={together.choices}
           mapProvider={mapProviderNow()}
+          nearbyToken={together.token}
           onSent={() => { setNote(t.requestSent); bridge.actions?.refreshInbox(); }}
         />
       ) : null}

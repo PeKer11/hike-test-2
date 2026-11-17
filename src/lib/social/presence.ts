@@ -1,5 +1,5 @@
 import { avatarOr, type AvatarId } from "./avatars";
-import { presenceEnabled } from "./flag";
+import { nearbyEnabled, presenceEnabled } from "./flag";
 
 export type SinceBucket = "just_started" | "about_30" | "over_45";
 export type DistanceBucket = "here" | "near" | "far" | null;
@@ -86,7 +86,7 @@ export async function fetchWalkingNow(fetchFn: typeof fetch = fetch): Promise<Wa
     const res = await fetchFn("/api/social/walking-now", { method: "GET", cache: "no-store" });
     if (!res.ok) return { available: false, rows: [] };
     const body = (await res.json()) as { available?: boolean; rows?: unknown };
-    return { available: body.available === true, rows: sanitizeRouteRows(body.rows) };
+    return { available: body.available === true, rows: sanitizeRouteRows(body.rows).filter((r) => r.relation === "friend" || nearbyEnabled()) };
   } catch {
     return { available: false, rows: [] };
   }

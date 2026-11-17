@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { ModalSheet } from "@/components/ui/ModalSheet";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
-import { sendRequest, visibleChoices, type MeetChoice } from "@/lib/social/walk-requests";
+import { sendNearbyRequest, sendRequest, visibleChoices, type MeetChoice } from "@/lib/social/walk-requests";
 
 const TIMES = [
   { min: 0, key: "timeNow" },
@@ -22,8 +22,11 @@ export function WalkTogetherSheet({
   friend,
   choices,
   mapProvider,
+  nearbyToken,
   onSent,
 }: {
+  /** A stranger walking nearby (phase 8): the request goes by their presence token, never their id. */
+  nearbyToken?: string;
   open: boolean;
   onClose: () => void;
   lang: SocialLang;
@@ -46,7 +49,7 @@ export function WalkTogetherSheet({
     if (!choice) return;
     setBusy(true);
     setFailed(false);
-    const id = await sendRequest(client, friend.id, choice.place, minutes);
+    const id = nearbyToken ? await sendNearbyRequest(client, nearbyToken, choice.place, minutes) : await sendRequest(client, friend.id, choice.place, minutes);
     setBusy(false);
     if (id) {
       onSent();

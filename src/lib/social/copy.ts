@@ -150,6 +150,14 @@ export const socialCopy = {
     waitingFor: (name: string) => `Waiting for ${name}`,
     expired: "Expired",
     requestFrom: (name: string) => `${name} wants to walk with you`,
+    // nearby (phase 8, off by default)
+    nearby: "Nearby",
+    nearbyTitle: "Share with people nearby?",
+    nearbyLine1: "People walking near you see your name and area, not your location.",
+    nearbyLine2: "Only when they share too.",
+    nearbyLine3: "You can hide with one tap.",
+    nearbyAgree: "I understand, turn it on",
+    nearbyOn: "Turn on",
   },
   he: {
     title: "חברים",
@@ -267,5 +275,12 @@ export const socialCopy = {
     waitingFor: (name: string) => `מחכים ל-${name}`,
     expired: "פג תוקף",
     requestFrom: (name: string) => `${name} רוצה ללכת איתכם`,
+    nearby: "בסביבה",
+    nearbyTitle: "לשתף עם אנשים בסביבה?",
+    nearbyLine1: "אחרים שהולכים לידכם יראו שם ואזור, לא מיקום.",
+    nearbyLine2: "רק כשגם הם משתפים.",
+    nearbyLine3: "אפשר להסתיר בלחיצה.",
+    nearbyAgree: "הבנתי, מפעילים",
+    nearbyOn: "הפעלה",
   },
 } as const;

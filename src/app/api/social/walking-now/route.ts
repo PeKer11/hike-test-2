@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { rateLimitedResponse, walkingNowRateLimiter } from "@/lib/api/rate-limit";
-import { presenceEnabled } from "@/lib/social/flag";
+import { nearbyServerEnabled, presenceEnabled } from "@/lib/social/flag";
 import { sanitizeWalkingNow } from "@/lib/social/presence";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,5 +18,7 @@ export async function GET(): Promise<NextResponse> {
   const { data, error } = await supabase.rpc("walking_now");
   // Missing function (migration B not applied) or any failure: the section stays hidden.
   if (error) return NextResponse.json({ available: false, rows: [] });
-  return NextResponse.json({ available: true, rows: sanitizeWalkingNow(data) }, { headers: { "Cache-Control": "no-store" } });
+  // Strangers are dropped here unless the server-side nearby flag is on too: the client flag alone never shows them.
+  const rows = sanitizeWalkingNow(data).filter((r) => r.relation === "friend" || nearbyServerEnabled());
+  return NextResponse.json({ available: true, rows }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -14,6 +14,7 @@ import {
   getMyProfile, getProfileCard, getProfileWalks, requestFriendById,
   type ProfileCard, type ProfileWalk, type SocialProfile,
 } from "@/lib/social/profiles";
+import { getCardByToken } from "@/lib/social/profiles";
 import { mapProviderNow, type MeetChoice } from "@/lib/social/walk-requests";
 import { resolvePlaces } from "@/lib/walks/friend-plan";
 import type { SavedStop } from "@/lib/walks/saved-walks";
@@ -24,7 +25,8 @@ const dayLabel = (iso: string, lang: SocialLang) => new Date(`${iso}T12:00:00`).
 
 /** A profile (me, a friend, or a public one). Another person's data arrives only through the database projections. */
 export function ProfileView({
-  userId: target,
+  userId,
+  nearbyToken,
   lang,
   bridge,
   onBack,
@@ -32,7 +34,9 @@ export function ProfileView({
 }: {
   /** Walk-together is available (flag on, migration C applied). */
   canWalkTogether?: boolean;
-  userId: string;
+  /** A person's id, or null when the profile is opened by a nearby walker's token (phase 8). */
+  userId: string | null;
+  nearbyToken?: string;
   lang: SocialLang;
   bridge: PlannerBridge;
   onBack: () => void;
@@ -49,15 +53,29 @@ export function ProfileView({
   const [note, setNote] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [together, setTogether] = useState<MeetChoice[] | null>(null);
+  // Opened by token: the id comes with the card, and only then can walks be read.
+  const [tokenUser, setTokenUser] = useState<string | null>(null);
+  const target = userId ?? tokenUser ?? "";
 
   useEffect(() => {
     if (!session) return;
     let live = true;
+    if (!userId && nearbyToken) {
+      void getCardByToken(session.client, nearbyToken).then(async (found) => {
+        if (!live) return;
+        setTokenUser(found?.userId ?? null);
+        setCard(found?.card ?? null);
+        setWalks(found ? await getProfileWalks(session.client, found.userId) : []);
+      });
+      return () => {
+        live = false;
+      };
+    }
     void (async () => {
       const [c, w, me] = await Promise.all([
-        getProfileCard(session.client, target),
-        getProfileWalks(session.client, target),
-        target === session.userId ? getMyProfile(session.client, session.userId) : Promise.resolve(null),
+        getProfileCard(session.client, userId ?? ""),
+        getProfileWalks(session.client, userId ?? ""),
+        userId === session.userId ? getMyProfile(session.client, session.userId) : Promise.resolve(null),
       ]);
       if (!live) return;
       setCard(c);
@@ -67,7 +85,7 @@ export function ProfileView({
     return () => {
       live = false;
     };
-  }, [session, target, version]);
+  }, [session, userId, nearbyToken, target, version]);
 
   const toggleWalk = (w: ProfileWalk) => {
     const next = open === w.id ? null : w.id;
@@ -201,6 +219,12 @@ export function ProfileView({
             {t.edit}
           </button>
         ) : card.friendState === "none" ? (
+          <>
+          {nearbyToken && canWalkTogether ? (
+            <button type="button" onClick={() => setTogether(bridge.actions?.meetingChoices() ?? [])} className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft">
+              {t.walkTogether}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void requestFriendById(session.client, target).then((ok) => { setNote(ok ? t.sent : t.notSent); setVersion((v) => v + 1); })}
@@ -208,6 +232,7 @@ export function ProfileView({
           >
             {t.addFriend}
           </button>
+          </>
         ) : card.friendState === "pending_out" ? (
           <span className="min-h-12 content-center text-[16px] text-charcoal/70">{t.pending}</span>
         ) : card.friendState === "friends" ? (
@@ -269,7 +294,7 @@ export function ProfileView({
       )}
 
       {together ? (
-        <WalkTogetherSheet open onClose={() => setTogether(null)} lang={lang} client={session.client} friend={{ id: target, name: card.displayName }} choices={together} mapProvider={mapProviderNow()} onSent={() => { setNote(t.requestSent); bridge.actions?.refreshInbox(); }} />
+        <WalkTogetherSheet open onClose={() => setTogether(null)} lang={lang} client={session.client} friend={{ id: target, name: card.displayName }} choices={together} mapProvider={mapProviderNow()} nearbyToken={nearbyToken} onSent={() => { setNote(t.requestSent); bridge.actions?.refreshInbox(); }} />
       ) : null}
       {sheet === "edit" ? (
         <ProfileEditSheet open onClose={() => setSheet(null)} lang={lang} client={session.client} userId={session.userId} initial={mine} onSaved={() => setVersion((v) => v + 1)} onDeleted={onBack} />
