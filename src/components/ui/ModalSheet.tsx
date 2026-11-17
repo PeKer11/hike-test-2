@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /** A bottom sheet on phones and a centred 480px dialog on desktop. Focus stays inside; Esc and the scrim close it. */
 export function ModalSheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
@@ -42,8 +43,9 @@ export function ModalSheet({ open, onClose, title, children }: { open: boolean; 
     };
   }, [open]);
 
-  if (!open) return null;
-  return (
+  if (!open || typeof document === "undefined") return null;
+  // In a portal: a screen that is itself a fixed overlay would otherwise keep the sheet under the tab bar.
+  return createPortal(
     <div className="fixed inset-0 z-[1200] flex items-end justify-center lg:items-center">
       <button type="button" tabIndex={-1} aria-label="Close" onClick={() => closeRef.current()} className="absolute inset-0 bg-black/30" />
       <div
@@ -57,6 +59,7 @@ export function ModalSheet({ open, onClose, title, children }: { open: boolean; 
         <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-charcoal/20 lg:hidden" />
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -66,7 +66,7 @@ import {
 } from "@/lib/hooks";
 import type { Coordinates, Waypoint } from "@/lib/types";
 import { calculateViaDirections } from "@/lib/optimization/route-planner";
-import type { SavedWalk } from "@/lib/walks/saved-walks";
+import type { SavedStop, SavedWalk } from "@/lib/walks/saved-walks";
 import { haversineDistance } from "@/lib/utils/geo";
 import { DEFAULT_PACE_MIN_PER_KM } from "@/lib/walk/pace";
 import { visitMinutes } from "@/lib/assistant/state";
@@ -964,7 +964,7 @@ export function WalkPlannerApp({
         friendRequests,
       },
       setWalkSettings,
-      { walkAgain: walkAgainFromSaved, resumeWalk: resumeActiveWalk },
+      { walkAgain: walkAgainFromSaved, resumeWalk: resumeActiveWalk, planSharedWalk },
     );
     // The actions are rebuilt every render and always read the latest state; publishing them each render is the point.
   });
@@ -1132,8 +1132,8 @@ export function WalkPlannerApp({
   const [walksSegment, setWalksSegment] = useState<"history" | "saved">("history");
   useEffect(() => {
     if (!view) return;
-    if (view === "social") setSideTab("friends");
-    else if (view === "walks") {
+    // Social is its own screen (the shell draws it); the planner behind it shows its plan panel.
+    if (view === "walks") {
       setSideTab(walksTab === "places" ? "places" : "walks");
       if (walksTab === "saved" || walksTab === "history" || walksTab === undefined) setWalksSegment(walksTab === "saved" ? "saved" : "history");
     } else setSideTab("plan");
@@ -1155,6 +1155,30 @@ export function WalkPlannerApp({
       if (!decision.chooser) runWalkAgain(walk, decision.primary, here);
       else setAgainFlow({ walk, here, decision });
     })();
+  };
+  // A friend's (or a public profile's) shared walk: same stops in the same order, starting from where I am (or its first stop).
+  // Google stops arrive as a place id only and are looked up again here (nothing is stored).
+  const planSharedWalk = (w: { title: string; stops: SavedStop[] }) => {
+    onNavigate?.("plan");
+    void resolveSharedStops(w.stops).then((stops) => {
+      if (stops.length === 0) return;
+      // The same chooser as any walk again: start, join, walk to it, or the same style here.
+      const shared: SavedWalk = {
+        id: "",
+        title: w.title,
+        status: "planned",
+        areaLabel: null,
+        start: { lat: stops[0].lat, lng: stops[0].lng },
+        totalMin: stops.length * 45 + 120,
+        distanceM: null,
+        stops,
+        params: { availableMinutes: stops.length * 45 + 120, walkingPaceMinPerKm: 15, radiusMeters: 3000 },
+        visibility: "private",
+        createdAt: "",
+        completedAt: null,
+      };
+      walkAgainFromSaved(shared);
+    });
   };
   const runWalkAgain = (walk: SavedWalk, option: WalkAgainOption, here: Coordinates | null) => {
     setAgainFlow(null);
@@ -3723,29 +3747,7 @@ export function WalkPlannerApp({
               {isSignedIn && !walkMode && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}
               {isSignedIn && !walkMode && sideTab === "friends" && <FriendsPanel
                   expanded
-                  onPlan={(w) => {
-                    // A friend's shared walk: same stops in the same order, starting from where I am (or its first stop).
-                    // Google stops arrive as a place id only and are looked up again here (nothing is stored).
-                    void resolveSharedStops(w.stops).then((stops) => {
-                      if (stops.length === 0) return;
-                      // The same chooser as any walk again: start, join, walk to it, or the same style here.
-                      const shared: SavedWalk = {
-                        id: "",
-                        title: w.title,
-                        status: "planned",
-                        areaLabel: null,
-                        start: { lat: stops[0].lat, lng: stops[0].lng },
-                        totalMin: stops.length * 45 + 120,
-                        distanceM: null,
-                        stops,
-                        params: { availableMinutes: stops.length * 45 + 120, walkingPaceMinPerKm: 15, radiusMeters: 3000 },
-                        visibility: "private",
-                        createdAt: "",
-                        completedAt: null,
-                      };
-                      walkAgainFromSaved(shared);
-                    });
-                  }}
+                  onPlan={planSharedWalk}
                 />}
               {/* "contents" keeps the plan column's layout; hidden keeps the chat and form mounted. */}
               <div className={sideTab === "plan" || !isSignedIn || walkMode ? "contents" : "hidden"}>

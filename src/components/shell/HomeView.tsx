@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { ChoiceTile } from "@/components/shell/ChoiceTile";
 import type { PlannerBridge, AppView } from "@/lib/shell/planner-bridge";
 import { loadActiveWalk, type ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
+import { socialProfilesEnabled } from "@/lib/social/flag";
+import { getMyProfile } from "@/lib/social/profiles";
 import { withWalkClient } from "@/lib/walks/walk-history";
 import type { SavedWalk } from "@/lib/walks/saved-walks";
 
@@ -82,6 +84,7 @@ export function HomeView({
   const [last, setLast] = useState<SavedWalk | null>(null);
   const [walkCount, setWalkCount] = useState<number | null>(null);
   const [hour, setHour] = useState(12);
+  const [socialName, setSocialName] = useState<string | null>(null);
 
   // Read on the client only: the server cannot know the time of day or this device's storage.
   useEffect(() => {
@@ -106,6 +109,18 @@ export function HomeView({
     };
   }, [signedIn]);
 
+  // The chosen social name wins over the account's first name (never the email).
+  useEffect(() => {
+    if (!signedIn || !socialProfilesEnabled()) return;
+    let live = true;
+    void withWalkClient((client, userId) => getMyProfile(client, userId)).then((p) => {
+      if (live && p?.status === "ok") setSocialName(p.profile.displayName);
+    });
+    return () => {
+      live = false;
+    };
+  }, [signedIn]);
+
   const done = snapshot ? snapshot.visitedIds.length : 0;
   const total = snapshot ? snapshot.plan.orderedAttractions.length : 0;
 
@@ -117,7 +132,7 @@ export function HomeView({
       <div className="relative mx-auto flex w-full max-w-[960px] flex-col gap-4 px-4 pt-10 pb-[calc(96px+env(safe-area-inset-bottom))] lg:px-8 lg:pb-12">
         <h1 className="font-display text-[36px] leading-[40px] text-forest">
           {t[greetingKey(hour)]}
-          {greetingName ? `, ${greetingName}` : ""}
+          {socialName ?? greetingName ? `, ${socialName ?? greetingName}` : ""}
         </h1>
 
         {walkLive || snapshot ? (

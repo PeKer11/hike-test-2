@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { RefreshIcon } from "@/components/shell/icons";
 import { ScreenHeader } from "@/components/shell/ScreenHeader";
+import { SocialMeCards } from "@/components/social/SocialMeCards";
 import { StandingFactsPanel } from "@/components/StandingFactsPanel";
 import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -111,6 +112,8 @@ export function MeView({
             </Link>
           )}
         </section>
+
+        <SocialMeCards lang={lang} signedIn={signedIn} />
 
         <section className={CARD} aria-label={t.display}>
           <div className="flex items-center justify-between gap-3">

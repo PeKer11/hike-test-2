@@ -1,4 +1,4 @@
-import type { SavedWalk } from "@/lib/walks/saved-walks";
+import type { SavedStop, SavedWalk } from "@/lib/walks/saved-walks";
 import type { ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
 import type { WalkSettings } from "@/lib/types/walk-settings";
 
@@ -20,6 +20,8 @@ export function parseWalksTab(value: string | null | undefined): WalksTab {
 export interface PlannerActions {
   walkAgain: (walk: SavedWalk) => void;
   resumeWalk: (snapshot: ActiveWalkSnapshot) => void;
+  /** Plan a shared walk (a friend's or a public profile's). Google stops may carry only a place id. */
+  planSharedWalk: (walk: { title: string; stops: SavedStop[] }) => void;
 }
 
 interface BridgeState {

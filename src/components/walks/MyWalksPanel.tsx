@@ -5,6 +5,7 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import { Accessory } from "@/components/ui/Accessory";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BTN_SOFT, LINK, PANEL, PANEL_TITLE, ROW } from "@/components/ui/panel-style";
+import { socialProfilesEnabled } from "@/lib/social/flag";
 import { listMyWalksOrThrow, type SavedWalk } from "@/lib/walks/saved-walks";
 import { deleteWalk, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
 import { RouteSketch } from "@/components/walks/RouteSketch";
@@ -48,6 +49,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<"all" | "drafts">("all");
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
   // Variants: which walk's menu is open, whether one is being made, what to tell the walker, and which parents are expanded.
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -74,6 +76,19 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
     const next = w.visibility === "private" ? "friends" : "private";
     if (await updateWalk(w.id, { visibility: next })) {
       setItems((cur) => cur.map((x) => (x.walk.id === w.id ? { ...x, walk: { ...x.walk, visibility: next } } : x)));
+    }
+  };
+
+  // "Hide from my profile" (migration A column; a no-op that reports nothing until it exists).
+  const toggleHidden = async (w: SavedWalk) => {
+    const next = !hiddenIds.has(w.id);
+    if (await updateWalk(w.id, { hiddenFromProfile: next })) {
+      setHiddenIds((cur) => {
+        const s = new Set(cur);
+        if (next) s.add(w.id);
+        else s.delete(w.id);
+        return s;
+      });
     }
   };
 
@@ -165,6 +180,11 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
       <button type="button" onClick={() => void toggleVisibility(w)} className={BTN_SOFT}>
         {w.visibility === "friends" ? "Shared with friends" : "Private"}
       </button>
+      {socialProfilesEnabled() && w.status === "completed" && (
+        <button type="button" aria-pressed={hiddenIds.has(w.id)} onClick={() => void toggleHidden(w)} className={BTN_SOFT}>
+          {hiddenIds.has(w.id) ? (lang === "he" ? "מוסתר מהפרופיל" : "Hidden from profile") : (lang === "he" ? "הסתרה מהפרופיל" : "Hide from profile")}
+        </button>
+      )}
       <button type="button" onClick={() => void remove(w)} className={`${LINK} ml-auto text-tk-sage hover:text-tk-check`}>
         Delete
       </button>
