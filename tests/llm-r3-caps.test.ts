@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { callerKey, normalizeIp, learningRateLimiter } from "@/lib/api/rate-limit";
 import {
   DAILY_COST_CAPS_MICROS,
+  capFor,
   costCapMicrosFor,
   createBudgetGuard,
   type UsageStore,
@@ -217,5 +218,14 @@ describe("R3 callerKey cannot be rotated", () => {
     expect(normalizeIp("2001:db8:1:2:aaaa:bbbb:cccc:dddd")).toBe(normalizeIp("2001:DB8:1:2::1"));
     expect(normalizeIp("2001:db8:1:3::1")).not.toBe(normalizeIp("2001:db8:1:2::1"));
     expect(normalizeIp("1.2.3.4")).toBe("1.2.3.4");
+  });
+});
+
+describe("LLM_CALL_CAP_FREE", () => {
+  it("defaults to 60 for a signed-in caller, and the env overrides it (free tier only)", () => {
+    expect(capFor(free, {})).toBe(60);
+    expect(capFor(free, { LLM_CALL_CAP_FREE: "200" })).toBe(200);
+    expect(capFor(free, { LLM_CALL_CAP_FREE: "abc" })).toBe(60);
+    expect(capFor(anon, { LLM_CALL_CAP_FREE: "200" })).toBe(15);
   });
 });

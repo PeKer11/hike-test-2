@@ -68,6 +68,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof LlmBudgetExceededError) {
+      console.warn("[walk-chat] budget refused:", error.reason);
       return NextResponse.json(
         { code: "budget", error: "The AI helper is resting for today. Quick commands still work." },
         { status: 429 },

@@ -54,6 +54,8 @@ export interface AssistantBuild {
   stops: Attraction[];
   /** The walker stated an order: visit the stops exactly as listed. */
   fixedOrder?: boolean;
+  /** The walker stated a pace (not the default): a mid-walk rebuild uses it instead of the walk's own. */
+  paceExplicit?: boolean;
   /** Route rules the walker stated; sent with every (re)build of this walk. */
   routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean; stayInArea?: string; restMinutes?: number; access?: "stroller" | "wheelchair"; maxGradePct?: number };
   /** The route the assistant checked: the planner shows this one for this build. */
@@ -496,6 +498,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
         onBuild({
           origin: data.action.origin,
           availableMinutes: params.timeMinutes ?? NO_LIMIT_MINUTES,
+          paceExplicit: params.paceMinPerKm !== undefined,
           walkingPaceMinPerKm: (params.paceMinPerKm ?? DEFAULT_PACE) * (params.access ? ACCESS_PROFILES[params.access].paceFactor : 1),
           radiusMeters: (params.radiusKm ?? NO_LIMIT_RADIUS_KM) * 1000,
           maxEndDistanceFromOriginMeters:

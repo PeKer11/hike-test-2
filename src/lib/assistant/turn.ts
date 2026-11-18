@@ -206,7 +206,11 @@ export async function runAssistantTurn(
       if (tc.function.name === "build_walk" && run.action) {
         try {
           const open = (JSON.parse(run.output).not_checked ?? []) as Array<{ rule: string; status: string }>;
-          unchecked = open.map((r) => describeRule(r.rule, r.status, hebrew));
+          // Opening hours with no data are not worth a warning: only a place the walker chose is ever
+          // checked, and "no data" tells them nothing they can act on.
+          unchecked = open
+            .filter((r) => !(r.rule === "open_hours" && r.status === "not_checked"))
+            .map((r) => describeRule(r.rule, r.status, hebrew));
         } catch {
           unchecked = [];
         }

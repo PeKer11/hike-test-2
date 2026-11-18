@@ -101,6 +101,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ code: "busy", error: "Still working on your last message." }, { status: 409 });
     }
     if (error instanceof LlmBudgetExceededError) {
+      console.warn("[walk-assistant] budget refused:", error.reason);
       return NextResponse.json({ code: "budget", error: "resting" }, { status: 429 });
     }
     return NextResponse.json({ error: "failed" }, { status: 502 });

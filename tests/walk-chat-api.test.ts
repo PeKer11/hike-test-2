@@ -46,6 +46,14 @@ describe("POST /api/walk-chat", () => {
     expect((await res.json()).code).toBe("budget");
   });
 
+  it("logs which cap refused (user or global) on a budget refusal", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    runLlm.mockRejectedValue(new LlmBudgetExceededError("global"));
+    await post(ok);
+    expect(warn).toHaveBeenCalledWith("[walk-chat] budget refused:", "global");
+    warn.mockRestore();
+  });
+
   it("answers unknown with 200 on any other failure", async () => {
     runLlm.mockRejectedValue(new Error("provider down"));
     const res = await post(ok);

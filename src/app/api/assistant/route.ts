@@ -172,7 +172,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     getPreferredCategoryWeights(supabase, user.id).catch(() => new Map()),
     getProfileDefaults(supabase, user.id).catch(() => null),
   ]);
-  if (!state.params.paceMinPerKm && profile?.walkingPaceMinPerKm) {
+  // Mid-walk, a pace in the params must be one the walker stated (the client reads it as an explicit change), not the profile's.
+  if (!state.params.paceMinPerKm && profile?.walkingPaceMinPerKm && body.walking !== true) {
     state = { ...state, params: { ...state.params, paceMinPerKm: profile.walkingPaceMinPerKm } };
   }
   const taste = tasteNote(defaults, learned);
@@ -184,7 +185,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       : "") +
     placesNote(savedPlaces) +
     queuedNote(body.queued) +
-    (body.walking === true ? "\nThe walker is in the middle of a walk, at the start point given. Plan from here, and never propose places they already passed." : "");
+    (body.walking === true ? "\nThe walker is in the middle of a walk, at the start point given. Plan from here, and never propose places they already passed. The places queued above are the stops still ahead on this walk: keep these stops and their order. When the walker changes pace or time (\"I walk 2 km/h\"), call set_walk_params, estimate_walk and build_walk with those same stops, and never add a stop they did not ask for." : "");
   // Places they already walked to (marked visited in Saved places) are not offered again.
   const visitedSaved = savedPlaces.filter((p) => p.visitedAt);
   state = {
@@ -326,6 +327,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
     if (error instanceof TurnCancelledError) return NextResponse.json({ error: "cancelled" }, { status: 499 });
     if (error instanceof LlmBudgetExceededError) {
+      console.warn("[assistant] budget refused:", error.reason);
       return NextResponse.json(
         { code: "budget", error: "The assistant is resting for today. Try again tomorrow." },
         { status: 429 },

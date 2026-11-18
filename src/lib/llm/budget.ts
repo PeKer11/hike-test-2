@@ -66,9 +66,11 @@ function isOwner(ctx: LlmCallContext): boolean {
   return ids.includes(ctx.userId);
 }
 
-export function capFor(ctx: LlmCallContext): number {
+export function capFor(ctx: LlmCallContext, env: Record<string, string | undefined> = process.env): number {
   const plan = ctx.plan ?? (ctx.userId ? "free" : "anonymous");
-  return DAILY_CALL_CAPS[plan];
+  // LLM_CALL_CAP_FREE raises (or lowers) the free tier's daily call cap, e.g. for a test account.
+  const override = plan === "free" ? Number(env.LLM_CALL_CAP_FREE) : NaN;
+  return Number.isInteger(override) && override > 0 ? override : DAILY_CALL_CAPS[plan];
 }
 
 /** Per-caller daily dollar cap in micros, honouring the LLM_CAP_USD_* overrides. */

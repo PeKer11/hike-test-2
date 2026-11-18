@@ -3934,7 +3934,15 @@ export function WalkPlannerApp({
                   origin={currentPosition ?? mapClickedCoords ?? null}
                   isBuilding={isWalkPlanLoading}
                   onPlacesChange={setPreviewPlaces}
-                  queuedPlaces={wishlist.map((w) => ({ name: w.name, coordinates: w.coordinates }))}
+                  queuedPlaces={
+                    walkMode
+                      ? // Mid-walk Sol must see the walk it is changing: the stops still ahead, then any queued saved place.
+                        [
+                          ...(walkPlan?.orderedAttractions ?? []).filter((a) => !visitedAttractionIds.includes(a.id)),
+                          ...wishlist.filter((w) => !(walkPlan?.orderedAttractions ?? []).some((a) => a.id === w.id)),
+                        ].map((p) => ({ name: p.name, coordinates: p.coordinates }))
+                      : wishlist.map((w) => ({ name: w.name, coordinates: w.coordinates }))
+                  }
                   walking={walkMode}
                   onFocusPlace={(coordinates) => focusOn(coordinates, 17)}
                   walkReady={walkPhase === "planned"}
@@ -3961,7 +3969,17 @@ export function WalkPlannerApp({
                     const midWalk = walkPhaseRef.current === "walking" ? midWalkRebuildState() : null;
                     if (midWalk) {
                       const { input, options } = buildOptionRebuildRequest(midWalk, [...stops, ...extraWishlist]);
-                      void handleBuildWalk(input, { ...options, fixedOrder: build.fixedOrder, aiDecided: true, routeRules: build.routeRules });
+                      void handleBuildWalk(
+                        // "I walk 2 km/h": Sol's stated pace re-times the walk, and Sol's stops are pinned so the optimizer cannot drop them.
+                        build.paceExplicit ? { ...input, walkingPaceMinPerKm: build.walkingPaceMinPerKm } : input,
+                        {
+                          ...options,
+                          pinnedIds: Array.from(new Set([...(options.pinnedIds ?? []), ...stops.map((s) => s.id)])),
+                          fixedOrder: build.fixedOrder,
+                          aiDecided: true,
+                          routeRules: build.routeRules,
+                        },
+                      );
                       return;
                     }
                     setCurrentPosition(build.origin);
