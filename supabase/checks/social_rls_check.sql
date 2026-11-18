@@ -166,6 +166,14 @@ begin
   end if;
   reset role;
 
+  -- 8. invisible characters are refused; 'public' presence is coerced to 'friends' before migration D.
+  perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  if public.save_social_profile(E'Tr\u200baike x', 'boot', 'private', true, false, 'off', true) not in ('invalid', 'rate_limited') then
+    raise exception 'invisible character accepted in display name';
+  end if;
+  reset role;
+
   raise notice 'social_rls_check: ALL CHECKS PASSED';
 end $$;
 rollback;

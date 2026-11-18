@@ -90,6 +90,7 @@ export function validateDisplayName(raw: string): "invalid" | "name_reserved" | 
   const clean = raw.replace(/\s+/g, " ").trim();
   if (clean.length < 2 || clean.length > 30) return "invalid";
   if (/[@<>/\\]/.test(clean) || /[0-9]{5,}/.test(clean)) return "invalid";
+  if (/[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/.test(clean)) return "invalid"; // invisible/bidi characters
   if (RESERVED.test(clean.toLowerCase())) return "name_reserved";
   return null;
 }

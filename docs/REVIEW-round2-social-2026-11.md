@@ -246,3 +246,12 @@ Fix (same return shape, so `create or replace` still works):
 - **M4 fixed:** `friends_walks` title = area label or "Walk"; `created_at` truncated to the day.
 - Not touched: all SHOULD items (S1–S10) and D.
 - Tests: tsc clean, eslint 0 errors, suite green except the known `assistant-chat-undo`.
+
+## Fix status, round 2 (2026-11-18)
+- **S1 fixed:** only `open` reports count; reporters the target blocked don't count.
+- **S3 fixed in A:** `'public'` presence is coerced to `'friends'`; `public_consent_at` is stamped only for a public profile. D must add `nearby_consent_at` and reset audiences on paste.
+- **S7 fixed:** non-owners see only walks with `visibility = 'friends'` (private walks never appear). Effect: public profiles will show fewer walks.
+- **S8 fixed:** invisible/bidi characters refused in the table check, `save_social_profile` and `validateDisplayName`.
+- **S6 partly:** check script cases for M1 and S8 added. Still missing: anon catalog checks, B/C/E/D cases.
+- **Not done:** S2, S10 (C + D blockers, need code changes), S4 (kill-switch SQL), S5 (taste cooldown, migration E), S9 (consent copy), NICE items. D stays locked.
+- `src/app/zz-preview` not deleted (the delete was declined in this session).

@@ -22,7 +22,8 @@ create table if not exists public.social_profiles (
   display_name text not null check (
     char_length(btrim(display_name)) between 2 and 30
     and display_name !~ '[@<>/\\]'        -- no emails, markup, urls
-    and display_name !~ '[0-9]{5,}'),     -- no phone numbers
+    and display_name !~ '[0-9]{5,}'       -- no phone numbers
+    and display_name !~ '[­​-‏‪-‮⁠-⁩﻿]'),   -- no invisible / bidi characters
   avatar text not null default 'backpack' check (avatar in
     ('backpack','bench','binoculars','boot','bottle','camera','footprints','hat','signpost','stick','tent','thermos')),
   visibility text not null default 'private' check (visibility in ('private','friends','public')),
@@ -140,6 +141,7 @@ declare
   uid uuid := auth.uid();
   clean text := btrim(regexp_replace(coalesce(p_display_name, ''), '\s+', ' ', 'g'));
   cur public.social_profiles%rowtype;
+  aud text := case when p_presence_audience = 'public' then 'friends' else coalesce(p_presence_audience, 'off') end;  -- 'public' presence stays closed until migration D
 begin
   if uid is null then return 'signin'; end if;
   select * into cur from public.social_profiles where user_id = uid;
@@ -147,14 +149,15 @@ begin
   if not found and exists (select 1 from public.social_suspensions where user_id = uid) then return 'suspended'; end if;
   if not found and p_adult is not true then return 'adult_required'; end if;
   if found and cur.updated_at > now() - interval '3 seconds' then return 'rate_limited'; end if;
+  if clean ~ '[­​-‏‪-‮⁠-⁩﻿]' then return 'invalid'; end if;
   if lower(clean) ~ '(traike|admin|support|official|moderator|staff|תמיכה|מנהל|צוות|טרייק)' then return 'name_reserved'; end if;
   begin
     insert into public.social_profiles as s (user_id, display_name, avatar, visibility, show_history, show_taste,
                                              presence_audience, public_consent_at, presence_consent_at)
     values (uid, clean, coalesce(p_avatar, 'backpack'), coalesce(p_visibility, 'private'), coalesce(p_show_history, true),
-            coalesce(p_show_taste, false), coalesce(p_presence_audience, 'off'),
-            case when p_visibility = 'public' or p_presence_audience = 'public' then now() end,
-            case when p_presence_audience in ('friends', 'public') then now() end)
+            coalesce(p_show_taste, false), aud,
+            case when p_visibility = 'public' then now() end,
+            case when aud = 'friends' then now() end)
     on conflict (user_id) do update set
       display_name = excluded.display_name, avatar = excluded.avatar, visibility = excluded.visibility,
       show_history = excluded.show_history, show_taste = excluded.show_taste, presence_audience = excluded.presence_audience,
@@ -191,7 +194,9 @@ begin
   select count(distinct r.reporter) into n
     from public.abuse_reports r
     join public.social_profiles sp on sp.user_id = r.reporter and sp.created_at < now() - interval '1 day'
-   where r.target = p_target and r.created_at > now() - interval '7 days';
+   where r.target = p_target and r.created_at > now() - interval '7 days'
+     and r.status = 'open'                                                          -- reports the owner already reviewed do not count
+     and not exists (select 1 from public.user_blocks b where b.blocker = p_target and b.blocked = r.reporter);  -- nor do people the target blocked
   if n >= 3 then
     insert into public.social_suspensions (user_id) values (p_target) on conflict do nothing;
     update public.social_profiles set suspended_at = now(), visibility = 'private', presence_audience = 'off'
@@ -292,7 +297,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
     from public.saved_walks w
     join public.social_profiles sp on sp.user_id = w.user_id
    where w.user_id = p_target and w.status = 'completed' and not w.hidden_from_profile
-     and (p_target = auth.uid() or (sp.show_history and public.can_view_profile(p_target)))
+     and (p_target = auth.uid() or (w.visibility = 'friends' and sp.show_history and public.can_view_profile(p_target)))   -- others never see walks marked private
      and (p_before is null or coalesce(w.completed_at, w.created_at) < p_before)
    order by coalesce(w.completed_at, w.created_at) desc
    limit least(greatest(coalesce(p_limit, 20), 1), 50);
