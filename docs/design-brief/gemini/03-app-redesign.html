@@ -1,0 +1,2136 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="day">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Traike — AI Walking Companion (Round 3 Interface System)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Heebo:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Secular+One&display=swap" rel="stylesheet">
+<style>
+  /* ==========================================================================
+     TRAIKE DESIGN TOKENS — ROLE-BASED (:root Day + [data-theme="night"] Dusk)
+     Shape Language: "Trailhead Arch & Waymarker Blaze"
+     Type Scale (strictly 5 sizes):
+       --fs-hero: 30px | --fs-h2: 21px | --fs-body: 16px | --fs-ui: 14px | --fs-meta: 13px
+     ========================================================================== */
+  :root {
+    --canvas: #f5ece0;
+    --surface: #fbf8f3;
+    --surface-warm: #f6efe4;
+    --surface-elevated: #ffffff;
+    --ink: #1e3d2f;
+    --ink-body: #231f1c;
+    --muted: #5c534a;
+    --line: #e6dacb;
+    --line-strong: #d3c2ae;
+
+    --primary: #c15f3c;
+    --primary-hover: #b25230;
+    --primary-lip: #8c3b1e;
+    --primary-ink: #ffffff;
+
+    --select-bg: #1e3d2f;
+    --select-ink: #fbf8f3;
+    --route: #25604b;
+    --sky-map: #cfe2ea;
+    --park-map: #d8e5d3;
+    --land-map: #f2eadf;
+    --road-map: #ffffff;
+    --danger: #b4362a;
+
+    /* Sunset atmospheric scrims (rich orange/amber/sienna — never grey) */
+    --sunset-scrim: linear-gradient(180deg, rgba(46, 20, 8, 0.28) 0%, rgba(158, 62, 22, 0.56) 52%, rgba(58, 22, 9, 0.86) 100%);
+    --sunset-glow: #e0723c;
+
+    /* Strict 5-step Type Scale */
+    --fs-hero: 1.875rem; /* 30px */
+    --fs-h2: 1.3125rem;  /* 21px */
+    --fs-body: 1rem;     /* 16px */
+    --fs-ui: 0.875rem;   /* 14px */
+    --fs-meta: 0.8125rem;/* 13px — absolute floor */
+
+    --font-display: 'Fraunces', 'Secular One', Georgia, serif;
+    --font-sans: 'Plus Jakarta Sans', 'Heebo', sans-serif;
+
+    /* Trailhead Arch & Waymarker Shape Tokens */
+    --r-sheet-lead: 38px;
+    --r-sheet-trail: 8px;
+    --r-blaze-a: 14px;
+    --r-blaze-b: 4px;
+    --r-input: 8px;
+
+    /* Tactile Outdoor Shadows (crisp, zero blurry AI glow) */
+    --sh-btn: 0 3px 0 var(--primary-lip), 0 6px 14px rgba(140, 59, 30, 0.22);
+    --sh-btn-active: 0 1px 0 var(--primary-lip), 0 2px 6px rgba(140, 59, 30, 0.18);
+    --sh-sheet: 0 -8px 28px rgba(35, 22, 12, 0.16);
+    --sh-float: 0 8px 22px rgba(35, 22, 12, 0.14);
+  }
+
+  :root[data-theme="night"] {
+    --canvas: #161210;
+    --surface: #1f1a17;
+    --surface-warm: #29221e;
+    --surface-elevated: #312924;
+    --ink: #f6ede2;
+    --ink-body: #ede3d7;
+    --muted: #b9aa9b;
+    --line: #3b322c;
+    --line-strong: #52453c;
+
+    --primary: #d46942;
+    --primary-hover: #e0754e;
+    --primary-lip: #8e3b1d;
+    --primary-ink: #19120e;
+
+    --select-bg: #e7dac8;
+    --select-ink: #1b2f25;
+    --route: #56b38f;
+    --sky-map: #1b2c36;
+    --park-map: #1f3128;
+    --land-map: #241f1c;
+    --road-map: #352d28;
+    --danger: #ef6b5e;
+
+    --sunset-scrim: linear-gradient(180deg, rgba(16, 11, 18, 0.34) 0%, rgba(118, 46, 22, 0.62) 58%, rgba(31, 26, 23, 0.96) 100%);
+    --sunset-glow: #b85028;
+
+    --sh-btn: 0 3px 0 #7c3116, 0 6px 16px rgba(0, 0, 0, 0.45);
+    --sh-btn-active: 0 1px 0 #7c3116;
+    --sh-sheet: 0 -10px 32px rgba(0, 0, 0, 0.52);
+    --sh-float: 0 10px 26px rgba(0, 0, 0, 0.48);
+  }
+
+  [lang="he"] {
+    --font-display: 'Secular One', sans-serif;
+    --font-sans: 'Heebo', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #14110f;
+    color: #f5ede3;
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    line-height: 1.45;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button, input, textarea, select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Directional icon mirroring in Hebrew RTL */
+  [dir="rtl"] .rtl-flip {
+    transform: scaleX(-1);
+  }
+
+  /* ==========================================================================
+     GALLERY CHROME (Reviewer Controls)
+     ========================================================================== */
+  .gallery-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #1b1613;
+    border-block-end: 1px solid #332a24;
+    padding-block: 10px;
+    padding-inline: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    direction: ltr;
+  }
+
+  .gallery-brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .gallery-brand strong {
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    font-weight: 800;
+    color: #e27349;
+  }
+
+  .gallery-brand span {
+    font-size: var(--fs-meta);
+    color: #b7a89a;
+  }
+
+  .ctrl-cluster {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .seg-group {
+    display: inline-flex;
+    background: #26201c;
+    border: 1px solid #3c322b;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .seg-btn {
+    background: transparent;
+    border: 0;
+    color: #cbbba9;
+    padding-block: 7px;
+    padding-inline: 12px;
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 34px;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .seg-btn:hover { color: #ffffff; }
+
+  .seg-btn.active {
+    background: #c15f3c;
+    color: #ffffff;
+  }
+
+  .screen-switcher {
+    background: #171310;
+    border-block-end: 1px solid #2b231e;
+    padding-block: 10px;
+    padding-inline: 20px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    direction: ltr;
+  }
+
+  .scr-tab {
+    background: #231d19;
+    border: 1px solid #3a3029;
+    color: #d6c8b9;
+    padding-block: 8px;
+    padding-inline: 14px;
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    border-start-start-radius: 10px;
+    border-end-end-radius: 10px;
+    border-start-end-radius: 3px;
+    border-end-start-radius: 3px;
+    cursor: pointer;
+    min-height: 38px;
+  }
+
+  .scr-tab.active {
+    background: #f5ece0;
+    color: #1e3d2f;
+    border-color: #f5ece0;
+  }
+
+  .stage-wrap {
+    padding-block: 28px 48px;
+    padding-inline: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(193, 95, 60, 0.18), transparent 58%),
+      #14110f;
+  }
+
+  /* ==========================================================================
+     DEVICE FRAMES (Phone 390x844 | Desktop 1160x760)
+     ========================================================================== */
+  .device-frame {
+    background: var(--canvas);
+    color: var(--ink-body);
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.65), 0 0 0 1px #3b3029;
+    transition: width 0.25s ease, height 0.25s ease;
+  }
+
+  .device-frame[data-device="phone"] {
+    width: 392px;
+    height: 852px;
+    border-radius: 40px;
+    border: 8px solid #26201c;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .device-frame[data-device="desktop"] {
+    width: min(1180px, 96vw);
+    height: 770px;
+    border-radius: 16px;
+    border: 1px solid #443830;
+    display: grid;
+    grid-template-columns: 232px 1fr;
+  }
+
+  .device-frame[data-device="desktop"].is-login {
+    grid-template-columns: 1fr;
+  }
+
+  /* ==========================================================================
+     NAVIGATION: DESKTOP RAIL & PHONE BOTTOM TRAIL-BAR
+     ========================================================================== */
+  .desk-rail {
+    display: none;
+    background: var(--surface);
+    border-inline-end: 1px solid var(--line);
+    padding-block: 24px 20px;
+    padding-inline: 16px;
+    flex-direction: column;
+    justify-content: space-between;
+    z-index: 20;
+  }
+
+  .device-frame[data-device="desktop"]:not(.is-login) .desk-rail {
+    display: flex;
+  }
+
+  .brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-inline: 8px;
+    margin-block-end: 24px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    background: var(--primary);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    border-start-start-radius: 12px;
+    border-end-end-radius: 12px;
+    border-start-end-radius: 3px;
+    border-end-start-radius: 3px;
+    box-shadow: 0 2px 0 var(--primary-lip);
+    flex-shrink: 0;
+  }
+
+  .brand-wordmark {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 800;
+    color: #b5512b;
+    letter-spacing: -0.02em;
+  }
+
+  :root[data-theme="night"] .brand-wordmark {
+    color: #e57b53;
+  }
+
+  .rail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .rail-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 46px;
+    padding-inline: 14px;
+    background: transparent;
+    border: 0;
+    color: var(--ink-body);
+    font-size: var(--fs-ui);
+    font-weight: 600;
+    cursor: pointer;
+    text-align: start;
+    /* Waymarker Blaze Shape */
+    border-start-start-radius: var(--r-blaze-a);
+    border-end-end-radius: var(--r-blaze-a);
+    border-start-end-radius: var(--r-blaze-b);
+    border-end-start-radius: var(--r-blaze-b);
+    transition: background 0.15s;
+  }
+
+  .rail-item:hover {
+    background: var(--surface-warm);
+  }
+
+  .rail-item.active {
+    background: var(--select-bg);
+    color: var(--select-ink);
+  }
+
+  .rail-foot {
+    border-block-start: 1px dashed var(--line-strong);
+    padding-block-start: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Phone Bottom Tab Bar — Shaped as a Trailhead Arch Dock */
+  .phone-tabs {
+    display: none;
+    background: var(--surface);
+    border-block-start: 1px solid var(--line);
+    padding-block: 6px 10px;
+    padding-inline: 8px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    z-index: 30;
+    flex-shrink: 0;
+  }
+
+  .device-frame[data-device="phone"]:not(.is-login) .phone-tabs {
+    display: grid;
+  }
+
+  .tab-btn {
+    background: transparent;
+    border: 0;
+    min-height: 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: var(--muted);
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    cursor: pointer;
+    border-start-start-radius: 12px;
+    border-end-end-radius: 12px;
+    border-start-end-radius: 3px;
+    border-end-start-radius: 3px;
+  }
+
+  .tab-btn.active {
+    background: var(--select-bg);
+    color: var(--select-ink);
+  }
+
+  /* ==========================================================================
+     TRAIKE SIGNATURE SHAPE SYSTEM & TACTILE BUTTONS
+     Motif: Trailhead Asymmetric Ridge Arch + Waymarker Blaze Cut
+     ========================================================================== */
+  .app-viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .screen-view {
+    display: none;
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--surface);
+  }
+
+  .screen-view.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Immersive Sunset Stage — Rich orange/gold photography carrying deep down */
+  .sunset-stage {
+    position: relative;
+    min-height: 248px;
+    padding-block: 22px 58px;
+    padding-inline: 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    color: #fff9f2;
+    overflow: hidden;
+    flex-shrink: 0;
+    background-color: #8f3d1d;
+  }
+
+  .sunset-stage.compact {
+    min-height: 206px;
+    padding-block: 20px 50px;
+  }
+
+  .sunset-stage.tall {
+    min-height: 286px;
+    padding-block: 28px 66px;
+  }
+
+  .stage-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 42%;
+    z-index: 0;
+  }
+
+  .stage-photo.night-only { display: none; }
+  :root[data-theme="night"] .stage-photo.day-only { display: none; }
+  :root[data-theme="night"] .stage-photo.night-only { display: block; }
+
+  .stage-scrim {
+    position: absolute;
+    inset: 0;
+    background: var(--sunset-scrim);
+    z-index: 1;
+  }
+
+  /* Subtle topographic contour lines over the sunset horizon */
+  .stage-topo {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    opacity: 0.18;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='220' viewBox='0 0 400 220'%3E%3Cpath d='M-20 170 Q 90 120 210 155 T 420 130 M-20 195 Q 110 148 230 180 T 420 162 M-20 135 Q 75 88 195 122 T 420 95' fill='none' stroke='%23ffd9b8' stroke-width='1.2'/%3E%3C/svg%3E");
+    background-size: cover;
+  }
+
+  .stage-content {
+    position: relative;
+    z-index: 3;
+    max-width: 540px;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: var(--fs-hero);
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    color: #fffaf3;
+    text-shadow: 0 2px 12px rgba(32, 11, 3, 0.45);
+  }
+
+  .hero-sub {
+    margin-block-start: 6px;
+    font-size: var(--fs-body);
+    color: #ffe8d4;
+    max-width: 38ch;
+    text-shadow: 0 1px 6px rgba(32, 11, 3, 0.45);
+  }
+
+  /* THE TRAILHEAD ARCH SHEET — Signature asymmetric ridge arch */
+  .trail-sheet {
+    position: relative;
+    z-index: 5;
+    margin-block-start: -34px;
+    flex: 1;
+    background: var(--surface);
+    /* Signature Trailhead Arch: dramatic leading arch, crisp trailing corner */
+    border-start-start-radius: var(--r-sheet-lead);
+    border-start-end-radius: var(--r-sheet-trail);
+    box-shadow: var(--sh-sheet);
+    border-block-start: 2px solid rgba(255, 214, 179, 0.45);
+    padding-block: 24px 28px;
+    padding-inline: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    /* Subtle topographic paper grain */
+    background-image: radial-gradient(rgba(193, 95, 60, 0.045) 1px, transparent 0);
+    background-size: 20px 20px;
+  }
+
+  :root[data-theme="night"] .trail-sheet {
+    border-block-start-color: rgba(228, 122, 74, 0.35);
+  }
+
+  /* Stitched trail divider (replaces nested cards!) */
+  .trail-rule {
+    border: 0;
+    border-block-start: 1px dashed var(--line-strong);
+    margin-block: 2px;
+  }
+
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .sec-title {
+    font-family: var(--font-display);
+    font-size: var(--fs-h2);
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+
+  .sec-meta {
+    font-size: var(--fs-meta);
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* CRAFTED WAYMARKER BLAZE BUTTONS */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 52px;
+    padding-block: 12px;
+    padding-inline: 22px;
+    background: var(--primary);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    /* Waymarker Blaze Cut */
+    border-start-start-radius: 16px;
+    border-end-end-radius: 16px;
+    border-start-end-radius: 5px;
+    border-end-start-radius: 5px;
+    font-size: var(--fs-body);
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--sh-btn);
+    transition: transform 0.1s ease, background 0.15s ease, box-shadow 0.1s ease;
+  }
+
+  .btn-primary:hover {
+    background: var(--primary-hover);
+  }
+
+  .btn-primary:active {
+    transform: translateY(2px);
+    box-shadow: var(--sh-btn-active);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 46px;
+    padding-block: 10px;
+    padding-inline: 16px;
+    background: var(--surface-warm);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-start-start-radius: 13px;
+    border-end-end-radius: 13px;
+    border-start-end-radius: 4px;
+    border-end-start-radius: 4px;
+    font-size: var(--fs-ui);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .btn-secondary:hover {
+    background: var(--line);
+  }
+
+  /* Glossy 3D Accessory Anchor — Maximum ONE per screen, never colliding with text */
+  .acc-crest {
+    position: absolute;
+    inset-inline-end: 20px;
+    inset-block-start: -46px;
+    width: 84px;
+    height: 84px;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 14px rgba(28, 14, 6, 0.34));
+    z-index: 9;
+    pointer-events: none;
+  }
+
+  /* ==========================================================================
+     GUIDE CHARACTER COMPOSITION (Overlapping Sunset Horizon + Waymarker Bubble)
+     ========================================================================== */
+  .guide-composition {
+    display: grid;
+    grid-template-columns: 112px 1fr;
+    align-items: end;
+    gap: 14px;
+    margin-block-start: -56px;
+    position: relative;
+    z-index: 8;
+  }
+
+  .guide-portrait-arch {
+    width: 112px;
+    height: 136px;
+    position: relative;
+    /* Trail-sign arch portrait silhouette */
+    border-start-start-radius: 56px;
+    border-start-end-radius: 56px;
+    border-end-start-radius: 6px;
+    border-end-end-radius: 18px;
+    overflow: hidden;
+    border: 3px solid var(--surface);
+    box-shadow: var(--sh-float);
+    background: #f5ede2;
+    flex-shrink: 0;
+  }
+
+  :root[data-theme="night"] .guide-portrait-arch {
+    background: #172436;
+  }
+
+  .guide-portrait-arch img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+  }
+
+  .guide-bubble {
+    background: var(--surface-elevated);
+    border: 1px solid var(--line-strong);
+    padding-block: 12px;
+    padding-inline: 14px;
+    /* Waymarker Speech Shape */
+    border-start-start-radius: 16px;
+    border-start-end-radius: 16px;
+    border-end-end-radius: 16px;
+    border-end-start-radius: 3px;
+    box-shadow: var(--sh-float);
+    position: relative;
+  }
+
+  .guide-name {
+    font-size: var(--fs-meta);
+    font-weight: 700;
+    color: var(--primary);
+    margin-block-end: 3px;
+  }
+
+  .guide-say {
+    font-size: var(--fs-ui);
+    color: var(--ink-body);
+    line-height: 1.38;
+  }
+
+  /* ==========================================================================
+     WAYMARKER THEME CHIPS (5 Photo Chips + Solid-Fill Selection)
+     ========================================================================== */
+  .theme-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .theme-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding-block: 5px;
+    padding-inline: 6px 13px;
+    background: var(--surface-elevated);
+    color: var(--ink-body);
+    border: 1px solid var(--line-strong);
+    /* Waymarker Blaze Cut */
+    border-start-start-radius: 13px;
+    border-end-end-radius: 13px;
+    border-start-end-radius: 4px;
+    border-end-start-radius: 4px;
+    font-size: var(--fs-ui);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+
+  .theme-chip img {
+    width: 30px;
+    height: 30px;
+    object-fit: cover;
+    border-start-start-radius: 9px;
+    border-end-end-radius: 9px;
+    border-start-end-radius: 3px;
+    border-end-start-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* Solid-fill selected state (never border-only!) */
+  .theme-chip.selected {
+    background: var(--select-bg);
+    color: var(--select-ink);
+    border-color: var(--select-bg);
+  }
+
+  /* ==========================================================================
+     FORM INPUTS, TIME PILLS & PROGRESSIVE DISCLOSURE
+     ========================================================================== */
+  .field-label {
+    display: block;
+    font-size: var(--fs-ui);
+    font-weight: 700;
+    color: var(--ink);
+    margin-block-end: 7px;
+  }
+
+  .prompt-box {
+    width: 100%;
+    min-height: 82px;
+    padding: 12px 14px;
+    background: var(--surface-elevated);
+    color: var(--ink-body);
+    border: 1px solid var(--line-strong);
+    border-start-start-radius: 14px;
+    border-end-end-radius: 14px;
+    border-start-end-radius: 4px;
+    border-end-start-radius: 4px;
+    font-size: var(--fs-body);
+    line-height: 1.45;
+    resize: vertical;
+  }
+
+  .prompt-box:focus, .text-input:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+  }
+
+  .text-input {
+    width: 100%;
+    min-height: 48px;
+    padding-inline: 14px;
+    background: var(--surface-elevated);
+    color: var(--ink-body);
+    border: 1px solid var(--line-strong);
+    border-start-start-radius: 12px;
+    border-end-end-radius: 12px;
+    border-start-end-radius: 4px;
+    border-end-start-radius: 4px;
+    font-size: var(--fs-body);
+  }
+
+  .time-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .time-btn {
+    min-height: 46px;
+    background: var(--surface-elevated);
+    color: var(--ink-body);
+    border: 1px solid var(--line-strong);
+    border-start-start-radius: 12px;
+    border-end-end-radius: 12px;
+    border-start-end-radius: 3px;
+    border-end-start-radius: 3px;
+    font-size: var(--fs-ui);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .time-btn.selected {
+    background: var(--select-bg);
+    color: var(--select-ink);
+    border-color: var(--select-bg);
+  }
+
+  details.adv-disclosure {
+    border-block: 1px solid var(--line);
+    padding-block: 10px;
+  }
+
+  details.adv-disclosure summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--fs-ui);
+    font-weight: 600;
+    color: var(--ink);
+    min-height: 36px;
+  }
+
+  details.adv-disclosure summary::-webkit-details-marker { display: none; }
+
+  .adv-body {
+    padding-block-start: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* ==========================================================================
+     WINDING ROUTE SPINE VISUALIZER (Shows product value at 1 glance!)
+     ========================================================================== */
+  .route-blueprint {
+    background: var(--surface-warm);
+    border: 1px solid var(--line-strong);
+    border-start-start-radius: 22px;
+    border-end-end-radius: 18px;
+    border-start-end-radius: 6px;
+    border-end-start-radius: 6px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .spine-stops {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    position: relative;
+    padding-block-start: 6px;
+  }
+
+  .spine-node {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* Waymarker Arch Number Shield */
+  .waymarker-pin {
+    width: 28px;
+    height: 30px;
+    background: var(--route);
+    color: #ffffff;
+    font-size: var(--fs-meta);
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    /* Trail post arch top, flat post base */
+    border-start-start-radius: 14px;
+    border-start-end-radius: 14px;
+    border-end-start-radius: 3px;
+    border-end-end-radius: 3px;
+  }
+
+  .waymarker-pin.terra {
+    background: var(--primary);
+  }
+
+  .stop-name {
+    font-size: var(--fs-ui);
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.25;
+  }
+
+  .stop-sub {
+    font-size: var(--fs-meta);
+    color: var(--muted);
+  }
+
+  /* Clean row list (zero nested cards) */
+  .clean-list {
+    display: flex;
+    flex-direction: column;
+    border-block-start: 1px solid var(--line);
+  }
+
+  .clean-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-block: 13px;
+    border-block-end: 1px solid var(--line);
+    min-height: 58px;
+  }
+
+  .row-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .row-title {
+    font-size: var(--fs-body);
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .row-sub {
+    font-size: var(--fs-meta);
+    color: var(--muted);
+  }
+
+  /* ==========================================================================
+     DESKTOP 2-COLUMN ADAPTATIONS (Plan, Walk, Home)
+     ========================================================================== */
+  .plan-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+
+  .plan-map-pane {
+    display: none;
+    position: relative;
+    background: var(--land-map);
+    min-height: 340px;
+    overflow: hidden;
+  }
+
+  /* On phone, map shows when user toggles "Preview map" or builds route */
+  .device-frame[data-device="phone"] .plan-layout.show-phone-map .plan-map-pane {
+    display: block;
+    height: 320px;
+    flex-shrink: 0;
+  }
+
+  /* On desktop, Plan is side-by-side: Form/Guide start-side, Live Map end-side */
+  .device-frame[data-device="desktop"] .plan-layout {
+    display: grid;
+    grid-template-columns: 450px 1fr;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .device-frame[data-device="desktop"] .plan-form-col {
+    height: 100%;
+    overflow-y: auto;
+    border-inline-end: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .device-frame[data-device="desktop"] .plan-map-pane {
+    display: block;
+    height: 100%;
+  }
+
+  .device-frame[data-device="desktop"] .home-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  /* ==========================================================================
+     MAP & LIVE WALK OVERLAYS
+     ========================================================================== */
+  .map-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .map-hud-top {
+    position: absolute;
+    inset-block-start: 16px;
+    inset-inline: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .hud-pill {
+    pointer-events: auto;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    padding-block: 8px;
+    padding-inline: 14px;
+    font-size: var(--fs-meta);
+    font-weight: 700;
+    border-start-start-radius: 13px;
+    border-end-end-radius: 13px;
+    border-start-end-radius: 4px;
+    border-end-start-radius: 4px;
+    box-shadow: var(--sh-float);
+  }
+
+  .walk-stage {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
+    background: var(--land-map);
+  }
+
+  .walk-map-bg {
+    position: absolute;
+    inset: 0;
+  }
+
+  .walk-sheet {
+    position: relative;
+    z-index: 10;
+    background: var(--surface);
+    border-start-start-radius: var(--r-sheet-lead);
+    border-start-end-radius: var(--r-sheet-trail);
+    border-block-start: 2px solid var(--primary);
+    box-shadow: var(--sh-sheet);
+    padding: 22px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .device-frame[data-device="desktop"] .walk-stage {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .device-frame[data-device="desktop"] .walk-sheet {
+    width: 410px;
+    margin: 22px;
+    align-self: flex-end;
+    border: 1px solid var(--line-strong);
+    border-block-start: 3px solid var(--primary);
+    border-end-start-radius: 8px;
+    border-end-end-radius: 22px;
+  }
+
+  /* Login Desktop split */
+  .login-wrap {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+
+  .device-frame[data-device="desktop"] .login-wrap {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    height: 100%;
+  }
+
+  .device-frame[data-device="desktop"] .login-wrap .sunset-stage {
+    height: 100%;
+    padding: 48px;
+  }
+
+  .device-frame[data-device="desktop"] .login-wrap .trail-sheet {
+    margin-block-start: 0;
+    border-start-start-radius: 0;
+    border-start-end-radius: 0;
+    justify-content: center;
+    padding-inline: 56px;
+  }
+
+  .field-error {
+    font-size: var(--fs-meta);
+    color: var(--danger);
+    font-weight: 600;
+    margin-block-start: 5px;
+    display: none;
+  }
+
+  .field-error.visible { display: block; }
+
+  /* Design-Language Note Ribbon under Frame */
+  .language-note {
+    max-width: 960px;
+    width: 100%;
+    background: #1d1815;
+    border: 1px solid #382e27;
+    border-start-start-radius: 20px;
+    border-end-end-radius: 20px;
+    border-start-end-radius: 5px;
+    border-end-start-radius: 5px;
+    padding: 16px 22px;
+    color: #dfd2c3;
+    font-size: var(--fs-ui);
+    direction: ltr;
+  }
+
+  .language-note strong {
+    color: #ee865b;
+    font-family: 'Fraunces', serif;
+  }
+</style>
+</head>
+<body>
+
+<!-- ========================================================================
+     GALLERY CONTROLS (Language EN/HE, Theme Day/Night, Frame Phone/Desktop)
+     ======================================================================== -->
+<header class="gallery-bar">
+  <div class="gallery-brand">
+    <strong>Traike</strong>
+    <span>Round 3 · Trailhead Arch &amp; Waymarker System · Real Sunset &amp; Guide Assets</span>
+  </div>
+  <div class="ctrl-cluster">
+    <div class="seg-group" role="group" aria-label="Language">
+      <button class="seg-btn active" id="btn-lang-en" onclick="setLang('en')">English (LTR)</button>
+      <button class="seg-btn" id="btn-lang-he" onclick="setLang('he')">עברית (RTL)</button>
+    </div>
+    <div class="seg-group" role="group" aria-label="Theme">
+      <button class="seg-btn active" id="btn-theme-day" onclick="setTheme('day')">Sunset Day</button>
+      <button class="seg-btn" id="btn-theme-night" onclick="setTheme('night')">Dusk Night</button>
+    </div>
+    <div class="seg-group" role="group" aria-label="Device">
+      <button class="seg-btn active" id="btn-dev-phone" onclick="setDevice('phone')">Phone (390)</button>
+      <button class="seg-btn" id="btn-dev-desktop" onclick="setDevice('desktop')">Desktop (1180)</button>
+    </div>
+  </div>
+</header>
+
+<nav class="screen-switcher" aria-label="Screens">
+  <button class="scr-tab" data-target="home" onclick="setScreen('home')">A · Home</button>
+  <button class="scr-tab active" data-target="plan" onclick="setScreen('plan')">B · Plan + Guide Chat</button>
+  <button class="scr-tab" data-target="walk" onclick="setScreen('walk')">C · Live Walk</button>
+  <button class="scr-tab" data-target="walks" onclick="setScreen('walks')">D · My Walks &amp; Social</button>
+  <button class="scr-tab" data-target="me" onclick="setScreen('me')">E · Me &amp; Settings</button>
+  <button class="scr-tab" data-target="login" onclick="setScreen('login')">F · Login</button>
+</nav>
+
+<main class="stage-wrap">
+  <!-- ======================================================================
+       APP SHELL FRAME
+       ====================================================================== -->
+  <div class="device-frame" id="appFrame" data-device="phone">
+
+    <!-- DESKTOP RAIL NAVIGATION -->
+    <aside class="desk-rail" aria-label="Main navigation">
+      <div>
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20c3-7 5-10 9-12 2-1 4-2 5-4"/><circle cx="19" cy="4" r="2.2" fill="currentColor"/><circle cx="5" cy="20" r="2.2" fill="currentColor"/></svg>
+          </div>
+          <span class="brand-wordmark">Traike</span>
+        </div>
+
+        <div class="rail-list">
+          <button class="rail-item" data-nav="home" onclick="setScreen('home')">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11.5L12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>
+            <span data-i18n="nav_home">Home</span>
+          </button>
+          <button class="rail-item active" data-nav="plan" onclick="setScreen('plan')">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 13.5 13.5 8.5 15.5 10.5 10.5 15.5 8.5"/></svg>
+            <span data-i18n="nav_plan">Plan route</span>
+          </button>
+          <button class="rail-item" data-nav="walk" onclick="setScreen('walk')">
+            <svg class="rtl-flip" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 17-7-4-7 4 7-17z"/></svg>
+            <span data-i18n="nav_walk">Live walk</span>
+          </button>
+          <button class="rail-item" data-nav="walks" onclick="setScreen('walks')">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19c4-6 6-2 10-8s4-6 6-7"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="4" r="2"/></svg>
+            <span data-i18n="nav_walks">My walks</span>
+          </button>
+          <button class="rail-item" data-nav="me" onclick="setScreen('me')">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c1.5-3.8 4.2-5.5 7-5.5s5.5 1.7 7 5.5"/></svg>
+            <span data-i18n="nav_me">Me</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="rail-foot">
+        <button class="btn-primary" onclick="setScreen('plan')" data-i18n="cta_new_walk">Plan a new walk</button>
+        <button class="rail-item" data-nav="login" onclick="setScreen('login')" style="min-height:40px; color:var(--muted);">
+          <svg class="rtl-flip" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+          <span data-i18n="nav_login">Sign-in screen</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ====================================================================
+         VIEWPORT SCREENS (A: home, B: plan, C: walk, D: walks, E: me, F: login)
+         ==================================================================== -->
+    <div class="app-viewport">
+
+      <!-- ==================================================================
+           SCREEN A · HOME (Sunset Mountain Lake + 3D Compass + Instant Route Idea)
+           ================================================================== -->
+      <section class="screen-view" data-screen="home">
+        <div class="sunset-stage tall">
+          <img class="stage-photo day-only" src="assets/hub-mountain-lake-sunset.png" onerror="assetFallback(this)" alt="" />
+          <img class="stage-photo night-only" src="assets/hub-night.jpg" onerror="assetFallback(this)" alt="" />
+          <div class="stage-scrim"></div>
+          <div class="stage-topo"></div>
+          <div class="stage-content">
+            <h1 class="hero-title" data-i18n="home_title">Walk somewhere golden tonight</h1>
+            <p class="hero-sub" data-i18n="home_sub">Tell Traike your time and mood — get a guided route in seconds.</p>
+          </div>
+        </div>
+
+        <div class="trail-sheet">
+          <!-- Single 3D Accessory: Glossy Brass Compass anchored on the Trailhead Arch crest -->
+          <img class="acc-crest" src="assets/compass.png" onerror="assetFallback(this)" alt="" />
+
+          <div class="home-grid">
+            <div style="display:flex; flex-direction:column; gap:16px;">
+              <div class="sec-head">
+                <h2 class="sec-title" data-i18n="home_ready_h">Ready from your location</h2>
+                <span class="sec-meta" data-i18n="home_gps">Tel Aviv · Old North</span>
+              </div>
+
+              <!-- Instant Route Blueprint: makes product purpose unmistakable in 1 second -->
+              <div class="route-blueprint">
+                <div class="sec-head">
+                  <strong style="font-size:var(--fs-body); color:var(--ink);" data-i18n="home_idea_title">65 min · Sunset Seafront &amp; Coffee</strong>
+                  <span class="sec-meta" data-i18n="home_idea_dist">4.1 km · Easy</span>
+                </div>
+
+                <!-- Winding dashed route SVG connecting the 3 stops -->
+                <svg viewBox="0 0 320 34" height="34" width="100%" fill="none" aria-hidden="true">
+                  <path d="M18 22 C 85 4, 135 32, 165 16 C 205 2, 255 28, 302 12" stroke="var(--route)" stroke-width="3" stroke-dasharray="6 5" stroke-linecap="round"/>
+                  <circle cx="18" cy="22" r="5" fill="var(--primary)"/>
+                  <circle cx="165" cy="16" r="5" fill="var(--route)"/>
+                  <circle cx="302" cy="12" r="5" fill="var(--route)"/>
+                </svg>
+
+                <div class="spine-stops">
+                  <div class="spine-node">
+                    <span class="waymarker-pin terra">1</span>
+                    <span class="stop-name" data-i18n="home_st1">Habima Garden</span>
+                    <span class="stop-sub" data-i18n="home_st1_t">Start · Shade</span>
+                  </div>
+                  <div class="spine-node">
+                    <span class="waymarker-pin">2</span>
+                    <span class="stop-name" data-i18n="home_st2">Carmel Alleys</span>
+                    <span class="stop-sub" data-i18n="home_st2_t">+22 min · Bites</span>
+                  </div>
+                  <div class="spine-node">
+                    <span class="waymarker-pin">3</span>
+                    <span class="stop-name" data-i18n="home_st3">Jaffa Overlook</span>
+                    <span class="stop-sub" data-i18n="home_st3_t">+43 min · View</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ONE Primary Action on Home -->
+              <button class="btn-primary" onclick="setScreen('plan')">
+                <span data-i18n="home_cta">Chat &amp; customize my walk</span>
+                <svg class="rtl-flip" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:12px; margin-block-start:4px;">
+              <div class="sec-head">
+                <h2 class="sec-title" data-i18n="home_recent_h">Continue or replay</h2>
+                <button class="btn-secondary" style="min-height:36px; padding-block:5px; padding-inline:12px;" onclick="setScreen('walks')" data-i18n="home_all_walks">All walks</button>
+              </div>
+              <div class="clean-list">
+                <div class="clean-row">
+                  <div class="row-main">
+                    <span class="row-title" data-i18n="walk_item_1">Neve Tzedek Courtyards</span>
+                    <span class="row-sub" data-i18n="walk_item_1_s">50 min · 4 stops · Saved yesterday</span>
+                  </div>
+                  <button class="btn-secondary" onclick="setScreen('walk')" data-i18n="btn_go">Walk</button>
+                </div>
+                <div class="clean-row">
+                  <div class="row-main">
+                    <span class="row-title" data-i18n="walk_item_2">Jerusalem Windmill &amp; Yemin Moshe</span>
+                    <span class="row-sub" data-i18n="walk_item_2_s">75 min · 5 stops · Walked Sun</span>
+                  </div>
+                  <button class="btn-secondary" onclick="setScreen('walk')" data-i18n="btn_go">Walk</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           SCREEN B · PLAN + CHAT WITH TRAIKE (Flagship Hero Screen)
+           ================================================================== -->
+      <section class="screen-view active" data-screen="plan">
+        <div class="plan-layout" id="planLayout">
+          <div class="plan-form-col">
+            <!-- Rich Orange Sunrise/Sunset Stage -->
+            <div class="sunset-stage">
+              <img class="stage-photo day-only" src="assets/hero-tent-sunrise.jpg" onerror="assetFallback(this)" alt="" />
+              <img class="stage-photo night-only" src="assets/hub-night.jpg" onerror="assetFallback(this)" alt="" />
+              <div class="stage-scrim"></div>
+              <div class="stage-topo"></div>
+              <div class="stage-content" style="padding-block-end: 18px;">
+                <h1 class="hero-title" data-i18n="plan_title">Chat with Traike</h1>
+                <p class="hero-sub" data-i18n="plan_sub">Near Habima Square · Tell me your vibe or stops.</p>
+              </div>
+            </div>
+
+            <!-- Trailhead Arch Sheet with Integrated Overlapping Guide Character -->
+            <div class="trail-sheet">
+              <div class="guide-composition">
+                <div class="guide-portrait-arch">
+                  <img class="stage-photo day-only" style="position:static;" src="assets/guide.jpg" onerror="assetFallback(this)" alt="Traike walking guide" />
+                  <img class="stage-photo night-only" style="position:static;" src="assets/guide-night.jpg" onerror="assetFallback(this)" alt="Traike walking guide at night" />
+                </div>
+                <div class="guide-bubble">
+                  <div class="guide-name" data-i18n="guide_label">Traike · Your trail guide</div>
+                  <p class="guide-say" id="guideSpeech" data-i18n="guide_speech">Pick a mood below or name places you want to see — I'll connect them into an easy route.</p>
+                </div>
+              </div>
+
+              <!-- 5 Real Photo Theme Chips in Waymarker Blaze geometry -->
+              <div>
+                <span class="field-label" data-i18n="plan_mood_lbl">What mood or stops?</span>
+                <div class="theme-strip">
+                  <button type="button" class="theme-chip selected" onclick="toggleChip(this)">
+                    <img src="assets/must-see.jpg" onerror="assetFallback(this)" alt="" />
+                    <span data-i18n="chip_must">Must-see places</span>
+                  </button>
+                  <button type="button" class="theme-chip selected" onclick="toggleChip(this)">
+                    <img src="assets/food.jpg" onerror="assetFallback(this)" alt="" />
+                    <span data-i18n="chip_food">Food &amp; markets</span>
+                  </button>
+                  <button type="button" class="theme-chip" onclick="toggleChip(this)">
+                    <img src="assets/viewpoints.jpg" onerror="assetFallback(this)" alt="" />
+                    <span data-i18n="chip_views">Viewpoints &amp; scenery</span>
+                  </button>
+                  <button type="button" class="theme-chip" onclick="toggleChip(this)">
+                    <img src="assets/nature.jpg" onerror="assetFallback(this)" alt="" />
+                    <span data-i18n="chip_nature">Nature &amp; parks</span>
+                  </button>
+                  <button type="button" class="theme-chip" onclick="toggleChip(this)">
+                    <img src="assets/hidden.jpg" onerror="assetFallback(this)" alt="" />
+                    <span data-i18n="chip_hidden">Hidden gems</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Primary Prompt Box -->
+              <div>
+                <label class="field-label" for="routePrompt" data-i18n="plan_prompt_lbl">Your request or stops</label>
+                <textarea id="routePrompt" class="prompt-box" data-i18n-val="plan_prompt_val">I want to see Habima Square, the Jaffa port, and a good market</textarea>
+              </div>
+
+              <!-- Time Available Selector -->
+              <div>
+                <div class="sec-head" style="margin-block-end:7px;">
+                  <span class="field-label" style="margin:0;" data-i18n="plan_time_lbl">Time available</span>
+                  <span class="sec-meta" data-i18n="plan_gps_start">Start: Current GPS</span>
+                </div>
+                <div class="time-grid">
+                  <button type="button" class="time-btn" onclick="selectTime(this)">45m</button>
+                  <button type="button" class="time-btn selected" onclick="selectTime(this)">90m</button>
+                  <button type="button" class="time-btn" onclick="selectTime(this)">2h</button>
+                  <button type="button" class="time-btn" onclick="selectTime(this)" data-i18n="time_open">Open</button>
+                </div>
+              </div>
+
+              <!-- Progressive Disclosure: hides lat/lng/pace/radius clutter -->
+              <details class="adv-disclosure">
+                <summary>
+                  <span data-i18n="plan_adv_lbl">More route options (pace, loop, distance)</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+                </summary>
+                <div class="adv-body">
+                  <div>
+                    <label class="field-label" data-i18n="adv_pace">Walking pace</label>
+                    <select class="text-input" style="min-height:44px;">
+                      <option data-i18n="pace_relaxed">Relaxed · 18 min/km</option>
+                      <option selected data-i18n="pace_normal">Normal · 15 min/km</option>
+                      <option data-i18n="pace_brisk">Brisk · 12 min/km</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="field-label" data-i18n="adv_end">Finish point</label>
+                    <select class="text-input" style="min-height:44px;">
+                      <option selected data-i18n="end_any">Anywhere scenic</option>
+                      <option data-i18n="end_loop">Loop back to start</option>
+                    </select>
+                  </div>
+                </div>
+              </details>
+
+              <!-- ONE Tactile Primary Action -->
+              <button type="button" class="btn-primary" onclick="handleBuildRoute()">
+                <span data-i18n="plan_cta">Build walking route</span>
+                <svg class="rtl-flip" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- MAP ROUTE PREVIEW PANE (Right/End column on Desktop, toggleable on Phone) -->
+          <div class="plan-map-pane">
+            <svg class="map-svg" viewBox="0 0 600 760" preserveAspectRatio="xMidYMid slice" aria-label="Route preview map">
+              <rect width="600" height="760" fill="var(--land-map)"/>
+              <!-- Mediterranean coastline -->
+              <path d="M0 0 L155 0 Q140 210 112 420 Q92 590 65 760 L0 760 Z" fill="var(--sky-map)"/>
+              <!-- Parks -->
+              <path d="M350 110 Q420 100 445 160 Q420 215 355 195 Z" fill="var(--park-map)"/>
+              <path d="M210 430 Q275 420 295 480 Q255 520 205 495 Z" fill="var(--park-map)"/>
+              <!-- Street network -->
+              <g stroke="var(--road-map)" stroke-width="7" fill="none" stroke-linecap="round">
+                <path d="M165 60 L490 190"/>
+                <path d="M145 260 L540 310"/>
+                <path d="M120 480 L520 530"/>
+                <path d="M240 40 L175 720"/>
+                <path d="M395 50 L325 730"/>
+              </g>
+              <!-- Topographic contours -->
+              <path d="M150 610 Q240 560 330 630 T530 610" fill="none" stroke="var(--line-strong)" stroke-width="1.3" stroke-dasharray="3 4"/>
+
+              <!-- AI Walking Route Spine -->
+              <path d="M392 156 C 345 225, 315 265, 286 318 C 252 385, 232 435, 198 492 C 168 545, 145 595, 118 638"
+                    fill="none" stroke="var(--route)" stroke-width="6" stroke-dasharray="11 8" stroke-linecap="round"/>
+
+              <!-- Waymarker Stop Pins (Arched top, crisp base) -->
+              <g transform="translate(376, 132)">
+                <path d="M16 0 C25 0 32 7 32 16 L32 30 L0 30 L0 16 C0 7 7 0 16 0 Z" fill="var(--route)"/>
+                <text x="16" y="21" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">1</text>
+              </g>
+              <g transform="translate(270, 294)">
+                <path d="M16 0 C25 0 32 7 32 16 L32 30 L0 30 L0 16 C0 7 7 0 16 0 Z" fill="var(--primary)"/>
+                <text x="16" y="21" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">2</text>
+              </g>
+              <g transform="translate(182, 468)">
+                <path d="M16 0 C25 0 32 7 32 16 L32 30 L0 30 L0 16 C0 7 7 0 16 0 Z" fill="var(--primary)"/>
+                <text x="16" y="21" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">3</text>
+              </g>
+              <g transform="translate(102, 614)">
+                <path d="M16 0 C25 0 32 7 32 16 L32 30 L0 30 L0 16 C0 7 7 0 16 0 Z" fill="var(--route)"/>
+                <text x="16" y="21" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">4</text>
+              </g>
+
+              <!-- Crisp Stop Labels -->
+              <g font-family="Plus Jakarta Sans, Heebo, sans-serif" font-size="13" font-weight="700">
+                <rect x="416" y="135" width="128" height="28" rx="5" fill="var(--surface)" stroke="var(--line-strong)"/>
+                <text x="480" y="154" text-anchor="middle" fill="var(--ink)">Habima Square</text>
+
+                <rect x="310" y="297" width="124" height="28" rx="5" fill="var(--surface)" stroke="var(--line-strong)"/>
+                <text x="372" y="316" text-anchor="middle" fill="var(--ink)">Carmel Market</text>
+
+                <rect x="222" y="471" width="118" height="28" rx="5" fill="var(--surface)" stroke="var(--line-strong)"/>
+                <text x="281" y="490" text-anchor="middle" fill="var(--ink)">Neve Tzedek</text>
+
+                <rect x="142" y="617" width="106" height="28" rx="5" fill="var(--surface)" stroke="var(--line-strong)"/>
+                <text x="195" y="636" text-anchor="middle" fill="var(--ink)">Jaffa Port</text>
+              </g>
+            </svg>
+
+            <div class="map-hud-top">
+              <div class="hud-pill" data-i18n="map_summary">4 stops · 4.8 km · ~78 min walk</div>
+              <button type="button" class="hud-pill" style="cursor:pointer; background:var(--primary); color:#fff; border-color:var(--primary);" onclick="setScreen('walk')" data-i18n="map_start_btn">Start live walk</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           SCREEN C · LIVE WALK (Active Route Map + Trailhead Arch Bottom Sheet)
+           ================================================================== -->
+      <section class="screen-view" data-screen="walk">
+        <div class="walk-stage">
+          <div class="walk-map-bg">
+            <svg class="map-svg" viewBox="0 0 800 720" preserveAspectRatio="xMidYMid slice" aria-label="Live navigation map">
+              <rect width="800" height="720" fill="var(--land-map)"/>
+              <path d="M0 0 L195 0 Q175 290 120 720 L0 720 Z" fill="var(--sky-map)"/>
+              <path d="M440 160 Q540 140 580 230 Q520 300 430 265 Z" fill="var(--park-map)"/>
+              <g stroke="var(--road-map)" stroke-width="10" fill="none">
+                <path d="M180 130 L760 240"/>
+                <path d="M150 360 L780 430"/>
+                <path d="M350 30 L260 700"/>
+                <path d="M560 40 L470 700"/>
+              </g>
+              <!-- Walked segment (solid) + Ahead segment (dashed) -->
+              <path d="M520 150 L415 285" stroke="var(--muted)" stroke-width="6" stroke-linecap="round"/>
+              <path d="M415 285 C 365 345, 330 390, 295 455 C 260 515, 220 560, 185 610" fill="none" stroke="var(--route)" stroke-width="7" stroke-dasharray="12 8" stroke-linecap="round"/>
+
+              <!-- Current Walker Position (Crisp terracotta ring — zero blurry glow!) -->
+              <circle cx="415" cy="285" r="14" fill="var(--surface)" stroke="var(--primary)" stroke-width="5"/>
+              <circle cx="415" cy="285" r="5" fill="var(--primary)"/>
+
+              <!-- Next Stop Waymarker Arch -->
+              <g transform="translate(279, 428)">
+                <path d="M16 0 C25 0 32 7 32 16 L32 32 L0 32 L0 16 C0 7 7 0 16 0 Z" fill="var(--primary)"/>
+                <text x="16" y="22" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">2</text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="map-hud-top">
+            <div class="hud-pill" data-i18n="live_status">On trail · Stop 2 of 4 · 34 min left</div>
+            <button type="button" class="btn-secondary" style="background:var(--surface); box-shadow:var(--sh-float);" onclick="triggerReRoute()" data-i18n="live_offroute">Off-route help</button>
+          </div>
+
+          <!-- Live Walk Trailhead Arch Bottom Sheet -->
+          <div class="walk-sheet">
+            <img class="acc-crest" src="assets/pin.png" onerror="assetFallback(this)" alt="" />
+
+            <div class="sec-head" style="padding-inline-end: 64px;">
+              <div>
+                <span class="sec-meta" data-i18n="live_next_kicker">Next stop · 320 m ahead (4 min)</span>
+                <h2 class="sec-title" id="liveStopTitle" data-i18n="live_stop_name">Carmel Market Spice Alley</h2>
+              </div>
+            </div>
+
+            <p style="font-size:var(--fs-body); color:var(--ink-body);" id="liveStopDesc" data-i18n="live_stop_desc">Turn onto Gedera St for roasted halva, Yemenite bakeries, and shaded stone courtyards.</p>
+
+            <hr class="trail-rule" />
+
+            <div style="display:flex; gap:10px;">
+              <button type="button" class="btn-primary" onclick="advanceStop()" style="flex:1;">
+                <span data-i18n="live_cta_next">Arrived · Next stop</span>
+                <svg class="rtl-flip" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+              </button>
+              <button type="button" class="btn-secondary" onclick="setScreen('walks')" data-i18n="live_finish">Finish</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           SCREEN D · MY WALKS + SOCIAL (Sunset Header + 3D Boot + Saved/Friends)
+           ================================================================== -->
+      <section class="screen-view" data-screen="walks">
+        <div class="sunset-stage compact">
+          <img class="stage-photo day-only" src="assets/hub-mountain-lake-sunset.png" onerror="assetFallback(this)" alt="" />
+          <img class="stage-photo night-only" src="assets/hub-night.jpg" onerror="assetFallback(this)" alt="" />
+          <div class="stage-scrim"></div>
+          <div class="stage-topo"></div>
+          <div class="stage-content">
+            <h1 class="hero-title" data-i18n="walks_title">Trails &amp; friends</h1>
+            <p class="hero-sub" data-i18n="walks_sub">Every walk you saved, completed, or picked up from friends.</p>
+          </div>
+        </div>
+
+        <div class="trail-sheet">
+          <!-- Single 3D Accessory: Terracotta Hiking Boot -->
+          <img class="acc-crest" src="assets/boot.png" onerror="assetFallback(this)" alt="" />
+
+          <!-- Solid-fill sub-view switch: My Walks vs Friends (Social) -->
+          <div style="display:inline-flex; gap:8px; align-self:flex-start;">
+            <button type="button" class="time-btn selected" style="padding-inline:16px;" id="subMine" onclick="switchWalksTab('mine')" data-i18n="walks_tab_mine">Saved &amp; walked (3)</button>
+            <button type="button" class="time-btn" style="padding-inline:16px;" id="subSocial" onclick="switchWalksTab('social')" data-i18n="walks_tab_social">Friends' walks (2)</button>
+          </div>
+
+          <div id="walksMineList" class="clean-list">
+            <div class="clean-row">
+              <div class="row-main">
+                <span class="row-title" data-i18n="w1_t">Habima, Carmel &amp; Jaffa Port</span>
+                <span class="row-sub" data-i18n="w1_s">4.8 km · 4 stops · Food &amp; Must-see</span>
+              </div>
+              <button class="btn-secondary" onclick="setScreen('walk')" data-i18n="btn_walk_route">Walk route</button>
+            </div>
+            <div class="clean-row">
+              <div class="row-main">
+                <span class="row-title" data-i18n="w2_t">Jerusalem Rehavia Literary Loop</span>
+                <span class="row-sub" data-i18n="w2_s">3.4 km · 5 stops · Hidden gems · Walked</span>
+              </div>
+              <button class="btn-secondary" onclick="setScreen('walk')" data-i18n="btn_walk_route">Walk route</button>
+            </div>
+            <div class="clean-row">
+              <div class="row-main">
+                <span class="row-title" data-i18n="w3_t">Haifa Louis Promenade Sunset</span>
+                <span class="row-sub" data-i18n="w3_s">2.9 km · 3 stops · Viewpoints</span>
+              </div>
+              <button class="btn-secondary" onclick="setScreen('walk')" data-i18n="btn_walk_route">Walk route</button>
+            </div>
+          </div>
+
+          <div id="walksSocialList" class="clean-list" style="display:none;">
+            <div class="clean-row">
+              <div class="row-main">
+                <span class="row-title" data-i18n="s1_t">Noa · Florentin Street Art &amp; Espresso</span>
+                <span class="row-sub" data-i18n="s1_s">3.1 km · 4 stops · Shared 2h ago</span>
+              </div>
+              <button class="btn-secondary" onclick="setScreen('walk')" data-i18n="btn_try_walk">Try walk</button>
+            </div>
+            <div class="clean-row">
+              <div class="row-main">
+                <span class="row-title" data-i18n="s2_t">Yonatan · Ein Karem Spring Path</span>
+                <span class="row-sub" data-i18n="s2_s">4.2 km · 3 stops · Nature &amp; views</span>
+              </div>
+              <button class="btn-secondary" onclick="setScreen('walk')" data-i18n="btn_try_walk">Try walk</button>
+            </div>
+          </div>
+
+          <button type="button" class="btn-primary" onclick="setScreen('plan')" data-i18n="cta_new_walk">Plan a new walk</button>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           SCREEN E · ME & SETTINGS (Meadow Hiker Sunset + 3D Backpack)
+           ================================================================== -->
+      <section class="screen-view" data-screen="me">
+        <div class="sunset-stage compact">
+          <img class="stage-photo day-only" src="assets/meadow-hiker.jpg" onerror="assetFallback(this)" alt="" />
+          <img class="stage-photo night-only" src="assets/hub-night.jpg" onerror="assetFallback(this)" alt="" />
+          <div class="stage-scrim"></div>
+          <div class="stage-topo"></div>
+          <div class="stage-content">
+            <h1 class="hero-title" data-i18n="me_title">Maya Cohen</h1>
+            <p class="hero-sub" data-i18n="me_sub">14 walks completed · 52 km explored across Israel</p>
+          </div>
+        </div>
+
+        <div class="trail-sheet">
+          <!-- Single 3D Accessory: Trail Backpack -->
+          <img class="acc-crest" src="assets/backpack.png" onerror="assetFallback(this)" alt="" />
+
+          <h2 class="sec-title" data-i18n="me_prefs_h">Walking preferences</h2>
+
+          <div class="clean-list">
+            <div class="clean-row">
+              <div class="row-main">
+                <span class="row-title" data-i18n="pref_lang">App language</span>
+                <span class="row-sub" data-i18n="pref_lang_s">Instant Hebrew RTL or English LTR</span>
+              </div>
+              <button type="button" class="btn-secondary" onclick="toggleLangQuick()" data-i18n="btn_switch_lang">Switch EN / עב</button>
+            </div>
+
+            <div class="clean-row">
+              <div class="row-main">
+                <span class="row-title" data-i18n="pref_theme">Appearance</span>
+                <span class="row-sub" data-i18n="pref_theme_s">Warm daylight or dusk night mode</span>
+              </div>
+              <button type="button" class="btn-secondary" onclick="toggleThemeQuick()" data-i18n="btn_switch_theme">Day / Night</button>
+            </div>
+
+            <div class="clean-row">
+              <div class="row-main">
+                <span class="row-title" data-i18n="pref_pace">Default pace</span>
+                <span class="row-sub" data-i18n="pref_pace_s">Normal (15 min/km) · Shaded streets preferred</span>
+              </div>
+              <span class="sec-meta" data-i18n="status_saved">Saved</span>
+            </div>
+          </div>
+
+          <button type="button" class="btn-primary" onclick="setScreen('plan')" data-i18n="me_cta">Save &amp; back to planning</button>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           SCREEN F · LOGIN (Terracotta Sunset + 3D Signpost + Inline Plain Error)
+           ================================================================== -->
+      <section class="screen-view" data-screen="login">
+        <div class="login-wrap">
+          <div class="sunset-stage tall">
+            <img class="stage-photo day-only" src="assets/auth-terra-gradient.jpg" onerror="assetFallback(this)" alt="" />
+            <img class="stage-photo night-only" src="assets/hub-night.jpg" onerror="assetFallback(this)" alt="" />
+            <div class="stage-scrim"></div>
+            <div class="stage-topo"></div>
+            <div class="stage-content">
+              <div class="brand-lockup" style="padding:0; margin-block-end:16px;">
+                <div class="brand-mark">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 20c3-7 5-10 9-12 2-1 4-2 5-4"/><circle cx="19" cy="4" r="2.2" fill="currentColor"/><circle cx="5" cy="20" r="2.2" fill="currentColor"/></svg>
+                </div>
+                <span class="brand-wordmark" style="color:#fffaf3;">Traike</span>
+              </div>
+              <h1 class="hero-title" data-i18n="login_title">Your personal walking guide</h1>
+              <p class="hero-sub" data-i18n="login_sub">Save routes, pick up live walks on your phone, and share trails with friends.</p>
+            </div>
+          </div>
+
+          <div class="trail-sheet">
+            <img class="acc-crest" src="assets/signpost.png" onerror="assetFallback(this)" alt="" />
+
+            <div style="display:flex; flex-direction:column; gap:14px; max-width:420px; width:100%;">
+              <h2 class="sec-title" data-i18n="login_h2">Sign in in one step</h2>
+              <p class="sec-meta" style="font-size:var(--fs-ui);" data-i18n="login_helper">Enter your email and we'll send a sign-in code — no password needed.</p>
+
+              <div>
+                <label class="field-label" for="loginEmail" data-i18n="login_email_lbl">Email address</label>
+                <input id="loginEmail" type="email" class="text-input" value="maya@traike.app" placeholder="you@example.com" />
+                <p id="loginError" class="field-error" data-i18n="login_err">Please enter a valid email address with @.</p>
+              </div>
+
+              <button type="button" class="btn-primary" onclick="submitLogin()">
+                <span data-i18n="login_cta">Send sign-in code</span>
+                <svg class="rtl-flip" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+              </button>
+
+              <hr class="trail-rule" />
+
+              <button type="button" class="btn-secondary" style="width:100%;" onclick="setScreen('plan')" data-i18n="login_guest">Continue as guest</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- PHONE BOTTOM NAVIGATION DOCK -->
+    <nav class="phone-tabs" aria-label="Bottom navigation">
+      <button class="tab-btn" data-nav="home" onclick="setScreen('home')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11.5L12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>
+        <span data-i18n="nav_home">Home</span>
+      </button>
+      <button class="tab-btn active" data-nav="plan" onclick="setScreen('plan')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 13.5 13.5 8.5 15.5 10.5 10.5 15.5 8.5"/></svg>
+        <span data-i18n="nav_plan_short">Plan</span>
+      </button>
+      <button class="tab-btn" data-nav="walk" onclick="setScreen('walk')">
+        <svg class="rtl-flip" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 17-7-4-7 4 7-17z"/></svg>
+        <span data-i18n="nav_walk_short">Walk</span>
+      </button>
+      <button class="tab-btn" data-nav="walks" onclick="setScreen('walks')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19c4-6 6-2 10-8s4-6 6-7"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="4" r="2"/></svg>
+        <span data-i18n="nav_walks_short">Walks</span>
+      </button>
+      <button class="tab-btn" data-nav="me" onclick="setScreen('me')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M5 20c1.5-3.8 4.2-5.5 7-5.5s5.5 1.7 7 5.5"/></svg>
+        <span data-i18n="nav_me">Me</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- DESIGN LANGUAGE NOTE -->
+  <aside class="language-note">
+    <strong>Traike Shape &amp; Type Language ("Trailhead Arch &amp; Waymarker Blaze"):</strong>
+    Every screen pairs a deep golden-sunset landscape stage with an asymmetric <em>Trailhead Ridge Arch</em> sheet (<code>border-start-start-radius: 38px; border-start-end-radius: 8px</code> — mirroring automatically in Hebrew RTL), diagonally chamfered <em>Waymarker Blaze</em> buttons/chips with a tactile 3px burnt-earth lip, arched waymarker map shields, and Fraunces / Secular One display typography.
+  </aside>
+</main>
+
+<script>
+  // Resilient asset path resolver (supports opening from root or gemini/ subfolder)
+  function assetFallback(img) {
+    if (!img.dataset.retried) {
+      img.dataset.retried = '1';
+      const raw = img.getAttribute('src') || '';
+      img.src = raw.startsWith('gemini/') ? raw.replace(/^gemini\//, '') : 'gemini/' + raw;
+    }
+  }
+
+  // First-class Bilingual Copy Dictionary (EN + Natural Idiomatic Israeli Hebrew)
+  const COPY = {
+    en: {
+      nav_home: "Home",
+      nav_plan: "Plan route",
+      nav_plan_short: "Plan",
+      nav_walk: "Live walk",
+      nav_walk_short: "Walk",
+      nav_walks: "My walks",
+      nav_walks_short: "Walks",
+      nav_me: "Me",
+      nav_login: "Sign-in screen",
+      cta_new_walk: "Plan a new walk",
+
+      home_title: "Walk somewhere golden tonight",
+      home_sub: "Tell Traike your time and mood — get a guided route in seconds.",
+      home_ready_h: "Ready from your location",
+      home_gps: "Tel Aviv · Old North",
+      home_idea_title: "65 min · Sunset Seafront & Coffee",
+      home_idea_dist: "4.1 km · Easy",
+      home_st1: "Habima Garden",
+      home_st1_t: "Start · Shade",
+      home_st2: "Carmel Alleys",
+      home_st2_t: "+22 min · Bites",
+      home_st3: "Jaffa Overlook",
+      home_st3_t: "+43 min · View",
+      home_cta: "Chat & customize my walk",
+      home_recent_h: "Continue or replay",
+      home_all_walks: "All walks",
+      walk_item_1: "Neve Tzedek Courtyards",
+      walk_item_1_s: "50 min · 4 stops · Saved yesterday",
+      walk_item_2: "Jerusalem Windmill & Yemin Moshe",
+      walk_item_2_s: "75 min · 5 stops · Walked Sun",
+      btn_go: "Walk",
+
+      plan_title: "Chat with Traike",
+      plan_sub: "Near Habima Square · Tell me your vibe or stops.",
+      guide_label: "Traike · Your trail guide",
+      guide_speech: "Pick a mood below or name places you want to see — I'll connect them into an easy route.",
+      plan_mood_lbl: "What mood or stops?",
+      chip_must: "Must-see places",
+      chip_food: "Food & markets",
+      chip_views: "Viewpoints & scenery",
+      chip_nature: "Nature & parks",
+      chip_hidden: "Hidden gems",
+      plan_prompt_lbl: "Your request or stops",
+      plan_prompt_val: "I want to see Habima Square, the Jaffa port, and a good market",
+      plan_time_lbl: "Time available",
+      plan_gps_start: "Start: Current GPS",
+      time_open: "Open",
+      plan_adv_lbl: "More route options (pace, loop, distance)",
+      adv_pace: "Walking pace",
+      pace_relaxed: "Relaxed · 18 min/km",
+      pace_normal: "Normal · 15 min/km",
+      pace_brisk: "Brisk · 12 min/km",
+      adv_end: "Finish point",
+      end_any: "Anywhere scenic",
+      end_loop: "Loop back to start",
+      plan_cta: "Build walking route",
+      map_summary: "4 stops · 4.8 km · ~78 min walk",
+      map_start_btn: "Start live walk",
+
+      live_status: "On trail · Stop 2 of 4 · 34 min left",
+      live_offroute: "Off-route help",
+      live_next_kicker: "Next stop · 320 m ahead (4 min)",
+      live_stop_name: "Carmel Market Spice Alley",
+      live_stop_desc: "Turn onto Gedera St for roasted halva, Yemenite bakeries, and shaded stone courtyards.",
+      live_cta_next: "Arrived · Next stop",
+      live_finish: "Finish",
+
+      walks_title: "Trails & friends",
+      walks_sub: "Every walk you saved, completed, or picked up from friends.",
+      walks_tab_mine: "Saved & walked (3)",
+      walks_tab_social: "Friends' walks (2)",
+      w1_t: "Habima, Carmel & Jaffa Port",
+      w1_s: "4.8 km · 4 stops · Food & Must-see",
+      w2_t: "Jerusalem Rehavia Literary Loop",
+      w2_s: "3.4 km · 5 stops · Hidden gems · Walked",
+      w3_t: "Haifa Louis Promenade Sunset",
+      w3_s: "2.9 km · 3 stops · Viewpoints",
+      s1_t: "Noa · Florentin Street Art & Espresso",
+      s1_s: "3.1 km · 4 stops · Shared 2h ago",
+      s2_t: "Yonatan · Ein Karem Spring Path",
+      s2_s: "4.2 km · 3 stops · Nature & views",
+      btn_walk_route: "Walk route",
+      btn_try_walk: "Try walk",
+
+      me_title: "Maya Cohen",
+      me_sub: "14 walks completed · 52 km explored across Israel",
+      me_prefs_h: "Walking preferences",
+      pref_lang: "App language",
+      pref_lang_s: "Instant Hebrew RTL or English LTR",
+      btn_switch_lang: "Switch EN / עב",
+      pref_theme: "Appearance",
+      pref_theme_s: "Warm daylight or dusk night mode",
+      btn_switch_theme: "Day / Night",
+      pref_pace: "Default pace",
+      pref_pace_s: "Normal (15 min/km) · Shaded streets preferred",
+      status_saved: "Saved",
+      me_cta: "Save & back to planning",
+
+      login_title: "Your personal walking guide",
+      login_sub: "Save routes, pick up live walks on your phone, and share trails with friends.",
+      login_h2: "Sign in in one step",
+      login_helper: "Enter your email and we'll send a sign-in code — no password needed.",
+      login_email_lbl: "Email address",
+      login_err: "Please enter a valid email address with @.",
+      login_cta: "Send sign-in code",
+      login_guest: "Continue as guest"
+    },
+    he: {
+      nav_home: "בית",
+      nav_plan: "תכנון מסלול",
+      nav_plan_short: "תכנון",
+      nav_walk: "הליכה חיה",
+      nav_walk_short: "הליכה",
+      nav_walks: "המסלולים שלי",
+      nav_walks_short: "מסלולים",
+      nav_me: "אזור אישי",
+      nav_login: "מסך התחברות",
+      cta_new_walk: "תכנון מסלול חדש",
+
+      home_title: "יוצאים להליכה בשקיעה",
+      home_sub: "ספרו ל-Traike כמה זמן ובאיזה סגנון — ותקבלו מסלול הליכה מודרך בשניות.",
+      home_ready_h: "מוכן ליציאה מהמיקום שלך",
+      home_gps: "תל אביב · הצפון הישן",
+      home_idea_title: "65 דק׳ · שקיעה מול הים וקפה",
+      home_idea_dist: "4.1 ק״מ · קליל",
+      home_st1: "גן הבימה",
+      home_st1_t: "התחלה · צל",
+      home_st2: "סמטאות הכרמל",
+      home_st2_t: "+22 דק׳ · טעימות",
+      home_st3: "תצפית יפו",
+      home_st3_t: "+43 דק׳ · נוף",
+      home_cta: "שיחה והתאמת המסלול שלי",
+      home_recent_h: "להמשיך או לטייל שוב",
+      home_all_walks: "כל המסלולים",
+      walk_item_1: "חצרות נווה צדק",
+      walk_item_1_s: "50 דק׳ · 4 תחנות · נשמר אתמול",
+      walk_item_2: "טחנת הרוח וימין משה, ירושלים",
+      walk_item_2_s: "75 דק׳ · 5 תחנות · טויל בראשון",
+      btn_go: "לצאת",
+
+      plan_title: "שיחה עם Traike",
+      plan_sub: "ליד כיכר הבימה · ספרו לי מה מתחשק לכם לראות.",
+      guide_label: "Traike · מדריך ההליכה שלך",
+      guide_speech: "בחרו סגנון למטה או כתבו אילו תחנות תרצו — אחבר אותן למסלול הליכה נעים.",
+      plan_mood_lbl: "איזה אופי או תחנות?",
+      chip_must: "אתרי חובה",
+      chip_food: "אוכל ושווקים",
+      chip_views: "תצפיות ונוף",
+      chip_nature: "טבע ופארקים",
+      chip_hidden: "פינות נסתרות",
+      plan_prompt_lbl: "הבקשה או התחנות שלכם",
+      plan_prompt_val: "אני רוצה לראות את כיכר הבימה, נמל יפו ושוק טוב בדרך",
+      plan_time_lbl: "זמן פנוי להליכה",
+      plan_gps_start: "התחלה: מיקום נוכחי",
+      time_open: "חופשי",
+      plan_adv_lbl: "אפשרויות נוספות (קצב, מסלול מעגלי, מרחק)",
+      adv_pace: "קצב הליכה",
+      pace_relaxed: "נינוח · 18 דק׳/ק״מ",
+      pace_normal: "רגיל · 15 דק׳/ק״מ",
+      pace_brisk: "מהיר · 12 דק׳/ק״מ",
+      adv_end: "נקודת סיום",
+      end_any: "סיום חופשי בנקודה יפה",
+      end_loop: "חזרה לנקודת ההתחלה",
+      plan_cta: "בנו מסלול הליכה",
+      map_summary: "4 תחנות · 4.8 ק״מ · כ-78 דק׳ הליכה",
+      map_start_btn: "התחילו הליכה חיה",
+
+      live_status: "על המסלול · תחנה 2 מתוך 4 · נותרו 34 דק׳",
+      live_offroute: "סטיתי מהמסלול",
+      live_next_kicker: "התחנה הבאה · בעוד 320 מ׳ (4 דק׳)",
+      live_stop_name: "סמטת התבלינים בשוק הכרמל",
+      live_stop_desc: "פנו לרחוב גדרה לחלווה קלויה, מאפיות בכרם התימנים וחצרות אבן מוצלות.",
+      live_cta_next: "הגעתי · לתחנה הבאה",
+      live_finish: "סיום",
+
+      walks_title: "מסלולים וחברים",
+      walks_sub: "כל המסלולים ששמרתם, הלכתם או קיבלתם מחברים.",
+      walks_tab_mine: "שמורים ובוצעו (3)",
+      walks_tab_social: "מסלולי חברים (2)",
+      w1_t: "הבימה, שוק הכרמל ונמל יפו",
+      w1_s: "4.8 ק״מ · 4 תחנות · אוכל ואתרי חובה",
+      w2_t: "סיבוב ספרותי ברחביה, ירושלים",
+      w2_s: "3.4 ק״מ · 5 תחנות · פינות נסתרות · בוצע",
+      w3_t: "שקיעה בטיילת לואי, חיפה",
+      w3_s: "2.9 ק״מ · 3 תחנות · תצפיות ונוף",
+      s1_t: "נועה · אמנות רחוב ואספרסו בפלורנטין",
+      s1_s: "3.1 ק״מ · 4 תחנות · שותף לפני שעתיים",
+      s2_t: "יונתן · שביל המעיין בעין כרם",
+      s2_s: "4.2 ק״מ · 3 תחנות · טבע ונוף",
+      btn_walk_route: "צאו למסלול",
+      btn_try_walk: "נסו מסלול",
+
+      me_title: "מאיה כהן",
+      me_sub: "14 מסלולים הושלמו · 52 ק״מ ברחבי הארץ",
+      me_prefs_h: "העדפות הליכה",
+      pref_lang: "שפת הממשק",
+      pref_lang_s: "מעבר מיידי בין עברית (RTL) לאנגלית (LTR)",
+      btn_switch_lang: "החלפת עב / EN",
+      pref_theme: "תצוגת צבע",
+      pref_theme_s: "מצב יום חמים או מצב לילה שקיעה",
+      btn_switch_theme: "יום / לילה",
+      pref_pace: "קצב ברירת מחדל",
+      pref_pace_s: "רגיל (15 דק׳/ק״מ) · עדיפות לרחובות מוצלים",
+      status_saved: "נשמר",
+      me_cta: "שמירה וחזרה לתכנון",
+
+      login_title: "מדריך ההליכה האישי שלך",
+      login_sub: "שמרו מסלולים, המשיכו ניווט חי בנייד ושתפו שבילים עם חברים.",
+      login_h2: "התחברות בצעד אחד",
+      login_helper: "הזינו כתובת אימייל ונשלח קוד כניסה חד-פעמי — ללא צורך בסיסמה.",
+      login_email_lbl: "כתובת אימייל",
+      login_err: "נא להזין כתובת אימייל תקינה הכוללת @.",
+      login_cta: "שליחת קוד כניסה",
+      login_guest: "המשך ללא הרשמה"
+    }
+  };
+
+  let currentLang = 'en';
+  let currentTheme = 'day';
+  let currentDevice = 'phone';
+  let currentScreen = 'plan';
+
+  function setLang(lang) {
+    currentLang = lang === 'he' ? 'he' : 'en';
+    const html = document.documentElement;
+    html.setAttribute('lang', currentLang);
+    html.setAttribute('dir', currentLang === 'he' ? 'rtl' : 'ltr');
+
+    document.getElementById('btn-lang-en').classList.toggle('active', currentLang === 'en');
+    document.getElementById('btn-lang-he').classList.toggle('active', currentLang === 'he');
+
+    const dict = COPY[currentLang];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const k = el.getAttribute('data-i18n');
+      if (dict[k]) el.textContent = dict[k];
+    });
+    document.querySelectorAll('[data-i18n-val]').forEach(el => {
+      const k = el.getAttribute('data-i18n-val');
+      if (dict[k]) el.value = dict[k];
+    });
+  }
+
+  function setTheme(theme) {
+    currentTheme = theme === 'night' ? 'night' : 'day';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    document.getElementById('btn-theme-day').classList.toggle('active', currentTheme === 'day');
+    document.getElementById('btn-theme-night').classList.toggle('active', currentTheme === 'night');
+  }
+
+  function setDevice(device) {
+    currentDevice = device === 'desktop' ? 'desktop' : 'phone';
+    document.getElementById('appFrame').setAttribute('data-device', currentDevice);
+    document.getElementById('btn-dev-phone').classList.toggle('active', currentDevice === 'phone');
+    document.getElementById('btn-dev-desktop').classList.toggle('active', currentDevice === 'desktop');
+  }
+
+  function setScreen(screenId) {
+    currentScreen = screenId;
+    const frame = document.getElementById('appFrame');
+    frame.classList.toggle('is-login', screenId === 'login');
+
+    document.querySelectorAll('.screen-view').forEach(s => {
+      s.classList.toggle('active', s.getAttribute('data-screen') === screenId);
+    });
+    document.querySelectorAll('.scr-tab').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-target') === screenId);
+    });
+    document.querySelectorAll('[data-nav]').forEach(n => {
+      n.classList.toggle('active', n.getAttribute('data-nav') === screenId);
+    });
+  }
+
+  function toggleChip(btn) {
+    btn.classList.toggle('selected');
+  }
+
+  function selectTime(btn) {
+    btn.parentElement.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  }
+
+  function handleBuildRoute() {
+    const layout = document.getElementById('planLayout');
+    if (currentDevice === 'phone') {
+      layout.classList.add('show-phone-map');
+      layout.querySelector('.plan-map-pane').scrollIntoView({ behavior: 'smooth' });
+    } else {
+      setScreen('walk');
+    }
+  }
+
+  let stopIdx = 0;
+  function advanceStop() {
+    stopIdx = (stopIdx + 1) % 2;
+    const title = document.getElementById('liveStopTitle');
+    const desc = document.getElementById('liveStopDesc');
+    if (stopIdx === 1) {
+      title.textContent = currentLang === 'he' ? 'חצרות שבזי · נווה צדק' : 'Shabazi Courtyards · Neve Tzedek';
+      desc.textContent = currentLang === 'he'
+        ? 'המשיכו ישר אל שבזי 36 לגלידה בעבודת יד ובתי אבן משוחזרים.'
+        : 'Continue straight to 36 Shabazi St for small-batch gelato and historic stone houses.';
+    } else {
+      title.textContent = COPY[currentLang].live_stop_name;
+      desc.textContent = COPY[currentLang].live_stop_desc;
+    }
+  }
+
+  function triggerReRoute() {
+    const desc = document.getElementById('liveStopDesc');
+    desc.textContent = currentLang === 'he'
+      ? 'חישבתי חזרה קלה: פנו ימינה בסמטה הקרובה ותחזרו לשביל המוצל תוך 90 מ׳.'
+      : 'Updated path: take the next shaded lane in 90 m to rejoin your scenic route.';
+  }
+
+  function switchWalksTab(which) {
+    document.getElementById('subMine').classList.toggle('selected', which === 'mine');
+    document.getElementById('subSocial').classList.toggle('selected', which === 'social');
+    document.getElementById('walksMineList').style.display = which === 'mine' ? 'flex' : 'none';
+    document.getElementById('walksSocialList').style.display = which === 'social' ? 'flex' : 'none';
+  }
+
+  function toggleLangQuick() {
+    setLang(currentLang === 'en' ? 'he' : 'en');
+  }
+
+  function toggleThemeQuick() {
+    setTheme(currentTheme === 'day' ? 'night' : 'day');
+  }
+
+  function submitLogin() {
+    const input = document.getElementById('loginEmail');
+    const err = document.getElementById('loginError');
+    if (!input.value.includes('@')) {
+      err.classList.add('visible');
+    } else {
+      err.classList.remove('visible');
+      setScreen('plan');
+    }
+  }
+</script>
+</body>
+</html>

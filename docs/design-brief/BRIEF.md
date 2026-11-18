@@ -53,3 +53,25 @@ Same 6 screens (Home, Plan + guide chat, Live Walk, My Walks, Me/Settings, Login
 - The bans from round 1 still apply (no slop, no glow orbs, no nested cards, no emoji, no tiny text). External images ARE now allowed only from `assets/`.
 - Phone: bottom tab bar, map-first on Plan only when building; desktop: left rail + 2-column Plan (map right in LTR / left in RTL logic mirrored).
 - Fix round 1 bugs: nothing overlapping text; primary button never hidden behind the map; Home has no dead empty area.
+
+---
+# ROUND 3 — OWNER REJECTED ROUND 2 TOO (overrides everything above where it conflicts)
+Owner verdict on round 2 (shots `rejected-r2-phone-plan`, `rejected-r2-desktop-plan`): "not good — what exists today (cur-* shots) is better. It must be PROFESSIONAL, BEAUTIFUL, TAILORED to the product, HIGH QUALITY, PLEASANT TO THE EYE and UNIQUE."
+What "unique" means to the owner: mainly the SHAPE and ORGANISATION of the interface, expressed through the typefaces, the backgrounds and the buttons. It must look professional and pretty AND make clear at a glance what the product is here to deliver (an AI guide that builds you a walking route).
+
+Why round 2 failed (diagnosis — do not repeat):
+- It looked like a generic template: a cropped photo strip on top, a flat cream sheet below, generic rounded buttons. Any app could wear it.
+- The sunset band was a thin faded strip; the sheet under it was plain. The atmosphere stopped after 100px.
+- Typography was one decent display face + system sans; no hierarchy of character. Buttons were ordinary flat rectangles/pills.
+- The guide was a photo pasted in a box, not integrated into the composition.
+- The home screen under the hero was a plain form card + list: nothing said "walking route AI".
+
+What round 3 must do:
+1. A DISTINCT SHAPE LANGUAGE owned by Traike (e.g. a trail-/route-derived motif: a winding path line, a topographic contour, a waymarker/trail-blaze shape, an arch like a trail sign) used consistently for sheets, buttons, chips, tab bar and the map pin — not generic 12px rounded cards. Pick ONE and commit; describe it in a short design-language note.
+2. A real typographic voice: a characterful display face for headlines (not Inter/Roboto/system), a clean text face, deliberate scale and weight contrast; Hebrew must be set with an equally good Hebrew face, not a fallback.
+3. Atmosphere: large, immersive sunset-orange backgrounds that carry through the screen (full-bleed behind the chat top and home, with the content sheet shaped to the motif), day AND a rich dusk-night variant. Use the real photos in gemini/assets/.
+4. Buttons with craft: the primary action should feel premium and tactile in terracotta/orange (depth, edge, pressed state), consistent everywhere; secondary actions clearly quieter.
+5. The guide character is part of the composition (overlapping the sheet edge, large, with a speech bubble that belongs to the shape language), visible in the chat area on phone AND desktop.
+6. Purpose visible at once: home/plan show a route idea (a route line with stops, a time + vibe -> route), not just a form. One glossy 3D accessory per screen max.
+7. Not over-stuffed, short explanations, clear primary action per screen. Keep all prior bans (no green dots/pills, glows/orbs, purple/blue gradients, nested cards, accent-rail borders, emoji, tiny text <13px).
+8. Deliver all 6 screens, phone + desktop, EN + HE (RTL), day + night, same toggles as before (setDevice / setLang / setTheme / setScreen functions with data-screen ids home, plan, walk, walks, me, login). Aim higher than the current app, not lower.
