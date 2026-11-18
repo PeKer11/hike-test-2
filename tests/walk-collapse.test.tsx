@@ -650,4 +650,50 @@ describe("what the collection adds on the way", () => {
     expect(screen.getByRole("button", { name: "Not now" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Add to walk/ })).toBeNull();
   });
+  // Walk-feedback 2026-11, issue 3: the rebuild pill is always there while off route and no card is up.
+  describe("rebuild pill and the 4-minute re-ask", () => {
+    const pill = () => screen.queryByRole("button", { name: /Rebuild route from here/ });
+    const straySmall = () =>
+      vi.spyOn(SimulatedWalkTracker.prototype, "strayOffRoute").mockImplementation(async function (
+        this: SimulatedWalkTracker,
+      ) {
+        (this as unknown as { stray: unknown }).stray = { offsetMeters: 100, untilDistance: Infinity };
+        return false;
+      });
+
+    it("is hidden while the ask card is up and shown once it is answered", async () => {
+      straySmall();
+      await startSimulatedWalk();
+      await clickStray();
+      for (let i = 0; i < 20 && screen.queryByRole("button", { name: /I know where I'm going/ }) === null; i += 1) {
+        await advance(1_000);
+      }
+      expect(pill()).toBeNull(); // the card is up: no second control
+      fireEvent.click(screen.getByRole("button", { name: /I know where I'm going/ }));
+      await flush(3);
+      expect(pill()).not.toBeNull();
+    });
+
+    it("after 'I know where I'm going', 5 minutes off route raises no question and no reroute", async () => {
+      straySmall();
+      await startSimulatedWalk();
+      await clickStray();
+      for (let i = 0; i < 20 && screen.queryByRole("button", { name: /I know where I'm going/ }) === null; i += 1) {
+        await advance(1_000);
+      }
+      fireEvent.click(screen.getByRole("button", { name: /I know where I'm going/ }));
+      await flush(3);
+      const plans = walkPlanCalls.length;
+      const reroutes = (fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter(
+        (c) => c[0] === "/api/reroute",
+      ).length;
+      for (let i = 0; i < 5 * 60; i += 5) await advance(5_000);
+      expect(screen.queryByRole("button", { name: /I know where I'm going/ })).toBeNull();
+      expect(walkPlanCalls.length).toBe(plans);
+      const reroutesAfter = (fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter(
+        (c) => c[0] === "/api/reroute",
+      ).length;
+      expect(reroutesAfter).toBe(reroutes);
+    });
+  });
 });

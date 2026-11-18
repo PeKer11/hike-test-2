@@ -200,6 +200,9 @@ import {
 } from "@/lib/walk/options-request";
 import { readTtsOptIn, ttsSupported, writeTtsOptIn } from "@/lib/walk/tts";
 
+/** A GPS fix older than this is stale: nothing re-routes automatically from it. */
+const STALE_FIX_MS = 20_000;
+
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
 // One level of undo: the plan the walker was on before the last automatic re-plan.
@@ -621,6 +624,8 @@ export function WalkPlannerApp({
     const id = setInterval(() => {
       if (walkSettingsRef.current.deviationMode === "off") return;
       if (!isOffRouteRef.current || deviationConfirmationRef.current) return;
+      // "I know where I'm going": never re-ask for this excursion.
+      if (offRouteDismissedRef.current) return;
       askBeforeRedrawingRef.current?.();
     }, 4 * 60 * 1000);
     return () => clearInterval(id);
@@ -698,7 +703,7 @@ export function WalkPlannerApp({
     if (walkTrackerRef.current === null) return;
     lastLocalRejoinAtRef.current = atMs;
     walkGeometryRef.current = spliced;
-    lastSegmentIndexRef.current = null;
+    lastSegmentIndexRef.current = 0; // not null: null searches the whole line and a loop matches its last leg
     matchedRef.current = { segmentIndex: 0, point: spliced[0] };
     setRemainingGeometry(spliced);
     walkTrackerRef.current.updateGeometry(spliced);
@@ -2124,7 +2129,7 @@ export function WalkPlannerApp({
       return;
     }
     walkGeometryRef.current = spliced;
-    lastSegmentIndexRef.current = null;
+    lastSegmentIndexRef.current = 0; // not null: null searches the whole line and a loop matches its last leg
     matchedRef.current = { segmentIndex: 0, point: spliced[0] };
     setRemainingGeometry(spliced);
     walkTrackerRef.current.updateGeometry(spliced);
@@ -2385,7 +2390,7 @@ export function WalkPlannerApp({
       const spliced = spliceRoute(requestGeometry, candidate, data.geometry);
       lastLocalRejoinAtRef.current = fix.timestamp;
       walkGeometryRef.current = spliced;
-      lastSegmentIndexRef.current = null;
+      lastSegmentIndexRef.current = 0; // not null: null searches the whole line and a loop matches its last leg
       matchedRef.current = { segmentIndex: 0, point: spliced[0] };
       setRemainingGeometry(spliced);
       walkTrackerRef.current.updateGeometry(spliced);
@@ -2480,7 +2485,8 @@ export function WalkPlannerApp({
       setDeviationConfirmation(false);
       setDeviationAskedAt(null);
       // No answer: take the walker back to the original shortest route.
-      if (isOffRouteRef.current) void runLocalRejoin();
+      // Not from a stale position: a GPS gap would splice a connector from where they were.
+      if (isOffRouteRef.current && Date.now() - lastFixWallRef.current <= STALE_FIX_MS) void runLocalRejoin();
     }, DEVIATION_CONFIRMATION_TIMEOUT_MS);
   };
   askBeforeRedrawingRef.current = askBeforeRedrawing;
@@ -2862,7 +2868,8 @@ export function WalkPlannerApp({
         deviation.closestSegmentIndex,
         deviation.closestPointOnRoute,
       );
-      setRemainingGeometry(remaining);
+      // Off route the match jumps around (a loop can match its tail): keep the line as it was.
+      if (!offRoute) setRemainingGeometry(remaining);
       void shortcut.feed();
     };
 
@@ -4541,7 +4548,7 @@ export function WalkPlannerApp({
             : "h-[45%] min-h-[180px] shrink-0"
         } ${hubTab ? "hidden" : ""}`}
       >
-        {walkMode && isOffRoute && offRouteDismissed ? (
+        {walkMode && isOffRoute && offRouteCard === null && optionsOffer === null && !isWalkPlanLoading ? (
           <button
             type="button"
             onClick={() => {
@@ -4551,7 +4558,7 @@ export function WalkPlannerApp({
             }}
             className="absolute left-1/2 top-3 z-[700] flex h-11 -translate-x-1/2 items-center rounded-full border border-forest/20 bg-paper px-4 text-sm font-semibold text-forest shadow-tk-card"
           >
-            Rebuild route from here
+            {walkCopy.offRouteCard[uiLang === "he" ? "he" : "en"].rebuildPill}
           </button>
         ) : null}
         {!walkMode ? (

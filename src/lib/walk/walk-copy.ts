@@ -150,6 +150,7 @@ export const walkCopy = {
       finding: "Finding the way back…",
       autoReturn: "Returns to your route automatically if you do nothing",
       minimise: "Minimise",
+      rebuildPill: "Rebuild route from here",
       pill: (m: number) => `Off route · ${m} m`,
       hint: (kind: string, m: number, bearing: number) => {
         switch (kind) {
@@ -172,6 +173,7 @@ export const walkCopy = {
       finding: "מחפשים דרך חזרה…",
       autoReturn: "אם לא תבחרו, תחזרו למסלול אוטומטית",
       minimise: "הקטנה",
+      rebuildPill: "בנו מסלול מחדש מכאן",
       pill: (m: number) => `מחוץ למסלול · ${m} מ׳`,
       hint: (kind: string, m: number, bearing: number) => {
         const north = ["צפונה", "צפון-מזרחה", "מזרחה", "דרום-מזרחה", "דרומה", "דרום-מערבה", "מערבה", "צפון-מערבה"];
