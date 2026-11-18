@@ -45,8 +45,8 @@ export const walkCopy = {
       },
       he: {
         details: "פרטים",
-        endWalk: "סיום",
-        endConfirm: "לסיים?",
+        endWalk: "סיום הליכה",
+        endConfirm: "לסיים את ההליכה?",
         nextStop: "התחנה הבאה",
         overBudget: (min: number) => `+${min} דק׳ מעבר לתכנון`,
         upcoming: "בהמשך",
@@ -69,6 +69,7 @@ export const walkCopy = {
       gone: "That place is no longer within reach",
       replanFailed: "Couldn't update your route just now. Staying on the current one.",
       manualResume: "We reshaped your walk for your pace. Take a look, then press Start Walk.",
+      noShorter: "Couldn't find a shorter way back from here.",
     },
     he: {
       added: (name: string, min: number) => `נוסף: ${name}${min > 0 ? ` · +${min} דק׳` : ""}`,
@@ -77,6 +78,7 @@ export const walkCopy = {
       gone: "המקום כבר לא בהישג יד",
       replanFailed: "לא הצלחנו לבנות מסלול מעודכן. ממשיכים במסלול הנוכחי.",
       manualResume: "התאמנו את ההליכה לקצב שלכם. הציצו, ולחצו על התחלה.",
+      noShorter: "לא מצאנו דרך קצרה יותר חזרה מכאן.",
     },
   },
   stats: {
@@ -126,6 +128,11 @@ export const walkCopy = {
     talk: "Tell me what you want",
     findingWay: "Finding the way back…",
     wayBackFailed: "Couldn't find a way back just now. Re-plan from here?",
+  },
+  /** The "you have arrived" card: shown once the route is walked and every stop is visited. */
+  finished: {
+    en: { title: "You've reached the end of your route", finish: "Finish walk", keep: "Keep walking" },
+    he: { title: "הגעתם לסוף המסלול", finish: "סיום הליכה", keep: "ממשיכים ללכת" },
   },
   turn: {
     straight: (m: number) => `Keep straight, ${roundedMeters(m)}`,

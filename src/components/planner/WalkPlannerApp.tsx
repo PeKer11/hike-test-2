@@ -202,6 +202,8 @@ import { readTtsOptIn, ttsSupported, writeTtsOptIn } from "@/lib/walk/tts";
 
 /** A GPS fix older than this is stale: nothing re-routes automatically from it. */
 const STALE_FIX_MS = 20_000;
+/** The walk counts as finished this close to the end of the route (with every stop visited). */
+const FINISH_REMAINING_M = 40;
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -400,6 +402,8 @@ export function WalkPlannerApp({
   >(null);
   const [showWalkedPath, setShowWalkedPath] = useState(true);
   const [finishData, setFinishData] = useState<WalkFinishData | null>(null);
+  // "Keep walking" on the end-of-route card: do not ask again this walk.
+  const [finishKeepWalking, setFinishKeepWalking] = useState(false);
   const walkInputRef = useRef<WalkCompanionInput | null>(null);
   const walkStartTimeRef = useRef<number>(0);
   const latestPaceUpdateRef = useRef<PaceUpdate | null>(null);
@@ -1040,6 +1044,7 @@ export function WalkPlannerApp({
 
   const handleEndWalk = () => {
     clearActiveWalk();
+    setFinishKeepWalking(false);
     resumedStartRef.current = null;
     walkIdCacheRef.current = null;
     if (walkMode) {
@@ -2081,7 +2086,11 @@ export function WalkPlannerApp({
   // Falls back to the full options sheet when the theme cannot be routed.
   const runThemedOption = async (theme: OfferTheme) => {
     const ctx = getOptionsContext();
-    if (!ctx) return;
+    const noShorter = () => showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].noShorter, "warn");
+    if (!ctx) {
+      if (theme === "short") noShorter();
+      return;
+    }
     let pick: OfferedOption | undefined;
     try {
       const built = planDirectionOptions(ctx).filter((o) => o.theme === theme);
@@ -2093,7 +2102,9 @@ export function WalkPlannerApp({
     }
     if (walkTrackerRef.current === null) return;
     if (!pick) {
-      collapseFlow.offerDifferent();
+      // Head back: say so, instead of silently doing nothing.
+      if (theme === "short") noShorter();
+      else collapseFlow.offerDifferent();
       return;
     }
     discoveryRef.current?.markOffered(pick.stops.map((s) => s.id));
@@ -3500,6 +3511,26 @@ export function WalkPlannerApp({
           { label: walkCopy.pace.dismiss, onClick: () => setPaceAdvisory(null) },
         ],
       };
+    } else if (
+      // Walked to the end and every stop seen: ask, never end it for them.
+      walkPhase === "walking" &&
+      !isOffRoute &&
+      !finishKeepWalking &&
+      walkStats !== null &&
+      walkStats.remainingM <= FINISH_REMAINING_M &&
+      (walkPlan?.orderedAttractions ?? []).every((a) => visitedAttractionIds.includes(a.id))
+    ) {
+      const fc = walkCopy.finished[uiLang === "he" ? "he" : "en"];
+      walkAlert = {
+        id: "walk-finished",
+        tone: "info",
+        icon: "🏁",
+        title: fc.title,
+        actions: [
+          { label: fc.finish, primary: true, onClick: handleEndWalk },
+          { label: fc.keep, onClick: () => setFinishKeepWalking(true) },
+        ],
+      };
     }
   }
 
@@ -3973,9 +4004,6 @@ export function WalkPlannerApp({
                   fillRemainingTime={fillPromptWalk}
                   onFillRemainingTimeChange={setFillPromptWalk}
                 />
-              )}
-              {finishData && (
-                <WalkFinishCard data={finishData} lang={uiLang === "he" ? "he" : "en"} onClose={() => setFinishData(null)} />
               )}
               {feedbackAttractions && (
                 <WalkFeedbackCard
@@ -4548,6 +4576,12 @@ export function WalkPlannerApp({
             : "h-[45%] min-h-[180px] shrink-0"
         } ${hubTab ? "hidden" : ""}`}
       >
+        {/* In the map section, not the aside: on a phone the aside is below the fold, so "End walk" looked like nothing happened. */}
+        {finishData && (
+          <div className="absolute inset-x-3 top-3 z-[800]">
+            <WalkFinishCard data={finishData} lang={uiLang === "he" ? "he" : "en"} onClose={() => setFinishData(null)} />
+          </div>
+        )}
         {walkMode && isOffRoute && offRouteCard === null && optionsOffer === null && !isWalkPlanLoading ? (
           <button
             type="button"

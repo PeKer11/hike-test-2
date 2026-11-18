@@ -61,7 +61,7 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
 
   useEffect(() => {
     if (!confirmEnd) return;
-    const timer = window.setTimeout(() => setConfirmEnd(false), 3000);
+    const timer = window.setTimeout(() => setConfirmEnd(false), 5000);
     return () => window.clearTimeout(timer);
   }, [confirmEnd]);
 

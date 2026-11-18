@@ -6,6 +6,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { WalkHud } from "@/components/walk/WalkHud";
 import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types";
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 
@@ -130,6 +131,8 @@ let rerouteMode: "ok" | "fail";
 let settingsStore: Record<string, string>;
 // When set, the next `/api/walk-plan` call stays pending until settled.
 let holdPlan: boolean;
+// A short route for the end-of-walk tests (the default one is 30 km).
+let shortRoute = false;
 let heldPlan: { resolve: () => void; reject: () => void } | null;
 
 function installFetch() {
@@ -148,7 +151,13 @@ function installFetch() {
             heldPlan = { resolve, reject: () => reject(new Error("network")) };
           });
         }
-        return { ok: true, json: async () => planOf([MUSEUM, CATHEDRAL, MARKET]) };
+        return {
+          ok: true,
+          json: async () =>
+            shortRoute
+              ? planOf([MUSEUM], { geometry: [ORIGIN, { lat: 32.095, lng: 34.78 }] })
+              : planOf([MUSEUM, CATHEDRAL, MARKET]),
+        };
       }
       if (url === "/api/directions") {
         return {
@@ -233,6 +242,7 @@ beforeEach(() => {
       },
     },
   });
+  shortRoute = false;
   installFetch();
 });
 
@@ -440,3 +450,55 @@ describe("the centred off-route card", () => {
   });
 });
 
+describe("ending the walk (walk feedback 2026-11)", () => {
+  it("End takes two taps, the confirm lasts 5 s, and the finish card is in the map section, not the aside", async () => {
+    await startSimulatedWalk();
+    await advance(2_000);
+    fireEvent.click(screen.getByRole("button", { name: "End walk" }));
+    await advance(4_000);
+    expect(screen.getByRole("button", { name: "End walk?" })).toBeTruthy(); // still asking after 4 s
+    await advance(1_500);
+    expect(screen.queryByRole("button", { name: "End walk?" })).toBeNull(); // lapsed after 5 s
+
+    fireEvent.click(screen.getByRole("button", { name: "End walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "End walk?" }));
+    await flush();
+    const finish = screen.getByText(/You finished your walk/);
+    expect(finish.closest("aside")).toBeNull();
+    expect(finish.closest("section")).not.toBeNull();
+  });
+
+  it("asks 'Finish walk / Keep walking' at the end of the route with every stop visited, and never ends it by itself", async () => {
+    shortRoute = true;
+    await startSimulatedWalk();
+    for (let i = 0; i < 400 && screen.queryByRole("button", { name: "Finish walk" }) === null; i += 1) {
+      await advance(5_000);
+    }
+    expect(screen.getByRole("button", { name: "Finish walk" })).toBeTruthy();
+    expect(screen.getByTestId("walk-hud")).toBeTruthy();
+
+    // Keep walking: the card goes and does not come back.
+    fireEvent.click(screen.getByRole("button", { name: "Keep walking" }));
+    await advance(30_000);
+    expect(screen.queryByRole("button", { name: "Finish walk" })).toBeNull();
+    expect(screen.getByTestId("walk-hud")).toBeTruthy();
+  });
+
+  it("Finish walk ends the walk and shows the finish card", async () => {
+    shortRoute = true;
+    await startSimulatedWalk();
+    for (let i = 0; i < 400 && screen.queryByRole("button", { name: "Finish walk" }) === null; i += 1) {
+      await advance(5_000);
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Finish walk" }));
+    await flush();
+    expect(screen.queryByTestId("walk-hud")).toBeNull();
+    expect(screen.getByText(/You finished your walk/)).toBeTruthy();
+  });
+
+  it("uses the clear Hebrew labels", () => {
+    render(<WalkHud alert={null} stats={null} lang="he" onDetails={() => {}} onEndWalk={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "סיום הליכה" }));
+    expect(screen.getByRole("button", { name: "לסיים את ההליכה?" })).toBeTruthy();
+  });
+});

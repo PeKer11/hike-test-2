@@ -48,13 +48,13 @@ describe("the walk sheet", () => {
     expect(screen.queryByText("half content")).toBeNull();
   });
 
-  it("needs a second tap within 3 s to end the walk", () => {
+  it("needs a second tap within 5 s to end the walk", () => {
     const onEnd = vi.fn();
     render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={onEnd} />);
     fireEvent.click(screen.getByRole("button", { name: "End walk" }));
     expect(onEnd).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "End walk?" })).toBeTruthy();
-    act(() => void vi.advanceTimersByTime(3100));
+    act(() => void vi.advanceTimersByTime(5100));
     expect(screen.getByRole("button", { name: "End walk" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "End walk" }));
     fireEvent.click(screen.getByRole("button", { name: "End walk?" }));
@@ -74,7 +74,7 @@ describe("the walk sheet", () => {
 
   it("speaks Hebrew when asked", () => {
     render(<WalkHud alert={null} stats={stats} lang="he" nextStop={{ name: "שוק הכרמל", minutes: 4 }} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "סיום" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "סיום הליכה" })).toBeTruthy();
     expect(screen.getByText(/התחנה הבאה/)).toBeTruthy();
   });
 });
