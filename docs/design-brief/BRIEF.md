@@ -33,3 +33,23 @@ React + Tailwind v4 with CSS custom properties; Leaflet/Google map stays (just s
 
 ## What to return
 Return ONE self-contained HTML file (in ONE fenced ```html block) that shows the design as a clickable-looking gallery with a toggle for Hebrew/English, day/night, and phone/desktop frames, covering: (A) Home, (B) Plan with the assistant chat (hero band at top, assistant presence, one primary input, advanced options collapsed), (C) live Walk bottom sheet over a map, (D) My walks, (E) Me/settings, (F) Login. Then 6 bullets: tokens (colors both themes, type scale ≤5 sizes, radii, shadows), what you removed, the hero element of each screen, RTL decisions, and what is still weak. No React code. Use inline SVG/CSS only (no external images); you may reference our fonts via Google Fonts.
+
+---
+# ROUND 2 — OWNER FEEDBACK ON ROUND 1 (overrides earlier lines where they conflict)
+Owner verdict on round 1 (see shot `rejected-r1-phone-plan`): "boring, not high quality — even the CURRENT app looks better, especially the character + chat part, which makes more sense. I expected a more ORANGE/SUNSET atmospheric background, and overall something higher quality and much more fitting for an app."
+What went wrong: round 1 was a flat beige/cream wireframe — generic "Ori" cairn icon instead of our real guide, no photography, no 3D, flat wash band with a stray circle colliding with text. It threw away the identity that works.
+
+## KEEP / REUSE (real assets, attached as screenshots and available in the HTML as relative paths `assets/<file>`)
+- THE GUIDE: an illustrated, smiling bearded hiker with camera and backpack, cut out at bottom-left of the chat card, leaning into the card (`assets/guide.jpg`, night `assets/guide-night.jpg`; soft cream background with leaf motif — blend/mask it into the card, e.g. radial or linear mask, no hard rectangle). The chat is "Chat with Traike": the guide stands bottom-start, his speech bubble beside him, below it a row of 5 THEME CHIPS with small photo thumbnails (`assets/must-see.jpg`, `food.jpg`, `viewpoints.jpg`, `nature.jpg`, `hidden.jpg`: Must-see places / Food & markets / Viewpoints & scenery / Nature & parks / Hidden gems), then the text box "I want to see Habima Square, the Jaffa port, and a good market" and the primary button. Keep this logic (it makes sense to the owner) but make it far more polished.
+- WARM SUNSET ATMOSPHERE: `assets/hub-mountain-lake-sunset.png` (peach/orange/gold mountain-lake sunset), `assets/hub-night.jpg`, `assets/auth-terra-gradient.jpg`, `assets/hero-tent-sunrise.jpg`, `assets/meadow-hiker.jpg`. Use these photos (cropped, with a warm wash for legibility) as the TOP background band on Home, Plan/chat, and Login — rich orange/terracotta/gold, not beige. It must feel premium and alive, but text on it stays perfectly legible and the functional area below stays calm (not over-stuffed).
+- 3D ACCESSORIES (glossy, photoreal): `assets/compass.png`, `assets/boot.png`, `assets/pin.png`, and accessory PNGs `assets/backpack.png`, `binoculars.png`, `bottle.png`, `camera.png`, `hat.png`, `signpost.png`, `tent.png`, `thermos.png`, `bench.png`, `footprints.png`, `stick.png` (any .png in `assets/` not listed in the shots exists too). ONE per main screen, tied to meaning, never covering text/controls (compass = new route, boot = my walks, pin = places/walk, etc.).
+- Trail-line and empty-state illustrations exist (do not redraw: describe slots).
+
+## WHAT TO DELIVER (same format: ONE html block, then 6 bullets + honest critique)
+Same 6 screens (Home, Plan + guide chat, Live Walk, My Walks, Me/Settings, Login), toggles EN/HE, day/night, phone/desktop. Targets:
+- QUALITY and personality like a premium consumer travel/outdoor app (think the best of Airbnb-trips / AllTrails Plus / Apple Maps guides): rich photography wash at the top, glossy 3D accent, confident big display type (Secular One), generous but purposeful space, crisp functional sheet below. Orange/terracotta-dominant warmth with forest-green ink; night = deep warm charcoal with sunset-glow photo (hub-night).
+- Still minimal and clear: one primary action per screen, short copy, easy navigation, advanced options collapsed. The guide + chat on Plan is the hero of the app: make that screen the best one.
+- Keep it NOT cluttered: at most ONE accessory + ONE photo band per screen.
+- The bans from round 1 still apply (no slop, no glow orbs, no nested cards, no emoji, no tiny text). External images ARE now allowed only from `assets/`.
+- Phone: bottom tab bar, map-first on Plan only when building; desktop: left rail + 2-column Plan (map right in LTR / left in RTL logic mirrored).
+- Fix round 1 bugs: nothing overlapping text; primary button never hidden behind the map; Home has no dead empty area.
