@@ -629,3 +629,28 @@ describe("which group each control lands in", () => {
     expect(onChange).toHaveBeenCalledWith({ autoResumeAfterRebuild: false });
   });
 });
+
+describe("routeOrderMode (Best route from here)", () => {
+  it("defaults to asking each time, and an old or odd stored value falls back to it", () => {
+    expect(DEFAULT_WALK_SETTINGS.routeOrderMode).toBe("ask");
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...DEFAULT_WALK_SETTINGS, routeOrderMode: undefined }));
+    expect(renderHook(() => useWalkSettings()).result.current.settings.routeOrderMode).toBe("ask");
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...DEFAULT_WALK_SETTINGS, routeOrderMode: "nonsense" }));
+    expect(renderHook(() => useWalkSettings()).result.current.settings.routeOrderMode).toBe("ask");
+  });
+
+  it("keeps a stored keep / reorder choice and reports changes from the row, with no database involved", () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...DEFAULT_WALK_SETTINGS, routeOrderMode: "keep" }));
+    expect(renderHook(() => useWalkSettings()).result.current.settings.routeOrderMode).toBe("keep");
+
+    const { onChange } = renderSettings();
+    fireEvent.change(screen.getByLabelText('When I tap "Best route from here"'), { target: { value: "reorder" } });
+    expect(onChange).toHaveBeenCalledWith({ routeOrderMode: "reorder" });
+  });
+
+  it("shows the row in Hebrew when asked", () => {
+    render(<WalkSettingsPanel settings={DEFAULT_WALK_SETTINGS} onChange={vi.fn()} lang="he" />);
+    fireEvent.click(disclosure());
+    expect(screen.getByLabelText(/המסלול הכי טוב מכאן/)).toBeTruthy();
+  });
+});

@@ -235,7 +235,7 @@ async function startHangingRebuild() {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  settingsStore = { "walk-settings": JSON.stringify({ deviationMode: "ask" }) };
+  settingsStore = { "walk-settings": JSON.stringify({ deviationMode: "ask", routeOrderMode: "reorder" }) };
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: {

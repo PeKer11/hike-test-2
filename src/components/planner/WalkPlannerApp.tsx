@@ -2313,11 +2313,20 @@ export function WalkPlannerApp({
   // from wherever the walker actually is. Same guards as the pace rebuild, and
   // the same request-building helper underneath — see
   // `buildDeviationRebuildRequest` for why the two share it.
-  const runDeviationTriggeredRebuild = () => {
+  const runDeviationTriggeredRebuild = (order?: "keep" | "reorder") => {
     const state = midWalkRebuildState();
     if (!state) return;
-    const { input, options } = buildDeviationRebuildRequest(state);
+    // No explicit answer (an automatic rebuild): the walker's standing setting, else re-order as before.
+    const keep = (order ?? (walkSettingsRef.current.routeOrderMode === "keep" ? "keep" : "reorder")) === "keep";
+    const { input, options } = buildDeviationRebuildRequest(state, keep);
     void handleBuildWalk(input, options);
+  };
+  // "Best route from here" / "Rebuild route from here": ask keep-or-re-order unless the walker's setting already says.
+  const [routeOrderAsk, setRouteOrderAsk] = useState(false);
+  const requestBestRoute = () => {
+    const mode = walkSettingsRef.current.routeOrderMode;
+    if (mode === "ask") setRouteOrderAsk(true);
+    else runDeviationTriggeredRebuild(mode);
   };
 
   /**
@@ -2756,6 +2765,7 @@ export function WalkPlannerApp({
       if (!offRoute) {
         offRouteDismissedRef.current = false;
         setOffRouteDismissed(false);
+        setRouteOrderAsk(false);
       }
       refreshWalkStats();
 
@@ -3640,7 +3650,7 @@ export function WalkPlannerApp({
         }}
         onBest={() => {
           if (offRouteMode === "ask") clearDeviationConfirmation();
-          runDeviationTriggeredRebuild();
+          requestBestRoute();
         }}
         onTalk={() =>
           // Keep the card up: the walker may still tap an answer after talking.
@@ -4428,7 +4438,7 @@ export function WalkPlannerApp({
                     <DisplaySection mapType={mapType} onMapType={setMapType} showMapType={usesGoogleMap} />
                   </WalkSlot>
                   <WalkSlot walking order={70}>
-                    <WalkSettingsPanel settings={walkSettings} onChange={setWalkSettings} />
+                    <WalkSettingsPanel settings={walkSettings} onChange={setWalkSettings} lang={uiLang === "he" ? "he" : "en"} />
                   </WalkSlot>
                   <WalkSlot walking order={84}>
                     <div className="space-y-1 text-[13px] leading-[18px] text-charcoal/80">
@@ -4599,6 +4609,32 @@ export function WalkPlannerApp({
             : "h-[45%] min-h-[180px] shrink-0"
         } ${hubTab ? "hidden" : ""}`}
       >
+        {walkMode && isOffRoute && routeOrderAsk ? (
+          <div
+            role="dialog"
+            aria-label={walkCopy.routeOrder[uiLang === "he" ? "he" : "en"].title}
+            data-testid="route-order-ask"
+            className="absolute inset-x-3 top-3 z-[800] mx-auto flex max-w-[420px] flex-col gap-2 rounded-[28px] bg-paper p-4 shadow-tk-card"
+          >
+            <h2 dir="auto" className="font-display text-[20px] leading-6 text-forest">{walkCopy.routeOrder[uiLang === "he" ? "he" : "en"].title}</h2>
+            {(["keep", "reorder"] as const).map((order) => (
+              <button
+                key={order}
+                type="button"
+                onClick={() => {
+                  setRouteOrderAsk(false);
+                  runDeviationTriggeredRebuild(order);
+                }}
+                className={`min-h-12 rounded-full px-4 text-[16px] font-semibold ${order === "keep" ? "bg-terra text-on-accent" : "bg-forest/10 text-forest"}`}
+              >
+                {walkCopy.routeOrder[uiLang === "he" ? "he" : "en"][order]}
+              </button>
+            ))}
+            <button type="button" onClick={() => setRouteOrderAsk(false)} className="min-h-11 rounded-full px-4 text-[15px] font-medium text-charcoal/70">
+              {walkCopy.routeOrder[uiLang === "he" ? "he" : "en"].cancel}
+            </button>
+          </div>
+        ) : null}
         {/* In the map section, not the aside: on a phone the aside is below the fold, so "End walk" looked like nothing happened. */}
         {finishData && (
           <div className="absolute inset-x-3 top-3 z-[800]">
@@ -4611,7 +4647,7 @@ export function WalkPlannerApp({
             onClick={() => {
               offRouteDismissedRef.current = false;
               setOffRouteDismissed(false);
-              runDeviationTriggeredRebuild();
+              requestBestRoute();
             }}
             className="absolute left-1/2 top-3 z-[700] flex h-11 -translate-x-1/2 items-center rounded-full border border-forest/20 bg-paper px-4 text-sm font-semibold text-forest shadow-tk-card"
           >

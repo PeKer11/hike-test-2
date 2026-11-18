@@ -26,6 +26,17 @@ export type DeviationResponseMode = PaceResponseMode;
 
 export type StopSuggestionMode = "propose" | "ask";
 
+/**
+ * What "Best route from here" does with the walker's stop order: `ask` raises a
+ * small question each time, `keep` sends the stops as ordered, `reorder` lets the
+ * planner re-order them for the shortest route.
+ */
+export type RouteOrderMode = "ask" | "keep" | "reorder";
+
+export function toRouteOrderMode(value: unknown): RouteOrderMode {
+  return value === "keep" || value === "reorder" ? value : "ask";
+}
+
 export interface WalkSettings {
   /**
    * Walking faster than planned and walking slower than planned are separate
@@ -121,6 +132,8 @@ export interface WalkSettings {
    * picks one place and asks if it fits; `ask` — it first asks what kind of place they want.
    */
   stopSuggestionMode: StopSuggestionMode;
+  /** "Best route from here": keep the stop order, re-order, or ask each time (default). */
+  routeOrderMode: RouteOrderMode;
   /**
    * Opt in to contributing anonymously to community recommendations and seeing
    * them (NEXT_PUBLIC_SOCIAL=1 only). A different purpose from
@@ -182,6 +195,7 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   calloutLevel: "normal",
   socialSharingEnabled: false,
   stopSuggestionMode: "propose",
+  routeOrderMode: "ask",
 };
 
 /**

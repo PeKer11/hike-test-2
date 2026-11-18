@@ -247,7 +247,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   mapRenders.length = 0;
   // These suites exercise the ask-mode flow; the app default is now auto.
-  settingsStore = { "walk-settings": JSON.stringify({ deviationMode: "ask" }) };
+  settingsStore = { "walk-settings": JSON.stringify({ deviationMode: "ask", routeOrderMode: "reorder" }) };
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: {
@@ -694,6 +694,69 @@ describe("what the collection adds on the way", () => {
         (c) => c[0] === "/api/reroute",
       ).length;
       expect(reroutesAfter).toBe(reroutes);
+    });
+  });
+  // Walk-feedback 2026-11, D4: "Best route from here" asks keep-order vs re-order, unless the setting says.
+  describe("best route from here: stop order", () => {
+    async function offRouteWith(routeOrderMode: string | undefined) {
+      settingsStore["walk-settings"] = JSON.stringify({ deviationMode: "ask", ...(routeOrderMode ? { routeOrderMode } : {}) });
+      vi.spyOn(SimulatedWalkTracker.prototype, "strayOffRoute").mockImplementation(async function (
+        this: SimulatedWalkTracker,
+      ) {
+        (this as unknown as { stray: unknown }).stray = { offsetMeters: 100, untilDistance: Infinity };
+        return false;
+      });
+      await startSimulatedWalk();
+      await clickStray();
+      for (let i = 0; i < 20 && screen.queryByRole("button", { name: /Best route from here/ }) === null; i += 1) {
+        await advance(1_000);
+      }
+    }
+    const best = () => screen.getByRole("button", { name: /Best route from here/ });
+
+    it("asks each time by default; 'Keep my stop order' sends fixedOrder, re-order does not", async () => {
+      await offRouteWith(undefined);
+      const plans = walkPlanCalls.length;
+      fireEvent.click(best());
+      await flush(3);
+      expect(walkPlanCalls.length).toBe(plans); // nothing yet: the question is up
+      expect(screen.getByTestId("route-order-ask")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Keep my stop order" }));
+      await flush(4);
+      expect(walkPlanCalls.length).toBe(plans + 1);
+      expect(walkPlanCalls[plans].fixedOrder).toBe(true);
+      expect(((walkPlanCalls[plans].explicitAttractions ?? []) as Attraction[]).map((a) => a.id)).toEqual(["a1", "a2"]);
+    });
+
+    it("re-order from the question leaves the order to the planner", async () => {
+      await offRouteWith("ask");
+      const plans = walkPlanCalls.length;
+      fireEvent.click(best());
+      await flush(3);
+      fireEvent.click(screen.getByRole("button", { name: "Let Traike re-order for the shortest route" }));
+      await flush(4);
+      expect(walkPlanCalls.length).toBe(plans + 1);
+      expect(walkPlanCalls[plans].fixedOrder).toBeUndefined();
+    });
+
+    it("setting 'keep' skips the question and keeps the order; 'reorder' skips it and re-orders", async () => {
+      await offRouteWith("keep");
+      const plans = walkPlanCalls.length;
+      fireEvent.click(best());
+      await flush(4);
+      expect(screen.queryByTestId("route-order-ask")).toBeNull();
+      expect(walkPlanCalls.length).toBe(plans + 1);
+      expect(walkPlanCalls[plans].fixedOrder).toBe(true);
+    });
+
+    it("setting 'reorder' skips the question and re-orders", async () => {
+      await offRouteWith("reorder");
+      const plans = walkPlanCalls.length;
+      fireEvent.click(best());
+      await flush(4);
+      expect(screen.queryByTestId("route-order-ask")).toBeNull();
+      expect(walkPlanCalls.length).toBe(plans + 1);
+      expect(walkPlanCalls[plans].fixedOrder).toBeUndefined();
     });
   });
 });

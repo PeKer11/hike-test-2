@@ -11,6 +11,7 @@ import {
   toLearningConsent,
   toUiLanguageSetting,
   toPaceResponseMode,
+  toRouteOrderMode,
   type WalkSettings,
 } from "@/lib/types/walk-settings";
 
@@ -79,6 +80,7 @@ function sanitizeSettings(
     // Only an explicit true opts in; a missing or odd value is off.
     socialSharingEnabled: candidate?.socialSharingEnabled === true,
     stopSuggestionMode: candidate?.stopSuggestionMode === "ask" ? "ask" : "propose",
+    routeOrderMode: toRouteOrderMode(candidate?.routeOrderMode),
   };
 }
 

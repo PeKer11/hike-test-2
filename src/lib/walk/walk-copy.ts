@@ -129,6 +129,29 @@ export const walkCopy = {
     findingWay: "Finding the way back…",
     wayBackFailed: "Couldn't find a way back just now. Re-plan from here?",
   },
+  /** "Best route from here": keep the stop order or let Traike re-order (small question + the setting's labels). */
+  routeOrder: {
+    en: {
+      title: "Which order for your stops?",
+      keep: "Keep my stop order",
+      reorder: "Let Traike re-order for the shortest route",
+      cancel: "Cancel",
+      setting: "When I tap \"Best route from here\"",
+      ask: "Ask each time",
+      keepOption: "Keep my stop order",
+      reorderOption: "Re-order for the shortest route",
+    },
+    he: {
+      title: "באיזה סדר לעבור בעצירות?",
+      keep: "לשמור על סדר העצירות שלי",
+      reorder: "שטרייק יסדר מחדש למסלול הקצר ביותר",
+      cancel: "ביטול",
+      setting: "כשאני לוחץ על \"המסלול הכי טוב מכאן\"",
+      ask: "לשאול אותי כל פעם",
+      keepOption: "לשמור על סדר העצירות שלי",
+      reorderOption: "לסדר מחדש למסלול הקצר ביותר",
+    },
+  },
   /** The "you have arrived" card: shown once the route is walked and every stop is visited. */
   finished: {
     en: { title: "You've reached the end of your route", finish: "Finish walk", keep: "Keep walking" },

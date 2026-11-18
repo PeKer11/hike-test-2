@@ -190,6 +190,7 @@ function seedSettings(overrides: Partial<typeof DEFAULT_WALK_SETTINGS>) {
   settingsStore["walk-settings"] = JSON.stringify({
     ...DEFAULT_WALK_SETTINGS,
     deviationMode: "ask",
+    routeOrderMode: "reorder",
     ...overrides,
   });
 }
@@ -245,7 +246,7 @@ async function strayUntilAsked() {
 beforeEach(() => {
   vi.useFakeTimers();
   // These suites exercise the ask-mode flow; the app default is now auto.
-  settingsStore = { "walk-settings": JSON.stringify({ deviationMode: "ask" }) };
+  settingsStore = { "walk-settings": JSON.stringify({ deviationMode: "ask", routeOrderMode: "reorder" }) };
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     value: {

@@ -41,6 +41,8 @@ export interface BuildWalkOptions {
   fillRemainingTime?: boolean;
   /** Walker's compass bearing; discovery then looks only ahead of it. */
   heading?: number;
+  /** Visit `keepAttractions` exactly in the given order instead of re-ordering them. */
+  fixedOrder?: boolean;
 }
 
 /**
@@ -112,8 +114,11 @@ export function buildPaceRebuildRequest<TInput extends RebuildInput>(
  */
 export function buildDeviationRebuildRequest<TInput extends RebuildInput>(
   state: PaceRebuildState<TInput>,
+  keepOrder = false,
 ): { input: TInput; options: BuildWalkOptions } {
-  return buildMidWalkRebuildRequest(state, { fillRemainingTime: false });
+  const request = buildMidWalkRebuildRequest(state, { fillRemainingTime: false });
+  // "Keep my stop order": the planner must not re-order the stops it is handed.
+  return keepOrder ? { ...request, options: { ...request.options, fixedOrder: true } } : request;
 }
 
 /**

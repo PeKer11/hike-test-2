@@ -12,6 +12,7 @@ import {
   MAX_DEVIATION_DISTANCE_M,
   MIN_DEVIATION_DISTANCE_M,
   clampDeviationDistance,
+  toRouteOrderMode,
 } from "@/lib/types/walk-settings";
 import type { CalloutLevel } from "@/lib/types/discovery";
 import type {
@@ -81,11 +82,14 @@ function SettingsSection({
 interface WalkSettingsPanelProps {
   settings: WalkSettings;
   onChange: (s: Partial<WalkSettings>) => void;
+  /** Language of the route-order row (the rest of the panel is English). */
+  lang?: "he" | "en";
 }
 
 export function WalkSettingsPanel({
   settings,
   onChange,
+  lang = "en",
 }: WalkSettingsPanelProps) {
   /**
    * Closed to start with, for the same reason the Recent requests scrollback
@@ -230,6 +234,21 @@ export function WalkSettingsPanel({
                     {walkCopy.discovery.en[`level.${level}`]}
                   </option>
                 ))}
+              </select>
+            </label>
+          </SettingsSection>
+
+          <SettingsSection title={lang === "he" ? "מסלול חדש מכאן" : "A new route from here"}>
+            <label className={ROW_CLASS}>
+              <span>{walkCopy.routeOrder[lang].setting}</span>
+              <select
+                value={settings.routeOrderMode}
+                onChange={(event) => onChange({ routeOrderMode: toRouteOrderMode(event.target.value) })}
+                className={SELECT_CLASS}
+              >
+                <option value="ask">{walkCopy.routeOrder[lang].ask}</option>
+                <option value="keep">{walkCopy.routeOrder[lang].keepOption}</option>
+                <option value="reorder">{walkCopy.routeOrder[lang].reorderOption}</option>
               </select>
             </label>
           </SettingsSection>
