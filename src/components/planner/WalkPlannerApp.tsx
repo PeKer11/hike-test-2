@@ -1301,10 +1301,10 @@ export function WalkPlannerApp({
   };
   // Phone only: hide the side panel so the map fills the screen.
   const [mapFull, setMapFull] = useState(false);
-  // Leaving the Walks tab or starting a walk puts the map back to the real plan.
+  // Starting a walk puts the map back to the real plan. The preview survives the jump from Walks to the map screen (Close ✕ ends it).
   useEffect(() => {
-    if (sideTab !== "walks" || walkMode) setWalkPreview(null);
-  }, [sideTab, walkMode]);
+    if (walkMode) setWalkPreview(null);
+  }, [walkMode]);
   // Walk-together requests: polled every 30 s while visible (flag on, signed in, migration C applied).
   const inbox = useSocialInbox(isSignedIn);
   const meetNames = useMeetNames(inbox.requests);
