@@ -241,7 +241,7 @@ Fix (same return shape, so `create or replace` still works):
 
 ## Fix status (2026-11-18)
 - **M1 fixed:** new table `social_suspensions` (service role only), written by `report_user`, checked by `save_social_profile` when there is no profile row. Owner restore = delete the row there + clear `suspended_at`. Added to `tests/forget-everything.test.ts` as an intentional non-erasure (counsel item). Check-script case 7 added.
-- **M2 (B) fixed, minimum version:** `clear_my_presence` keeps a tombstone; a jump needs 30+ min since the last write; housekeeping keeps ended rows 30 min; friends get `distance_bucket = null`. Verified on Postgres: clear + far set is refused, a near set works, `walking_now` shows no bucket. **Not done (still blocks D):** server-only presence writes/reads, no daily jump cap (S-level). **Copy to update:** presence rows now linger up to ~50 min after a walk ends (privacy text says they are deleted at walk end).
+- **M2 (B) fixed, minimum version:** `clear_my_presence` keeps a tombstone; a jump needs 30+ min since the last write; housekeeping keeps ended rows 30 min; friends get `distance_bucket = null`. Verified on Postgres: clear + far set is refused, a near set works, `walking_now` shows no bucket. **Not done (still blocks D):** server-only presence writes/reads, no daily jump cap (S-level). **Copy updated:** the privacy page now says presence rows are removed within about 50 minutes of a walk ending.
 - **M3 fixed:** the reserved-name check runs before A has a row. The script now passes end to end (Postgres, with placeholders replaced).
 - **M4 fixed:** `friends_walks` title = area label or "Walk"; `created_at` truncated to the day.
 - Not touched: all SHOULD items (S1–S10) and D.
