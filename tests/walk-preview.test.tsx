@@ -57,16 +57,12 @@ describe("MyWalksPanel show on map", () => {
     expect(onShow).toHaveBeenLastCalledWith(null);
   });
 
-  it("from the detail page, Show on map also goes to the map screen when the planner provides it", async () => {
+  it("tapping a card goes straight to the map screen when the planner provides it", async () => {
     const onShow = vi.fn();
     const onOpen = vi.fn();
     render(<MyWalksPanel isSignedIn refreshKey={0} onWalkAgain={vi.fn()} onShowOnMap={onShow} onOpenOnMap={onOpen} previewId={null} />);
     fireEvent.click(await screen.findByRole("button", { name: "Open Jaffa" }));
-    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["1.A", "2.B"]);
-    fireEvent.click(screen.getByText("Show on map"));
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "w1" }));
     expect(onShow).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText("‹ Back"));
-    expect(await screen.findByRole("button", { name: "Open Jaffa" })).toBeTruthy();
   });
 });

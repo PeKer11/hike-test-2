@@ -150,7 +150,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   // The list row: what it is, at a glance. Tap it to go inside; only the main button lives here.
   const card = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => (
     <li key={w.id} className={ROW}>
-      <button type="button" aria-label={`Open ${w.title}`} onClick={() => setDetailId(w.id)} className="flex w-full cursor-pointer items-start gap-3 text-left">
+      <button type="button" aria-label={`Open ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="flex w-full cursor-pointer items-start gap-3 text-left">
         <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-16 w-16 shrink-0" />
         <span className="block min-w-0 flex-1 space-y-1">
           <span className="flex items-center justify-between gap-2">

@@ -534,7 +534,7 @@ export function WalkPlannerApp({
   // until they either become real waypoints or the list they came from is gone.
   const [previewPlaces, setPreviewPlaces] = useState<Attraction[]>([]);
   // A saved walk drawn on the map from the "My walks" list (dashed route + its stops); the plan underneath is untouched.
-  const [walkPreview, setWalkPreview] = useState<{ id: string; title: string; waypoints: Waypoint[]; path: Coordinates[]; geometry: Coordinates[] } | null>(null);
+  const [walkPreview, setWalkPreview] = useState<{ id: string; walk?: SavedWalk; title: string; waypoints: Waypoint[]; path: Coordinates[]; geometry: Coordinates[] } | null>(null);
   // Places the walker tapped "Add to walk" on before a walk exists; they join the next build.
   const [wishlist, setWishlist] = useState<Attraction[]>([]);
   // The chat's build callback outlives the render it was created in; read the latest queue through this ref.
@@ -1121,7 +1121,7 @@ export function WalkPlannerApp({
       isStart: i === 0,
       isEnd: i === walk.stops.length - 1,
     }));
-    setWalkPreview({ id: walk.id, title: walk.title, waypoints: stopWaypoints, path, geometry: path });
+    setWalkPreview({ id: walk.id, walk, title: walk.title, waypoints: stopWaypoints, path, geometry: path });
     calculateViaDirections(path.map((coordinates, i) => ({ id: `p${i}`, name: "", coordinates, required: true, isStart: i === 0, isEnd: i === path.length - 1 })))
       .then((r) => setWalkPreview((cur) => (cur?.id === walk.id ? { ...cur, geometry: r.geometry } : cur)))
       .catch(() => undefined); // keep the straight lines
@@ -4617,7 +4617,12 @@ export function WalkPlannerApp({
               }))}
         />
         {walkPreview && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-10 z-[800] flex justify-center px-4">
+          <div className="pointer-events-none absolute inset-x-0 bottom-10 z-[800] flex justify-center gap-2 px-4">
+            {walkPreview.walk && (
+              <button type="button" onClick={() => { const w = walkPreview.walk; setWalkPreview(null); if (w) walkAgainFromSaved(w); }} className="pointer-events-auto cursor-pointer rounded-full bg-terra px-4 py-1.5 text-sm font-semibold text-on-accent shadow-lg">
+                {uiLang === "he" ? "צא להליכה" : "Walk"}
+              </button>
+            )}
             <button type="button" onClick={() => setWalkPreview(null)} className="pointer-events-auto cursor-pointer rounded-full bg-tk-ink px-4 py-1.5 text-sm font-medium text-tk-card shadow-lg">
               {walkPreview.title} · Close ✕
             </button>
