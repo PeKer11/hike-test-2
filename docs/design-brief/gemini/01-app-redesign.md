@@ -1,0 +1,1922 @@
+```html
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="day">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Traike — App Interface Redesign (Round 1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Secular+One&display=swap" rel="stylesheet" />
+<style>
+  /* =========================================================
+     1. ROLE TOKENS (Day & Night) + 5-STEP TYPE SCALE
+     ========================================================= */
+  :root,
+  :root[data-theme="day"] {
+    --bg: #fbf8f4;            /* warm cream canvas */
+    --surface: #fcf7f0;       /* warm card / elevated sheet */
+    --surface-strong: #ffffff;/* crisp interactive input/row surface */
+    --subtle: #f3ece1;        /* hover / quiet fill / hero sky base */
+    --ink: #1e3d2f;           /* deep forest green — primary ink & headings */
+    --ink-body: #231f1c;      /* warm charcoal — body copy */
+    --muted: #586656;         /* darkened sage (≥4.8:1 on cream & card) */
+    --line: #e2d8c9;          /* 1px crisp structural hairline */
+    --line-strong: #231f1c;   /* focus / active hard frame */
+    --primary: #c15f3c;       /* terracotta primary CTA */
+    --primary-hover: #ab4f2e;
+    --primary-ink: #ffffff;
+    --wordmark: #b5512b;
+    --route: #25604b;         /* walking route stroke & stop markers */
+    --sky: #d9e7ec;           /* map water / calm wash */
+    --map-land: #f1ede4;
+    --map-park: #dfe8d8;
+    --map-road: #ffffff;
+    --danger: #b43228;
+    --danger-bg: #fbeae8;
+
+    /* Atmospheric hero band washes (SVG colors) */
+    --hero-sky: #efe5d6;
+    --hero-sun: #df9a78;
+    --hero-hill-far: #cad5c7;
+    --hero-hill-mid: #8fa38c;
+    --hero-hill-near: #25604b;
+
+    /* Type scale — strictly 5 sizes, nothing < 13px */
+    --fs-xl: 1.625rem; /* 26px — Screen heading */
+    --fs-lg: 1.25rem;  /* 20px — Section / sheet title */
+    --fs-md: 1rem;     /* 16px — Body / inputs / primary buttons */
+    --fs-sm: 0.875rem; /* 14px — Secondary meta / helper */
+    --fs-xs: 0.8125rem;/* 13px — Nav labels / legal / micro-status */
+
+    /* Radii — hard-edged, crisp */
+    --r-sm: 6px;
+    --r-md: 8px;
+    --r-lg: 10px;
+
+    /* Shadows — structural 1px ring + minimal sheet lift */
+    --shadow-sheet: 0 -2px 12px rgba(35, 31, 28, 0.08);
+    --shadow-float: 0 2px 8px rgba(35, 31, 28, 0.10);
+
+    --font-display: 'Secular One', 'Heebo', sans-serif;
+    --font-sans: 'Heebo', system-ui, -apple-system, sans-serif;
+  }
+
+  :root[data-theme="night"] {
+    --bg: #181614;            /* warm dark charcoal */
+    --surface: #221f1c;       /* elevated warm slate */
+    --surface-strong: #2a2622;/* input / interactive row */
+    --subtle: #2f2a25;
+    --ink: #f4efe8;           /* warm parchment headings */
+    --ink-body: #e6dfd5;
+    --muted: #b0a79b;         /* ≥ 5.2:1 on #221f1c */
+    --line: #38322c;
+    --line-strong: #f4efe8;
+    --primary: #c15f3c;       /* brand terracotta kept */
+    --primary-hover: #d16d49;
+    --primary-ink: #ffffff;
+    --wordmark: #df7852;
+    --route: #4ca382;         /* luminous sage-emerald for dark maps */
+    --sky: #1e2d34;
+    --map-land: #1d1b18;
+    --map-park: #1f2b23;
+    --map-road: #2c2824;
+    --danger: #f0766c;
+    --danger-bg: #361d1b;
+
+    --hero-sky: #25201c;
+    --hero-sun: #9e4d30;
+    --hero-hill-far: #2d362f;
+    --hero-hill-mid: #243b31;
+    --hero-hill-near: #1a2e25;
+
+    --shadow-sheet: 0 -2px 16px rgba(0, 0, 0, 0.45);
+    --shadow-float: 0 2px 10px rgba(0, 0, 0, 0.45);
+  }
+
+  /* =========================================================
+     2. RESET & GALLERY SHELL (Presentation wrapper)
+     ========================================================= */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: #121110;
+    color: #f4efe8;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea, select {
+    font: inherit;
+    color: inherit;
+  }
+  button { cursor: pointer; background: none; border: none; }
+
+  /* Top presenter bar (Busbo-inspired review toolbar) */
+  . workbench-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #191715;
+    border-block-end: 1px solid #302c27;
+    padding-block: 10px;
+    padding-inline: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    direction: ltr; /* keep studio controls predictable, or let inner frame flip */
+  }
+  .wb-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: var(--fs-sm);
+    color: #b0a79b;
+  }
+  .wb-brand strong {
+    font-family: var(--font-display);
+    font-size: var(--fs-lg);
+    color: #e27a54;
+    font-weight: 400;
+  }
+  .wb-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .wb-seg {
+    display: inline-flex;
+    background: #24211e;
+    border: 1px solid #38332d;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+  }
+  .wb-seg button {
+    padding-block: 7px;
+    padding-inline: 12px;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: #c7bfb4;
+    min-height: 36px;
+    transition: background 0.12s, color 0.12s;
+  }
+  .wb-seg button[aria-pressed="true"] {
+    background: #c15f3c;
+    color: #ffffff;
+  }
+  .wb-screens {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-block-start: 8px;
+    border-block-start: 1px solid #292521;
+  }
+  .wb-screens button {
+    padding-block: 7px;
+    padding-inline: 12px;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: #cfc7bc;
+    background: #221f1c;
+    border: 1px solid #38332d;
+    border-radius: var(--r-sm);
+    min-height: 36px;
+  }
+  .wb-screens button[aria-selected="true"] {
+    background: #f4efe8;
+    color: #181614;
+    border-color: #f4efe8;
+  }
+
+  /* Stage container */
+  .stage {
+    padding-block: 28px 64px;
+    padding-inline: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+  .stage-caption {
+    max-width: 1120px;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    direction: ltr;
+    color: #b0a79b;
+    font-size: var(--fs-sm);
+  }
+  .stage-caption b { color: #f4efe8; }
+
+  /* =========================================================
+     3. DEVICE FRAMES (Phone 390×820 / Desktop 1120×720)
+     ========================================================= */
+  .device-frame {
+    background: var(--bg);
+    color: var(--ink-body);
+    border: 2px solid #3a352f;
+    overflow: hidden;
+    display: flex;
+    position: relative;
+    transition: width 0.2s ease;
+  }
+  .device-frame[data-viewport="phone"] {
+    width: 390px;
+    max-width: 100%;
+    height: 812px;
+    border-radius: 16px;
+    flex-direction: column;
+  }
+  .device-frame[data-viewport="desktop"] {
+    width: 1120px;
+    max-width: 100%;
+    height: 720px;
+    border-radius: 10px;
+    flex-direction: row;
+  }
+
+  /* RTL directional icon mirror utility */
+  [dir="rtl"] .flip-rtl {
+    transform: scaleX(-1);
+  }
+
+  /* =========================================================
+     4. APP NAVIGATION (Rail on Desktop, Bottom Bar on Phone)
+     ========================================================= */
+  .app-nav {
+    background: var(--surface);
+    z-index: 20;
+    flex-shrink: 0;
+  }
+  .device-frame[data-viewport="phone"] .app-nav {
+    order: 2;
+    border-block-start: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    min-height: 62px;
+  }
+  .device-frame[data-viewport="desktop"] .app-nav {
+    width: 200px;
+    border-inline-end: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    padding-block: 18px;
+    padding-inline: 12px;
+    gap: 4px;
+  }
+
+  .nav-wordmark {
+    display: none;
+    align-items: center;
+    gap: 9px;
+    padding-inline: 10px;
+    padding-block-end: 16px;
+    margin-block-end: 8px;
+    border-block-end: 1px solid var(--line);
+  }
+  .device-frame[data-viewport="desktop"] .nav-wordmark {
+    display: flex;
+  }
+  .nav-wordmark span {
+    font-family: var(--font-display);
+    font-size: var(--fs-lg);
+    color: var(--wordmark);
+    line-height: 1;
+  }
+
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 48px;
+    color: var(--muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    border-radius: var(--r-sm);
+    padding-inline: 6px;
+    transition: background 0.12s, color 0.12s;
+  }
+  .device-frame[data-viewport="phone"] .nav-btn {
+    flex-direction: column;
+    padding-block: 6px;
+    border-radius: 0;
+  }
+  .device-frame[data-viewport="desktop"] .nav-btn {
+    justify-content: flex-start;
+    gap: 10px;
+    padding-inline: 12px;
+    font-size: var(--fs-md);
+  }
+  .nav-btn svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .nav-btn:hover {
+    background: var(--subtle);
+    color: var(--ink);
+  }
+  /* Solid-fill selection state (no border-only, no floating circle) */
+  .nav-btn[aria-current="page"] {
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .device-frame[data-viewport="phone"] .nav-btn[aria-current="page"] {
+    background: var(--subtle);
+    color: var(--ink);
+    box-shadow: inset 0 2px 0 var(--primary);
+  }
+
+  /* Hide nav on Login screen */
+  .device-frame[data-screen="login"] .app-nav {
+    display: none;
+  }
+
+  /* =========================================================
+     5. APP MAIN VIEWPORT & REUSABLE PRIMITIVES
+     ========================================================= */
+  .app-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* Top status / header bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-block: 12px;
+    padding-inline: 18px;
+    border-block-end: 1px solid var(--line);
+    background: var(--bg);
+    min-height: 54px;
+    flex-shrink: 0;
+  }
+  .wordmark-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-display);
+    font-size: var(--fs-lg);
+    color: var(--wordmark);
+  }
+  .device-frame[data-viewport="desktop"] .hide-on-desktop {
+    display: none;
+  }
+
+  .status-text {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Typography rules: ≤ 6 words heading, ≤ 1 line helper */
+  .h-xl {
+    font-family: var(--font-display);
+    font-size: var(--fs-xl);
+    line-height: 1.18;
+    color: var(--ink);
+    font-weight: 400;
+  }
+  .h-lg {
+    font-size: var(--fs-lg);
+    line-height: 1.25;
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .helper-1 {
+    font-size: var(--fs-sm);
+    color: var(--muted);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Buttons — Verbs, ≥ 44px tap targets, solid or crisp 1px hairline */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    padding-inline: 18px;
+    background: var(--primary);
+    color: var(--primary-ink);
+    font-size: var(--fs-md);
+    font-weight: 700;
+    border-radius: var(--r-md);
+    width: 100%;
+    transition: background 0.12s;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding-inline: 14px;
+    background: var(--surface-strong);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    border-radius: var(--r-sm);
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .btn-secondary:hover {
+    background: var(--subtle);
+    border-color: var(--ink);
+  }
+  .btn-ghost-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding-inline: 14px;
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--line);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    border-radius: var(--r-sm);
+  }
+
+  /* Segmented solid-fill selector (replaces border-only pills) */
+  .seg-group {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--surface-strong);
+    overflow: hidden;
+  }
+  .seg-btn {
+    min-height: 44px;
+    font-size: var(--fs-md);
+    font-weight: 600;
+    color: var(--ink-body);
+    border-inline-end: 1px solid var(--line);
+    transition: background 0.1s, color 0.1s;
+  }
+  .seg-btn:last-child { border-inline-end: none; }
+  .seg-btn[aria-checked="true"] {
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  /* Form controls */
+  .field-label {
+    display: block;
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    color: var(--ink);
+    margin-block-end: 6px;
+  }
+  .input-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding-inline: 12px;
+    background: var(--surface-strong);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+  }
+  .input-box:focus-within {
+    border-color: var(--line-strong);
+    box-shadow: 0 0 0 1px var(--line-strong);
+  }
+  .input-box input,
+  .input-box textarea {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-size: var(--fs-md);
+    color: var(--ink-body);
+    outline: none;
+  }
+  .input-box input::placeholder,
+  .input-box textarea::placeholder {
+    color: var(--muted);
+  }
+  .field-error {
+    margin-block-start: 6px;
+    padding-block: 8px;
+    padding-inline: 10px;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger);
+    border-radius: var(--r-sm);
+    color: var(--danger);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  /* Hairline list rows (Busbo discipline: zero cards-in-cards) */
+  .row-list {
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface-strong);
+    overflow: hidden;
+  }
+  .row-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 58px;
+    padding-block: 12px;
+    padding-inline: 14px;
+    border-block-end: 1px solid var(--line);
+    width: 100%;
+    text-align: start;
+    transition: background 0.12s;
+  }
+  .row-item:last-child { border-block-end: none; }
+  button.row-item:hover { background: var(--subtle); }
+  .row-main {
+    min-width: 0;
+    flex: 1;
+  }
+  .row-title {
+    font-size: var(--fs-md);
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .row-sub {
+    font-size: var(--fs-sm);
+    color: var(--muted);
+    margin-block-start: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Atmospheric Top Hero Band (Calm Mediterranean trail wash) */
+  .hero-band {
+    position: relative;
+    overflow: hidden;
+    border-block-end: 1px solid var(--line);
+    background: var(--hero-sky);
+    flex-shrink: 0;
+  }
+  .hero-band svg.hero-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+  }
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    padding-block: 20px 18px;
+    padding-inline: 18px;
+  }
+
+  /* Assistant Character Mark (Cairn / Compass Companion) */
+  .ori-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r-sm);
+    background: var(--ink);
+    color: var(--bg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* =========================================================
+     6. SCREEN LAYOUTS (Responsive Phone vs Desktop)
+     ========================================================= */
+  .screen-view { display: none; flex: 1; min-height: 0; }
+  .device-frame[data-screen="home"] .screen-home,
+  .device-frame[data-screen="plan"] .screen-plan,
+  .device-frame[data-screen="walk"] .screen-walk,
+  .device-frame[data-screen="walks"] .screen-walks,
+  .device-frame[data-screen="me"] .screen-me,
+  .device-frame[data-screen="login"] .screen-login {
+    display: flex;
+  }
+
+  /* --- (A) HOME --- */
+  .screen-home {
+    flex-direction: column;
+  }
+  .home-body {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    max-width: 780px;
+    width: 100%;
+    margin-inline: auto;
+  }
+  .device-frame[data-viewport="desktop"] .home-body {
+    padding-block: 28px;
+    padding-inline: 36px;
+  }
+  .quick-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-block-end: 8px;
+  }
+
+  /* --- (B) PLAN + ASSISTANT --- */
+  .screen-plan {
+    flex-direction: column;
+  }
+  .device-frame[data-viewport="desktop"] .screen-plan {
+    flex-direction: row;
+  }
+  .plan-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .device-frame[data-viewport="desktop"] .plan-panel {
+    width: 430px;
+    flex: none;
+    border-inline-end: 1px solid var(--line);
+  }
+  .plan-map-pane {
+    position: relative;
+    background: var(--map-land);
+    border-block-start: 1px solid var(--line);
+    height: 210px;
+    flex-shrink: 0;
+  }
+  /* On phone, form + assistant comes FIRST so user knows what to do immediately; compact map preview sits below or toggles full */
+  .device-frame[data-viewport="desktop"] .plan-map-pane {
+    flex: 1;
+    height: auto;
+    border-block-start: none;
+  }
+  .assistant-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .plan-body {
+    padding: 16px 18px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .ori-bubble {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: 12px 14px;
+    font-size: var(--fs-md);
+    line-height: 1.45;
+    color: var(--ink-body);
+  }
+  .prompt-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .prompt-chip {
+    min-height: 38px;
+    padding-inline: 11px;
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    background: var(--surface-strong);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    color: var(--ink);
+  }
+  .prompt-chip:hover {
+    background: var(--subtle);
+    border-color: var(--ink);
+  }
+  details.adv-disclosure {
+    border-block-start: 1px solid var(--line);
+    padding-block-start: 10px;
+  }
+  details.adv-disclosure summary {
+    list-style: none;
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    color: var(--ink);
+  }
+  details.adv-disclosure summary::-webkit-details-marker { display: none; }
+  .adv-grid {
+    padding-block: 10px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* --- (C) LIVE WALK (Map + Bottom Sheet / Side Dock) --- */
+  .screen-walk {
+    position: relative;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .walk-map-canvas {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    background: var(--map-land);
+  }
+  .walk-top-hud {
+    position: absolute;
+    top: 14px;
+    inset-inline: 14px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .walk-top-hud > * { pointer-events: auto; }
+  .hud-pill {
+    background: var(--surface-strong);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-float);
+    border-radius: var(--r-sm);
+    padding-block: 8px;
+    padding-inline: 12px;
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    color: var(--ink);
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .walk-sheet {
+    background: var(--surface);
+    border-block-start: 1px solid var(--line);
+    box-shadow: var(--shadow-sheet);
+    padding: 14px 18px 18px;
+    z-index: 12;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .sheet-grabber {
+    width: 36px;
+    height: 4px;
+    background: var(--line);
+    border-radius: 2px;
+    align-self: center;
+  }
+  .device-frame[data-viewport="desktop"] .walk-sheet {
+    position: absolute;
+    top: 68px;
+    inset-inline-start: 18px;
+    width: 380px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-float);
+  }
+  .device-frame[data-viewport="desktop"] .sheet-grabber {
+    display: none;
+  }
+  .stop-step-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .step-num {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--r-sm);
+    background: var(--route);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: var(--fs-md);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .walk-actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+
+  /* --- (D) MY WALKS & (E) ME/SETTINGS --- */
+  .screen-walks,
+  .screen-me {
+    flex-direction: column;
+  }
+  .centered-page {
+    padding: 20px 18px 32px;
+    max-width: 680px;
+    width: 100%;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .device-frame[data-viewport="desktop"] .centered-page {
+    padding-block: 28px;
+    padding-inline: 32px;
+  }
+  .empty-box {
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    padding: 28px 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* --- (F) LOGIN --- */
+  .screen-login {
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+  .login-wrap {
+    max-width: 420px;
+    width: 100%;
+    margin-inline: auto;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .divider-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: var(--fs-xs);
+  }
+  .divider-line::before,
+  .divider-line::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  /* SVG Map styling */
+  .map-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .map-attribution {
+    position: absolute;
+    bottom: 6px;
+    inset-inline-end: 8px;
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    background: var(--surface);
+    padding-inline: 6px;
+    padding-block: 2px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+
+  /* =========================================================
+     7. DESIGN NOTES FOOTER (6 Required Bullets)
+     ========================================================= */
+  .notes-panel {
+    max-width: 1120px;
+    width: 100%;
+    margin-inline: auto;
+    padding: 28px;
+    background: #1c1917;
+    border: 1px solid #332e29;
+    border-radius: 10px;
+    direction: ltr;
+    color: #e6dfd5;
+  }
+  .notes-panel h2 {
+    font-family: var(--font-display);
+    font-size: var(--fs-lg);
+    color: #f4efe8;
+    margin-block-end: 16px;
+    font-weight: 400;
+  }
+  .notes-panel ul {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-inline-start: 20px;
+  }
+  .notes-panel li {
+    font-size: var(--fs-sm);
+    line-height: 1.55;
+    color: #cfc7bc;
+  }
+  .notes-panel li strong {
+    color: #f4efe8;
+  }
+  .notes-panel code {
+    background: #2a2622;
+    padding-inline: 5px;
+    padding-block: 1px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #e89b7e;
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================================
+     STUDIO CONTROLS (Screen / Lang RTL-LTR / Day-Night / Frame)
+     ========================================================= -->
+<header class="workbench-bar" role="region" aria-label="Design Prototype Controls">
+  <div class="wb-brand">
+    <strong>Traike</strong>
+    <span>Round 1 · App UI System (Phone + Desktop · EN/HE · Day/Night)</span>
+  </div>
+
+  <div class="wb-controls">
+    <div class="wb-seg" role="group" aria-label="Language and Direction">
+      <button type="button" data-set-lang="en" aria-pressed="true">English (LTR)</button>
+      <button type="button" data-set-lang="he" aria-pressed="false">עברית (RTL)</button>
+    </div>
+    <div class="wb-seg" role="group" aria-label="Color Theme">
+      <button type="button" data-set-theme="day" aria-pressed="true">Day</button>
+      <button type="button" data-set-theme="night" aria-pressed="false">Night</button>
+    </div>
+    <div class="wb-seg" role="group" aria-label="Device Viewport">
+      <button type="button" data-set-vp="phone" aria-pressed="true">Phone (390)</button>
+      <button type="button" data-set-vp="desktop" aria-pressed="false">Desktop (1120)</button>
+    </div>
+  </div>
+
+  <nav class="wb-screens" role="tablist" aria-label="App Screens">
+    <button type="button" role="tab" data-go="home" aria-selected="false">A · Home</button>
+    <button type="button" role="tab" data-go="plan" aria-selected="true">B · Plan + Assistant</button>
+    <button type="button" role="tab" data-go="walk" aria-selected="false">C · Live Walk</button>
+    <button type="button" role="tab" data-go="walks" aria-selected="false">D · My Walks</button>
+    <button type="button" role="tab" data-go="me" aria-selected="false">E · Me &amp; Settings</button>
+    <button type="button" role="tab" data-go="login" aria-selected="false">F · Login</button>
+  </nav>
+</header>
+
+<main class="stage">
+  <div class="stage-caption">
+    <span id="screen-rationale"><b>B · Plan + Assistant:</b> One conversational request or location+time, calm Jerusalem hills wash at top, advanced options tucked away.</span>
+    <span>Interactive prototype — click tabs, duration chips, walk states, or inside-app navigation.</span>
+  </div>
+
+  <!-- =========================================================
+       THE APP FRAME
+       ========================================================= -->
+  <div class="device-frame" id="app-frame" data-viewport="phone" data-screen="plan" dir="ltr" lang="en">
+
+    <!-- SHARED NAVIGATION (Rail on Desktop / Bottom Bar on Phone) -->
+    <nav class="app-nav" aria-label="Main Navigation">
+      <div class="nav-wordmark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect width="24" height="24" rx="5" fill="var(--primary)"/>
+          <path d="M6 17L10.5 9L14 14L18 7" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="18" cy="7" r="2" fill="#fff"/>
+        </svg>
+        <span>Traike</span>
+      </div>
+
+      <button type="button" class="nav-btn" data-go="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
+          <path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5z"/>
+        </svg>
+        <span data-i18n="navHome">Home</span>
+      </button>
+
+      <button type="button" class="nav-btn" data-go="plan" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
+          <circle cx="12" cy="12" r="9"/>
+          <polygon points="15.5,8.5 13.5,13.5 8.5,15.5 10.5,10.5" fill="currentColor" stroke="none"/>
+        </svg>
+        <span data-i18n="navPlan">Plan</span>
+      </button>
+
+      <button type="button" class="nav-btn" data-go="walks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
+          <circle cx="6" cy="18" r="2.5"/>
+          <circle cx="18" cy="6" r="2.5"/>
+          <path d="M8.5 18H13a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h4.5"/>
+        </svg>
+        <span data-i18n="navWalks">Walks</span>
+      </button>
+
+      <button type="button" class="nav-btn" data-go="walk">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
+          <path d="M12 2L4.5 20.5l7.5-4 7.5 4L12 2z"/>
+        </svg>
+        <span data-i18n="navLive">Live</span>
+      </button>
+
+      <button type="button" class="nav-btn" data-go="me">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 20c1.5-4 5-6 8-6s6.5 2 8 6"/>
+        </svg>
+        <span data-i18n="navMe">Me</span>
+      </button>
+    </nav>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <div class="app-main">
+
+      <!-- =====================================================
+           SCREEN A: HOME
+           One question: "Ready to step out?" -> One primary action
+           ===================================================== -->
+      <section class="screen-view screen-home" aria-label="Home">
+        <div class="hero-band">
+          <svg class="hero-art" viewBox="0 0 800 220" preserveAspectRatio="none" aria-hidden="true">
+            <rect width="800" height="220" fill="var(--hero-sky)"/>
+            <circle cx="650" cy="62" r="38" fill="var(--hero-sun)" opacity="0.45"/>
+            <path d="M0 150 Q220 95 460 135 T800 115 L800 220 L0 220 Z" fill="var(--hero-hill-far)"/>
+            <path d="M0 175 Q280 130 560 168 T800 152 L800 220 L0 220 Z" fill="var(--hero-hill-mid)" opacity="0.55"/>
+            <path d="M290 220 Q410 165 520 148" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-dasharray="5 5"/>
+          </svg>
+          <div class="hero-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-block-end:14px;">
+              <span class="wordmark-inline hide-on-desktop">Traike</span>
+              <span class="status-text" data-i18n="homeStatus">Jerusalem · 21°C · Clear evening</span>
+            </div>
+            <h1 class="h-xl" data-i18n="homeTitle">Where are we walking today?</h1>
+            <p class="helper-1" style="margin-block-start:4px;" data-i18n="homeHelper">Pick your free time for an instant loop from here.</p>
+          </div>
+        </div>
+
+        <div class="home-body">
+          <!-- Primary Action Block -->
+          <div class="quick-card">
+            <div>
+              <label class="field-label" data-i18n="homeDurationLabel">Time you have right now</label>
+              <div class="seg-group" role="radiogroup" aria-label="Walk duration">
+                <button type="button" class="seg-btn" role="radio" aria-checked="false" onclick="selectSeg(this)">30m</button>
+                <button type="button" class="seg-btn" role="radio" aria-checked="true" onclick="selectSeg(this)">60m</button>
+                <button type="button" class="seg-btn" role="radio" aria-checked="false" onclick="selectSeg(this)">90m</button>
+                <button type="button" class="seg-btn" role="radio" aria-checked="false" onclick="selectSeg(this)">2h+</button>
+              </div>
+            </div>
+
+            <button type="button" class="btn-primary" data-go="plan">
+              <span data-i18n="homePrimaryBtn">Plan a walk</span>
+              <svg class="flip-rtl" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Secondary: Continue / Recent Walks (Crisp 1px list, zero blur cards) -->
+          <div>
+            <div class="section-head">
+              <h2 class="h-lg" data-i18n="homeRecentHeading">Recent &amp; nearby walks</h2>
+              <button type="button" style="font-size:var(--fs-sm); font-weight:700; color:var(--primary);" data-go="walks" data-i18n="seeAll">See all</button>
+            </div>
+            <div class="row-list">
+              <button type="button" class="row-item" data-go="walk">
+                <div class="row-main">
+                  <div class="row-title" data-i18n="walk1Title">Rehavia Windmill &amp; Cafés</div>
+                  <div class="row-sub" data-i18n="walk1Meta">3.4 km · 55 min · 4 stops · Saved</div>
+                </div>
+                <svg class="flip-rtl" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <button type="button" class="row-item" data-go="walk">
+                <div class="row-main">
+                  <div class="row-title" data-i18n="walk2Title">Jaffa Port to Neve Tzedek</div>
+                  <div class="row-sub" data-i18n="walk2Meta">4.1 km · 75 min · 5 stops · Walked Tue</div>
+                </div>
+                <svg class="flip-rtl" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           SCREEN B: PLAN + AI ASSISTANT ("ORI")
+           Hero wash at top, Assistant character, 1 primary path,
+           advanced options collapsed.
+           ===================================================== -->
+      <section class="screen-view screen-plan" aria-label="Plan a walk">
+        <div class="plan-panel">
+          <!-- Calm Atmospheric Top Band + Assistant Presence -->
+          <div class="hero-band">
+            <svg class="hero-art" viewBox="0 0 600 180" preserveAspectRatio="none" aria-hidden="true">
+              <rect width="600" height="180" fill="var(--hero-sky)"/>
+              <circle cx="490" cy="48" r="30" fill="var(--hero-sun)" opacity="0.42"/>
+              <path d="M0 128 Q160 84 340 118 T600 96 L600 180 L0 180 Z" fill="var(--hero-hill-far)"/>
+              <path d="M0 152 Q210 118 420 146 T600 132 L600 180 L0 180 Z" fill="var(--hero-hill-mid)" opacity="0.5"/>
+              <path d="M120 180 Q250 142 355 122" fill="none" stroke="var(--route)" stroke-width="2" stroke-dasharray="4 4"/>
+            </svg>
+            <div class="hero-content">
+              <div class="assistant-header">
+                <!-- Ori: Custom trail-cairn / compass mark -->
+                <div class="ori-avatar" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <ellipse cx="12" cy="18" rx="6.5" ry="2.5" fill="currentColor"/>
+                    <ellipse cx="12" cy="12.5" rx="4.5" ry="2.2" fill="currentColor"/>
+                    <circle cx="12" cy="7.2" r="2.3" fill="var(--primary)"/>
+                  </svg>
+                </div>
+                <div style="min-width:0; flex:1;">
+                  <div class="status-text" data-i18n="oriRole">Ori · Trail Companion · Near Mahane Yehuda</div>
+                  <h1 class="h-xl" style="font-size:var(--fs-lg); margin-block-start:2px;" data-i18n="planHeading">Build your walk</h1>
+                </div>
+              </div>
+              <p class="helper-1" style="margin-block-start:8px;" data-i18n="planHelper">Describe the stops or mood you want, and pick your time.</p>
+            </div>
+          </div>
+
+          <!-- Conversational + Structured Single Flow -->
+          <div class="plan-body">
+            <!-- Assistant message -->
+            <div class="ori-bubble" id="ori-reply" data-i18n="oriGreeting">
+              I see you’re in central Jerusalem. Tell me what you feel like seeing—or just tap Build Route for a shaded 60-minute loop.
+            </div>
+
+            <!-- Quick suggestion chips -->
+            <div class="prompt-strip" aria-label="Quick ideas">
+              <button type="button" class="prompt-chip" onclick="fillPrompt(0)" data-i18n="chip1">Shaded alleys + coffee</button>
+              <button type="button" class="prompt-chip" onclick="fillPrompt(1)" data-i18n="chip2">Old stone courtyards</button>
+              <button type="button" class="prompt-chip" onclick="fillPrompt(2)" data-i18n="chip3">Sunset viewpoint</button>
+            </div>
+
+            <!-- Single Primary Request Input -->
+            <div>
+              <label class="field-label" for="plan-ask" data-i18n="askLabel">Where or what to include</label>
+              <div class="input-box" style="padding-block:8px; align-items:flex-start;">
+                <textarea id="plan-ask" rows="2" data-i18n-placeholder="askPlaceholder" placeholder="e.g. Start here, pass a bakery and quiet park, end near Jaffa Gate"></textarea>
+              </div>
+            </div>
+
+            <!-- Duration Segmented Bar -->
+            <div>
+              <label class="field-label" data-i18n="timeLabel">Time available</label>
+              <div class="seg-group" role="radiogroup" aria-label="Minutes available">
+                <button type="button" class="seg-btn" role="radio" aria-checked="false" onclick="selectSeg(this)">45m</button>
+                <button type="button" class="seg-btn" role="radio" aria-checked="true" onclick="selectSeg(this)">60m</button>
+                <button type="button" class="seg-btn" role="radio" aria-checked="false" onclick="selectSeg(this)">90m</button>
+                <button type="button" class="seg-btn" role="radio" aria-checked="false" onclick="selectSeg(this)" data-i18n="openTime">Open</button>
+              </div>
+            </div>
+
+            <!-- ONE Primary Action Verb -->
+            <button type="button" class="btn-primary" data-go="walk">
+              <span data-i18n="buildBtn">Build walking route</span>
+              <svg class="flip-rtl" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>
+            </button>
+
+            <!-- Progressive Disclosure: All intimidating lat/lng/pace/radius hidden here -->
+            <details class="adv-disclosure">
+              <summary>
+                <span data-i18n="moreOptions">More route options (start point, pace, loop)</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+              </summary>
+              <div class="adv-grid">
+                <div>
+                  <label class="field-label" for="start-loc" data-i18n="startLabel">Starting point</label>
+                  <div class="input-box">
+                    <input id="start-loc" type="text" value="Current GPS · Agripas St 44" />
+                  </div>
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="paceLabel">Walking pace</label>
+                  <div class="seg-group" role="radiogroup">
+                    <button type="button" class="seg-btn" role="radio" aria-checked="false" onclick="selectSeg(this)" data-i18n="paceEasy">Easy</button>
+                    <button type="button" class="seg-btn" role="radio" aria-checked="true" onclick="selectSeg(this)" data-i18n="paceNormal">Normal</button>
+                    <button type="button" class="seg-btn" role="radio" aria-checked="false" onclick="selectSeg(this)" data-i18n="paceBrisk">Brisk</button>
+                  </div>
+                </div>
+                <div>
+                  <label class="field-label" data-i18n="endLabel">Finish point</label>
+                  <div class="seg-group" role="radiogroup">
+                    <button type="button" class="seg-btn" role="radio" aria-checked="true" onclick="selectSeg(this)" data-i18n="endLoop">Round loop</button>
+                    <button type="button" class="seg-btn" role="radio" aria-checked="false" onclick="selectSeg(this)" data-i18n="endAnywhere">Anywhere</button>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <!-- Clean Vector Map Preview (Right pane on Desktop / Compact bottom preview on Phone) -->
+        <div class="plan-map-pane" aria-label="Route preview map">
+          <svg class="map-svg" viewBox="0 0 600 500" preserveAspectRatio="xMidYMid slice">
+            <rect width="600" height="500" fill="var(--map-land)"/>
+            <!-- Parks -->
+            <path d="M60 80 L200 65 L220 190 L85 210 Z" fill="var(--map-park)"/>
+            <path d="M390 290 L540 270 L560 420 L410 430 Z" fill="var(--map-park)"/>
+            <!-- Roads -->
+            <g stroke="var(--map-road)" stroke-width="10" fill="none" stroke-linecap="round">
+              <path d="M-20 140 L620 95"/>
+              <path d="M-20 310 L620 260"/>
+              <path d="M150 -20 L195 520"/>
+              <path d="M380 -20 L340 520"/>
+            </g>
+            <g stroke="var(--line)" stroke-width="1.5" fill="none">
+              <path d="M-20 220 L620 195"/>
+              <path d="M270 -20 L265 520"/>
+            </g>
+            <!-- Proposed Route Preview -->
+            <path d="M180 285 L265 205 L360 195 L350 280 L255 325 Z" fill="none" stroke="var(--route)" stroke-width="4.5" stroke-linejoin="round" stroke-dasharray="8 6"/>
+            <!-- Stop Pins -->
+            <circle cx="180" cy="285" r="8" fill="var(--primary)" stroke="#fff" stroke-width="2.5"/>
+            <circle cx="265" cy="205" r="6" fill="var(--route)" stroke="#fff" stroke-width="2"/>
+            <circle cx="360" cy="195" r="6" fill="var(--route)" stroke="#fff" stroke-width="2"/>
+            <circle cx="350" cy="280" r="6" fill="var(--route)" stroke="#fff" stroke-width="2"/>
+          </svg>
+          <div class="map-attribution">© OpenStreetMap · Traike</div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           SCREEN C: LIVE WALK (Map + Crisp Bottom Sheet)
+           Shows Next Stop, Off-route toggleable status, 1 primary verb
+           ===================================================== -->
+      <section class="screen-view screen-walk" aria-label="Live Walk Guidance">
+        <div class="walk-map-canvas">
+          <!-- Top HUD: Progress status + Demo off-route toggle -->
+          <div class="walk-top-hud">
+            <div class="hud-pill">
+              <span data-i18n="walkHudProgress">Stop 2 of 4 · 32 min left</span>
+            </div>
+            <button type="button" class="hud-pill" id="offroute-toggle" onclick="toggleOffRoute()" style="color:var(--primary);">
+              <span data-i18n="simOffRoute">Test off-route</span>
+            </button>
+          </div>
+
+          <!-- Live Navigation Map -->
+          <svg class="map-svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+            <rect width="800" height="600" fill="var(--map-land)"/>
+            <path d="M40 60 L290 40 L310 240 L70 260 Z" fill="var(--map-park)"/>
+            <path d="M510 240 L760 210 L780 460 L530 480 Z" fill="var(--map-park)"/>
+            <g stroke="var(--map-road)" stroke-width="14" fill="none">
+              <path d="M0 190 L800 130"/>
+              <path d="M0 370 L800 320"/>
+              <path d="M240 0 L290 600"/>
+              <path d="M520 0 L480 600"/>
+            </g>
+            <!-- Walked segment (muted) -->
+            <path d="M265 352 L345 270" stroke="var(--muted)" stroke-width="5" stroke-dasharray="4 6" fill="none"/>
+            <!-- Active Route Line ahead -->
+            <path d="M345 270 L495 215 L560 335 L420 410" stroke="var(--route)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <!-- Current User Position -->
+            <circle cx="345" cy="270" r="10" fill="var(--primary)" stroke="#ffffff" stroke-width="3"/>
+            <!-- Next Stop Marker (#2) -->
+            <g transform="translate(495, 215)">
+              <rect x="-13" y="-13" width="26" height="26" rx="6" fill="var(--route)" stroke="#ffffff" stroke-width="2"/>
+              <text x="0" y="5" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="700">2</text>
+            </g>
+            <!-- Stop #3 -->
+            <circle cx="560" cy="335" r="7" fill="var(--surface-strong)" stroke="var(--route)" stroke-width="3"/>
+          </svg>
+        </div>
+
+        <!-- Bottom Sheet (Phone) / Floating Side Sheet (Desktop) -->
+        <div class="walk-sheet" role="region" aria-label="Next stop guidance">
+          <div class="sheet-grabber" aria-hidden="true"></div>
+
+          <!-- Inline plain-language off-route alert (hidden until toggled) -->
+          <div class="field-error" id="offroute-banner" style="display:none; margin:0;">
+            <span data-i18n="offRouteMsg">You’re 65m off the path. Rejoin via Ramban St?</span>
+            <button type="button" class="btn-secondary" style="min-height:34px; padding-inline:10px;" onclick="toggleOffRoute()" data-i18n="rerouteVerb">Reroute</button>
+          </div>
+
+          <div class="stop-step-box">
+            <div class="step-num">2</div>
+            <div style="min-width:0; flex:1;">
+              <div class="status-text" data-i18n="nextStopDist">240 m ahead · Turn left on Ibn Ezra</div>
+              <h2 class="h-lg" style="margin-block-start:2px;" data-i18n="nextStopName">Montefiore Windmill Terrace</h2>
+              <p class="helper-1" style="margin-block-start:3px;" data-i18n="nextStopNote">1857 stone landmark overlooking the Old City walls.</p>
+            </div>
+          </div>
+
+          <div class="walk-actions">
+            <button type="button" class="btn-primary" data-i18n="arrivedBtn">Mark stop reached</button>
+            <button type="button" class="btn-secondary" data-go="plan" data-i18n="askOriBtn">Ask Ori</button>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; padding-block-start:4px; border-block-start:1px solid var(--line);">
+            <span class="status-text" data-i18n="afterThis">Next: Hansen House Garden (650 m)</span>
+            <button type="button" style="font-size:var(--fs-sm); font-weight:700; color:var(--danger); min-height:36px;" data-go="walks" data-i18n="finishWalkVerb">End walk</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           SCREEN D: MY WALKS
+           Shows Saved/History list + toggle to see clean Empty State
+           ===================================================== -->
+      <section class="screen-view screen-walks" aria-label="My Walks">
+        <div class="topbar">
+          <h1 class="h-lg" data-i18n="walksTitle">My walks</h1>
+          <button type="button" class="btn-secondary" style="min-height:36px;" onclick="toggleWalksEmpty()" data-i18n="toggleEmptyBtn">Preview empty state</button>
+        </div>
+
+        <div class="centered-page">
+          <div class="seg-group" role="tablist">
+            <button type="button" class="seg-btn" role="tab" aria-checked="true" onclick="selectSeg(this)" data-i18n="tabSaved">Saved (3)</button>
+            <button type="button" class="seg-btn" role="tab" aria-checked="false" onclick="selectSeg(this)" data-i18n="tabHistory">Walked (5)</button>
+            <button type="button" class="seg-btn" role="tab" aria-checked="false" onclick="selectSeg(this)" data-i18n="tabFriends">Friends</button>
+          </div>
+
+          <!-- Populated State -->
+          <div id="walks-populated" style="display:flex; flex-direction:column; gap:14px;">
+            <p class="helper-1" data-i18n="walksHelper">Tap any route to walk it live or adjust stops.</p>
+            <div class="row-list">
+              <button type="button" class="row-item" data-go="walk">
+                <div class="row-main">
+                  <div class="row-title" data-i18n="walk1Title">Rehavia Windmill &amp; Cafés</div>
+                  <div class="row-sub" data-i18n="walk1Meta">3.4 km · 55 min · 4 stops · Saved</div>
+                </div>
+                <svg class="flip-rtl" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <button type="button" class="row-item" data-go="walk">
+                <div class="row-main">
+                  <div class="row-title" data-i18n="walk2Title">Jaffa Port to Neve Tzedek</div>
+                  <div class="row-sub" data-i18n="walk2Meta">4.1 km · 75 min · 5 stops · Walked Tue</div>
+                </div>
+                <svg class="flip-rtl" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <button type="button" class="row-item" data-go="walk">
+                <div class="row-main">
+                  <div class="row-title" data-i18n="walk3Title">Haifa Carmel Ridge Promenade</div>
+                  <div class="row-sub" data-i18n="walk3Meta">2.8 km · 45 min · 3 stops · Shared by Noa</div>
+                </div>
+                <svg class="flip-rtl" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Empty State (Wiki rule: 1 line + 1 button, teaches) -->
+          <div id="walks-empty" class="empty-box" style="display:none;">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="var(--ink)" stroke-width="2" aria-hidden="true">
+              <path d="M8 38C18 36 22 24 30 22C36 20.5 40 12 40 10" stroke-dasharray="4 4"/>
+              <circle cx="10" cy="38" r="3" fill="var(--primary)" stroke="none"/>
+              <circle cx="40" cy="10" r="3" fill="var(--route)" stroke="none"/>
+            </svg>
+            <h2 class="h-lg" data-i18n="emptyTitle">No saved walks yet</h2>
+            <p class="helper-1" data-i18n="emptyHelper">Routes you save or finish appear here for offline access.</p>
+            <button type="button" class="btn-primary" style="max-width:240px;" data-go="plan" data-i18n="homePrimaryBtn">Plan a walk</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           SCREEN E: ME & SETTINGS
+           Single clean hairline list instead of 5 disconnected cards
+           ===================================================== -->
+      <section class="screen-view screen-me" aria-label="Account and Settings">
+        <div class="topbar">
+          <h1 class="h-lg" data-i18n="meTitle">Me &amp; settings</h1>
+          <span class="status-text">v2.4 · Synced</span>
+        </div>
+
+        <div class="centered-page">
+          <!-- Account Banner -->
+          <div class="quick-card" style="flex-direction:row; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div style="min-width:0;">
+              <div class="row-title" data-i18n="guestHeading">Walking as Guest</div>
+              <p class="helper-1" data-i18n="guestHelper">Sign in to back up walks across phone and desktop.</p>
+            </div>
+            <button type="button" class="btn-primary" style="width:auto; min-width:130px;" data-go="login" data-i18n="signInBtn">Sign in</button>
+          </div>
+
+          <!-- Preferences Group (1px row list) -->
+          <div>
+            <div class="section-head">
+              <h2 class="h-lg" data-i18n="prefsHeading">Preferences</h2>
+            </div>
+            <div class="row-list">
+              <div class="row-item">
+                <div class="row-main">
+                  <div class="row-title" data-i18n="prefLang">Language</div>
+                  <div class="row-sub" data-i18n="prefLangSub">Interface &amp; voice directions</div>
+                </div>
+                <div class="seg-group" style="width:156px;">
+                  <button type="button" class="seg-btn" style="min-height:38px; font-size:var(--fs-sm);" data-set-lang="en" aria-checked="true">EN</button>
+                  <button type="button" class="seg-btn" style="min-height:38px; font-size:var(--fs-sm);" data-set-lang="he" aria-checked="false">עב</button>
+                </div>
+              </div>
+
+              <div class="row-item">
+                <div class="row-main">
+                  <div class="row-title" data-i18n="prefTheme">Appearance</div>
+                  <div class="row-sub" data-i18n="prefThemeSub">High-contrast day or night palette</div>
+                </div>
+                <div class="seg-group" style="width:156px;">
+                  <button type="button" class="seg-btn" style="min-height:38px; font-size:var(--fs-sm);" data-set-theme="day" aria-checked="true" data-i18n="dayWord">Day</button>
+                  <button type="button" class="seg-btn" style="min-height:38px; font-size:var(--fs-sm);" data-set-theme="night" aria-checked="false" data-i18n="nightWord">Night</button>
+                </div>
+              </div>
+
+              <div class="row-item">
+                <div class="row-main">
+                  <div class="row-title" data-i18n="prefPace">Default pace</div>
+                  <div class="row-sub" data-i18n="prefPaceSub">Normal (15 min / km)</div>
+                </div>
+                <span style="font-size:var(--fs-sm); font-weight:700; color:var(--primary);" data-i18n="changeVerb">Change</span>
+              </div>
+
+              <button type="button" class="row-item">
+                <div class="row-main">
+                  <div class="row-title" data-i18n="refreshApp">Reload map cache</div>
+                  <div class="row-sub" data-i18n="refreshSub">Clears temporary tiles without losing saved walks</div>
+                </div>
+                <svg class="flip-rtl" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quiet Legal Line (replaces giant white attribution card) -->
+          <p style="font-size:var(--fs-xs); color:var(--muted); line-height:1.5;">
+            Routes: © openrouteservice by HeiGIT · Map data © OpenStreetMap contributors · Weather: Open-Meteo.
+          </p>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           SCREEN F: LOGIN
+           Focused single task + inline field error demonstration
+           ===================================================== -->
+      <section class="screen-view screen-login" aria-label="Sign in">
+        <div class="hero-band">
+          <svg class="hero-art" viewBox="0 0 600 150" preserveAspectRatio="none" aria-hidden="true">
+            <rect width="600" height="150" fill="var(--hero-sky)"/>
+            <path d="M0 110 Q200 72 420 105 T600 88 L600 150 L0 150 Z" fill="var(--hero-hill-far)"/>
+          </svg>
+          <div class="hero-content" style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="wordmark-inline">Traike</span>
+            <button type="button" class="btn-secondary" style="min-height:38px;" data-go="home" data-i18n="backBtn">Back to app</button>
+          </div>
+        </div>
+
+        <div class="login-wrap">
+          <div>
+            <h1 class="h-xl" data-i18n="loginHeading">Sign in to Traike</h1>
+            <p class="helper-1" style="margin-block-start:4px;" data-i18n="loginHelper">We’ll send a 6-digit login code to your email.</p>
+          </div>
+
+          <div>
+            <label class="field-label" for="login-email" data-i18n="emailLabel">Email address</label>
+            <div class="input-box">
+              <input id="login-email" type="email" value="dana@example.co.il" />
+            </div>
+            <!-- Inline plain-words field error (toggleable to inspect) -->
+            <div class="field-error" id="login-error" style="display:none;">
+              <span data-i18n="emailError">Enter a valid email address with @ and a domain.</span>
+            </div>
+          </div>
+
+          <button type="button" class="btn-primary" onclick="validateDemoEmail()" data-i18n="sendCodeBtn">Send login code</button>
+
+          <div class="divider-line" data-i18n="orWord">or</div>
+
+          <button type="button" class="btn-secondary" style="width:100%; min-height:48px;" data-go="home">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+            <span data-i18n="googleBtn">Continue with Google</span>
+          </button>
+
+          <button type="button" style="font-size:var(--fs-xs); color:var(--muted); text-decoration:underline; min-height:36px;" onclick="toggleLoginError()" data-i18n="testErrorBtn">
+            Preview inline validation error
+          </button>
+        </div>
+      </section>
+
+    </div><!-- /.app-main -->
+  </div><!-- /.device-frame -->
+
+  <!-- =========================================================
+       REQUIRED 6 DESIGN ARCHITECTURE BULLETS
+       ========================================================= -->
+  <section class="notes-panel" aria-label="Design System Summary">
+    <h2>Round 1 Design Specification (6 Summary Points)</h2>
+    <ul>
+      <li>
+        <strong>1. Role Tokens, 5-Size Type Scale, Radii &amp; Shadows:</strong>
+        Day tokens: <code>--bg: #fbf8f4</code>, <code>--surface: #fcf7f0</code>, <code>--surface-strong: #ffffff</code>, <code>--ink: #1e3d2f</code>, <code>--ink-body: #231f1c</code>, <code>--muted: #586656</code> (darkened from <code>#5f6f5d</code> to pass ≥ 4.8:1 AA on cream), <code>--line: #e2d8c9</code>, <code>--primary: #c15f3c</code>, <code>--route: #25604b</code>, <code>--danger: #b43228</code>. Night swaps in one <code>[data-theme="night"]</code> block: <code>--bg: #181614</code>, <code>--surface: #221f1c</code>, <code>--ink: #f4efe8</code>, <code>--muted: #b0a79b</code>, <code>--line: #38322c</code>, keeping <code>--primary: #c15f3c</code> and lifting route green to <code>#4ca382</code>. Fonts kept: <em>Secular One</em> (expressive Hebrew+Latin display) + <em>Heebo</em> (clean geometric Hebrew+Latin UI). Strict 5-step scale: <code>26px</code>, <code>20px</code>, <code>16px</code>, <code>14px</code>, <code>13px</code>. Radii: <code>6px / 8px / 10px</code>; shadows restricted to 1px structural hairlines plus subtle sheet lift (<code>0 -2px 12px rgba(35,31,28,.08)</code>).
+      </li>
+      <li>
+        <strong>2. What Was Removed:</strong>
+        Eliminated the muddy full-screen blurred photo backgrounds; the raw <code>Latitude / Longitude</code>, <code>Search radius (km)</code>, and <code>Max distance</code> inputs from the primary Plan view; competing dual forms ("Name your own stops" vs "City Walk Companion"); nested cards-in-cards; the oversized floating circular <code>+</code> FAB in the navigation bar; 3D clipart breaking card borders; border-only active pills; and the giant standalone white copyright card in Me.
+      </li>
+      <li>
+        <strong>3. Hero Element of Each Screen:</strong>
+        <strong>(A) Home:</strong> Instant duration selector + <em>Plan a walk</em> button anchored beneath a calm Jerusalem hills wash.
+        <strong>(B) Plan + Assistant:</strong> <em>Ori</em> (custom 3-stone trail cairn mark) inside a calm atmospheric landscape header leading directly into a single conversational request + duration bar.
+        <strong>(C) Live Walk:</strong> Crisp bottom sheet (phone) / floating dock (desktop) spotlighting the numbered next stop and <em>Mark stop reached</em> verb over the live route line.
+        <strong>(D) My Walks:</strong> High-density 1px hairline route list (and a 1-line + 1-button teaching empty state).
+        <strong>(E) Me:</strong> Unified preference table with instant solid-fill EN/עב and Day/Night switches.
+        <strong>(F) Login:</strong> Single passwordless email-code input with inline plain-word error validation.
+      </li>
+      <li>
+        <strong>4. First-Class RTL (Hebrew) Decisions:</strong>
+        Built 100% with CSS logical properties (<code>padding-inline</code>, <code>border-inline-end</code>, <code>inset-inline-start</code>, <code>text-align: start</code>). Switching to <code>dir="rtl"</code> moves the desktop navigation rail and the Live Walk floating sheet to the right (start) side, aligns all labels/inputs/punctuation naturally right-to-left (fixing the broken leading period seen in the current screenshot’s <code>.have — we'll build</code>), and mirrors directional arrows/chevrons via <code>.flip-rtl</code> while keeping map geography and numbers un-flipped.
+      </li>
+      <li>
+        <strong>5. Phone vs. Desktop Ergonomics:</strong>
+        On Phone, Plan places Ori and the request input <em>first</em> so the user immediately knows what to do without scrolling past a half-screen map; navigation sits in a 5-slot thumb bar. On Desktop, navigation becomes a 200px inline-start rail with the Traike wordmark, Plan splits into a 430px conversational drawer beside a full-height map, and Live Walk docks its guidance card top-start over the map.
+      </li>
+      <li>
+        <strong>6. Honest Critique — What Is Still Weak for Round 2:</strong>
+        (a) On short phones (&lt; 680px height) when the virtual keyboard opens on <strong>Plan</strong>, the atmospheric hero band + Ori bubble could push the <em>Build walking route</em> button below the keyboard—in React we should collapse the hero band on input focus.
+        (b) Multi-turn chat history (when a user asks 3–4 follow-ups before building a route) currently shares a single bubble slot; Round 2 should define a bounded scrollable message thread (<code>max-height: 28dvh</code>) with stop-preview chips before committing to the map.
+        (c) Social ("Friends") is currently consolidated as a tab inside <strong>My Walks</strong> to keep navigation to 5 clean items—if friend feeds need commenting or discovery, we should validate whether it warrants its own screen.
+      </li>
+    </ul>
+  </section>
+</main>
+
+<script>
+  /* =========================================================
+     BILINGUAL DICTIONARY (Natural Israeli Hebrew + Crisp English)
+     ========================================================= */
+  const dict = {
+    en: {
+      navHome: "Home",
+      navPlan: "Plan",
+      navWalks: "Walks",
+      navLive: "Live",
+      navMe: "Me",
+
+      homeStatus: "Jerusalem · 21°C · Clear evening",
+      homeTitle: "Where are we walking today?",
+      homeHelper: "Pick your free time for an instant loop from here.",
+      homeDurationLabel: "Time you have right now",
+      homePrimaryBtn: "Plan a walk",
+      homeRecentHeading: "Recent & nearby walks",
+      seeAll: "See all",
+
+      walk1Title: "Rehavia Windmill & Cafés",
+      walk1Meta: "3.4 km · 55 min · 4 stops · Saved",
+      walk2Title: "Jaffa Port to Neve Tzedek",
+      walk2Meta: "4.1 km · 75 min · 5 stops · Walked Tue",
+      walk3Title: "Haifa Carmel Ridge Promenade",
+      walk3Meta: "2.8 km · 45 min · 3 stops · Shared by Noa",
+
+      oriRole: "Ori · Trail Companion · Near Mahane Yehuda",
+      planHeading: "Build your walk",
+      planHelper: "Describe the stops or mood you want, and pick your time.",
+      oriGreeting: "I see you’re in central Jerusalem. Tell me what you feel like seeing—or tap Build walking route for a shaded 60-minute loop.",
+      chip1: "Shaded alleys + coffee",
+      chip2: "Old stone courtyards",
+      chip3: "Sunset viewpoint",
+      askLabel: "Where or what to include",
+      askPlaceholder: "e.g. Start here, pass a bakery and quiet park, end near Jaffa Gate",
+      timeLabel: "Time available",
+      openTime: "Open",
+      buildBtn: "Build walking route",
+      moreOptions: "More route options (start point, pace, loop)",
+      startLabel: "Starting point",
+      paceLabel: "Walking pace",
+      paceEasy: "Easy",
+      paceNormal: "Normal",
+      paceBrisk: "Brisk",
+      endLabel: "Finish point",
+      endLoop: "Round loop",
+      endAnywhere: "Anywhere",
+
+      walkHudProgress: "Stop 2 of 4 · 32 min left",
+      simOffRoute: "Test off-route",
+      offRouteMsg: "You’re 65m off the path. Rejoin via Ramban St?",
+      rerouteVerb: "Reroute",
+      nextStopDist: "240 m ahead · Turn left on Ibn Ezra",
+      nextStopName: "Montefiore Windmill Terrace",
+      nextStopNote: "1857 stone landmark overlooking the Old City walls.",
+      arrivedBtn: "Mark stop reached",
+      askOriBtn: "Ask Ori",
+      afterThis: "Next: Hansen House Garden (650 m)",
+      finishWalkVerb: "End walk",
+
+      walksTitle: "My walks",
+      toggleEmptyBtn: "Preview empty state",
+      tabSaved: "Saved (3)",
+      tabHistory: "Walked (5)",
+      tabFriends: "Friends",
+      walksHelper: "Tap any route to walk it live or adjust stops.",
+      emptyTitle: "No saved walks yet",
+      emptyHelper: "Routes you save or finish appear here for offline access.",
+
+      meTitle: "Me & settings",
+      guestHeading: "Walking as Guest",
+      guestHelper: "Sign in to back up walks across phone and desktop.",
+      signInBtn: "Sign in",
+      prefsHeading: "Preferences",
+      prefLang: "Language",
+      prefLangSub: "Interface & voice directions",
+      prefTheme: "Appearance",
+      prefThemeSub: "High-contrast day or night palette",
+      dayWord: "Day",
+      nightWord: "Night",
+      prefPace: "Default pace",
+      prefPaceSub: "Normal (15 min / km)",
+      changeVerb: "Change",
+      refreshApp: "Reload map cache",
+      refreshSub: "Clears temporary tiles without losing saved walks",
+
+      backBtn: "Back to app",
+      loginHeading: "Sign in to Traike",
+      loginHelper: "We’ll send a 6-digit login code to your email.",
+      emailLabel: "Email address",
+      emailError: "Enter a valid email address with @ and a domain.",
+      sendCodeBtn: "Send login code",
+      orWord: "or",
+      googleBtn: "Continue with Google",
+      testErrorBtn: "Preview inline validation error"
+    },
+    he: {
+      navHome: "בית",
+      navPlan: "תכנון",
+      navWalks: "הליכות",
+      navLive: "ניווט חי",
+      navMe: "אני",
+
+      homeStatus: "ירושלים · 21° · ערב בהיר",
+      homeTitle: "לאן יוצאים ללכת היום?",
+      homeHelper: "בחרו כמה זמן פנוי יש לכם ונבנה מסלול מכאן.",
+      homeDurationLabel: "כמה זמן יש לכם עכשיו",
+      homePrimaryBtn: "תכנון הליכה",
+      homeRecentHeading: "הליכות אחרונות ובסביבה",
+      seeAll: "הצגת הכל",
+
+      walk1Title: "טחנת הרוח ובתי קפה ברחביה",
+      walk1Meta: "3.4 ק״מ · 55 דק׳ · 4 תחנות · שמור",
+      walk2Title: "נמל יפו עד נווה צדק",
+      walk2Meta: "4.1 ק״מ · 75 דק׳ · 5 תחנות · צעדתם בשלישי",
+      walk3Title: "טיילת רכס הכרמל בחיפה",
+      walk3Meta: "2.8 ק״מ · 45 דק׳ · 3 תחנות · שותף ע״י נועה",
+
+      oriRole: "אורי · מלווה השבילים · ליד מחנה יהודה",
+      planHeading: "בניית מסלול הליכה",
+      planHelper: "כתבו אילו תחנות או אווירה תרצו, ובחרו זמן פנוי.",
+      oriGreeting: "אני רואה שאתם במרכז ירושלים. ספרו לי מה מתחשק לראות — או לחצו על בניית מסלול לסיבוב מוצל של 60 דקות.",
+      chip1: "סמטאות מוצלות וקפה",
+      chip2: "חצרות אבן ירושלמיות",
+      chip3: "תצפית לשקיעה",
+      askLabel: "איפה או מה לשלב בדרך",
+      askPlaceholder: "למשל: לצאת מכאן, לעבור במאפייה וגינה שקטה ולסיים בשער יפו",
+      timeLabel: "זמן פנוי להליכה",
+      openTime: "פתוח",
+      buildBtn: "בניית מסלול הליכה",
+      moreOptions: "אפשרויות נוספות (נקודת יציאה, קצב, מעגלי)",
+      startLabel: "נקודת יציאה",
+      paceLabel: "קצב הליכה",
+      paceEasy: "נינוח",
+      paceNormal: "רגיל",
+      paceBrisk: "מהיר",
+      endLabel: "נקודת סיום",
+      endLoop: "מסלול מעגלי",
+      endAnywhere: "סיום חופשי",
+
+      walkHudProgress: "תחנה 2 מתוך 4 · נותרו 32 דק׳",
+      simOffRoute: "בדיקת סטייה",
+      offRouteMsg: "סטיתם 65 מ׳ מהשביל. לחזור דרך רח׳ רמב״ן?",
+      rerouteVerb: "חישוב מחדש",
+      nextStopDist: "בעוד 240 מ׳ · פנו שמאלה לאבן עזרא",
+      nextStopName: "מרפסת טחנת הרוח מונטיפיורי",
+      nextStopNote: "מבנה אבן היסטורי מ-1857 מול חומות העיר העתיקה.",
+      arrivedBtn: "סימון הגעה לתחנה",
+      askOriBtn: "שאלו את אורי",
+      afterThis: "התחנה הבאה: גן בית הנסן (650 מ׳)",
+      finishWalkVerb: "סיום הליכה",
+
+      walksTitle: "ההליכות שלי",
+      toggleEmptyBtn: "הצגת מצב ריק",
+      tabSaved: "שמורות (3)",
+      tabHistory: "בוצעו (5)",
+      tabFriends: "חברים",
+      walksHelper: "לחצו על מסלול כדי לצאת לניווט חי או לערוך תחנות.",
+      emptyTitle: "עדיין אין הליכות שמורות",
+      emptyHelper: "מסלולים שתשמרו או תסיימו יופיעו כאן גם ללא קליטה.",
+
+      meTitle: "חשבון והגדרות",
+      guestHeading: "מחוברים כאורחים",
+      guestHelper: "התחברו כדי לגבות את המסלולים בין הנייד והמחשב.",
+      signInBtn: "התחברות",
+      prefsHeading: "העדפות",
+      prefLang: "שפה",
+      prefLangSub: "שפת הממשק וההכוונה הקולית",
+      prefTheme: "תצוגה",
+      prefThemeSub: "ערכת צבעים בהירה או כהה בניגודיות גבוהה",
+      dayWord: "יום",
+      nightWord: "לילה",
+      prefPace: "קצב ברירת מחדל",
+      prefPaceSub: "רגיל (15 דק׳ לק״מ)",
+      changeVerb: "שינוי",
+      refreshApp: "רענון מטמון מפה",
+      refreshSub: "ניקוי קבצים זמניים בלי למחוק הליכות שמורות",
+
+      backBtn: "חזרה לאפליקציה",
+      loginHeading: "התחברות ל-Traike",
+      loginHelper: "נשלח קוד חד-פעמי בן 6 ספרות לאימייל שלכם.",
+      emailLabel: "כתובת אימייל",
+      emailError: "נא להזין כתובת אימייל תקינה הכוללת @ ושם מתחם.",
+      sendCodeBtn: "שליחת קוד התחברות",
+      orWord: "או",
+      googleBtn: "המשך עם Google",
+      testErrorBtn: "הצגת שגיאת שדה מוטבעת"
+    }
+  };
+
+  const rationales = {
+    home: "<b>A · Home:</b> Replaces washed-out blur + 3D clipart with a calm hill wash, 1 primary time-picker + Plan CTA, and crisp recent walks.",
+    plan: "<b>B · Plan + Assistant:</b> Ori (cairn companion) + single natural request + duration bar. Intimidating lat/lng/radius fields collapsed.",
+    walk: "<b>C · Live Walk:</b> Crisp bottom sheet (phone) / side dock (desktop) over vector route map, inline off-route recovery, 1 clear arrival verb.",
+    walks: "<b>D · My Walks:</b> 1px hairline list (Saved / Walked / Friends) + toggleable 1-line/1-button teaching empty state.",
+    me: "<b>E · Me & Settings:</b> Consolidates 5 disconnected floating cards into one structured preference table + quiet attribution line.",
+    login: "<b>F · Login:</b> Focused passwordless code entry with plain-language inline validation beside the field."
+  };
+
+  let currentLang = "en";
+  const frame = document.getElementById("app-frame");
+
+  function setScreen(screenId) {
+    frame.setAttribute("data-screen", screenId);
+    document.querySelectorAll("[data-go]").forEach(btn => {
+      if (btn.getAttribute("role") === "tab") {
+        btn.setAttribute("aria-selected", btn.dataset.go === screenId ? "true" : "false");
+      }
+      if (btn.classList.contains("nav-btn")) {
+        if (btn.dataset.go === screenId) {
+          btn.setAttribute("aria-current", "page");
+        } else {
+          btn.removeAttribute("aria-current");
+        }
+      }
+    });
+    document.getElementById("screen-rationale").innerHTML = rationales[screenId] || "";
+  }
+
+  function setLang(lang) {
+    currentLang = lang;
+    const isRtl = lang === "he";
+    frame.setAttribute("dir", isRtl ? "rtl" : "ltr");
+    frame.setAttribute("lang", lang);
+
+    document.querySelectorAll("[data-set-lang]").forEach(b => {
+      const active = b.dataset.setLang === lang;
+      if (b.hasAttribute("aria-pressed")) b.setAttribute("aria-pressed", active);
+      if (b.hasAttribute("aria-checked")) b.setAttribute("aria-checked", active);
+    });
+
+    const strings = dict[lang];
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const key = el.dataset.i18n;
+      if (strings[key]) el.textContent = strings[key];
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+      const key = el.dataset.i18nPlaceholder;
+      if (strings[key]) el.setAttribute("placeholder", strings[key]);
+    });
+
+    const startInput = document.getElementById("start-loc");
+    if (startInput) {
+      startInput.value = isRtl ? "מיקום נוכחי · אגריפס 44, ירושלים" : "Current GPS · Agripas St 44";
+    }
+  }
+
+  function setTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    document.querySelectorAll("[data-set-theme]").forEach(b => {
+      const active = b.dataset.setTheme === theme;
+      if (b.hasAttribute("aria-pressed")) b.setAttribute("aria-pressed", active);
+      if (b.hasAttribute("aria-checked")) b.setAttribute("aria-checked", active);
+    });
+  }
+
+  function setViewport(vp) {
+    frame.setAttribute("data-viewport", vp);
+    document.querySelectorAll("[data-set-vp]").forEach(b => {
+      b.setAttribute("aria-pressed", b.dataset.setVp === vp);
+    });
+  }
+
+  function selectSeg(btn) {
+    const group = btn.parentElement;
+    group.querySelectorAll(".seg-btn").forEach(b => b.setAttribute("aria-checked", "false"));
+    btn.setAttribute("aria-checked", "true");
+  }
+
+  function fillPrompt(idx) {
+    const prompts = {
+      en: [
+        "Shaded alleys in Nahlaot, a specialty coffee stop, and quiet gardens",
+        "Historic Jerusalem stone courtyards and hidden windmills",
+        "Walk to a clear sunset viewpoint overlooking the Old City walls"
+      ],
+      he: [
+        "סמטאות מוצלות בנחלאות, עצירה לקפה איכותי וגינה שקטה",
+        "חצרות אבן עתיקות וטחנת הרוח במשכנות שאננים",
+        "מסלול נעים לתצפית שקיעה פתוחה מול חומות העיר העתיקה"
+      ]
+    };
+    const replies = {
+      en: "Great choice — I’ll weave shady Nahlaot lanes with a roastery stop on Bezalel. Tap Build walking route when ready.",
+      he: "בחירה מעולה — אשלב את סמטאות נחלאות המוצלות עם בית קלייה בבצלאל. לחצו על בניית מסלול כשמוכנים."
+    };
+    document.getElementById("plan-ask").value = prompts[currentLang][idx];
+    document.getElementById("ori-reply").textContent = replies[currentLang];
+  }
+
+  function toggleOffRoute() {
+    const banner = document.getElementById("offroute-banner");
+    banner.style.display = banner.style.display === "none" ? "flex" : "none";
+  }
+
+  function toggleWalksEmpty() {
+    const pop = document.getElementById("walks-populated");
+    const emp = document.getElementById("walks-empty");
+    const showingEmpty = emp.style.display !== "none";
+    emp.style.display = showingEmpty ? "none" : "flex";
+    pop.style.display = showingEmpty ? "flex" : "none";
+  }
+
+  function toggleLoginError() {
+    const err = document.getElementById("login-error");
+    const input = document.getElementById("login-email");
+    const show = err.style.display === "none";
+    err.style.display = show ? "flex" : "none";
+    if (show) input.value = "dana-at-example";
+    else input.value = "dana@example.co.il";
+  }
+
+  function validateDemoEmail() {
+    const val = document.getElementById("login-email").value;
+    const err = document.getElementById("login-error");
+    if (!val.includes("@") || !val.includes(".")) {
+      err.style.display = "flex";
+    } else {
+      err.style.display = "none";
+      setScreen("home");
+    }
+  }
+
+  /* Wire global click handlers */
+  document.addEventListener("click", e => {
+    const goBtn = e.target.closest("[data-go]");
+    if (goBtn) setScreen(goBtn.dataset.go);
+
+    const langBtn = e.target.closest("[data-set-lang]");
+    if (langBtn) setLang(langBtn.dataset.setLang);
+
+    const themeBtn = e.target.closest("[data-set-theme]");
+    if (themeBtn) setTheme(themeBtn.dataset.setTheme);
+
+    const vpBtn = e.target.closest("[data-set-vp]");
+    if (vpBtn) setViewport(vpBtn.dataset.setVp);
+  });
+</script>
+</body>
+</html>
+```
