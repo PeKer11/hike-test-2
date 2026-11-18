@@ -101,6 +101,7 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
     }
 
     setIsSubmitting(true);
+    let navigating = false;
 
     try {
       const supabase = createClient();
@@ -136,6 +137,8 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
       }
 
       // Full load: the session cookie changed, so skip any cached client route.
+      // Keep the spinner on until the browser leaves this page.
+      navigating = true;
       window.location.assign("/app");
       return;
     } catch (err) {
@@ -143,7 +146,7 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
         err instanceof Error ? err.message : "Something went wrong. Try again.",
       );
     } finally {
-      setIsSubmitting(false);
+      if (!navigating) setIsSubmitting(false);
     }
   }
 
