@@ -48,11 +48,25 @@ describe("MyWalksPanel show on map", () => {
   it("shows the walk, and hides it when it is the one on the map", async () => {
     const onShow = vi.fn();
     const { rerender } = render(<MyWalksPanel isSignedIn refreshKey={0} onWalkAgain={vi.fn()} onShowOnMap={onShow} previewId={null} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Jaffa" }));
     fireEvent.click(await screen.findByText("Show on map"));
     expect(onShow).toHaveBeenCalledWith(expect.objectContaining({ id: "w1" }));
     rerender(<MyWalksPanel isSignedIn refreshKey={0} onWalkAgain={vi.fn()} onShowOnMap={onShow} previewId="w1" />);
     await waitFor(() => screen.getByText("Hide from map"));
     fireEvent.click(screen.getByText("Hide from map"));
     expect(onShow).toHaveBeenLastCalledWith(null);
+  });
+
+  it("from the detail page, Show on map also goes to the map screen when the planner provides it", async () => {
+    const onShow = vi.fn();
+    const onOpen = vi.fn();
+    render(<MyWalksPanel isSignedIn refreshKey={0} onWalkAgain={vi.fn()} onShowOnMap={onShow} onOpenOnMap={onOpen} previewId={null} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Jaffa" }));
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["1.A", "2.B"]);
+    fireEvent.click(screen.getByText("Show on map"));
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "w1" }));
+    expect(onShow).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("‹ Back"));
+    expect(await screen.findByRole("button", { name: "Open Jaffa" })).toBeTruthy();
   });
 });

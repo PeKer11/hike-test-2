@@ -3862,6 +3862,12 @@ export function WalkPlannerApp({
                   refreshKey={walksVersion}
                   previewId={walkPreview?.id ?? null}
                   onShowOnMap={showWalkOnMap}
+                  onOpenOnMap={(walk) => {
+                    // From a walk's detail page: draw it and go to the map screen, where it can be seen.
+                    showWalkOnMap(walk);
+                    setSideTab("plan");
+                    onNavigate?.("plan");
+                  }}
                   onWalkAgain={walkAgainFromSaved}
                   onEditAsNew={(walk) => {
                     // The stops open as a fresh draft: building it saves a new walk, the original stays as it is.

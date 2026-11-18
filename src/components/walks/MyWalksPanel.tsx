@@ -24,6 +24,8 @@ interface MyWalksPanelProps {
   /** The walk currently drawn on the map from this list, and the toggle that draws or clears it (null clears). */
   previewId?: string | null;
   onShowOnMap?: (walk: SavedWalk | null) => void;
+  /** Detail page: draw the walk on the map AND go to the map screen. Without it, the detail page only toggles the drawing. */
+  onOpenOnMap?: (walk: SavedWalk) => void;
   /** Walks screen: show only the walked ones (history) or the saved and draft ones. Without it, the old All / Drafts filter. */
   segment?: WalksSegment;
   lang?: "he" | "en";
@@ -44,13 +46,14 @@ const CHIP: Record<SavedWalk["status"], string> = {
   completed: "bg-tk-ink/10 text-tk-ink",
 };
 
-export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew, previewId = null, onShowOnMap, segment, lang = "en", onNewRoute }: MyWalksPanelProps) {
+export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew, previewId = null, onShowOnMap, onOpenOnMap, segment, lang = "en", onNewRoute }: MyWalksPanelProps) {
   const [items, setItems] = useState<WalkWithRuns[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<"all" | "drafts">("all");
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   // Variants: which walk's menu is open, whether one is being made, what to tell the walker, and which parents are expanded.
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [shorterFor, setShorterFor] = useState<string | null>(null);
@@ -95,6 +98,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   const remove = async (w: SavedWalk) => {
     if (await deleteWalk(w.id)) {
       if (previewId === w.id) onShowOnMap?.(null);
+      setDetailId(null);
       setItems((cur) => cur.filter((x) => x.walk.id !== w.id));
     }
   };
@@ -135,25 +139,67 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   const shown = base.filter((i) => (segment !== undefined ? !(i.walk.parentWalkId && baseIds.has(i.walk.parentWalkId)) : !isNested(i) || filter === "drafts"));
   const fmt = (iso: string) => new Date(iso).toLocaleDateString("en", { month: "short", day: "numeric" });
 
+  // The main button says what it will do: continue an interrupted walk, start one never walked, or walk a finished one again.
+  // All three go through onWalkAgain, whose chooser already offers "continue from the last stop" when a run ended early.
+  const primaryButton = (w: SavedWalk, runs: WalkWithRuns["runs"], runCount: number) => (
+    <button type="button" onClick={() => onWalkAgain(w)} className="min-h-11 cursor-pointer rounded-full bg-terra px-5 text-[15px] font-semibold text-on-accent hover:bg-terra/90">
+      {w.status === "completed" ? "Walk again" : runs[0]?.lastStopIndex != null ? "Continue" : runCount > 0 ? "Walk again" : "Start walk"}
+    </button>
+  );
+
+  // The list row: what it is, at a glance. Tap it to go inside; only the main button lives here.
   const card = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => (
-              <li key={w.id} className={ROW}>
-    <div className="flex items-start gap-3">
-      <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-16 w-16 shrink-0" />
-      <div className="min-w-0 flex-1 space-y-1">
-    <div className="flex items-center justify-between gap-2">
-      <span className="font-display text-[15px] leading-snug text-tk-ink">{w.title}</span>
-      <span className={`shrink-0 rounded-full px-2 py-0.5 ${CHIP[w.status]}`}>{isDraft ? "draft" : w.status}</span>
-    </div>
-    <p className="text-[13px] text-tk-sage">
-      {runCount > 0 ? `Last walked ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}
-      {w.totalMin !== null && ` · ${w.totalMin} min`}
-      {w.distanceM !== null && ` · ${(w.distanceM / 1000).toFixed(1)} km`}
-    </p>
-    {w.stops.length > 0 && <p className="flex items-start gap-1.5 text-tk-body"><Accessory name="footprints" className="mt-0.5 w-4 shrink-0" /><span>{w.stops.map((s) => s.name).join(" → ")}</span></p>}
-    <div className="flex flex-wrap items-center gap-2 pt-1">
-      <button type="button" onClick={() => onWalkAgain(w)} className="min-h-11 cursor-pointer rounded-full bg-terra px-5 text-[15px] font-semibold text-on-accent hover:bg-terra/90">
-        Walk again
+    <li key={w.id} className={ROW}>
+      <button type="button" aria-label={`Open ${w.title}`} onClick={() => setDetailId(w.id)} className="flex w-full cursor-pointer items-start gap-3 text-left">
+        <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-16 w-16 shrink-0" />
+        <span className="block min-w-0 flex-1 space-y-1">
+          <span className="flex items-center justify-between gap-2">
+            <span className="font-display text-[15px] leading-snug text-tk-ink">{w.title}</span>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 ${CHIP[w.status]}`}>{isDraft ? "draft" : w.status}</span>
+          </span>
+          <span className="block text-[13px] text-tk-sage">
+            {runCount > 0 ? `Last walked ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}
+            {w.totalMin !== null && ` · ${w.totalMin} min`}
+            {w.distanceM !== null && ` · ${(w.distanceM / 1000).toFixed(1)} km`}
+          </span>
+          {w.stops.length > 0 && <span className="flex items-start gap-1.5 text-tk-body"><Accessory name="footprints" className="mt-0.5 w-4 shrink-0" /><span>{w.stops.map((s) => s.name).join(" → ")}</span></span>}
+        </span>
       </button>
+      <div className="pt-2">{primaryButton(w, runs, runCount)}</div>
+    </li>
+  );
+
+  // Inside one walk: the whole route, every stop in order, the numbers, and every action.
+  const detailView = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => (
+    <section className={`${PANEL} space-y-3`}>
+      <button type="button" onClick={() => setDetailId(null)} className={LINK}>
+        ‹ Back
+      </button>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className={PANEL_TITLE}>{w.title}</h2>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[13px] ${CHIP[w.status]}`}>{isDraft ? "draft" : w.status}</span>
+      </div>
+      <p className="text-[13px] text-tk-sage">
+        {runCount > 0 ? `Last walked ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}
+        {w.totalMin !== null && ` · ${w.totalMin} min`}
+        {w.distanceM !== null && ` · ${(w.distanceM / 1000).toFixed(1)} km`}
+      </p>
+      <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-[160px] w-full" />
+      {w.stops.length > 0 && (
+        <ol aria-label="Stops" className="space-y-1 text-tk-body">
+          {w.stops.map((s, i) => (
+            <li key={`${i}-${s.name}`} className="flex gap-2">
+              <span className="w-5 shrink-0 text-tk-sage">{i + 1}.</span>
+              <span>{s.name}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {making && <p role="status" className="text-[13px] text-tk-sage">Making that version…</p>}
+      {notice && <p role="status" className="text-[13px] text-tk-body">{notice}</p>}
+      <div className="space-y-2">
+    <div className="flex flex-wrap items-center gap-2 pt-1">
+      {primaryButton(w, runs, runCount)}
       <button type="button" aria-expanded={menuFor === w.id} disabled={making} onClick={() => setMenuFor(menuFor === w.id ? null : w.id)} className={BTN_SOFT}>
         Version ▾
       </button>
@@ -168,7 +214,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
         </button>
       )}
       {onShowOnMap && w.stops.length > 0 && (
-        <button type="button" aria-pressed={previewId === w.id} onClick={() => onShowOnMap(previewId === w.id ? null : w)} className={BTN_SOFT}>
+        <button type="button" aria-pressed={previewId === w.id} onClick={() => (onOpenOnMap && previewId !== w.id ? onOpenOnMap(w) : onShowOnMap(previewId === w.id ? null : w))} className={BTN_SOFT}>
           {previewId === w.id ? "Hide from map" : "Show on map"}
         </button>
       )}
@@ -228,9 +274,16 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
       </ul>
     )}
       </div>
-    </div>
-  </li>
+      {variantsOf(w.id).length > 0 && expanded.has(w.id) ? (
+        <ul aria-label={`Versions of ${w.title}`} className="space-y-2.5">
+          {variantsOf(w.id).map((v) => card(v))}
+        </ul>
+      ) : null}
+    </section>
   );
+
+  const detailItem = detailId ? items.find((i) => i.walk.id === detailId) : undefined;
+  if (detailItem) return detailView(detailItem);
 
   return (
     <section className={`${PANEL} space-y-3`}>
@@ -270,18 +323,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
             </>
           )}
           <ul aria-label="My walks" className="space-y-2.5">
-            {shown.map((item) => (
-              <Fragment key={item.walk.id}>
-                {card(item)}
-                {variantsOf(item.walk.id).length > 0 && expanded.has(item.walk.id) ? (
-                  <li className="ml-4 list-none">
-                    <ul aria-label={`Versions of ${item.walk.title}`} className="space-y-2.5">
-                      {variantsOf(item.walk.id).map((v) => card(v))}
-                    </ul>
-                  </li>
-                ) : null}
-              </Fragment>
-            ))}
+            {shown.map((item) => card(item))}
           </ul>
         </>
       )}

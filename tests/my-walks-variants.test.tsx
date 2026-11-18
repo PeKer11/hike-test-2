@@ -36,6 +36,7 @@ afterEach(cleanup);
 const open = async () => {
   render(<MyWalksPanel isSignedIn refreshKey={0} onWalkAgain={vi.fn()} onEditAsNew={vi.fn()} />);
   await screen.findByText("Market walk");
+  fireEvent.click(screen.getByRole("button", { name: "Open Market walk" })); // the list row opens the walk's detail page, where the actions live
 };
 
 describe("My walks: variants", () => {
