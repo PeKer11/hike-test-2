@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AmenityItem } from "@/lib/walk/companion/amenity-detour";
 import type { ChatStop } from "@/lib/walk/chat/intent";
-import { resolveChat, type ChatContext } from "@/lib/walk/chat/reply";
+import { plannerHandoff, resolveChat, type ChatContext } from "@/lib/walk/chat/reply";
 
 const here = { lat: 32.0, lng: 34.8 };
 // ~0.001 degrees of latitude is about 111 m.
@@ -86,5 +86,17 @@ describe("resolveChat skip / longer / head-back / unknown", () => {
   it("replies in Hebrew", () => {
     const r = resolveChat({ intent: "unknown" }, ctx([]), "he");
     expect(r.text).toMatch(/[א-ת]/);
+  });
+});
+
+describe("plannerHandoff", () => {
+  it("offers the walker's words to the planner chat, in English and Hebrew", () => {
+    const en = plannerHandoff("quiet walk by the sea", "en");
+    expect(en.text).toBe("That needs a new plan. Send it to Traike?");
+    expect(en.actions).toEqual([{ kind: "ask-planner", text: "quiet walk by the sea", label: "Send to Traike" }]);
+    const he = plannerHandoff("טיול שקט ליד הים", "he");
+    expect(he.text).toMatch(/[א-ת]/);
+    expect(he.actions[0]).toMatchObject({ kind: "ask-planner", text: "טיול שקט ליד הים" });
+    expect((he.actions[0] as { label: string }).label).toMatch(/[א-ת]/);
   });
 });

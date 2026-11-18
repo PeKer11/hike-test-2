@@ -8,6 +8,7 @@ import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
 import { parseIntent, type ParsedIntent } from "@/lib/walk/chat/intent";
 import {
   CHAT_HELP_TEXT,
+  plannerHandoff,
   resolveChat,
   type ChatAction,
   type ChatContext,
@@ -201,7 +202,8 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
             ...(stopId ? { stopId } : {}),
           };
           const fresh = getContext() ?? ctx;
-          const reply = resolveChat(intent, fresh, lang);
+          // Signed in and still not understood: the planner chat (Sol) can take it, so offer that instead of a hint.
+          const reply = intent.intent === "unknown" ? plannerHandoff(text, lang) : resolveChat(intent, fresh, lang);
           replace(thinkingId, reply.text, reply.actions);
           autoRun(thinkingId, text, reply.actions);
         } catch {

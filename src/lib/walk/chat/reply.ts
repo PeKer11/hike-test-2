@@ -14,7 +14,9 @@ export type ChatAction =
   | { kind: "add-stop"; label: string }
   | { kind: "add-place"; name: string; coordinates: Coordinates; label: string }
   | { kind: "apply-changes"; adds: Array<{ name: string; coordinates: Coordinates }>; dropStopIds: string[]; label: string }
-  | { kind: "head-back"; label: string };
+  | { kind: "head-back"; label: string }
+  /** Hand the walker's own words to the planner chat (Details + chat, text prefilled; the walker taps Send). */
+  | { kind: "ask-planner"; text: string; label: string };
 
 export interface ChatReply {
   text: string;
@@ -63,6 +65,8 @@ const T = {
     longer: "Add a stop",
     longerText: "I can look for one more stop ahead.",
     help: "Try: cafe, water, toilet, skip, shorter, longer, or head back.",
+    needsPlan: "That needs a new plan. Send it to Traike?",
+    sendToPlanner: "Send to Traike",
   },
   he: {
     found: (kind: string, name: string | undefined, m: number) =>
@@ -83,6 +87,8 @@ const T = {
     longer: "להוסיף עצירה",
     longerText: "אפשר לחפש עוד עצירה בהמשך.",
     help: "נסו: קפה, מים, שירותים, דלג, קצר יותר, ארוך יותר, או חזרה.",
+    needsPlan: "זה דורש תוכנית חדשה. לשלוח לטרייק?",
+    sendToPlanner: "שלחו לטרייק",
   },
 } as const;
 
@@ -155,6 +161,12 @@ export function resolveChat(intent: ParsedIntent, ctx: ChatContext, lang: ChatLa
     default:
       return { text: t.help, actions: [] };
   }
+}
+
+/** For a signed-in walker's sentence the quick commands do not cover: offer to hand it to the planner chat. */
+export function plannerHandoff(text: string, lang: ChatLang): ChatReply {
+  const t = T[lang];
+  return { text: t.needsPlan, actions: [{ kind: "ask-planner", text, label: t.sendToPlanner }] };
 }
 
 export const CHAT_HELP_TEXT: Record<ChatLang, string> = { en: T.en.help, he: T.he.help };

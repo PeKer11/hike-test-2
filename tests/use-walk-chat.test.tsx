@@ -65,6 +65,16 @@ describe("useWalkChat", () => {
     expect(result.current.pending).toBe(false);
   });
 
+  it("offers to send a sentence nothing understood to the planner chat, with the walker's own words", async () => {
+    const { result, onAction } = setup(reply(200, { intent: "unknown", amenity: null, stopIndex: null }));
+    act(() => result.current.send("I want a quiet walk by the sea instead"));
+    await waitFor(() => expect(last(result)).toContain("Send it to Traike"));
+    const msg = result.current.messages.at(-1)!;
+    expect(msg.actions).toEqual([{ kind: "ask-planner", text: "I want a quiet walk by the sea instead", label: "Send to Traike" }]);
+    act(() => result.current.runAction(msg.id, 0));
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ kind: "ask-planner", text: "I want a quiet walk by the sea instead" }));
+  });
+
   it("makes no fetch for question 16 and shows the cap message", async () => {
     const doFetch = reply(200, { intent: "unknown", amenity: null, stopIndex: null });
     const { result } = setup(doFetch);

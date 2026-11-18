@@ -3569,6 +3569,11 @@ export function WalkPlannerApp({
         runApplyChangesRebuild(action.adds, action.dropStopIds);
       } else if (action.kind === "add-place") {
         runAddPlaceRebuild(action.name, action.coordinates);
+      } else if (action.kind === "ask-planner") {
+        // Details + the planner chat with the walker's own words; they tap Send.
+        setIsDetailsOpen(true);
+        setChatOpen(true);
+        setChatPrefill({ text: action.text, tick: Date.now() });
       } else {
         void runThemedOption("short");
       }
