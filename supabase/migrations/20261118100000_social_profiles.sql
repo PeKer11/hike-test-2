@@ -44,6 +44,15 @@ create policy "Read own social profile" on public.social_profiles for select to 
 drop policy if exists "Delete own social profile" on public.social_profiles;
 create policy "Delete own social profile" on public.social_profiles for delete to authenticated using (auth.uid() = user_id);
 
+-- Suspension tombstone: survives deleting the profile row, so "delete + re-create" cannot undo a suspension.
+-- Service role only. The owner restores a person by deleting their row here (and clearing suspended_at on the profile).
+create table if not exists public.social_suspensions (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  suspended_at timestamptz not null default now()
+);
+alter table public.social_suspensions enable row level security;
+revoke all on table public.social_suspensions from anon, authenticated, public;
+
 create table if not exists public.user_blocks (
   blocker uuid not null references auth.users (id) on delete cascade,
   blocked uuid not null references auth.users (id) on delete cascade,
@@ -135,6 +144,7 @@ begin
   if uid is null then return 'signin'; end if;
   select * into cur from public.social_profiles where user_id = uid;
   if found and cur.suspended_at is not null then return 'suspended'; end if;
+  if not found and exists (select 1 from public.social_suspensions where user_id = uid) then return 'suspended'; end if;
   if not found and p_adult is not true then return 'adult_required'; end if;
   if found and cur.updated_at > now() - interval '3 seconds' then return 'rate_limited'; end if;
   if lower(clean) ~ '(traike|admin|support|official|moderator|staff|תמיכה|מנהל|צוות|טרייק)' then return 'name_reserved'; end if;
@@ -183,6 +193,7 @@ begin
     join public.social_profiles sp on sp.user_id = r.reporter and sp.created_at < now() - interval '1 day'
    where r.target = p_target and r.created_at > now() - interval '7 days';
   if n >= 3 then
+    insert into public.social_suspensions (user_id) values (p_target) on conflict do nothing;
     update public.social_profiles set suspended_at = now(), visibility = 'private', presence_audience = 'off'
      where user_id = p_target and suspended_at is null;
   end if;
@@ -316,9 +327,9 @@ create or replace function public.friends_walks()
   language sql stable security definer set search_path = public, pg_temp as $$
   select w.id,
          coalesce(sp.display_name, 'Friend ' || coalesce(right(p.friend_code, 4), '----')),
-         w.title, w.status, w.area_label, w.total_min, w.distance_m,
+         coalesce(w.area_label, 'Walk'), w.status, w.area_label, w.total_min, w.distance_m,   -- neutral title: the real one names the first stop (near home / Google content)
          public.public_stops(w.stops, w.start_lat, w.start_lng, false),
-         w.created_at
+         date_trunc('day', w.created_at)                                                       -- day only, never the time of day
     from public.saved_walks w
     left join public.profiles p on p.id = w.user_id
     left join public.social_profiles sp on sp.user_id = w.user_id

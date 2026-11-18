@@ -34,10 +34,11 @@ begin
   -- A and B create profiles (private).
   perform set_config('request.jwt.claims', json_build_object('sub', ua, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  select public.save_social_profile('Alpha Walker', 'boot', 'private', true, false, 'off', true) into r;
-  if r <> 'ok' then raise exception 'A: save_social_profile returned %', r; end if;
+  -- reserved name first (A has no row yet, so the 3-second rate limit cannot fire before it)
   select public.save_social_profile('Traike Admin', 'boot', 'private', true, false, 'off', true) into r;
   if r <> 'name_reserved' then raise exception 'reserved name was not refused: %', r; end if;
+  select public.save_social_profile('Alpha Walker', 'boot', 'private', true, false, 'off', true) into r;
+  if r <> 'ok' then raise exception 'A: save_social_profile returned %', r; end if;
   reset role;
 
   perform set_config('request.jwt.claims', json_build_object('sub', ub, 'role', 'authenticated')::text, true);
@@ -153,6 +154,16 @@ begin
   if ok is not false then raise exception 'request_friend_by_id worked on a blocker'; end if;
   select count(*) into n from public.user_blocks;
   if n <> 0 then raise exception 'the blocked person can see block rows'; end if;
+  reset role;
+
+  -- 7. A suspension survives deleting the profile: B is suspended, deletes their profile, cannot re-create it.
+  insert into public.social_suspensions (user_id) values (ub) on conflict do nothing;
+  perform set_config('request.jwt.claims', json_build_object('sub', ub, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+  delete from public.social_profiles where user_id = ub;
+  if public.save_social_profile('Beta Again', 'camera', 'public', true, false, 'friends', true) <> 'suspended' then
+    raise exception 'suspension undone by delete + re-create';
+  end if;
   reset role;
 
   raise notice 'social_rls_check: ALL CHECKS PASSED';

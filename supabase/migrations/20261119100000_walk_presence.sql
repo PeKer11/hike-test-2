@@ -35,13 +35,15 @@ begin
   if not found or prof.suspended_at is not null or prof.presence_audience = 'off' then
     delete from public.walk_presence where user_id = uid; return false;
   end if;
-  delete from public.walk_presence where expires_at < now() - interval '10 minutes';          -- housekeeping
+  delete from public.walk_presence where expires_at < now() - interval '30 minutes';          -- housekeeping (ended rows linger 30 min: they remember the last cell)
   select * into cur from public.walk_presence where user_id = uid;
-  -- a "new walk" may move anywhere, at most once per 10 minutes
+  -- Moving far (a "jump") is allowed only 30+ minutes after the last write. Clearing/ending a walk keeps the last cell,
+  -- so clear + set can no longer be used to teleport the cell and pinpoint a walker.
   fresh := not found or cur.expires_at <= now() or (coalesce(p_new_walk, false) and cur.updated_at < now() - interval '10 minutes');
-  if found and not fresh then
-    if cur.updated_at > now() - interval '60 seconds' then return true; end if;                -- one write a minute
-    if abs(p_cell_y - cur.cell_y) > 3 or abs(p_cell_x - cur.cell_x) > 3 then return false; end if;  -- no jumps
+  if found then
+    if cur.expires_at > now() and not fresh and cur.updated_at > now() - interval '60 seconds' then return true; end if;  -- one write a minute
+    if cur.updated_at > now() - interval '30 minutes'
+       and (abs(p_cell_y - cur.cell_y) > 3 or abs(p_cell_x - cur.cell_x) > 3) then return false; end if;                 -- no jumps
   end if;
   insert into public.walk_presence as w (user_id, cell_y, cell_x, area_label, audience, since, expires_at, updated_at)
   values (uid, p_cell_y, p_cell_x, nullif(left(btrim(coalesce(p_area, '')), 60), ''), prof.presence_audience,
@@ -57,7 +59,8 @@ end; $$;
 
 create or replace function public.clear_my_presence() returns void
   language sql security definer set search_path = public, pg_temp as $$
-  delete from public.walk_presence where user_id = auth.uid();
+  -- Tombstone instead of delete: it stops showing at once but keeps the last cell for the no-jump rule (removed by housekeeping).
+  update public.walk_presence set expires_at = now() where user_id = auth.uid() and expires_at > now();
 $$;
 
 -- Friends who are walking now. Reciprocity: the caller needs their own profile (not suspended) with presence on.
@@ -76,11 +79,7 @@ language sql stable security definer set search_path = public, pg_temp as $$
          case when now() - p.since < interval '15 minutes' then 'just_started'
               when now() - p.since < interval '45 minutes' then 'about_30'
               else 'over_45' end,
-         (select case when m.cell_y is null or m.expires_at <= now() then null
-                      when greatest(abs(p.cell_y - m.cell_y), abs(p.cell_x - m.cell_x)) = 0 then 'here'
-                      when greatest(abs(p.cell_y - m.cell_y), abs(p.cell_x - m.cell_x)) <= 2 then 'near'
-                      else 'far' end
-            from me m),
+         null::text,   -- no distance for friends: the consent copy says "never a position", and a bucket lets a friend home in on the cell
          public.can_view_profile(p.user_id)
     from public.walk_presence p
     join public.social_profiles sp on sp.user_id = p.user_id and sp.suspended_at is null
