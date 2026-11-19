@@ -37,6 +37,9 @@ export function resolveOperator(op: PlanOperator | null): OperatorAction {
           };
     case "keep-all-extend":
       return { run: "extended-time-rebuild" };
+    case "lengthen":
+      // Ahead of time and nothing to add: a longer walk, never a shorter one.
+      return { run: "pace-rebuild", reason: "sustained-fast-pace" };
     case "add-place":
       return { run: "add-place", placeId: op.placeId };
     case "loop-from-here":

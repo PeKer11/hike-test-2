@@ -1988,6 +1988,12 @@ export function WalkPlannerApp({
       Math.max(0, input.availableMinutes - (walkStats?.elapsedMin ?? 0));
     const environment = discovery.environment;
     const items = discovery.items();
+    // A fast walker covers a detour faster than the plan says: price it at the blend of both paces.
+    const measuredPace = fix.paceMinPerKm;
+    const pricedSpeedMpm =
+      measuredPace && measuredPace >= 6 && measuredPace <= 40
+        ? 1000 / Math.sqrt(input.walkingPaceMinPerKm * measuredPace)
+        : speedMpm;
     const pace =
       paceAdvisory && fix.paceMinPerKm
         ? {
@@ -2019,7 +2025,7 @@ export function WalkPlannerApp({
         pace,
         addPlace:
           paceAdvisory?.kind === "fast"
-            ? pickAddPlace(items, { speedMpm, remainingWalkMin, environment, excludeIds: remainingStops.map((st) => st.id) })
+            ? pickAddPlace(items, { speedMpm: pricedSpeedMpm, remainingWalkMin, environment, excludeIds: remainingStops.map((st) => st.id) })
             : null,
         amenities: [
           ...amenityItemsFromPlaces(discovery.amenities(), (p) => discovery.frameOf(p)),

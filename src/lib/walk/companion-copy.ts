@@ -10,6 +10,7 @@ const en = {
   "q.pace-slow": "Slower than planned. Skip {stop} to finish on time?",
   "q.pace-slow.nostop": "Slower than planned. Shorten the walk to finish on time?",
   "q.pace-fast": "You're ahead of time. Add {place} ({d} min)?",
+  "q.pace-fast.noplace": "You're about {n} min ahead of time. Lengthen the walk?",
   "q.toward-green": "You're heading toward {park}. Build a loop from here?",
   "q.sunset": "Sunset in {m} min, {r} min of walking left. Shorten to finish in daylight?",
   "q.heat-water": "It's {t}°C now. Water at {place}, {d} m away?",
@@ -31,6 +32,7 @@ const en = {
   "answer.notNow": "Not now",
   "answer.add": "Add it",
   "answer.finishEarly": "Finish early (head back)",
+  "answer.lengthen": "Lengthen the walk",
   "answer.loopFromHere": "Loop from here",
   "answer.backToRoute": "Back to my route",
   "answer.continue": "Continue",
@@ -51,6 +53,7 @@ const he: Record<CompanionCopyKey, string> = {
   "q.pace-slow": "הולכים לאט מהמתוכנן. לוותר על {stop} כדי לסיים בזמן?",
   "q.pace-slow.nostop": "הולכים לאט מהמתוכנן. לקצר את ההליכה כדי לסיים בזמן?",
   "q.pace-fast": "אתם מקדימים. להוסיף את {place} ({d} דק׳)?",
+  "q.pace-fast.noplace": "אתם מקדימים בכ-{n} דק׳. להאריך את ההליכה?",
   "q.toward-green": "פניתם לכיוון {park}. לבנות לולאה מכאן?",
   "q.sunset": "השקיעה בעוד {m} דק׳ ונשארו {r} דק׳ הליכה. לקצר כדי לסיים לפני החשכה?",
   "q.heat-water": "עכשיו {t}°. יש מים ב־{place}, במרחק {d} מ׳. לעצור?",
@@ -72,6 +75,7 @@ const he: Record<CompanionCopyKey, string> = {
   "answer.notNow": "לא עכשיו",
   "answer.add": "להוסיף",
   "answer.finishEarly": "לסיים מוקדם (לחזור)",
+  "answer.lengthen": "להאריך את ההליכה",
   "answer.loopFromHere": "ליצור לולאה מכאן",
   "answer.backToRoute": "לחזור למסלול",
   "answer.continue": "להמשיך",
@@ -113,6 +117,7 @@ export function questionKey(
   ctx: Record<string, string | number>,
 ): CompanionCopyKey {
   if (kind === "pace-slow" && !ctx.stop) return "q.pace-slow.nostop";
+  if (kind === "pace-fast" && !ctx.place) return "q.pace-fast.noplace";
   if (kind === "stop-closing" && ctx.info) return "q.stop-closing.info";
   return `q.${kind}` as CompanionCopyKey;
 }

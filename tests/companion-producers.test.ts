@@ -79,8 +79,39 @@ describe("paceCandidate", () => {
 
   it("is null when not actually slower, or fast without a place to add", () => {
     expect(paceCandidate({ ...base, advice: "slow", currentPaceMinPerKm: 11 })).toBeNull();
-    expect(paceCandidate({ ...base, advice: "fast", currentPaceMinPerKm: 9 })).toBeNull();
     expect(paceCandidate({ ...base, advice: "slow", currentPaceMinPerKm: 0 })).toBeNull();
+  });
+
+  it("fast with no place to add offers lengthen + finish early, never shorten (was null)", () => {
+    const c = paceCandidate({ ...base, advice: "fast", currentPaceMinPerKm: 9 })!; // spare 15
+    expect(c.kind).toBe("pace-fast");
+    const ops = c.answers.map((a) => a.operator?.op);
+    expect(ops).toEqual(["lengthen", "head-back", "dismiss"]);
+    expect(ops).not.toContain("shorten");
+    expect(c.context).toEqual({ n: 15 });
+  });
+
+  it("fast with a place never contains shorten; slow never contains add", () => {
+    const fast = paceCandidate({
+      ...base, advice: "fast", currentPaceMinPerKm: 9,
+      addPlace: { id: "p", name: "P", detourMin: 5 },
+    })!;
+    expect(fast.answers.map((a) => a.operator?.op)).not.toContain("shorten");
+    const slow = paceCandidate({ ...base, advice: "slow", currentPaceMinPerKm: 15 })!;
+    const slowOps = slow.answers.map((a) => a.operator?.op);
+    expect(slowOps).not.toContain("add-place");
+    expect(slowOps).not.toContain("lengthen");
+  });
+
+  it("fast with only a little spare time and no place asks nothing", () => {
+    // ratio 11/12 on 60 min -> 5 min spare
+    expect(paceCandidate({ ...base, advice: "fast", currentPaceMinPerKm: 11 })).toBeNull();
+  });
+
+  it("slow and only mildly behind lists more time first", () => {
+    // ratio 1.1 on 60 min -> 6 min overrun
+    const c = paceCandidate({ ...base, advice: "slow", currentPaceMinPerKm: 13.2 })!;
+    expect(c.answers.map((a) => a.operator?.op)).toEqual(["keep-all-extend", "shorten", "dismiss"]);
   });
 
   it("fast offers an extend with the place", () => {
