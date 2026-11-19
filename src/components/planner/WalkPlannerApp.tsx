@@ -3823,14 +3823,9 @@ export function WalkPlannerApp({
           </Link>
             </>
           )}
-          <h1 className="relative mt-[16px] font-app-serif text-[30px] font-semibold leading-[1.1] tracking-[-0.01em] text-tk-ink @4xl:mt-[12px] @4xl:text-[24px] @6xl:mt-[16px] @6xl:text-[28.6px]">
-            {isAdvancedOpen ? "Advanced planning" : "Your walk, right now"}
+          <h1 className="relative mt-[16px] whitespace-nowrap font-display text-[30px] font-normal leading-[1.1] text-tk-ink @4xl:mt-[12px] @4xl:text-[24px] @6xl:mt-[16px] @6xl:text-[28.6px]">
+            {isAdvancedOpen ? "Advanced planning" : "Where shall we walk?"}
           </h1>
-          <p className="relative mt-[6px] max-w-[285px] font-app-sans text-[15.9px] leading-[22.2px] text-tk-lede @4xl:mt-[5px] @4xl:max-w-[250px] @4xl:text-[14px] @4xl:leading-[19.5px] @6xl:mt-[6px] @6xl:max-w-[285px] @6xl:text-[15.9px] @6xl:leading-[22.2px]">
-            {isAdvancedOpen
-              ? "Place your own stops, set the rules, or search for a marked hike."
-              : "Tell us where you are and how long you have — we’ll build the walk."}
-          </p>
           <button
             type="button"
             onClick={() => (isAdvancedOpen ? closeAdvanced() : setIsAdvancedOpen(true))}

@@ -22,6 +22,7 @@ const COPY = {
     evening: "Good evening",
     newRoute: "New route",
     newRouteCta: "How much time do you have?",
+    planMyWalk: "Plan my walk",
     myWalks: "My walks",
     myWalksLine: "Walked and saved",
     invite: "Invite a friend",
@@ -43,6 +44,7 @@ const COPY = {
     evening: "ערב טוב",
     newRoute: "מסלול חדש",
     newRouteCta: "כמה זמן יש לכם?",
+    planMyWalk: "תכננו את הטיול",
     myWalks: "ההליכות שלי",
     myWalksLine: "מה שהלכתם ושמרתם",
     invite: "הזמנת חבר",
@@ -147,7 +149,7 @@ export function HomeView({
   return (
     <div className="font-app-sans fixed inset-0 z-[900] overflow-y-auto bg-cream text-charcoal lg:start-[72px]">
       {/* Round 13 hero: the photo is shown in full (no blur, no wash), type sits on it. */}
-      <div className="relative h-[300px] w-full overflow-hidden">
+      <div className="relative h-[290px] w-full overflow-hidden">
         <Image src={homeBg === "forest" ? "/images/traike/home-forest.jpg" : "/images/traike/home-city.jpg"} alt="" fill priority sizes="100vw" aria-hidden className="object-cover object-[50%_38%] dark:hidden" />
         <Image src={homeBg === "forest" ? "/images/traike/home-forest.jpg" : "/images/traike/home-city-night.jpg"} alt="" fill sizes="100vw" aria-hidden className="hidden object-cover object-[50%_38%] dark:block" />
         <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/10 to-transparent" />
@@ -158,11 +160,20 @@ export function HomeView({
             <span className="font-app-serif tracking-tight text-[24px] font-bold leading-none">Traike</span>
           </span>
         </div>
-        <div className="absolute inset-x-0 bottom-10">
+        <div className="absolute inset-x-0 bottom-8">
           <h1 className="font-app-serif tracking-tight mx-auto max-w-[960px] px-4 text-[38px] font-bold leading-[42px] text-[#FFF8EE] [text-shadow:0_2px_14px_rgba(0,0,0,.5)] lg:px-8">
             {t[greetingKey(hour)]}
             {socialName ?? greetingName ? `, ${socialName ?? greetingName}` : ""}
           </h1>
+          <div className="mx-auto mt-4 max-w-[960px] px-4 lg:px-8">
+            <button
+              type="button"
+              onClick={() => onNavigate("plan")}
+              className="min-h-12 rounded-full bg-terra px-8 text-[16px] font-bold text-on-accent shadow-[0_4px_0_#1f2a24,0_10px_18px_rgba(0,0,0,.3)] transition-transform active:translate-y-[2px] active:shadow-[0_2px_0_#1f2a24]"
+            >
+              {t.planMyWalk}
+            </button>
+          </div>
         </div>
       </div>
       <div className="relative mx-auto flex w-full max-w-[960px] flex-col gap-4 px-4 pt-2 pb-[calc(96px+env(safe-area-inset-bottom))] lg:px-8 lg:pb-12">
@@ -191,10 +202,9 @@ export function HomeView({
         ) : null}
 
         <div className="grid grid-cols-2 gap-3.5 pt-6 lg:grid-cols-3" aria-label={t.newRoute}>
-          <div className="lg:col-span-2 [&>button]:h-full [&>button]:w-full">
-            <ChoiceTile variant="primary" title={t.newRoute} line={t.newRouteCta} image="/images/traike/3d/compass.png" onClick={() => onNavigate("plan")} />
-          </div>
+          <div className="col-span-2 lg:col-span-3 [&>button]:h-full [&>button]:w-full">
           <ChoiceTile title={t.myWalks} line={walkCount === null ? t.myWalksLine : undefined} number={walkCount} image="/images/traike/3d/boot.png" onClick={() => onNavigate("walks")} />
+          </div>
         </div>
 
         {incomingRequest ? (
