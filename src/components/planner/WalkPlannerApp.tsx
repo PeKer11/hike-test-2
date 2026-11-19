@@ -2154,6 +2154,22 @@ export function WalkPlannerApp({
     void discovery.ensureCovered(spliced, fix.timestamp);
   };
 
+  // The walker's real speed becomes the plan's pace: every later projection, card and
+  // rebuild then judges against it (fast and slow alike), so the same card does not repeat.
+  const rebaselinePace = (minPerKm: number) => {
+    const input = walkInputRef.current;
+    if (!input || !Number.isFinite(minPerKm) || minPerKm < 6 || minPerKm > 40) return;
+    walkInputRef.current = { ...input, walkingPaceMinPerKm: minPerKm };
+    replanTriggerRef.current?.setPlannedPace(minPerKm);
+    paceAdvisorRef.current?.setPlannedPace(minPerKm);
+    setPaceAdvisory(null);
+    const kmh = Math.round((60 / minPerKm) * 10) / 10;
+    showWalkNotice(
+      uiLang === "he" ? `מתכננים לפי ${kmh} קמ״ש מכאן` : `Planning at ${kmh} km/h from here`,
+      "ok",
+    );
+  };
+
   const handleCompanionAnswer = (answered: AnsweredQuestion, snap: CompanionSnapshot | null) => {
     const action = answered.action;
     switch (action.run) {
@@ -3582,6 +3598,8 @@ export function WalkPlannerApp({
         runApplyChangesRebuild(action.adds, action.dropStopIds);
       } else if (action.kind === "add-place") {
         runAddPlaceRebuild(action.name, action.coordinates);
+      } else if (action.kind === "set-pace") {
+        rebaselinePace(action.minPerKm);
       } else if (action.kind === "ask-planner") {
         // Details + the planner chat with the walker's own words; they tap Send.
         setIsDetailsOpen(true);

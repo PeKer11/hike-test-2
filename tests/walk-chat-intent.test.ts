@@ -160,3 +160,22 @@ describe("parseIntent false positives", () => {
     expect(parseIntent("where is the loo", stops)).toEqual({ intent: "find", amenity: "toilets" });
   });
 });
+
+describe("set-pace intent", () => {
+  const cases: Array<[string, number]> = [
+    ["I walk 4 km/h", 4],
+    ["2 kmh", 2],
+    ["אני הולך 4 קמ\"ש", 4],
+    ["קמש 3", 3],
+    ["too long, I walk 3 km/h", 3],
+    ["אני הולכת 2.5 קילומטר לשעה", 2.5],
+  ];
+  for (const [text, kmh] of cases) {
+    it(`"${text}" -> set-pace ${kmh}`, () => {
+      expect(parseIntent(text, [])).toEqual({ intent: "set-pace", speedKmh: kmh });
+    });
+  }
+  it("ignores speeds outside 1.5-8 km/h", () => {
+    expect(parseIntent("I drive 90 km/h", []).intent).not.toBe("set-pace");
+  });
+});

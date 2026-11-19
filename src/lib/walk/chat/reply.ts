@@ -14,6 +14,7 @@ export type ChatAction =
   | { kind: "add-stop"; label: string }
   | { kind: "add-place"; name: string; coordinates: Coordinates; label: string }
   | { kind: "apply-changes"; adds: Array<{ name: string; coordinates: Coordinates }>; dropStopIds: string[]; label: string }
+  | { kind: "set-pace"; minPerKm: number; label: string }
   | { kind: "head-back"; label: string }
   /** Hand the walker's own words to the planner chat (Details + chat, text prefilled; the walker taps Send). */
   | { kind: "ask-planner"; text: string; label: string };
@@ -62,6 +63,8 @@ const T = {
     headBackText: "That is the last stop. I can take you back instead.",
     headBackOnly: "I can take you back to the start now.",
     shorterNoDrop: "The stops left are ones you picked, so I won't drop them. I can take you back instead.",
+    setPace: (kmh: string) => `Got it, you walk about ${kmh} km/h. I can plan the rest of the walk at that speed.`,
+    setPaceBtn: (kmh: string) => `Plan at ${kmh} km/h`,
     longer: "Add a stop",
     longerText: "I can look for one more stop ahead.",
     help: "Try: cafe, water, toilet, skip, shorter, longer, or head back.",
@@ -84,6 +87,8 @@ const T = {
     headBackText: "זו העצירה האחרונה. אפשר לחזור במקום.",
     headBackOnly: "אפשר להחזיר אתכם לנקודת ההתחלה עכשיו.",
     shorterNoDrop: "העצירות שנשארו הן כאלה שבחרתם, אז לא אוותר עליהן. אפשר לחזור במקום.",
+    setPace: (kmh: string) => `הבנתי, אתם הולכים בערך ${kmh} קמ״ש. אפשר לתכנן את המשך ההליכה לפי המהירות הזו.`,
+    setPaceBtn: (kmh: string) => `לתכנן ב-${kmh} קמ״ש`,
     longer: "להוסיף עצירה",
     longerText: "אפשר לחפש עוד עצירה בהמשך.",
     help: "נסו: קפה, מים, שירותים, דלג, קצר יותר, ארוך יותר, או חזרה.",
@@ -154,6 +159,16 @@ export function resolveChat(intent: ParsedIntent, ctx: ChatContext, lang: ChatLa
 
     case "longer":
       return { text: t.longerText, actions: [{ kind: "add-stop", label: t.longer }] };
+
+    case "set-pace": {
+      const kmh = intent.speedKmh;
+      if (!kmh) return { text: t.help, actions: [] };
+      const label = String(Math.round(kmh * 10) / 10);
+      return {
+        text: t.setPace(label),
+        actions: [{ kind: "set-pace", minPerKm: Math.round((60 / kmh) * 2) / 2, label: t.setPaceBtn(label) }],
+      };
+    }
 
     case "head-back":
       return { text: t.headBackOnly, actions: [headBack(lang)] };

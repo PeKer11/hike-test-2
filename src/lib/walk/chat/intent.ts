@@ -5,6 +5,7 @@ export type ChatIntentName =
   | "skip"
   | "shorter"
   | "longer"
+  | "set-pace"
   | "head-back"
   | "unknown";
 
@@ -12,6 +13,8 @@ export interface ParsedIntent {
   intent: ChatIntentName;
   amenity?: AmenityKind;
   stopId?: string;
+  /** set-pace: the speed the walker said they walk at, km/h. */
+  speedKmh?: number;
 }
 
 /** A stop the walker has not visited yet. Names stay on the device unless the LLM fallback is used. */
@@ -118,6 +121,20 @@ function skipTarget(text: string, stops: ChatStop[], needsRef = false): string |
   return tokens.length === 0 && (!needsRef || hasAny(text, STOP_REF)) ? stops[0].id : undefined;
 }
 
+const SPEED_UNIT = "(?:km\\s*\\/\\s*h|kmh|kph|km per hour|kilomet(?:er|re)s? per hour|קמש|קמ ש|קילומטר לשעה|קילומטרים לשעה)";
+const SPEED_BEFORE = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*${SPEED_UNIT}(?![a-z\\p{L}])`, "u");
+const SPEED_AFTER = new RegExp(`(?:^|[^\\p{L}])${SPEED_UNIT}\\s*(\\d+(?:[.,]\\d+)?)`, "u");
+const MIN_SPEED_KMH = 1.5;
+const MAX_SPEED_KMH = 8;
+
+/** "I walk 4 km/h", "אני הולך 3 קמש": the stated walking speed, or undefined when out of the human range. */
+export function speedFromText(text: string): number | undefined {
+  const m = SPEED_BEFORE.exec(text) ?? SPEED_AFTER.exec(text);
+  if (!m) return undefined;
+  const v = Number(m[1].replace(",", "."));
+  return v >= MIN_SPEED_KMH && v <= MAX_SPEED_KMH ? v : undefined;
+}
+
 /**
  * Keyword intent for the walk chat. No network, no model. Precedence when a
  * sentence has several: skip > find > head-back > shorter > longer.
@@ -136,6 +153,9 @@ export function parseIntent(rawText: string, stops: ChatStop[]): ParsedIntent {
     if (stopId) return { intent: "skip", stopId };
     if (hasAny(text, STOP_REF)) return { intent: "skip" };
   }
+  // A stated speed is checked before shorter/longer: "too long, I walk 3 km/h" is a pace, not a cut.
+  const speedKmh = speedFromText(text);
+  if (speedKmh !== undefined) return { intent: "set-pace", speedKmh };
   const amenity = amenityIn(text);
   if (amenity) return { intent: "find", amenity };
   if (hasAny(text, HEAD_BACK_WORDS)) return { intent: "head-back" };
