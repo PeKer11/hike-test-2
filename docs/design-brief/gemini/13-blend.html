@@ -1714,6 +1714,12 @@ SELF-CHECK ANSWERS:
   /* ROUND 13l: the city photo has a smeared patch baked in at its top-right — crop it out */
   html:not([data-homebg="forest"]) .band-art-photo,html .band-plan-photo:not(.band-home-hero) .band-art-photo{background-size:auto 150%!important;background-position:100% 100%!important}
   html:not([data-homebg="forest"]) .band-art-home{background-size:auto 150%!important;background-position:100% 100%!important}
+
+  /* ROUND 13m: Plan title on one line; guide without the arch frame (soft-faded into the photo) */
+  .band-plan .band-title{white-space:nowrap;font-size:26px!important}
+  .band-title em{white-space:nowrap}
+  .guide-arch{border:0!important;box-shadow:none!important;background:transparent!important;border-radius:0!important;-webkit-mask-image:radial-gradient(ellipse 48% 56% at 52% 44%,#000 55%,transparent 100%);mask-image:radial-gradient(ellipse 48% 56% at 52% 44%,#000 55%,transparent 100%);mix-blend-mode:normal;width:140px!important;height:184px!important;object-fit:cover;object-position:50% 0}
+  .guide-stage{grid-template-columns:140px 1fr!important}
 </style>
 </head>
 <body>
