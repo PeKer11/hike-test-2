@@ -409,3 +409,25 @@ describe("ReplanTrigger — walking past stops keeps the pace honest", () => {
     expect(walkPastStops(21).evaluate(T0 + 16 * 60_000)).toBe("sustained-slow-pace");
   });
 });
+
+describe("ReplanTrigger — setPlannedPace (both directions)", () => {
+  const SIX_MIN = SUSTAINED_SLOW_WINDOW_MS;
+  it("a 15 min/km walker is 'fast' against a 30 plan, normal after setPlannedPace(15)", () => {
+    const stale = new ReplanTrigger(30);
+    const e1 = walk(stale, T0, SIX_MIN, 15);
+    expect(stale.evaluate(e1)).toBe("sustained-fast-pace");
+    const fresh = new ReplanTrigger(30);
+    fresh.setPlannedPace(15);
+    const e2 = walk(fresh, T0, SIX_MIN, 15);
+    expect(fresh.evaluate(e2)).toBeNull();
+  });
+  it("mirror: a 30 min/km walker is 'slow' against a 15 plan, normal after setPlannedPace(30)", () => {
+    const stale = new ReplanTrigger(15);
+    const e1 = walk(stale, T0, SIX_MIN, 30);
+    expect(stale.evaluate(e1)).toBe("sustained-slow-pace");
+    const fresh = new ReplanTrigger(15);
+    fresh.setPlannedPace(30);
+    const e2 = walk(fresh, T0, SIX_MIN, 30);
+    expect(fresh.evaluate(e2)).toBeNull();
+  });
+});

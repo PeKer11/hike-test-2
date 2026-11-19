@@ -2937,6 +2937,7 @@ export function WalkPlannerApp({
     // last re-plan still applies to the next one.
     const trigger =
       replanTriggerRef.current ?? new ReplanTrigger(input.walkingPaceMinPerKm);
+    trigger.setPlannedPace(input.walkingPaceMinPerKm);
     replanTriggerRef.current = trigger;
 
     const checker = new PaceChecker(walkSettingsRef.current, trigger, (reason, response) => {

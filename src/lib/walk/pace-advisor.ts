@@ -43,7 +43,11 @@ export class PaceAdvisor {
     fast: Number.NEGATIVE_INFINITY,
   };
 
-  constructor(private readonly plannedPaceMinPerKm: number) {}
+  constructor(private plannedPaceMinPerKm: number) {}
+
+  setPlannedPace(minPerKm: number): void {
+    if (Number.isFinite(minPerKm) && minPerKm > 0) this.plannedPaceMinPerKm = minPerKm;
+  }
 
   /**
    * `atStop`: the fix is within the quiet radius of a plan stop. A visit is not

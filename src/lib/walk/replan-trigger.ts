@@ -64,7 +64,7 @@ const MIN_DISTANCE_FOR_PACE_METERS = 10;
  * long walk are possible as long as each is separated by the cooldown.
  */
 export class ReplanTrigger {
-  private readonly plannedPaceMinPerKm: number;
+  private plannedPaceMinPerKm: number;
   private samples: ReplanSample[] = [];
   private cooldownUntil = 0;
   // Stretches of time spent standing at a planned stop. A visit is not slowness,
@@ -128,6 +128,11 @@ export class ReplanTrigger {
     }
 
     return reason;
+  }
+
+  /** The plan's pace changed (stated or re-baselined): judge the walker against it, keep cooldown. */
+  setPlannedPace(minPerKm: number): void {
+    if (Number.isFinite(minPerKm) && minPerKm > 0) this.plannedPaceMinPerKm = minPerKm;
   }
 
   /** Clears samples and cooldown — call when a new walk starts. */
