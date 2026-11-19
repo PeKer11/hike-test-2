@@ -568,8 +568,10 @@ function buildMidWalkRebuildRequest<TInput extends RebuildInput>(
 export function buildOptionRebuildRequest<TInput extends RebuildInput>(
   state: PaceRebuildState<TInput>,
   stops: Attraction[],
+  /** `minutesFromNow`: the walker (or the assistant) stated the time from here on; it replaces "original minus elapsed". */
+  opts?: { minutesFromNow?: number },
 ): { input: TInput; options: BuildWalkOptions } {
-  return buildMidWalkRebuildRequest(
+  const req = buildMidWalkRebuildRequest(
     {
       ...state,
       currentAttractions: stops,
@@ -577,6 +579,9 @@ export function buildOptionRebuildRequest<TInput extends RebuildInput>(
     },
     { fillRemainingTime: false },
   );
+  return opts?.minutesFromNow !== undefined
+    ? { ...req, input: { ...req.input, availableMinutes: Math.max(MIN_REBUILD_MINUTES, opts.minutesFromNow) } }
+    : req;
 }
 
 /**

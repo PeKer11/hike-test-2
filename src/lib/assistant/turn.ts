@@ -29,6 +29,9 @@ const TURN_TIMEOUT_MS = 90_000;
 /** Tool calls one turn may run in total, so a hijacked model cannot loop the paid map APIs. */
 const MAX_TOOL_CALLS = 20;
 
+const CLAIM_CHANGE = /(הארכתי|עדכנתי|הוספתי|בניתי|שיניתי|הוארך|עודכן|נבנה|\bI(?:'ve| have)? (?:extended|updated|added|built|rebuilt|changed|lengthened)\b|\b(?:is|has been) (?:extended|updated|rebuilt)\b)/i;
+const ROUTE_WORD = /(מסלול|הליכה|מפה|\broute\b|\bwalk\b|\bmap\b)/i;
+
 export interface TurnMessage {
   role: "user" | "assistant";
   content: string;
@@ -92,6 +95,7 @@ export async function runAssistantTurn(
   let askLimits = false;
   let unchecked: string[] = [];
   let choices: string[] | undefined;
+  let honestChoice: string[] | undefined;
   let defaultAreaStart: { name: string; coordinates: NonNullable<AssistantState["origin"]> } | undefined;
   const remembered: string[] = [];
   let billedMicros = 0;
@@ -117,7 +121,15 @@ export async function runAssistantTurn(
         ? `המסלול יתחיל ב־${defaultAreaStart.name}, בסדר? אמשיך לתכנן משם; אפשר לבקש נקודת התחלה אחרת.`
         : `The walk will start at ${defaultAreaStart.name}, okay? I'll keep planning from there; you can ask for a different start.`
       : "";
-    return [announce, reply, warning].filter(Boolean).join("\n\n").trim();
+    // The map changes only through build_walk. A reply that says it did, without a build, gets the server's correction.
+    const claimedWithoutBuild = !action && CLAIM_CHANGE.test(reply) && ROUTE_WORD.test(reply);
+    if (claimedWithoutBuild) honestChoice = [hebrew ? "בנו את המסלול" : "Build the walk"];
+    const honesty = claimedWithoutBuild
+      ? hebrew
+        ? "⚠ המפה לא השתנתה: לא נבנה מסלול חדש בהודעה הזו."
+        : "⚠ The map has not changed: no new route was built in this message."
+      : "";
+    return [announce, reply, honesty, warning].filter(Boolean).join("\n\n").trim();
   };
 
   const known = state.candidates.length
@@ -170,7 +182,7 @@ export async function runAssistantTurn(
     if (cancelled()) throw new TurnCancelledError(billedMicros);
 
     if (response.toolCalls.length === 0) {
-      return { reply: finish((response.content ?? "").trim()), state, action, remembered, billedMicros };
+      return { reply: finish((response.content ?? "").trim()), state, action, choices: choices ?? honestChoice, remembered, billedMicros };
     }
     messages.push({ role: "assistant", content: response.content, tool_calls: response.toolCalls });
     for (const tc of response.toolCalls) {
@@ -232,7 +244,7 @@ export async function runAssistantTurn(
       if (cancelled()) throw new TurnCancelledError(billedMicros);
       // Said by the server, so a rule that was not fully checked is never left out of the reply.
       const reply = finish(`${(final?.content ?? "").trim()}${unchecked.length ? `\n\n${hebrew ? "⚠ לא הצלחתי לאמת עד הסוף" : "⚠ Could not fully verify"}: ${unchecked.join(", ")}` : ""}`.trim());
-      return { reply, state, action, askLimits, choices, remembered, billedMicros };
+      return { reply, state, action, askLimits, choices: choices ?? honestChoice, remembered, billedMicros };
     }
   }
   if (cancelled()) throw new TurnCancelledError(billedMicros);
@@ -256,6 +268,7 @@ export async function runAssistantTurn(
     reply: finish(wrapUp?.content?.trim() || stopLine),
     state,
     action,
+    choices: choices ?? honestChoice,
     remembered,
     billedMicros,
   };

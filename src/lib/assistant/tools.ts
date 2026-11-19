@@ -226,6 +226,7 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
         type: "object",
         properties: {
           time_minutes: { type: "number" },
+          add_minutes: { type: "number", description: "extra minutes on top of the walk on the map ('another hour' = 60); the server adds them to the walk's real length" },
           radius_km: { type: "number" },
           end_distance_km: { type: "number" },
           max_walk_km: { type: "number", description: "cap on the total distance walked" },
@@ -400,7 +401,7 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
     function: {
       name: "build_walk",
       description:
-        "Build and show the walk. Call only after the walker confirmed the stops. `stop_ids` are candidate ids in the order proposed.",
+        "Build and show the walk. This is the only way the map changes. Call it in the same turn once the stops fit; wait only while a safety or weather question is open. `stop_ids` are candidate ids in the order proposed.",
       parameters: {
         type: "object",
         properties: { stop_ids: { type: "array", items: { type: "string" } }, ordered: {
@@ -841,7 +842,14 @@ export async function runTool(
     }
 
     if (name === "set_walk_params") {
-      const t = num(args.time_minutes);
+      let t = num(args.time_minutes);
+      const add = num(args.add_minutes);
+      if (add) {
+        const base = state.current?.remainingMin ?? state.current?.totalMin;
+        if (base === undefined) return { output: JSON.stringify({ error: "no walk on the map to extend: ask how long the whole walk should be" }), state };
+        t = Math.round(base + add);
+      }
+      if (t) state.timeSetThisTurn = true;
       const r = num(args.radius_km);
       const e = typeof args.end_distance_km === "number" && args.end_distance_km >= 0 ? args.end_distance_km : undefined;
       const p = num(args.pace_min_per_km);
@@ -1272,7 +1280,7 @@ export async function runTool(
       return {
         output: JSON.stringify({ built: true, building: stops.map((s) => s.name), ...(builtVerdict ? { verdict: builtVerdict } : {}), ...(notChecked.length ? { not_checked: notChecked } : {}) }),
         state,
-        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}), ...(builtGeometry ? { geometry: builtGeometry } : {}), ...(builtVerdict?.restMin ? { restMin: builtVerdict.restMin } : {}) },
+        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}), ...(builtGeometry ? { geometry: builtGeometry } : {}), ...(builtVerdict?.restMin ? { restMin: builtVerdict.restMin } : {}), ...(state.timeSetThisTurn ? { timeStated: true } : {}) },
       };
     }
   } catch (err) {

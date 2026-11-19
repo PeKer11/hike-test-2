@@ -11,6 +11,7 @@ import {
   buildDeviationRebuildRequest,
   buildExtendedTimeRebuildRequest,
   buildHeadingContinuedRebuildRequest,
+  buildOptionRebuildRequest,
   buildPaceRebuildRequest,
   buildRecallRebuildRequest,
   promptWalkBuildOptions,
@@ -1012,5 +1013,14 @@ describe("what recall does to the walker's stops", () => {
     // Honest rather than quietly over budget: this is what raises the
     // pinned-stop warning the walker then decides on.
     expect(recalled.feasible).toBe(false);
+  });
+});
+
+describe("buildOptionRebuildRequest with a stated time", () => {
+  it("uses the minutes the walker stated from now instead of original minus elapsed", () => {
+    const late = state({ originalInput: { ...WALK_INPUT, availableMinutes: 120 }, now: START + 100 * 60_000 });
+    expect(buildOptionRebuildRequest(late, [attraction("a")]).input.availableMinutes).toBe(20);
+    expect(buildOptionRebuildRequest(late, [attraction("a")], { minutesFromNow: 80 }).input.availableMinutes).toBe(80);
+    expect(buildOptionRebuildRequest(late, [attraction("a")], { minutesFromNow: 5 }).input.availableMinutes).toBe(15);
   });
 });

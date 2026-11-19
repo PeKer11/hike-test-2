@@ -13,6 +13,7 @@ import { defaultParams, parseDefaults, tasteNote } from "@/lib/assistant/default
 import { tzOffsetMin } from "@/lib/walk/clock";
 import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
 import { asState, parseOrigin } from "@/lib/assistant/stored-state";
+import { currentWalkNote, parseCurrentWalk, seedCurrentWalk } from "@/lib/assistant/current-walk";
 import { getPreferredCategoryWeights, getProfileDefaults } from "@/lib/preferences/preference-store";
 import { runAssistantTurn, TurnCancelledError, type TurnMessage } from "@/lib/assistant/turn";
 import { selectFactsForPrompt } from "@/lib/preferences/fact-extractor";
@@ -56,6 +57,8 @@ interface AssistantRequest {
   images?: unknown;
   /** The walker's IANA time zone, for every clock rule. */
   timeZone?: unknown;
+  /** The walk on the map right now (plan, saved preview or live walk), so "extend" knows what to extend. */
+  current?: unknown;
 }
 
 const MAX_IMAGES = 5;
@@ -182,13 +185,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   const taste = tasteNote(defaults, learned);
   const facts = selectFactsForPrompt(await getStandingFacts(supabase, user.id), new Date());
   const savedPlaces = await listPlaces(supabase, user.id).catch(() => []);
+  const currentWalk = parseCurrentWalk(body.current);
+  if (currentWalk) state = seedCurrentWalk(state, currentWalk);
   const memoryNote =
     (facts.length
       ? `\nWhat you already remember about this walker (use it, do not ask again): ${facts.map((f) => f.text).join("; ")}.`
       : "") +
     placesNote(savedPlaces) +
     queuedNote(body.queued) +
-    (body.walking === true ? "\nThe walker is in the middle of a walk, at the start point given. Plan from here, and never propose places they already passed. The places queued above are the stops still ahead on this walk: keep these stops and their order. When the walker changes pace or time (\"I walk 2 km/h\"), call set_walk_params, estimate_walk and build_walk with those same stops, and never add a stop they did not ask for." : "");
+    currentWalkNote(state) +
+    (body.walking === true ? "\nThe walker is in the middle of a walk, at the start point given. Plan from here, and never propose places they already passed. The stops of the walk on the map are the ones still ahead: keep them and their order. When the walker changes pace or time (\"I walk 2 km/h\"), call set_walk_params, estimate_walk and build_walk with those same stops. Add stops only when they ask for more (extend, longer, more time, another stop)." : "");
   // Places they already walked to (marked visited in Saved places) are not offered again.
   const visitedSaved = savedPlaces.filter((p) => p.visitedAt);
   state = {
@@ -203,6 +209,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   // Mid-walk the walker has moved: plan from here, not from where the chat first started.
   // The client always sends the start it shows (and mirrors any start the model sets), so the last explicit pick wins.
   if (origin) state = { ...state, origin };
+  // A saved walk opened on the map is extended from its own start (a live walk keeps the walker's position).
+  if (currentWalk?.source === "saved" && body.walking !== true) state = { ...state, origin: currentWalk.start };
   // Answers from the tap-to-choose limits boxes: null / missing = no limit.
   if (typeof body.limits === "object" && body.limits !== null) {
     const l = body.limits as Record<string, unknown>;

@@ -1146,6 +1146,8 @@ export function WalkPlannerApp({
     geometry: Coordinates[],
     keepViewport = false,
   ) => {
+    // A new plan always replaces a saved walk that was open on the map, or the new route would stay hidden behind it.
+    setWalkPreview(null);
     setWalkPlan(plan);
     walkPlanRef.current = plan;
     setWalkPhase("planned");
@@ -3983,8 +3985,8 @@ export function WalkPlannerApp({
                     // Mid-walk: rebuild from where the walker is, with the time that is left — not from the chat's first start.
                     const midWalk = walkPhaseRef.current === "walking" ? midWalkRebuildState() : null;
                     if (midWalk) {
-                      const { input, options } = buildOptionRebuildRequest(midWalk, [...stops, ...extraWishlist]);
-                      void handleBuildWalk(
+                      const { input, options } = buildOptionRebuildRequest(midWalk, [...stops, ...extraWishlist], build.timeExplicit ? { minutesFromNow: build.availableMinutes } : undefined);
+                      return handleBuildWalk(
                         // "I walk 2 km/h": Sol's stated pace re-times the walk, and Sol's stops are pinned so the optimizer cannot drop them.
                         build.paceExplicit ? { ...input, walkingPaceMinPerKm: build.walkingPaceMinPerKm } : input,
                         {
@@ -3994,12 +3996,11 @@ export function WalkPlannerApp({
                           aiDecided: true,
                           routeRules: build.routeRules,
                         },
-                      );
-                      return;
+                      ).then((p) => p !== null);
                     }
                     setCurrentPosition(build.origin);
                     focusOn(build.origin, 14);
-                    void handleBuildWalk(
+                    return handleBuildWalk(
                       {
                         origin: build.origin,
                         availableMinutes: build.availableMinutes,
@@ -4008,7 +4009,28 @@ export function WalkPlannerApp({
                         maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters,
                       },
                       { keepAttractions: [...stops, ...extraWishlist], fixedOrder: build.fixedOrder, presetGeometry: extraWishlist.length > 0 ? undefined : build.geometry, aiDecided: extraWishlist.length === 0, fillRemainingTime: false, routeRules: build.routeRules, autoResume: walkPhaseRef.current === "walking" },
-                    );
+                    ).then((p) => p !== null);
+                  }}
+                  getCurrentWalk={() => {
+                    const toStop = (a: Attraction) => ({ name: a.name, coordinates: a.coordinates, category: a.category });
+                    const saved = walkPreview?.walk;
+                    if (saved) {
+                      return { source: "saved", start: saved.start, stops: saved.stops.map((st) => ({ name: st.name, coordinates: { lat: st.lat, lng: st.lng }, category: st.category })), totalMin: saved.totalMin ?? undefined };
+                    }
+                    const plan = walkPlanRef.current;
+                    const input = walkInputRef.current;
+                    if (!plan || !input) return null;
+                    if (walkPhaseRef.current === "walking") {
+                      const elapsed = (Date.now() - walkStartTimeRef.current) / 60_000;
+                      return {
+                        source: "walking",
+                        start: input.origin,
+                        stops: plan.orderedAttractions.filter((a) => !visitedAttractionIds.includes(a.id)).map(toStop),
+                        totalMin: Math.round(plan.totalMinutes),
+                        remainingMin: Math.max(0, Math.round(Math.min(input.availableMinutes, plan.totalMinutes) - elapsed)),
+                      };
+                    }
+                    return { source: "plan", start: input.origin, stops: plan.orderedAttractions.map(toStop), totalMin: Math.round(plan.totalMinutes) };
                   }}
                 />
                 </details>

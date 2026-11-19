@@ -75,6 +75,7 @@ export const ASSISTANT_TOOL_ARGS = {
   set_walk_params: z
     .object({
       time_minutes: walkMin.optional(),
+      add_minutes: z.number().min(1).max(600).optional(),
       radius_km: z.number().min(0).max(200).optional(),
       end_distance_km: z.number().min(0).max(200).optional(),
       max_walk_km: z.number().min(0).max(200).optional(),

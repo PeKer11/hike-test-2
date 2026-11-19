@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import { useHydrated } from "@/lib/hooks/useHydrated";
 import type { AssistantDefaults } from "@/lib/assistant/defaults";
+import type { CurrentWalk } from "@/lib/assistant/current-walk";
 import { AssistantSettings, PACE_PRESETS, useAssistantDefaults } from "./AssistantSettings";
 import { StartLocationPicker } from "./StartLocationPicker";
 import type { Attraction, Coordinates } from "@/lib/types";
@@ -60,6 +61,8 @@ export interface AssistantBuild {
   routeRules?: { noRepeat?: boolean; avoidStreets?: string[]; avoidDangerous?: boolean; stayInArea?: string; restMinutes?: number; access?: "stroller" | "wheelchair"; maxGradePct?: number };
   /** The route the assistant checked: the planner shows this one for this build. */
   geometry?: Coordinates[];
+  /** The time limit was set in this turn: mid-walk, availableMinutes means minutes from now. */
+  timeExplicit?: boolean;
 }
 
 interface AssistantChatProps {
@@ -68,7 +71,10 @@ interface AssistantChatProps {
   isBuilding: boolean;
   /** Places the chat has found, shown as pins on the map. */
   onPlacesChange: (places: Attraction[]) => void;
-  onBuild: (build: AssistantBuild) => void;
+  /** Resolves false when the route could not be built, so the chat can say the map did not change. */
+  onBuild: (build: AssistantBuild) => Promise<boolean> | void;
+  /** The walk on the map right now, read at send time so "extend" knows what to extend. */
+  getCurrentWalk?: () => CurrentWalk | null;
   /** Saved places the walker queued for this walk; the assistant must include them. */
   queuedPlaces?: { name: string; coordinates: Coordinates }[];
   /** A walk is in progress: the chat plans from where the walker is now, not the original start. */
@@ -309,7 +315,9 @@ function toAttraction(c: Candidate, params?: WalkParams): Attraction {
   };
 }
 
-export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, queuedPlaces, walking, onFocusPlace, walkReady, onStart, onSetOrigin, onFocusArea, prefill }: AssistantChatProps) {
+export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, getCurrentWalk, queuedPlaces, walking, onFocusPlace, walkReady, onStart, onSetOrigin, onFocusArea, prefill }: AssistantChatProps) {
+  const getCurrentWalkRef = useRef(getCurrentWalk);
+  getCurrentWalkRef.current = getCurrentWalk;
   const queuedRef = useRef(queuedPlaces ?? []);
   queuedRef.current = queuedPlaces ?? [];
   const walkingRef = useRef(walking ?? false);
@@ -460,7 +468,8 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
     setMessages((m) => [...m, { role: "user", content: sentImages.length ? `${message} 🖼×${sentImages.length}` : message }]);
     setPending(true);
     try {
-      const body = JSON.stringify({ chatId, message: typed, origin, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) });
+      const currentWalk = getCurrentWalkRef.current?.() ?? null;
+      const body = JSON.stringify({ chatId, message: typed, ...(currentWalk ? { current: currentWalk } : {}), origin, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) });
       // 409 "busy": an earlier turn of this user is still finishing on the server (e.g. one that was stopped).
       // Wait for it instead of leaving an unanswered bubble; Stop still cancels the wait.
       let response: Response;
@@ -495,8 +504,9 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
       setChoices(data.choices ?? []);
       if (data.action) {
         const { params, stops } = data.action;
-        onBuild({
+        const built = onBuild({
           origin: data.action.origin,
+          timeExplicit: data.action.timeStated === true,
           availableMinutes: params.timeMinutes ?? NO_LIMIT_MINUTES,
           paceExplicit: params.paceMinPerKm !== undefined,
           walkingPaceMinPerKm: (params.paceMinPerKm ?? DEFAULT_PACE) * (params.access ? ACCESS_PROFILES[params.access].paceFactor : 1),
@@ -514,6 +524,12 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, que
             ...(data.action.restMin ? { restMinutes: data.action.restMin } : {}),
             ...(params.access ? { access: params.access, ...(params.maxGradePct ? { maxGradePct: params.maxGradePct } : {}) } : {}),
           },
+        });
+        // Not awaited: the chat stops waiting as before. If the route could not be built, say so instead of leaving "extended" standing.
+        void Promise.resolve(built).then((shown) => {
+          if (shown !== false) return;
+          const he = /[\u0590-\u05FF]/.test(data.reply);
+          setMessages((m) => [...m, { role: "assistant", content: he ? "⚠ המפה לא עודכנה: לא הצלחתי לבנות את המסלול החדש. לנסות שוב?" : "⚠ The map was not updated: the new route could not be built. Try again?" }]);
         });
       }
       void refreshChats();
