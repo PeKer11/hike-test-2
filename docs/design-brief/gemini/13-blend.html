@@ -47,14 +47,14 @@ SELF-CHECK ANSWERS:
       All strictly obeyed.
 ================================================================================
 -->
-<html lang="en" dir="ltr" data-theme="day" data-device="phone" data-screen="home">
+<html lang="en" dir="ltr" data-theme="day" data-device="phone" data-screen="home" data-homebg="forest">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Traike — Round 13</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,500..800,0..100,0..1;1,9..144,500..800,0..100,0..1&family=Manrope:wght@500;600;700&family=Frank+Ruhl+Libre:wght@600;700&family=Assistant:wght@400;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,500..800,0..100,0..1;1,9..144,500..800,0..100,0..1&family=Manrope:wght@500;600;700&family=Secular+One&family=Frank+Ruhl+Libre:wght@600;700&family=Assistant:wght@400;600;700&display=swap" rel="stylesheet" />
 <style>
   /* =========================================================
      1. "TRAIL MARK ON LIMESTONE" — ROLE TOKENS (DAY & NIGHT)
@@ -1680,6 +1680,20 @@ SELF-CHECK ANSWERS:
   .band-plan-photo .band-title,.band-title{font-variation-settings:"SOFT" 100,"WONK" 1;font-weight:600;letter-spacing:-.02em}
   .band-title em{font-style:italic;font-weight:500;font-variation-settings:"SOFT" 100,"WONK" 1}
   html[lang="he"] .band-title em,[dir="rtl"] .band-title em{font-style:normal}
+
+  /* ROUND 13i */
+  .band-art-home::before{background:linear-gradient(180deg,rgba(255,236,214,.32) 0%,rgba(250,214,180,.18) 55%,rgba(247,241,232,.0) 78%,var(--paper,#F7F1E8) 100%)!important}
+  .band-home{height:244px!important}
+  .hero-hint{margin:10px 0 0;max-width:300px;font-family:var(--font-sans);font-size:12.5px;font-weight:600;line-height:1.35;color:#14110E;opacity:.85}
+  html[data-homebg="forest"] .hero-hint{color:#FFF8EE;text-shadow:0 2px 12px rgba(0,0,0,.55)}
+  /* loc chip: primary-button language — cream pill, dark edge + lip, no shine */
+  .band-plan-photo .band-topbar .loc-chip,.band-plan-photo .band-topbar button.loc-chip,.band-home-hero .loc-chip,.band-home-hero .band-topbar .loc-chip,.band-home-hero .band-topbar button.loc-chip,html[data-homebg="forest"] .band-home-hero .band-topbar .loc-chip{background:var(--paper,#F7F1E8)!important;color:#14110E!important;border:1.5px solid #1F251F!important;border-radius:999px!important;box-shadow:0 3px 0 #1F251F!important;padding:5px 13px 5px 11px!important;font-weight:700;text-shadow:none!important;text-decoration:none!important}
+  /* Plan title: chunky Secular One (reads well in Hebrew + Latin), Fraunces stays for numerals/wordmark */
+  .band-title{font-family:'Secular One','Fraunces',sans-serif!important;font-weight:400!important;letter-spacing:0!important;font-variation-settings:normal!important;line-height:1.12}
+  .band-title em{font-style:normal!important;color:#FFD3A6;font-variation-settings:normal!important;font-weight:400!important}
+
+  .loc-chip .chip-text,.band-home-hero .loc-chip .chip-text,html[data-homebg="forest"] .band-home-hero .loc-chip .chip-text{color:#14110E!important;text-shadow:none!important}
+  html[data-homebg="forest"] .hero-hint{background:rgba(14,22,16,.52);padding:7px 10px;border-radius:8px;text-shadow:none}
 </style>
 </head>
 <body>
@@ -1821,8 +1835,8 @@ SELF-CHECK ANSWERS:
         <button type="button" id="btn-night" aria-pressed="false" onclick="setTheme('night')">Dusk Night</button>
       </div>
       <div class="ctrl-seg" role="group" aria-label="Home background">
-        <button type="button" id="btn-hb-city" aria-pressed="true" onclick="setHomeBg('city')">Home: City</button>
-        <button type="button" id="btn-hb-forest" aria-pressed="false" onclick="setHomeBg('forest')">Home: Forest</button>
+        <button type="button" id="btn-hb-city" aria-pressed="false" onclick="setHomeBg('city')">Home: City</button>
+        <button type="button" id="btn-hb-forest" aria-pressed="true" onclick="setHomeBg('forest')">Home: Forest</button>
       </div>
       <div class="ctrl-seg" role="group" aria-label="Device">
         <button type="button" id="btn-phone" aria-pressed="true" onclick="setDevice('phone')">Phone (390)</button>
@@ -1937,6 +1951,8 @@ SELF-CHECK ANSWERS:
                 <div class="hf"><b><bdi>4</bdi></b><i data-en>stops</i><i data-he>תחנות</i></div>
                 <div class="hf"><b><bdi>120</bdi></b><i data-en>m away</i><i data-he>מ׳ ממך</i></div>
               </div>
+              <p class="hero-hint" data-en>Tap “Plan my walk” below — pick a vibe and a time, and Traike builds your route.</p>
+              <p class="hero-hint" data-he>לחצו על ״תכנן לי הליכה״ — בחרו אווירה וזמן, ו־Traike בונה את המסלול.</p>
             </div>
           </div>
 
@@ -2149,9 +2165,7 @@ SELF-CHECK ANSWERS:
             <div class="plan-title-wrap">
               <h1 class="band-title" data-en>Where shall <em>we walk?</em></h1>
               <h1 class="band-title" data-he>לאן נצא ללכת היום?</h1>
-              <p class="plan-sub" data-en>AI walking companion · Israel</p>
-              <p class="plan-sub" data-he>מלווה הליכה חכם בעיר</p>
-            </div>
+                                        </div>
           </div>
 
           <!-- Guide Arch + Paper Speech Card -->
