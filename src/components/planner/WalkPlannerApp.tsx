@@ -3826,6 +3826,26 @@ export function WalkPlannerApp({
           <h1 className="relative mt-[16px] whitespace-nowrap font-display text-[30px] font-normal leading-[1.1] text-tk-ink @4xl:mt-[12px] @4xl:text-[24px] @6xl:mt-[16px] @6xl:text-[28.6px]">
             {isAdvancedOpen ? "Advanced planning" : "Where shall we walk?"}
           </h1>
+          {!isAdvancedOpen && !compact && (
+            <div className="relative mt-[10px] flex items-end gap-[10px]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/traike/guide-cut.png"
+                alt="Traike walking guide"
+                className="pointer-events-none -mb-[6px] h-[204px] w-[136px] flex-none object-cover object-bottom [filter:drop-shadow(0_6px_10px_rgba(60,20,5,.35))] [mask-image:linear-gradient(180deg,#000_82%,transparent_100%)]"
+              />
+              <div className="relative mb-[12px] flex-1 rounded-[14px] border border-charcoal/10 bg-paper px-[13px] py-[11px] shadow-tk-card">
+                <h2 className="font-app-serif text-[17px] font-semibold leading-[1.18] text-tk-ink">
+                  {uiLang === "he" ? "שיחה עם טרייק" : "Chat with Traike"}
+                </h2>
+                <p className="mt-[2px] font-app-sans text-[13px] leading-[1.32] text-tk-ink/70">
+                  {uiLang === "he"
+                    ? "בחרו אווירה או כתבו תחנות — אחבר לכם מסלול מדויק."
+                    : "Pick a vibe or name your stops — I'll build your route."}
+                </p>
+              </div>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => (isAdvancedOpen ? closeAdvanced() : setIsAdvancedOpen(true))}
