@@ -80,6 +80,7 @@ export const ASSISTANT_TOOL_ARGS = {
       end_distance_km: z.number().min(0).max(200).optional(),
       max_walk_km: z.number().min(0).max(200).optional(),
       pace_min_per_km: z.number().min(0).max(60).optional(),
+      speed_kmh: z.number().min(0.5).max(20).optional(),
       no_repeat: z.boolean().optional(),
       avoid_streets: z.array(z.string().max(120)).max(20).optional(),
       via_streets: z.array(z.string().max(120)).max(10).optional(),

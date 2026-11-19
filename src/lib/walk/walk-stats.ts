@@ -34,10 +34,13 @@ export function progressAlong(
 }
 
 /**
- * Minutes left. The measured speed is only believed when it is within 0.5x–1.5x
- * of the planned one; outside that it is more likely a stop, a lull or noise
- * than a new pace, so the plan's own pace is used instead.
+ * Minutes left. The measured speed is believed whenever it is a plausible human
+ * walking speed (1.5-10 km/h), symmetric for faster and slower than plan: a walker
+ * at 4 km/h against a 2 km/h plan must not be priced at 2 km/h. Outside that range
+ * it is more likely a stop, a lull or GPS noise, so the plan's pace is used.
  */
+export const PLAUSIBLE_WALK_KMH = { min: 1.5, max: 10 } as const;
+
 export function timeToFinishMin(args: {
   remainingM: number;
   kmh: number | null;
@@ -47,8 +50,8 @@ export function timeToFinishMin(args: {
   const plannedKmh = 60 / args.plannedPace;
   const usable =
     args.kmh !== null &&
-    args.kmh >= plannedKmh * 0.5 &&
-    args.kmh <= plannedKmh * 1.5;
+    args.kmh >= PLAUSIBLE_WALK_KMH.min &&
+    args.kmh <= PLAUSIBLE_WALK_KMH.max;
   const kmh = usable ? (args.kmh as number) : plannedKmh;
   return (args.remainingM / 1000 / kmh) * 60 + args.remainingVisitMin;
 }

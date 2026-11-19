@@ -124,9 +124,11 @@ export interface AssistantState {
   /** Recent route checks (verdict + visiting order), so build_walk reuses what estimate_walk found. In-memory only. Only the newest check keeps its route geometry. */
   checks?: Array<{ key: string; verdict: Verdict; orderIds: string[]; geometry?: Coordinates[] }>;
   /** The walk on the map this turn, sent by the client. Never stored (asState copies only whitelisted fields). */
-  current?: { ids: string[]; source: "plan" | "saved" | "walking"; totalMin?: number; remainingMin?: number };
+  current?: { ids: string[]; source: "plan" | "saved" | "walking"; totalMin?: number; remainingMin?: number; pace?: { plannedMinPerKm: number; measuredKmh?: number; spareMin?: number } };
   /** Set when a tool changed the time limit this turn; the client then honours it mid-walk. Never stored. */
   timeSetThisTurn?: boolean;
+  /** Set when the walker stated a pace/speed this turn; only then does a mid-walk build override the walk's own pace. Never stored. */
+  paceSetThisTurn?: boolean;
 }
 
 export const EMPTY_STATE: AssistantState = {
@@ -150,6 +152,7 @@ export interface BuildAction {
   restMin?: number;
   /** The time limit was set this turn; mid-walk it means minutes from now. */
   timeStated?: boolean;
+  paceStated?: boolean;
 }
 
 /** The zone every clock rule reads: the place's own offset when Google gave one and it differs from the walker's browser zone. */

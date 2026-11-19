@@ -230,7 +230,8 @@ export const ASSISTANT_TOOLS: ToolDef[] = [
           radius_km: { type: "number" },
           end_distance_km: { type: "number" },
           max_walk_km: { type: "number", description: "cap on the total distance walked" },
-          pace_min_per_km: { type: "number" },
+          pace_min_per_km: { type: "number", description: "minutes PER KILOMETRE (a normal walk is 12-18). 2 km/h = 30, 3 km/h = 20, 4 km/h = 15, 5 km/h = 12. For a speed in km/h use speed_kmh instead" },
+          speed_kmh: { type: "number", description: "walking speed in km/h as the walker said it (1.5-8); the server converts it to min/km. Use this when they state a speed" },
           no_repeat: { type: "boolean", description: "true when the walker said never to walk the same street twice" },
           avoid_streets: { type: "array", items: { type: "string" }, description: "street names the walker does not want to walk along, exactly as they wrote them" },
           via_streets: { type: "array", items: { type: "string" }, description: "streets the walker wants the walk to go along; used by find_clean_walk" },
@@ -852,7 +853,11 @@ export async function runTool(
       if (t) state.timeSetThisTurn = true;
       const r = num(args.radius_km);
       const e = typeof args.end_distance_km === "number" && args.end_distance_km >= 0 ? args.end_distance_km : undefined;
-      const p = num(args.pace_min_per_km);
+      const kmhArg = num(args.speed_kmh);
+      if (num(args.pace_min_per_km) && (num(args.pace_min_per_km) as number) < 6) {
+        return { output: JSON.stringify({ error: "pace_min_per_km is minutes per km (a normal walk is 12-18; 4 km/h = 15). For a speed in km/h use speed_kmh" }), state };
+      }
+      const p = kmhArg ? Math.round((60 / Math.min(8, Math.max(1.5, kmhArg))) * 10) / 10 : num(args.pace_min_per_km);
       const w = num(args.max_walk_km);
       if (e === 0 && (state.params.order?.endAt || state.params.transit?.back)) {
         return { output: JSON.stringify({ error: "a loop (back at the start) conflicts with end_at / the ride home: ask the walker which one they want, then clear the other first" }), state };
@@ -880,7 +885,7 @@ export async function runTool(
       if (t) state.params.timeMinutes = t;
       if (r) state.params.radiusKm = r;
       if (e !== undefined) state.params.endDistanceKm = e;
-      if (p) state.params.paceMinPerKm = p;
+      if (p) { state.params.paceMinPerKm = p; state.paceSetThisTurn = true; }
       if (typeof args.no_repeat === "boolean") state.params.noRepeat = args.no_repeat;
       if (typeof args.avoid_dangerous === "boolean") state.params.avoidDangerous = args.avoid_dangerous;
       if (Array.isArray(args.via_streets)) {
@@ -1280,7 +1285,7 @@ export async function runTool(
       return {
         output: JSON.stringify({ built: true, building: stops.map((s) => s.name), ...(builtVerdict ? { verdict: builtVerdict } : {}), ...(notChecked.length ? { not_checked: notChecked } : {}) }),
         state,
-        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}), ...(builtGeometry ? { geometry: builtGeometry } : {}), ...(builtVerdict?.restMin ? { restMin: builtVerdict.restMin } : {}), ...(state.timeSetThisTurn ? { timeStated: true } : {}) },
+        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}), ...(builtGeometry ? { geometry: builtGeometry } : {}), ...(builtVerdict?.restMin ? { restMin: builtVerdict.restMin } : {}), ...(state.timeSetThisTurn ? { timeStated: true } : {}), ...(state.paceSetThisTurn ? { paceStated: true } : {}) },
       };
     }
   } catch (err) {

@@ -508,7 +508,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
           origin: data.action.origin,
           timeExplicit: data.action.timeStated === true,
           availableMinutes: params.timeMinutes ?? NO_LIMIT_MINUTES,
-          paceExplicit: params.paceMinPerKm !== undefined,
+          paceExplicit: data.action.paceStated === true,
           walkingPaceMinPerKm: (params.paceMinPerKm ?? DEFAULT_PACE) * (params.access ? ACCESS_PROFILES[params.access].paceFactor : 1),
           radiusMeters: (params.radiusKm ?? NO_LIMIT_RADIUS_KM) * 1000,
           maxEndDistanceFromOriginMeters:

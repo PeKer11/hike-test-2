@@ -4028,6 +4028,11 @@ export function WalkPlannerApp({
                         stops: plan.orderedAttractions.filter((a) => !visitedAttractionIds.includes(a.id)).map(toStop),
                         totalMin: Math.round(plan.totalMinutes),
                         remainingMin: Math.max(0, Math.round(Math.min(input.availableMinutes, plan.totalMinutes) - elapsed)),
+                        pace: {
+                          plannedMinPerKm: input.walkingPaceMinPerKm,
+                          ...(walkStats?.kmh != null ? { measuredKmh: walkStats.kmh } : {}),
+                          ...(walkStats?.timeToFinishMin != null && input.availableMinutes < 480 ? { spareMin: input.availableMinutes - (walkStats.elapsedMin + walkStats.timeToFinishMin) } : {}),
+                        },
                       };
                     }
                     return { source: "plan", start: input.origin, stops: plan.orderedAttractions.map(toStop), totalMin: Math.round(plan.totalMinutes) };

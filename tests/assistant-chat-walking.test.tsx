@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 const A = { lat: 32.081, lng: 34.78 };
-const reply = (params: Record<string, unknown>) => ({
+const reply = (params: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
   chatId: "c1",
   reply: "ok",
   state: { origin: { lat: 32.08, lng: 34.78 }, candidates: [], params: {} },
@@ -29,6 +29,7 @@ const reply = (params: Record<string, unknown>) => ({
     origin: { lat: 32.08, lng: 34.78 },
     params,
     stops: [{ id: "c1", name: "A", coordinates: A, category: "food", placeId: "p" }],
+    ...extra,
   },
 });
 
@@ -66,11 +67,14 @@ describe("the assistant chat mid-walk", () => {
   });
 
   it("marks a stated pace as explicit, and a build without one as not", async () => {
-    expect((await sendOnce(reply({ paceMinPerKm: 30 }))).onBuild.mock.calls[0][0]).toMatchObject({
+    expect((await sendOnce(reply({ paceMinPerKm: 30 }, { paceStated: true }))).onBuild.mock.calls[0][0]).toMatchObject({
       paceExplicit: true,
       walkingPaceMinPerKm: 30,
     });
     cleanup();
     expect((await sendOnce(reply({}))).onBuild.mock.calls[0][0].paceExplicit).toBe(false);
+    cleanup();
+    // a pace left in the chat's stored params is not a statement this turn
+    expect((await sendOnce(reply({ paceMinPerKm: 30 }))).onBuild.mock.calls[0][0].paceExplicit).toBe(false);
   });
 });

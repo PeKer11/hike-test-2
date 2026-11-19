@@ -39,7 +39,7 @@ describe("cumulativeDistances / progressAlong", () => {
 
 describe("timeToFinishMin", () => {
   // planned 12 min/km = 5 km/h
-  it("uses the measured speed when within 0.5x-1.5x of plan", () => {
+  it("uses the measured speed when plausible, fast or slow vs plan", () => {
     const min = timeToFinishMin({
       remainingM: 2500,
       kmh: 6,
@@ -47,6 +47,14 @@ describe("timeToFinishMin", () => {
       remainingVisitMin: 10,
     });
     expect(min).toBeCloseTo(25 + 10, 5);
+  });
+
+  it("prices a 2x faster walker at the measured pace (plan 2 km/h, walking 4)", () => {
+    expect(timeToFinishMin({ remainingM: 1000, kmh: 4, plannedPace: 30, remainingVisitMin: 0 })).toBeCloseTo(15, 5);
+  });
+
+  it("prices a much slower walker at the measured pace (plan 5 km/h, walking 2)", () => {
+    expect(timeToFinishMin({ remainingM: 1000, kmh: 2, plannedPace: 12, remainingVisitMin: 0 })).toBeCloseTo(30, 5);
   });
 
   it("falls back to plan when the measured speed is implausible", () => {
