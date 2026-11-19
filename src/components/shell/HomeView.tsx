@@ -29,6 +29,7 @@ const COPY = {
     continueWalk: "Continue walk",
     backToWalk: "Back to the walk",
     stops: (done: number, total: number) => `${done} of ${total} stops`,
+    stopsLabel: "stops done",
     resume: "Continue",
     open: "Open",
     last: "Last walk",
@@ -49,6 +50,7 @@ const COPY = {
     continueWalk: "המשך הליכה",
     backToWalk: "חזרה להליכה",
     stops: (done: number, total: number) => `${done} מתוך ${total} תחנות`,
+    stopsLabel: "תחנות הושלמו",
     resume: "המשך",
     open: "פתיחה",
     last: "ההליכה האחרונה",
@@ -167,7 +169,14 @@ export function HomeView({
         {walkLive || snapshot ? (
           <section className={CARD} aria-label={t.continueWalk}>
             <h2 className="text-[20px] font-semibold leading-[26px] text-tk-ink">{walkLive ? t.backToWalk : t.continueWalk}</h2>
-            {snapshot && !walkLive ? <p className="mt-1 text-[16px] text-charcoal/70">{t.stops(done, total)}</p> : null}
+            {snapshot && !walkLive ? (
+              <div className="mt-3 flex items-end gap-5">
+                <div className="flex flex-col gap-1">
+                  <span className="font-app-serif text-[34px] font-semibold leading-none text-tk-ink [font-variation-settings:'SOFT'_100,'WONK'_1]"><bdi>{done}</bdi><span className="text-charcoal/40"> / </span><bdi>{total}</bdi></span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-charcoal/60">{t.stopsLabel}</span>
+                </div>
+              </div>
+            ) : null}
             <button
               type="button"
               className={`${PRIMARY} mt-4`}
