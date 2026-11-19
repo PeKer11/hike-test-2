@@ -1623,13 +1623,17 @@ SELF-CHECK ANSWERS:
   .band-art-photo{background:var(--hero-art) 94% 0%/auto 118% no-repeat}
   .band-art-photo::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#8E3A18 0%,#B0562A 45%,#CE7A46 80%,#E8A878 100%);mix-blend-mode:multiply;opacity:.8}
   .band-plan-photo{height:330px}
-  .band-home{height:310px!important}
   .band-walks{min-height:310px!important}
-  .band-walks .band-art::after,.band-home .band-art::after{height:30%}
-  .band-home .home-trail-stage{display:none}
+  .band-walks .band-art::after{height:30%}
   .band-home .home-copy{max-width:70%}
   .band-home .band-art::before,.band-walks .band-art::before{display:none}
   .band-walks .band-title{max-width:230px}
+  .band-art-home::before{background:linear-gradient(180deg,#6E2A22 0%,#9A4630 45%,#C27A52 80%,#E6B084 100%)!important;opacity:.82!important}
+  .band-home-hero .hero-num{font-size:76px}
+  .band-home-hero .plan-title-wrap{max-width:72%}
+  html[dir="rtl"] .guide-stage{direction:ltr}
+  html[dir="rtl"] .speech-card{direction:rtl}
+  html[dir="rtl"] .speech-card::before{inset-inline-start:auto;left:-7px;right:auto;transform:rotate(45deg)}
   .loc-chip,button.loc-chip{background:rgba(255,247,236,.16)!important;color:var(--on-art)!important;border:1px solid rgba(255,247,236,.55)!important;box-shadow:none!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
   .loc-chip .ring{border-color:var(--on-art)!important}
 </style>
@@ -1863,113 +1867,7 @@ SELF-CHECK ANSWERS:
          ======================================================= -->
     <section class="screen" data-id="home" aria-label="Home">
       <div class="col-sheet paired">
-        <header class="band band-home band-has-art"><div class="band-art"><svg class="a-day" preserveAspectRatio="xMidYMax slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
-<defs>
-<linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A3311"/><stop offset=".62" stop-color="#B85016"/><stop offset=".8" stop-color="#E8A465"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
-<linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A8481A"/><stop offset=".3" stop-color="#DE9A5C"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
-<radialGradient id="u" gradientUnits="userSpaceOnUse" cx="130" cy="192" r="50"><stop offset="0" stop-color="#FFC27A" stop-opacity=".24"/><stop offset="1" stop-color="#FFC27A" stop-opacity="0"/></radialGradient>
-<linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".74" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
-<mask id="m"><rect width="390" height="300" fill="url(#f)"/></mask>
-<filter id="g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .1 0 0 0 0 .05 0 0 0 0 .02 0 0 0 .5 -.17"/></filter>
-</defs>
-<g mask="url(#m)">
-<rect width="390" height="300" fill="url(#s)"/>
-<g stroke="#F2B36B" stroke-linecap="round" fill="none" opacity=".16">
-<path d="M250 132h70" stroke-width="7"/><path d="M286 144h80" stroke-width="5"/><path d="M20 176h70" stroke-width="5"/><path d="M330 60h36" stroke-width="5"/>
-</g>
-<circle cx="130" cy="192" r="50" fill="url(#u)"/>
-<circle cx="130" cy="192" r="16" fill="#FCE3B0"/>
-<path d="M0 190V181H20V177H28V181H50V173H56V181H80V178H90V183L130 185L170 187L210 190Z" fill="#8F3A14" opacity=".55"/>
-<rect y="190" width="390" height="110" fill="url(#w)"/>
-<g stroke="#FCE3B0" stroke-linecap="round" opacity=".8">
-<path d="M118 197h24" stroke-width="3"/><path d="M110 204h40" stroke-width="3"/><path d="M122 211h18" stroke-width="2.5"/><path d="M114 218h30" stroke-width="2"/><path d="M126 225h12" stroke-width="2"/>
-</g>
-<path d="M150 190L176 185H190V177H206V170H222V163H238V156H258V126L262 113L266 126V148H284V156L330 152L390 150V300H190Z" fill="#6E2A12"/>
-<g fill="#F6C27A" opacity=".7"><rect x="212" y="176" width="3" height="4"/><rect x="228" y="170" width="3" height="4"/><rect x="244" y="164" width="3" height="4"/><rect x="272" y="156" width="3" height="4"/></g>
-<g stroke="#3A1D14" stroke-width="1.6" stroke-linecap="round" fill="none"><path d="M246 98q4 -4 7 0q3 -4 7 0"/><path d="M272 84q3 -3 5 0q2 -3 5 0"/></g>
-<g fill="#3A1D14">
-<rect x="290" y="140" width="24" height="46"/><rect x="292" y="112" width="20" height="28"/><rect x="288" y="137" width="28" height="4"/><rect x="290" y="109" width="24" height="4"/><rect x="294" y="97" width="16" height="13"/><path d="M292 98L302 80L312 98Z"/><rect x="291" y="91" width="3" height="7"/><rect x="310" y="91" width="3" height="7"/>
-</g>
-<path d="M302 81V73" stroke="#3A1D14" stroke-width="2" stroke-linecap="round"/>
-<g fill="#E0733A" opacity=".75"><rect x="290" y="141" width="6" height="45"/><rect x="292" y="113" width="5" height="24"/><rect x="294" y="98" width="4" height="11"/></g>
-<path d="M299 162v-7a3 3 0 0 1 6 0v7z" fill="#1B2620"/>
-<circle cx="302" cy="124" r="6.5" fill="#F8F3EA" stroke="#1B2620" stroke-width="2"/>
-<path d="M302 124V120M302 124L305 126" stroke="#1B2620" stroke-width="1.5" stroke-linecap="round"/>
-<g fill="#4E2212">
-<path d="M186 222Q226 198 258 192V184H274V176H290V184H316V176H330V168H346Q353 154 360 168V174H390V300H186Z"/>
-<rect x="322" y="136" width="4" height="40"/><rect x="320.500" y="148" width="7" height="2.500"/><path d="M321 136L324 126L327 136Z"/>
-</g>
-<g fill="#F6C27A" opacity=".75"><rect x="264" y="190" width="3" height="5"/><rect x="280" y="184" width="3" height="5"/><rect x="334" y="176" width="3" height="5"/><rect x="350" y="174" width="3" height="5"/><rect x="372" y="182" width="3" height="5"/></g>
-<g fill="#1B2620"><path d="M46 216h30l-5 7h-20z"/><path d="M168 207h16l-3 4h-10z"/></g>
-<path d="M60 216V197M176 207V196" stroke="#1B2620" stroke-width="1.6" stroke-linecap="round"/>
-<path d="M62 199V213H73Z" fill="#F8F3EA" opacity=".85"/>
-<path d="M0 238Q60 228 130 233T250 228L390 216V300H0Z" fill="#1B2620"/>
-<g stroke="#1B2620" stroke-linecap="round" fill="none">
-<path d="M368 236Q360 190 364 146" stroke-width="5"/>
-<g stroke-width="4"><path d="M364 146q-12 -10 -26 2"/><path d="M364 146q-8 -18 -22 -16"/><path d="M364 146q2 -16 -6 -24"/><path d="M364 146q10 -16 22 -10"/><path d="M364 146q14 -6 22 8"/><path d="M364 146q-4 8 -16 14"/></g>
-</g>
-<g fill="#B8325E"><circle cx="378" cy="204" r="8"/><circle cx="366" cy="210" r="7"/><circle cx="352" cy="213" r="5"/><circle cx="384" cy="194" r="5"/></g>
-<g fill="#D9567A"><circle cx="374" cy="200" r="3.500"/><circle cx="362" cy="207" r="3"/><circle cx="382" cy="208" r="2.500"/><circle cx="351" cy="211" r="2"/></g>
-<path d="M56 246C120 236 170 250 214 232S262 204 300 190" fill="none" stroke="#F8F3EA" stroke-width="3" stroke-linecap="round"/>
-<g fill="#F8F3EA" stroke="#1B2620" stroke-width="2.500">
-<circle cx="56" cy="246" r="5"/><circle cx="142.500" cy="242" r="5.500"/><circle cx="214" cy="232" r="6"/><circle cx="259" cy="209.500" r="6.500"/><circle cx="300" cy="190" r="8" fill="#D2602F"/>
-</g>
-<rect width="390" height="300" filter="url(#g)"/>
-</g>
-</svg><svg class="a-night" preserveAspectRatio="xMidYMax slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg" style="filter:brightness(.55) saturate(.85)">
-<defs>
-<linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A3311"/><stop offset=".62" stop-color="#B85016"/><stop offset=".8" stop-color="#E8A465"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
-<linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A8481A"/><stop offset=".3" stop-color="#DE9A5C"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
-<radialGradient id="u" gradientUnits="userSpaceOnUse" cx="130" cy="192" r="50"><stop offset="0" stop-color="#FFC27A" stop-opacity=".24"/><stop offset="1" stop-color="#FFC27A" stop-opacity="0"/></radialGradient>
-<linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".74" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
-<mask id="m"><rect width="390" height="300" fill="url(#f)"/></mask>
-<filter id="g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .1 0 0 0 0 .05 0 0 0 0 .02 0 0 0 .5 -.17"/></filter>
-</defs>
-<g mask="url(#m)">
-<rect width="390" height="300" fill="url(#s)"/>
-<g stroke="#F2B36B" stroke-linecap="round" fill="none" opacity=".16">
-<path d="M250 132h70" stroke-width="7"/><path d="M286 144h80" stroke-width="5"/><path d="M20 176h70" stroke-width="5"/><path d="M330 60h36" stroke-width="5"/>
-</g>
-<circle cx="130" cy="192" r="50" fill="url(#u)"/>
-<circle cx="130" cy="192" r="16" fill="#FCE3B0"/>
-<path d="M0 190V181H20V177H28V181H50V173H56V181H80V178H90V183L130 185L170 187L210 190Z" fill="#8F3A14" opacity=".55"/>
-<rect y="190" width="390" height="110" fill="url(#w)"/>
-<g stroke="#FCE3B0" stroke-linecap="round" opacity=".8">
-<path d="M118 197h24" stroke-width="3"/><path d="M110 204h40" stroke-width="3"/><path d="M122 211h18" stroke-width="2.5"/><path d="M114 218h30" stroke-width="2"/><path d="M126 225h12" stroke-width="2"/>
-</g>
-<path d="M150 190L176 185H190V177H206V170H222V163H238V156H258V126L262 113L266 126V148H284V156L330 152L390 150V300H190Z" fill="#6E2A12"/>
-<g fill="#F6C27A" opacity=".7"><rect x="212" y="176" width="3" height="4"/><rect x="228" y="170" width="3" height="4"/><rect x="244" y="164" width="3" height="4"/><rect x="272" y="156" width="3" height="4"/></g>
-<g stroke="#3A1D14" stroke-width="1.6" stroke-linecap="round" fill="none"><path d="M246 98q4 -4 7 0q3 -4 7 0"/><path d="M272 84q3 -3 5 0q2 -3 5 0"/></g>
-<g fill="#3A1D14">
-<rect x="290" y="140" width="24" height="46"/><rect x="292" y="112" width="20" height="28"/><rect x="288" y="137" width="28" height="4"/><rect x="290" y="109" width="24" height="4"/><rect x="294" y="97" width="16" height="13"/><path d="M292 98L302 80L312 98Z"/><rect x="291" y="91" width="3" height="7"/><rect x="310" y="91" width="3" height="7"/>
-</g>
-<path d="M302 81V73" stroke="#3A1D14" stroke-width="2" stroke-linecap="round"/>
-<g fill="#E0733A" opacity=".75"><rect x="290" y="141" width="6" height="45"/><rect x="292" y="113" width="5" height="24"/><rect x="294" y="98" width="4" height="11"/></g>
-<path d="M299 162v-7a3 3 0 0 1 6 0v7z" fill="#1B2620"/>
-<circle cx="302" cy="124" r="6.5" fill="#F8F3EA" stroke="#1B2620" stroke-width="2"/>
-<path d="M302 124V120M302 124L305 126" stroke="#1B2620" stroke-width="1.5" stroke-linecap="round"/>
-<g fill="#4E2212">
-<path d="M186 222Q226 198 258 192V184H274V176H290V184H316V176H330V168H346Q353 154 360 168V174H390V300H186Z"/>
-<rect x="322" y="136" width="4" height="40"/><rect x="320.500" y="148" width="7" height="2.500"/><path d="M321 136L324 126L327 136Z"/>
-</g>
-<g fill="#F6C27A" opacity=".75"><rect x="264" y="190" width="3" height="5"/><rect x="280" y="184" width="3" height="5"/><rect x="334" y="176" width="3" height="5"/><rect x="350" y="174" width="3" height="5"/><rect x="372" y="182" width="3" height="5"/></g>
-<g fill="#1B2620"><path d="M46 216h30l-5 7h-20z"/><path d="M168 207h16l-3 4h-10z"/></g>
-<path d="M60 216V197M176 207V196" stroke="#1B2620" stroke-width="1.6" stroke-linecap="round"/>
-<path d="M62 199V213H73Z" fill="#F8F3EA" opacity=".85"/>
-<path d="M0 238Q60 228 130 233T250 228L390 216V300H0Z" fill="#1B2620"/>
-<g stroke="#1B2620" stroke-linecap="round" fill="none">
-<path d="M368 236Q360 190 364 146" stroke-width="5"/>
-<g stroke-width="4"><path d="M364 146q-12 -10 -26 2"/><path d="M364 146q-8 -18 -22 -16"/><path d="M364 146q2 -16 -6 -24"/><path d="M364 146q10 -16 22 -10"/><path d="M364 146q14 -6 22 8"/><path d="M364 146q-4 8 -16 14"/></g>
-</g>
-<g fill="#B8325E"><circle cx="378" cy="204" r="8"/><circle cx="366" cy="210" r="7"/><circle cx="352" cy="213" r="5"/><circle cx="384" cy="194" r="5"/></g>
-<g fill="#D9567A"><circle cx="374" cy="200" r="3.500"/><circle cx="362" cy="207" r="3"/><circle cx="382" cy="208" r="2.500"/><circle cx="351" cy="211" r="2"/></g>
-<path d="M56 246C120 236 170 250 214 232S262 204 300 190" fill="none" stroke="#F8F3EA" stroke-width="3" stroke-linecap="round"/>
-<g fill="#F8F3EA" stroke="#1B2620" stroke-width="2.500">
-<circle cx="56" cy="246" r="5"/><circle cx="142.500" cy="242" r="5.500"/><circle cx="214" cy="232" r="6"/><circle cx="259" cy="209.500" r="6.500"/><circle cx="300" cy="190" r="8" fill="#D2602F"/>
-</g>
-<rect width="390" height="300" filter="url(#g)"/>
-</g>
-</svg></div>
+        <header class="band band-plan band-plan-photo band-home-hero band-has-art"><div class="band-art band-art-photo band-art-home" aria-hidden="true"></div>
           <div class="band-topbar">
             <span class="brand on-art hide-desktop">
               <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
@@ -1986,42 +1884,29 @@ SELF-CHECK ANSWERS:
             </button>
           </div>
 
-          <div class="home-hero-grid">
-            <div class="home-copy">
+          <div class="plan-header-row">
+            <div class="plan-title-wrap">
               <div class="hero-stat">
                 <span class="hero-num"><bdi>65</bdi></span>
                 <span class="hero-unit" data-en>min</span>
                 <span class="hero-unit" data-he>דק׳</span>
               </div>
               <div class="band-facts">
-                <span data-en>4.1 km · 4 stops<br/>Golden-hour walk to Jaffa Port</span>
-                <span data-he><bdi>4.1</bdi> ק״מ · <bdi>4</bdi> תחנות<br/>הליכת שקיעה לנמל יפו</span>
+                <span data-en>4.1 km · 4 stops · Golden-hour walk to Jaffa Port</span>
+                <span data-he><bdi>4.1</bdi> ק״מ · <bdi>4</bdi> תחנות · הליכת שקיעה לנמל יפו</span>
               </div>
             </div>
+          </div>
 
-            <!-- Crafted SVG Trail ascending 4 Rings to the Sunset Disc / Night Crescent + 3D Compass inside sky -->
-            <div class="home-trail-stage" aria-hidden="true">
-              <svg class="home-trail-svg rtl-flip" viewBox="0 0 142 162" fill="none">
-                <!-- Subtle Mediterranean Old-Jaffa arch & belltower horizon line -->
-                <path d="M8 138H52V124C52 118 62 118 62 124V138H96V110L102 98L108 110V138H136" stroke="var(--sky-arch-stroke)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <!-- Day Sun Disc -->
-                <circle class="day-only" cx="104" cy="30" r="21" fill="var(--sun-disc)" fill-opacity="0.92"/>
-                <!-- Night Crescent Moon -->
-                <path class="night-only" d="M111 16A18 18 0 1 0 124 41A14 14 0 0 1 111 16Z" fill="var(--sun-disc)"/>
-                <!-- Winding 4-stop Trail rising from start Ring to Jaffa overlook -->
-                <path d="M18 140C38 134 36 108 56 100C78 92 70 66 94 54C102 50 104 42 104 34" stroke="var(--on-art)" stroke-width="3" stroke-linecap="round"/>
-                <!-- Stop 1 (Now-Ring) -->
-                <circle cx="18" cy="140" r="6.5" fill="var(--paper)" stroke="#1B2620" stroke-width="2"/>
-                <circle cx="18" cy="140" r="2.8" fill="var(--leather)"/>
-                <!-- Stop 2 -->
-                <circle cx="56" cy="100" r="5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
-                <!-- Stop 3 -->
-                <circle cx="84" cy="64" r="5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
-                <!-- Stop 4 (Sunset Finish Ring) -->
-                <circle cx="104" cy="34" r="7" fill="var(--paper)" stroke="#1B2620" stroke-width="2"/>
-                <circle cx="104" cy="34" r="3" fill="var(--leather)"/>
-              </svg>
-              <img class="home-compass" src="assets/compass.png" alt="" onerror="this.style.display='none'" />
+          <!-- Guide Arch + Paper Speech Card -->
+          <div class="guide-stage">
+            <img class="guide-arch day-only" src="assets/guide.jpg" alt="Traike walking guide" />
+            <img class="guide-arch night-only" src="assets/guide-night.jpg" alt="Traike walking guide at night" />
+            <div class="speech-card">
+              <h2 class="speech-title" data-en>Chat with Traike</h2>
+              <h2 class="speech-title" data-he>שיחה עם טרייק</h2>
+              <p class="speech-body" data-en>Pick a vibe or name your stops — I'll thread a calm route.</p>
+              <p class="speech-body" data-he>בחרו אווירה או כתבו תחנות — אחבר לכם מסלול מדויק.</p>
             </div>
           </div>
         </header>
