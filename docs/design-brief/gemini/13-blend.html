@@ -47,7 +47,7 @@ SELF-CHECK ANSWERS:
       All strictly obeyed.
 ================================================================================
 -->
-<html lang="en" dir="ltr" data-theme="day" data-device="phone" data-screen="home" data-homebg="forest">
+<html lang="en" dir="ltr" data-theme="day" data-device="phone" data-screen="home" data-homebg="forest" data-chip="a">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -1694,6 +1694,16 @@ SELF-CHECK ANSWERS:
 
   .loc-chip .chip-text,.band-home-hero .loc-chip .chip-text,html[data-homebg="forest"] .band-home-hero .loc-chip .chip-text{color:#14110E!important;text-shadow:none!important}
   html[data-homebg="forest"] .hero-hint{background:rgba(14,22,16,.52);padding:7px 10px;border-radius:8px;text-shadow:none}
+
+  /* ROUND 13j: Habima / location button — two directions, no shine, no flares */
+  html[data-chip="a"] .loc-chip:not(#z),html[data-chip="a"] button.loc-chip:not(#z){background:#C4673A!important;color:#14110E!important;border:1.5px solid #1F251F!important;border-radius:999px!important;box-shadow:0 3px 0 #1F251F!important;padding:6px 15px 6px 12px!important;font-weight:700!important;text-shadow:none!important;text-decoration:none!important;backdrop-filter:none!important}
+  html[data-chip="a"] .loc-chip:not(#z) .chip-text{color:#14110E!important}
+  html[data-chip="a"] .loc-chip:not(#z) .ring{border-color:#14110E!important;background:#F7F1E8!important}
+  html[data-chip="a"] .loc-chip:not(#z) .ring.now::after{background:#14110E!important}
+  html[data-chip="b"] .loc-chip:not(#z),html[data-chip="b"] button.loc-chip:not(#z){background:linear-gradient(#efe5d2,#f2eadb 55%,#f8f2e3)!important;color:#4a3910!important;border:2px solid #eadcc0!important;border-radius:999px!important;box-shadow:inset 0 0 0 1px #c5b57c,0 8px 14px -9px rgba(80,62,25,.55)!important;padding:5px 15px 5px 12px!important;font-weight:800!important;text-shadow:none!important;text-decoration:none!important;backdrop-filter:none!important}
+  html[data-chip="b"] .loc-chip:not(#z) .chip-text{color:#4a3910!important}
+  html[data-chip="b"] .loc-chip:not(#z) .ring{border-color:#4a3910!important;background:#fffbf0!important}
+  html[data-chip="b"] .loc-chip:not(#z) .ring.now::after{background:#C4673A!important}
 </style>
 </head>
 <body>
@@ -1833,6 +1843,10 @@ SELF-CHECK ANSWERS:
       <div class="ctrl-seg" role="group" aria-label="Theme">
         <button type="button" id="btn-day" aria-pressed="true" onclick="setTheme('day')">Sunset Day</button>
         <button type="button" id="btn-night" aria-pressed="false" onclick="setTheme('night')">Dusk Night</button>
+      </div>
+      <div class="ctrl-seg" role="group" aria-label="Location button">
+        <button type="button" id="btn-chip-a" aria-pressed="true" onclick="setChip('a')">Loc: Terracotta</button>
+        <button type="button" id="btn-chip-b" aria-pressed="false" onclick="setChip('b')">Loc: Champagne</button>
       </div>
       <div class="ctrl-seg" role="group" aria-label="Home background">
         <button type="button" id="btn-hb-city" aria-pressed="false" onclick="setHomeBg('city')">Home: City</button>
@@ -3169,6 +3183,11 @@ SELF-CHECK ANSWERS:
     }
   }
 
+  function setChip(v) {
+    document.documentElement.setAttribute('data-chip', v);
+    document.getElementById('btn-chip-a').setAttribute('aria-pressed', String(v === 'a'));
+    document.getElementById('btn-chip-b').setAttribute('aria-pressed', String(v === 'b'));
+  }
   function setHomeBg(v) {
     document.documentElement.setAttribute('data-homebg', v);
     document.getElementById('btn-hb-city').setAttribute('aria-pressed', String(v === 'city'));
