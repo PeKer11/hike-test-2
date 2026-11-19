@@ -1,0 +1,2146 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="day">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Traike — App Interface Redesign (Round 4)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@700;900&family=Fraunces:opsz,wght@9..144,700;9..144,900&family=Heebo:wght@400;500;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* =========================================================
+     1. ROLE-BASED DESIGN TOKENS (DAY + DUSK-NIGHT)
+     5-step strict type scale, hard-edged radii, zero slop
+     ========================================================= */
+  :root {
+    --bg: #e7e0d2;
+    --surface: #faf7f0;
+    --surface-subtle: #f1ece0;
+    --ink: #181512;
+    --muted: #5a534a;
+    --line: #d6cebe;
+    --line-strong: #181512;
+    --primary: #e86b3c;
+    --primary-hover: #dc5e2f;
+    --on-primary: #181512;
+    --route-past: #b3ab9c;
+    --forest: #1e3d2f;
+    --danger: #b42f24;
+
+    /* Map tokens */
+    --map-road: #faf7f0;
+    --map-block: #e3dcd0;
+    --map-block-line: #cfc6b6;
+    --map-park: #dce3d3;
+    --map-water: #cadce2;
+
+    /* 5-size strict type scale (nothing < 13px) */
+    --fs-xs: 0.8125rem;   /* 13px */
+    --fs-sm: 0.9375rem;   /* 15px */
+    --fs-base: 1rem;      /* 16px */
+    --fs-lg: 1.375rem;    /* 22px */
+    --fs-hero: 4.25rem;   /* 68px */
+
+    --font-serif: 'Fraunces', 'Frank Ruhl Libre', Georgia, serif;
+    --font-sans: 'Heebo', system-ui, -apple-system, sans-serif;
+
+    /* Hard-edged architectural radii */
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 8px;
+
+    /* Crisp minimal shadows (no soft glow) */
+    --shadow-frame: 0 12px 32px rgba(24, 21, 18, 0.14);
+    --shadow-pin: 0 2px 0 rgba(24, 21, 18, 0.9);
+  }
+
+  :root[data-theme="night"] {
+    --bg: #110f0d;
+    --surface: #1b1815;
+    --surface-subtle: #24201c;
+    --ink: #f4efe6;
+    --muted: #b2a99b;
+    --line: #342f29;
+    --line-strong: #564e45;
+    --primary: #ea7144;
+    --primary-hover: #f27f54;
+    --on-primary: #14110e;
+    --route-past: #565049;
+    --forest: #88bfa3;
+    --danger: #f06b5f;
+
+    --map-road: #161412;
+    --map-block: #211e1b;
+    --map-block-line: #302b26;
+    --map-park: #1c261f;
+    --map-water: #18262c;
+
+    --shadow-frame: 0 14px 38px rgba(0, 0, 0, 0.55);
+    --shadow-pin: 0 2px 0 rgba(0, 0, 0, 0.95);
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #1e1b18;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button, input, textarea, select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* =========================================================
+     2. GALLERY PRESENTATION SHELL (OUTSIDE THE APP FRAME)
+     ========================================================= */
+  .gallery-bar {
+    background: #141210;
+    color: #f4efe6;
+    border-bottom: 1px solid #2e2924;
+    padding-block: 10px;
+    padding-inline: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .gallery-bar-inner {
+    max-width: 1240px;
+    margin-inline: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .gallery-brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .gallery-brand strong {
+    font-family: var(--font-serif);
+    font-size: var(--fs-lg);
+    color: #ea7144;
+    letter-spacing: -0.02em;
+  }
+
+  .gallery-brand span {
+    font-size: var(--fs-xs);
+    color: #a9a093;
+  }
+
+  .gallery-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .g-seg {
+    display: inline-flex;
+    border: 1px solid #3c3630;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    background: #1d1a17;
+  }
+
+  .g-seg button {
+    border: 0;
+    border-inline-end: 1px solid #3c3630;
+    background: transparent;
+    color: #c8bfb2;
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    padding-block: 7px;
+    padding-inline: 11px;
+    cursor: pointer;
+    min-height: 34px;
+  }
+
+  .g-seg button:last-child {
+    border-inline-end: 0;
+  }
+
+  .g-seg button.active {
+    background: #ea7144;
+    color: #14110e;
+  }
+
+  .screen-strip {
+    background: #191614;
+    border-bottom: 1px solid #2c2722;
+    padding-block: 8px;
+    padding-inline: 16px;
+  }
+
+  .screen-strip-inner {
+    max-width: 1240px;
+    margin-inline: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .screen-pill {
+    border: 1px solid #3a342e;
+    background: #211d1a;
+    color: #d6cec1;
+    border-radius: var(--r-sm);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    padding-block: 7px;
+    padding-inline: 12px;
+    cursor: pointer;
+    min-height: 36px;
+  }
+
+  .screen-pill.active {
+    background: #f4efe6;
+    color: #141210;
+    border-color: #f4efe6;
+  }
+
+  .stage-wrap {
+    padding-block: 24px 48px;
+    padding-inline: 12px;
+    display: flex;
+    justify-content: center;
+    background: var(--bg);
+    min-height: calc(100vh - 106px);
+    transition: background 0.15s ease;
+  }
+
+  /* =========================================================
+     3. PRODUCT FRAME (PHONE 390px & DESKTOP 1180px)
+     ========================================================= */
+  .app-frame {
+    background: var(--surface);
+    color: var(--ink);
+    border: 1.5px solid var(--line-strong);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-frame);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .app-frame[data-device="phone"] {
+    width: 390px;
+    max-width: 100%;
+    min-height: 780px;
+  }
+
+  .app-frame[data-device="desktop"] {
+    width: 1180px;
+    max-width: 100%;
+    min-height: 740px;
+    flex-direction: row;
+  }
+
+  /* Directional icon mirroring in Hebrew RTL */
+  [dir="rtl"] .dir-flip {
+    transform: scaleX(-1);
+  }
+
+  /* =========================================================
+     4. NAVIGATION: DESKTOP INLINE-START RAIL & PHONE TAB BAR
+     ========================================================= */
+  .desktop-rail {
+    display: none;
+  }
+
+  .app-frame[data-device="desktop"] .desktop-rail {
+    display: flex;
+    flex-direction: column;
+    width: 204px;
+    flex-shrink: 0;
+    background: var(--surface-subtle);
+    border-inline-end: 1px solid var(--line);
+    padding: 16px 12px;
+    justify-content: space-between;
+  }
+
+  .brand-lockup {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: 6px;
+    padding-block-end: 14px;
+    border-bottom: 1px solid var(--line);
+    margin-block-end: 12px;
+  }
+
+  .brand-word {
+    font-family: var(--font-serif);
+    font-weight: 900;
+    font-size: var(--fs-lg);
+    color: var(--ink);
+    letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .brand-mark {
+    width: 26px;
+    height: 26px;
+    background: var(--primary);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #181512;
+  }
+
+  .rail-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .rail-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding-inline: 10px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--ink);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .rail-btn:hover {
+    background: var(--surface);
+    border-color: var(--line);
+  }
+
+  /* Solid fill selected state (never border-only) */
+  .rail-btn.active {
+    background: var(--ink);
+    color: var(--surface);
+    border-color: var(--ink);
+  }
+
+  .rail-footer {
+    border-top: 1px solid var(--line);
+    padding-block-start: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Phone top bar */
+  .phone-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-block: 8px;
+    padding-inline: 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    min-height: 48px;
+  }
+
+  .app-frame[data-device="desktop"] .phone-topbar {
+    display: none;
+  }
+
+  /* Phone bottom tab bar */
+  .phone-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    padding: 4px;
+    gap: 3px;
+    margin-block-start: auto;
+  }
+
+  .app-frame[data-device="desktop"] .phone-tabs {
+    display: none;
+  }
+
+  .tab-btn {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    border-radius: var(--r-sm);
+    min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    cursor: pointer;
+    padding-inline: 2px;
+  }
+
+  .tab-btn.active {
+    background: var(--ink);
+    color: var(--surface);
+  }
+
+  /* =========================================================
+     5. WORKSPACE & BUSBO SPLIT ARCHITECTURE
+     ========================================================= */
+  .workspace {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .screen-view {
+    display: none;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .screen-view.active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-frame[data-device="desktop"] .screen-view.active {
+    flex-direction: row;
+  }
+
+  /* Primary functional sheet (inline-start on desktop) */
+  .sheet-col {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    min-width: 0;
+    flex: 1;
+  }
+
+  .app-frame[data-device="desktop"] .sheet-col {
+    width: 420px;
+    flex: 0 0 420px;
+    border-inline-end: 1px solid var(--line);
+  }
+
+  .app-frame[data-device="desktop"] .sheet-col.wide-sheet {
+    width: 460px;
+    flex: 0 0 460px;
+  }
+
+  /* Star canvas column (map or editorial stage on inline-end) */
+  .canvas-col {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    background: var(--map-road);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-frame[data-device="phone"] .desktop-only-canvas {
+    display: none;
+  }
+
+  /* =========================================================
+     6. BESPOKE SCENE + GIANT SERIF HERO NUMERAL
+     ========================================================= */
+  .scene-box {
+    position: relative;
+    width: 100%;
+    height: 146px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--line-strong);
+    background: var(--surface-subtle);
+    flex-shrink: 0;
+  }
+
+  .scene-box.compact {
+    height: 118px;
+  }
+
+  .scene-box.tall {
+    height: 180px;
+  }
+
+  .scene-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* Busbo-formula hero metric row straddling the dark foreground ridge */
+  .hero-metric-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding-inline: 16px;
+    padding-block: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+    gap: 12px;
+  }
+
+  .hero-numeral-group {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-block-start: -38px;
+    position: relative;
+    z-index: 3;
+  }
+
+  .giant-num {
+    font-family: var(--font-serif);
+    font-weight: 900;
+    font-size: var(--fs-hero);
+    line-height: 0.84;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    paint-order: stroke fill;
+    -webkit-text-stroke: 6px var(--surface);
+    letter-spacing: -0.03em;
+  }
+
+  .giant-unit-stack {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .giant-unit {
+    font-size: var(--fs-lg);
+    font-weight: 800;
+    line-height: 1.05;
+    color: var(--ink);
+  }
+
+  .giant-sub {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .hero-badge-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .solid-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    color: var(--on-primary);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-sm);
+    padding-block: 4px;
+    padding-inline: 10px;
+    font-size: var(--fs-sm);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 3D accessory slot — strictly contained, never overlaps text */
+  .acc-slot {
+    position: absolute;
+    inset-block-start: 10px;
+    inset-inline-end: 12px;
+    width: 52px;
+    height: 52px;
+    z-index: 2;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .acc-slot img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 4px rgba(0,0,0,0.35));
+  }
+
+  /* =========================================================
+     7. HARD-EDGED ROWS, TIMELINES, SEGMENTED CONTROLS & CTA
+     ========================================================= */
+  .sec-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-block: 8px;
+    padding-inline: 16px;
+    background: var(--surface-subtle);
+    border-bottom: 1px solid var(--line);
+    font-size: var(--fs-xs);
+    font-weight: 800;
+    color: var(--ink);
+  }
+
+  .sec-bar span.muted {
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .pad-block {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .h-title {
+    margin: 0 0 4px 0;
+    font-family: var(--font-serif);
+    font-size: var(--fs-lg);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+
+  .h-helper {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  /* Busbo-style stop timeline */
+  .timeline-list {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tl-row {
+    display: grid;
+    grid-template-columns: 52px 22px 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding-block: 10px;
+    padding-inline: 16px;
+    border-bottom: 1px solid var(--line);
+    font-size: var(--fs-sm);
+    position: relative;
+  }
+
+  .tl-row:last-child {
+    border-bottom: 0;
+  }
+
+  .tl-time {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--fs-xs);
+    color: var(--ink);
+  }
+
+  .tl-row.past .tl-time,
+  .tl-row.past .tl-name {
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+
+  .tl-node-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    height: 100%;
+  }
+
+  .tl-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 99px;
+    background: var(--surface);
+    border: 2.5px solid var(--ink);
+    z-index: 1;
+  }
+
+  .tl-row.past .tl-dot {
+    background: var(--route-past);
+    border-color: var(--route-past);
+  }
+
+  /* Active / featured row in solid charcoal bar (busbo signature) */
+  .tl-row.active-stop {
+    background: var(--ink);
+    color: var(--surface);
+  }
+
+  .tl-row.active-stop .tl-time {
+    background: var(--primary);
+    color: #181512;
+    padding-block: 2px;
+    padding-inline: 6px;
+    border-radius: 3px;
+    text-align: center;
+  }
+
+  .tl-row.active-stop .tl-dot {
+    background: var(--primary);
+    border-color: var(--surface);
+  }
+
+  .tl-row.active-stop .tl-tag {
+    color: var(--surface);
+    opacity: 0.82;
+  }
+
+  .tl-name {
+    font-weight: 700;
+    font-size: var(--fs-base);
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tl-tag {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* Hard-edged Buttons */
+  .btn-primary {
+    width: 100%;
+    min-height: 48px;
+    background: var(--primary);
+    color: var(--on-primary);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-base);
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 2px 0 var(--ink);
+    transition: transform 0.06s ease, background 0.12s ease;
+  }
+
+  .btn-primary:hover {
+    background: var(--primary-hover);
+  }
+
+  .btn-primary:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 var(--ink);
+  }
+
+  .btn-secondary {
+    min-height: 44px;
+    padding-inline: 12px;
+    background: var(--surface-subtle);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .btn-secondary:hover {
+    background: var(--line);
+  }
+
+  /* Segmented Control (1px grid, solid fill active) */
+  .seg-grid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .seg-cell {
+    min-height: 44px;
+    border: 0;
+    border-inline-end: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    cursor: pointer;
+    padding-inline: 6px;
+  }
+
+  .seg-cell:last-child {
+    border-inline-end: 0;
+  }
+
+  .seg-cell.active-orange {
+    background: var(--primary);
+    color: var(--on-primary);
+    font-weight: 800;
+  }
+
+  .seg-cell.active-ink {
+    background: var(--ink);
+    color: var(--surface);
+    font-weight: 800;
+  }
+
+  /* Dense List Rows */
+  .dense-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .dense-row-main {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .dense-title {
+    font-size: var(--fs-base);
+    font-weight: 700;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dense-meta {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    margin: 2px 0 0 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* =========================================================
+     8. PLAN SCREEN: REAL GUIDE CHARACTER + 5 PHOTO TILES
+     ========================================================= */
+  .guide-header {
+    position: relative;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .guide-card-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    padding-inline: 16px;
+    padding-block: 0 12px;
+    margin-block-start: -34px;
+    position: relative;
+    z-index: 3;
+  }
+
+  .guide-portrait {
+    width: 74px;
+    height: 88px;
+    flex-shrink: 0;
+    border-radius: var(--r-md);
+    border: 2px solid var(--ink);
+    background: var(--surface-subtle);
+    overflow: hidden;
+    box-shadow: 0 2px 0 var(--ink);
+  }
+
+  .guide-portrait img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+    display: block;
+  }
+
+  .guide-speech {
+    flex: 1;
+    background: var(--surface);
+    border: 1.5px solid var(--line-strong);
+    border-radius: var(--r-md);
+    padding: 9px 11px;
+    min-width: 0;
+  }
+
+  .guide-speech strong {
+    display: block;
+    font-size: var(--fs-sm);
+    font-weight: 800;
+    color: var(--ink);
+    margin-block-end: 2px;
+  }
+
+  .guide-speech p {
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  /* 5 Theme Photo Chips — solid fill when selected */
+  .theme-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .theme-tile {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 44px;
+    padding-block: 4px;
+    padding-inline: 6px 10px;
+    background: var(--surface-subtle);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .theme-tile img {
+    width: 28px;
+    height: 28px;
+    border-radius: 3px;
+    object-fit: cover;
+    border: 1px solid rgba(0,0,0,0.2);
+    flex-shrink: 0;
+  }
+
+  .theme-tile.selected {
+    background: var(--ink);
+    color: var(--surface);
+    border-color: var(--ink);
+  }
+
+  .field-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    margin-block-end: 6px;
+  }
+
+  .field-label span {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .hard-textarea, .hard-input {
+    width: 100%;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1.5px solid var(--line-strong);
+    border-radius: var(--r-sm);
+    padding: 10px 12px;
+    font-size: var(--fs-base);
+    line-height: 1.4;
+  }
+
+  .hard-textarea {
+    resize: vertical;
+    min-height: 74px;
+  }
+
+  .hard-input {
+    min-height: 46px;
+  }
+
+  .hard-textarea:focus, .hard-input:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 0;
+  }
+
+  details.adv-disclosure {
+    border-bottom: 1px solid var(--line);
+  }
+
+  details.adv-disclosure summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 11px 16px;
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    background: var(--surface-subtle);
+  }
+
+  details.adv-disclosure summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* =========================================================
+     9. MAP CANVAS (WARM PAPER + THICK INK ROUTE + HIKER)
+     ========================================================= */
+  .map-stage {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    min-height: 270px;
+    overflow: hidden;
+    background: var(--map-road);
+  }
+
+  .app-frame[data-device="phone"] .walk-map-phone {
+    height: 278px;
+    flex: 0 0 278px;
+    border-bottom: 1.5px solid var(--line-strong);
+  }
+
+  .map-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .map-hud-top {
+    position: absolute;
+    inset-block-start: 12px;
+    inset-inline: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .map-chip {
+    pointer-events: auto;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-sm);
+    padding: 6px 10px;
+    font-size: var(--fs-xs);
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.12);
+  }
+
+  .orange-sq {
+    width: 8px;
+    height: 8px;
+    background: var(--primary);
+    border: 1px solid var(--ink);
+    display: inline-block;
+  }
+
+  .map-attr {
+    position: absolute;
+    inset-block-end: 6px;
+    inset-inline-end: 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 2px 6px;
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    border-radius: 3px;
+  }
+
+  /* Stop action box on Live Walk */
+  .stop-focus-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .pin-square {
+    width: 40px;
+    height: 40px;
+    background: var(--primary);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #181512;
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================================
+     OUTER GALLERY CONTROLS (NOT PART OF PRODUCT UI)
+     ========================================================= -->
+<header class="gallery-bar">
+  <div class="gallery-bar-inner">
+    <div class="gallery-brand">
+      <strong>Traike</strong>
+      <span>Round 4 · Bespoke Vector Trail Scene + Giant Serif Data + Hard-Edged Sheet</span>
+    </div>
+    <div class="gallery-toggles">
+      <div class="g-seg" role="group" aria-label="Language">
+        <button type="button" id="btn-lang-en" class="active" onclick="setLang('en')">English (LTR)</button>
+        <button type="button" id="btn-lang-he" onclick="setLang('he')">עברית (RTL)</button>
+      </div>
+      <div class="g-seg" role="group" aria-label="Theme">
+        <button type="button" id="btn-theme-day" class="active" onclick="setTheme('day')">Sunset Day</button>
+        <button type="button" id="btn-theme-night" onclick="setTheme('night')">Dusk Night</button>
+      </div>
+      <div class="g-seg" role="group" aria-label="Device">
+        <button type="button" id="btn-dev-phone" class="active" onclick="setDevice('phone')">Phone (390)</button>
+        <button type="button" id="btn-dev-desktop" onclick="setDevice('desktop')">Desktop (1180)</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="screen-strip" aria-label="Screens">
+  <div class="screen-strip-inner">
+    <button type="button" class="screen-pill active" data-pill="home" onclick="setScreen('home')">A · Home</button>
+    <button type="button" class="screen-pill" data-pill="plan" onclick="setScreen('plan')">B · Plan + Guide Chat</button>
+    <button type="button" class="screen-pill" data-pill="walk" onclick="setScreen('walk')">C · Live Walk</button>
+    <button type="button" class="screen-pill" data-pill="walks" onclick="setScreen('walks')">D · My Walks & Social</button>
+    <button type="button" class="screen-pill" data-pill="me" onclick="setScreen('me')">E · Me & Settings</button>
+    <button type="button" class="screen-pill" data-pill="login" onclick="setScreen('login')">F · Login</button>
+  </div>
+</nav>
+
+<!-- =========================================================
+     PRODUCT APPLICATION SHELL
+     ========================================================= -->
+<main class="stage-wrap">
+  <div id="appFrame" class="app-frame" data-device="phone" data-screen="home" dir="ltr">
+
+    <!-- DESKTOP LEFT/START RAIL -->
+    <aside class="desktop-rail" id="desktopRail"></aside>
+
+    <!-- PHONE TOP HEADER -->
+    <div class="phone-topbar" id="phoneTopbar"></div>
+
+    <!-- SCREEN WORKSPACE -->
+    <div class="workspace">
+      <section class="screen-view active" id="screen-home" data-screen="home"></section>
+      <section class="screen-view" id="screen-plan" data-screen="plan"></section>
+      <section class="screen-view" id="screen-walk" data-screen="walk"></section>
+      <section class="screen-view" id="screen-walks" data-screen="walks"></section>
+      <section class="screen-view" id="screen-me" data-screen="me"></section>
+      <section class="screen-view" id="screen-login" data-screen="login"></section>
+    </div>
+
+    <!-- PHONE BOTTOM TAB BAR -->
+    <nav class="phone-tabs" id="phoneTabs" aria-label="App navigation"></nav>
+
+  </div>
+</main>
+
+<script>
+  /* =========================================================
+     STATE & BILINGUAL COPY (FIRST-CLASS EN + HE)
+     ========================================================= */
+  const state = {
+    device: 'phone',
+    lang: 'en',
+    theme: 'day',
+    screen: 'home',
+    selectedThemes: ['must', 'food'],
+    duration: '90m',
+    walksTab: 'mine',
+    pace: 'normal'
+  };
+
+  /* Clean inline SVG data-URI fallbacks ONLY if local assets/ files aren't mounted */
+  const FALLBACK_GUIDE = "data:image/svg+xml;utf8," + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140"><rect width="120" height="140" fill="#efe6d5"/><circle cx="60" cy="48" r="24" fill="#d49c76"/><path d="M36 44c0-18 48-18 48 0 0-8-10-16-24-16S36 36 36 44z" fill="#3a2316"/><path d="M22 140c4-34 22-48 38-48s34 14 38 48z" fill="#d8c3a5"/><rect x="44" y="102" width="32" height="22" rx="3" fill="#231f1c"/><circle cx="60" cy="113" r="7" fill="#5f6f5d"/></svg>`
+  );
+  const FALLBACK_THUMB = "data:image/svg+xml;utf8," + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" fill="#e86b3c"/><path d="M0 34 L16 20 L30 30 L48 14 L48 48 L0 48 Z" fill="#1e3d2f"/></svg>`
+  );
+  const FALLBACK_ACC = "data:image/svg+xml;utf8," + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="#d9a441" stroke="#181512" stroke-width="3"/><circle cx="32" cy="32" r="20" fill="#faf7f0"/><polygon points="32,14 38,32 32,50 26,32" fill="#e86b3c"/></svg>`
+  );
+
+  const I18N = {
+    en: {
+      nav: { home: 'Home', plan: 'Plan', walk: 'Walk', walks: 'Walks', me: 'Me', login: 'Sign in' },
+      topLoc: 'Tel Aviv · Habima',
+      home: {
+        unit: 'min',
+        sub: '4.1 km · Tonight’s ridge walk',
+        dep: '18:15',
+        depSub: '4 stops · Easy pace',
+        secRoute: 'Tonight’s suggested route',
+        secMeta: 'Loop · Starts 120m away',
+        cta: 'Plan my walk',
+        secRecent: 'Saved & recent walks',
+        allWalks: 'All walks',
+        walkBtn: 'Walk',
+        stops: [
+          { t: '18:15', name: 'Habima Sunken Garden', tag: 'Start' },
+          { t: '18:32', name: 'Carmel Market Alleys', tag: 'Tastings' },
+          { t: '18:55', name: 'Neve Tzedek Courtyards', tag: 'Shade' },
+          { t: '19:20', name: 'Old Jaffa Sea Overlook', tag: 'Sunset', active: true }
+        ],
+        recent: [
+          { title: 'Florentin Roasters & Murals', meta: '50 min · 3.2 km · Walked Tue' },
+          { title: 'Ein Kerem Spring Trail', meta: '75 min · 4.6 km · Saved' }
+        ]
+      },
+      plan: {
+        guideTitle: 'Chat with Traike',
+        guideLine: 'Pick a vibe or type stops — I’ll wire a clean walking route.',
+        vibeLabel: 'Route vibe',
+        vibeHint: 'Pick 1–3',
+        themes: [
+          { id: 'must', label: 'Must-see', img: 'assets/must-see.jpg' },
+          { id: 'food', label: 'Food & markets', img: 'assets/food.jpg' },
+          { id: 'view', label: 'Viewpoints', img: 'assets/viewpoints.jpg' },
+          { id: 'nature', label: 'Nature & parks', img: 'assets/nature.jpg' },
+          { id: 'hidden', label: 'Hidden gems', img: 'assets/hidden.jpg' }
+        ],
+        reqLabel: 'Where or what do you want to see?',
+        reqStart: 'Start: Current location',
+        reqValue: 'I want to see Habima Square, the Jaffa port, and a good market',
+        timeLabel: 'Time available',
+        times: ['45m', '60m', '90m', 'Open'],
+        advTitle: 'More options (pace, loop, start point)',
+        paceLabel: 'Walking pace',
+        paces: ['Easy', 'Normal', 'Brisk'],
+        cta: 'Build walking route',
+        mapChip: 'Draft · 4 stops · 4.1 km',
+        startWalkBtn: 'Start live walk'
+      },
+      walk: {
+        statusChip: 'On trail · Heading to Carmel Market',
+        num: '4',
+        unit: 'min',
+        sub: '320 m to Stop 2 · Live GPS',
+        eta: '18:36',
+        etaSub: 'Stop 2 of 4',
+        currTitle: 'Carmel Market Alleys',
+        currSub: 'Turn left onto Gedera St · Audio story ready (45s)',
+        audioBtn: 'Listen',
+        rerouteBtn: 'Off-route?',
+        secStops: 'Route timeline · 4 stops',
+        secLeft: '43 min left',
+        cta: 'Arrived · Next stop',
+        stops: [
+          { t: '18:15', name: 'Habima Sunken Garden', tag: 'Passed', past: true },
+          { t: '18:36', name: 'Carmel Market Alleys', tag: 'Next stop', active: true },
+          { t: '18:55', name: 'Neve Tzedek Courtyards', tag: '+19 min' },
+          { t: '19:20', name: 'Old Jaffa Sea Overlook', tag: 'Finish' }
+        ]
+      },
+      walks: {
+        tabMine: 'My Walks (14)',
+        tabSocial: 'Friends’ Walks',
+        num: '14',
+        unit: 'walks',
+        sub: '52.4 km walked in Israel',
+        badge: '4 saved',
+        cta: 'Plan a new walk',
+        mineList: [
+          { title: 'Jaffa Ridge & Market Loop', meta: '65 min · 4.1 km · 4 stops · Tel Aviv', action: 'Walk' },
+          { title: 'Nachlaot Courtyards & Mahane Yehuda', meta: '80 min · 4.8 km · 5 stops · Jerusalem', action: 'Walk' },
+          { title: 'Haifa Stella Maris Steps', meta: '55 min · 3.4 km · 3 stops · Haifa', action: 'Walk' }
+        ],
+        socialList: [
+          { title: 'Yael’s Friday Coffee Trail', meta: '45 min · 2.9 km · Shared 2h ago', action: 'Try' },
+          { title: 'Omer’s Jerusalem Walls Sunset', meta: '90 min · 5.3 km · Shared yesterday', action: 'Try' },
+          { title: 'Maya’s Park HaMesila Walk', meta: '40 min · 2.7 km · Shared Sun', action: 'Try' }
+        ]
+      },
+      me: {
+        name: 'Noa Levi',
+        sub: 'Tel Aviv · Local & weekend hiker',
+        secPrefs: 'App & walk preferences',
+        langLabel: 'Interface language',
+        themeLabel: 'Appearance',
+        dayOpt: 'Day',
+        nightOpt: 'Dusk',
+        voiceLabel: 'Auto-play stop stories',
+        offlineLabel: 'Offline Israel trail tiles',
+        offlineMeta: 'Downloaded · 68 MB',
+        cta: 'Save preferences',
+        signOut: 'Switch account / Sign in'
+      },
+      login: {
+        num: 'GO',
+        title: 'Walk with a local AI guide',
+        helper: 'Sign in to save routes and resume live walks.',
+        emailLabel: 'Email address',
+        emailPh: 'noa@example.com',
+        cta: 'Continue with email',
+        googleBtn: 'Continue with Google',
+        guestBtn: 'Try one walk without an account'
+      },
+      map: {
+        s1: 'Rothschild Blvd',
+        s2: 'Shenkin St',
+        s3: 'Carmel St',
+        s4: 'Jaffa Rd',
+        pinCallout: 'Carmel Market · 18:36',
+        endLabel: 'Old Jaffa Port'
+      }
+    },
+    he: {
+      nav: { home: 'בית', plan: 'תכנון', walk: 'הליכה', walks: 'מסלולים', me: 'אזור אישי', login: 'כניסה' },
+      topLoc: 'תל אביב · הבימה',
+      home: {
+        unit: 'דקות',
+        sub: '4.1 ק״מ · מסלול שקיעה להערב',
+        dep: '18:15',
+        depSub: '4 תחנות · קצב נינוח',
+        secRoute: 'המסלול המוצע להערב',
+        secMeta: 'התחלה במרחק 120 מ׳',
+        cta: 'תכנון מסלול הליכה',
+        secRecent: 'מסלולים שמורים ואחרונים',
+        allWalks: 'כל המסלולים',
+        walkBtn: 'צאו',
+        stops: [
+          { t: '18:15', name: 'גן יעקב וכיכר הבימה', tag: 'התחלה' },
+          { t: '18:32', name: 'סמטאות שוק הכרמל', tag: 'טעימות' },
+          { t: '18:55', name: 'חצרות נווה צדק', tag: 'צל' },
+          { t: '19:20', name: 'תצפית נמל יפו העתיקה', tag: 'שקיעה', active: true }
+        ],
+        recent: [
+          { title: 'בתי קלייה וגרפיטי בפלורנטין', meta: '50 דק׳ · 3.2 ק״מ · הושלם בשלישי' },
+          { title: 'שביל המעיינות בעין כרם', meta: '75 דק׳ · 4.6 ק״מ · שמור' }
+        ]
+      },
+      plan: {
+        guideTitle: 'שיחה עם Traike',
+        guideLine: 'בחרו אופי או כתבו תחנות — אחבר לכם מסלול הליכה מדויק.',
+        vibeLabel: 'אופי ההליכה',
+        vibeHint: 'בחרו 1–3',
+        themes: [
+          { id: 'must', label: 'אתרי חובה', img: 'assets/must-see.jpg' },
+          { id: 'food', label: 'אוכל ושווקים', img: 'assets/food.jpg' },
+          { id: 'view', label: 'תצפיות ונוף', img: 'assets/viewpoints.jpg' },
+          { id: 'nature', label: 'טבע ופארקים', img: 'assets/nature.jpg' },
+          { id: 'hidden', label: 'פינות נסתרות', img: 'assets/hidden.jpg' }
+        ],
+        reqLabel: 'לאן תרצו ללכת או מה לראות?',
+        reqStart: 'התחלה: מיקום נוכחי',
+        reqValue: 'אני רוצה לראות את כיכר הבימה, נמל יפו ושוק טוב בדרך',
+        timeLabel: 'זמן פנוי להליכה',
+        times: ['45 דק׳', '60 דק׳', '90 דק׳', 'חופשי'],
+        advTitle: 'אפשרויות נוספות (קצב, מסלול מעגלי, נקודת מוצא)',
+        paceLabel: 'קצב הליכה',
+        paces: ['נינוח', 'רגיל', 'מהיר'],
+        cta: 'בניית מסלול הליכה',
+        mapChip: 'טיוטה · 4 תחנות · 4.1 ק״מ',
+        startWalkBtn: 'התחילו הליכה חיה'
+      },
+      walk: {
+        statusChip: 'בדרך אל סמטאות שוק הכרמל',
+        num: '4',
+        unit: 'דקות',
+        sub: '320 מ׳ לתחנה 2 · ניווט חי',
+        eta: '18:36',
+        etaSub: 'תחנה 2 מתוך 4',
+        currTitle: 'סמטאות שוק הכרמל',
+        currSub: 'פנו שמאלה לרחוב גדרה · סיפור קולי מוכן (45 שנ׳)',
+        audioBtn: 'האזנה',
+        rerouteBtn: 'סטיתם?',
+        secStops: 'ציר המסלול · 4 תחנות',
+        secLeft: 'נותרו 43 דק׳',
+        cta: 'הגעתי · לתחנה הבאה',
+        stops: [
+          { t: '18:15', name: 'גן יעקב וכיכר הבימה', tag: 'עברנו', past: true },
+          { t: '18:36', name: 'סמטאות שוק הכרמל', tag: 'התחנה הבאה', active: true },
+          { t: '18:55', name: 'חצרות נווה צדק', tag: 'עוד 19 דק׳' },
+          { t: '19:20', name: 'תצפית נמל יפו העתיקה', tag: 'סיום' }
+        ]
+      },
+      walks: {
+        tabMine: 'המסלולים שלי (14)',
+        tabSocial: 'מסלולי חברים',
+        num: '14',
+        unit: 'מסלולים',
+        sub: '52.4 ק״מ של הליכה בארץ',
+        badge: '4 שמורים',
+        cta: 'תכנון מסלול חדש',
+        mineList: [
+          { title: 'רכס יפו וסמטאות השוק', meta: '65 דק׳ · 4.1 ק״מ · 4 תחנות · תל אביב', action: 'צאו' },
+          { title: 'חצרות נחלאות ושוק מחנה יהודה', meta: '80 דק׳ · 4.8 ק״מ · 5 תחנות · ירושלים', action: 'צאו' },
+          { title: 'מדרגות סטלה מאריס והמושבה', meta: '55 דק׳ · 3.4 ק״מ · 3 תחנות · חיפה', action: 'צאו' }
+        ],
+        socialList: [
+          { title: 'שביל הקפה של יעל לשישי', meta: '45 דק׳ · 2.9 ק״מ · שותף לפני שעתיים', action: 'נסו' },
+          { title: 'שקיעה על חומות ירושלים · עומר', meta: '90 דק׳ · 5.3 ק״מ · שותף אתמול', action: 'נסו' },
+          { title: 'פארק המסילה של מאיה', meta: '40 דק׳ · 2.7 ק״מ · שותף בראשון', action: 'נסו' }
+        ]
+      },
+      me: {
+        name: 'נועה לוי',
+        sub: 'תל אביב · מטיילת בעיר ובשטח',
+        secPrefs: 'העדפות אפליקציה והליכה',
+        langLabel: 'שפת ממשק',
+        themeLabel: 'תצוגה',
+        dayOpt: 'יום',
+        nightOpt: 'לילה',
+        voiceLabel: 'ניגון אוטומטי של סיפורי דרך',
+        offlineLabel: 'מפות שבילים אופליין (ישראל)',
+        offlineMeta: 'זמין במכשיר · 68 MB',
+        cta: 'שמירת העדפות',
+        signOut: 'החלפת חשבון / מסך כניסה'
+      },
+      login: {
+        num: 'צאו',
+        title: 'הליכה חכמה עם מדריך אישי',
+        helper: 'התחברו כדי לשמור מסלולים ולהמשיך ניווט חי.',
+        emailLabel: 'כתובת אימייל',
+        emailPh: 'noa@example.com',
+        cta: 'המשך עם אימייל',
+        googleBtn: 'המשך עם Google',
+        guestBtn: 'ניסיון של מסלול ראשון ללא חשבון'
+      },
+      map: {
+        s1: 'שדרות רוטשילד',
+        s2: 'רחוב שינקין',
+        s3: 'רחוב הכרמל',
+        s4: 'דרך יפו',
+        pinCallout: 'שוק הכרמל · 18:36',
+        endLabel: 'נמל יפו העתיקה'
+      }
+    }
+  };
+
+  /* =========================================================
+     CUSTOM INLINE SVG ICONS (CRISP GEOMETRY, NO LUCIDE)
+     ========================================================= */
+  const ICONS = {
+    trail: `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square"><circle cx="5" cy="15" r="2.5"/><circle cx="15" cy="5" r="2.5"/><path d="M7.5 15H11a2 2 0 0 0 2-2V7a2 2 0 0 1 2-2"/></svg>`,
+    home: `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L10 3l7 6.5V17H3V9.5z"/><path d="M8 17v-5h4v5"/></svg>`,
+    plan: `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="7.5"/><polygon points="12.8,7.2 11,11 7.2,12.8 9,9" fill="currentColor" stroke="none"/></svg>`,
+    walk: `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="10,2.5 16.5,17 10,13.6 3.5,17"/></svg>`,
+    walks: `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="5" r="2.2"/><circle cx="15" cy="10" r="2.2"/><circle cx="6" cy="15" r="2.2"/><path d="M7.2 5.6l5.6 3.4M12.8 11.1L8.1 14"/></svg>`,
+    me: `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="6.5" r="3.2"/><path d="M4 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/></svg>`,
+    arrow: `<svg class="dir-flip" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10h12M11 5l5 5-5 5"/></svg>`,
+    pin: `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 18s6-5.2 6-9.8A6 6 0 0 0 4 8.2C4 12.8 10 18 10 18z"/><circle cx="10" cy="8.2" r="2"/></svg>`,
+    audio: `<svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="4,7 8,7 13,3 13,17 8,13 4,13"/><path d="M16 7.5c1.2 1.3 1.2 3.7 0 5"/></svg>`,
+    miniRoute: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="4" fill="var(--surface-subtle)" stroke="var(--line)"/><path d="M6 21H14V8H22" stroke="var(--ink)" stroke-width="2.5"/><circle cx="6" cy="21" r="2.5" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/><rect x="19.5" y="5.5" width="5" height="5" fill="var(--primary)" stroke="var(--ink)" stroke-width="1.5"/></svg>`
+  };
+
+  /* =========================================================
+     BESPOKE FLAT-VECTOR ILLUSTRATED TRAIL SCENE (BUSBO FORMULA)
+     3-4 crisp tonal planes, terracotta sun / night moon + lit tent,
+     waymarker post, winding trail, hiker silhouette
+     ========================================================= */
+  function renderLandscapeSVG() {
+    const isNight = state.theme === 'night';
+    const sky = isNight ? '#1c1815' : '#efe8d8';
+    const ridgeFar = isNight ? '#2b2520' : '#dcd2be';
+    const ridgeMid = isNight ? '#1f362b' : '#264938';
+    const ground = isNight ? '#0e0c0a' : '#181512';
+    const trail = isNight ? '#5c5449' : '#f5efe2';
+    const tentBody = isNight ? '#e86b3c' : '#faf7f0';
+    const tentShade = isNight ? '#b54922' : '#dfd6c5';
+
+    return `
+      <svg class="scene-svg" viewBox="0 0 440 156" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <rect width="440" height="156" fill="${sky}"/>
+        ${isNight ? `
+          <circle cx="96" cy="42" r="20" fill="#f4efe6"/>
+          <circle cx="104" cy="37" r="16" fill="${sky}"/>
+          <rect x="44" y="24" width="3" height="3" fill="#f4efe6"/>
+          <rect x="176" y="20" width="3" height="3" fill="#f4efe6"/>
+          <rect x="280" y="30" width="3" height="3" fill="#f4efe6"/>
+          <rect x="360" y="18" width="3" height="3" fill="#f4efe6"/>
+        ` : `
+          <circle cx="98" cy="46" r="27" fill="#e86b3c"/>
+        `}
+        <!-- Far sandstone mesa ridge -->
+        <polygon points="0,104 68,72 132,86 218,54 294,78 368,58 440,80 440,124 0,124" fill="${ridgeFar}"/>
+        <!-- Mid forest ridge + flat geometric cypresses -->
+        <polygon points="0,114 88,92 174,104 266,80 356,94 440,84 440,130 0,130" fill="${ridgeMid}"/>
+        <polygon points="196,68 202,94 190,94" fill="${ridgeMid}"/>
+        <polygon points="210,74 215,95 205,95" fill="${ridgeMid}"/>
+        <!-- Pitched trail tent on ridge -->
+        <polygon points="312,108 328,84 344,108" fill="${tentBody}" stroke="${ground}" stroke-width="2"/>
+        <polygon points="328,84 344,108 354,105 338,83" fill="${tentShade}" stroke="${ground}" stroke-width="2"/>
+        <polygon points="324,108 328,95 332,108" fill="${isNight ? '#ffd27d' : '#e86b3c'}"/>
+        <!-- Near-black warm foreground plane (anchors the giant serif numeral) -->
+        <rect x="0" y="108" width="440" height="48" fill="${ground}"/>
+        <!-- Winding perspective trail + orange blaze dashes -->
+        <polygon points="204,108 222,108 274,156 232,156" fill="${trail}"/>
+        <line x1="216" y1="114" x2="225" y2="122" stroke="#e86b3c" stroke-width="3"/>
+        <line x1="231" y1="129" x2="242" y2="140" stroke="#e86b3c" stroke-width="3"/>
+        <!-- Waymarker trail post -->
+        <line x1="278" y1="92" x2="278" y2="122" stroke="${trail}" stroke-width="3"/>
+        <rect x="278" y="94" width="18" height="9" fill="#e86b3c" stroke="${ground}" stroke-width="1.5"/>
+        <!-- Crisp hiker figure on ridge -->
+        <circle cx="156" cy="91" r="4" fill="${ground}"/>
+        <path d="M156,96 L153,108 M156,98 L162,103 M149,96 L154,96 L153,104 L148,104 Z" stroke="${ground}" stroke-width="2.5" fill="${ground}"/>
+        <line x1="163" y1="95" x2="165" y2="109" stroke="${ground}" stroke-width="1.8"/>
+      </svg>
+    `;
+  }
+
+  /* =========================================================
+     STAR MAP SVG (WARM-PAPER STREETS, THICK INK ROUTE,
+     HOLLOW STOPS, PIN + CALLOUT, ILLUSTRATED WALKER MARKER)
+     ========================================================= */
+  function renderMapSVG(context) {
+    const t = I18N[state.lang].map;
+    const ink = state.theme === 'night' ? '#f4efe6' : '#181512';
+    const surface = state.theme === 'night' ? '#1b1815' : '#faf7f0';
+
+    return `
+      <svg class="map-svg" viewBox="0 0 600 520" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Walking route map">
+        <!-- Base road paper -->
+        <rect width="600" height="520" fill="var(--map-road)"/>
+        <!-- Sea coast corner (Jaffa) -->
+        <polygon points="0,390 92,425 135,520 0,520" fill="var(--map-water)"/>
+        <!-- Clean architectural city blocks (never covering street names) -->
+        <rect x="24" y="24" width="155" height="118" rx="3" fill="var(--map-block)" stroke="var(--map-block-line)"/>
+        <rect x="208" y="24" width="176" height="118" rx="3" fill="var(--map-park)" stroke="var(--map-block-line)"/>
+        <rect x="412" y="24" width="164" height="118" rx="3" fill="var(--map-block)" stroke="var(--map-block-line)"/>
+
+        <rect x="24" y="170" width="155" height="134" rx="3" fill="var(--map-block)" stroke="var(--map-block-line)"/>
+        <rect x="208" y="170" width="176" height="134" rx="3" fill="var(--map-block)" stroke="var(--map-block-line)"/>
+        <rect x="412" y="170" width="164" height="134" rx="3" fill="var(--map-block)" stroke="var(--map-block-line)"/>
+
+        <rect x="112" y="332" width="142" height="152" rx="3" fill="var(--map-block)" stroke="var(--map-block-line)"/>
+        <rect x="282" y="332" width="160" height="152" rx="3" fill="var(--map-park)" stroke="var(--map-block-line)"/>
+        <rect x="468" y="332" width="108" height="152" rx="3" fill="var(--map-block)" stroke="var(--map-block-line)"/>
+
+        <!-- Unobstructed street names in avenues -->
+        <text x="494" y="160" text-anchor="middle" fill="var(--muted)" font-size="13" font-weight="700">${t.s1}</text>
+        <text x="193" y="92" text-anchor="middle" transform="rotate(-90 193 92)" fill="var(--muted)" font-size="13" font-weight="700">${t.s2}</text>
+        <text x="398" y="242" text-anchor="middle" transform="rotate(-90 398 242)" fill="var(--muted)" font-size="13" font-weight="700">${t.s3}</text>
+        <text x="348" y="322" text-anchor="middle" fill="var(--muted)" font-size="13" font-weight="700">${t.s4}</text>
+
+        <!-- Walked past route (grey) -->
+        <polyline points="468,96 398,96 398,156 320,156" fill="none" stroke="var(--route-past)" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
+        <circle cx="468" cy="96" r="5" fill="var(--route-past)"/>
+
+        <!-- Active upcoming route (thick 7px crisp ink line) -->
+        <polyline points="320,156 194,156 194,318 268,318 268,438 148,438" fill="none" stroke="${ink}" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
+
+        <!-- Hollow intermediate stop dots -->
+        <circle cx="194" cy="198" r="6.5" fill="${surface}" stroke="${ink}" stroke-width="3"/>
+        <circle cx="268" cy="368" r="6.5" fill="${surface}" stroke="${ink}" stroke-width="3"/>
+
+        <!-- Final terminal square waymarker (Jaffa Overlook) -->
+        <rect x="139" y="429" width="18" height="18" rx="2" fill="#e86b3c" stroke="${ink}" stroke-width="2.5"/>
+        <text x="150" y="468" text-anchor="middle" fill="${ink}" font-size="13" font-weight="800">${t.endLabel}</text>
+
+        <!-- Target Stop Pin + Crisp Dark Ink Callout Pill -->
+        <g transform="translate(194,156)">
+          <path d="M0,0 C-11,-12 -15,-21 -15,-28 A15,15 0 1,1 15,-28 C15,-21 11,-12 0,0 Z" fill="#e86b3c" stroke="#181512" stroke-width="2.5"/>
+          <circle cx="0" cy="-28" r="4.5" fill="#181512"/>
+          <rect x="20" y="-42" width="166" height="28" rx="4" fill="#181512"/>
+          <text x="103" y="-24" text-anchor="middle" fill="#faf7f0" font-size="13" font-weight="800">${t.pinCallout}</text>
+        </g>
+
+        <!-- Custom Illustrated Walker / Hiker Marker on Trail -->
+        <g transform="translate(320,156)">
+          <rect x="-17" y="-17" width="34" height="34" rx="6" fill="#e86b3c" stroke="#181512" stroke-width="2.5"/>
+          <circle cx="0" cy="-6" r="4" fill="#181512"/>
+          <path d="M-2,-1 L3,-1 L5,9 L-4,9 Z" fill="#181512"/>
+          <rect x="3" y="-2" width="5" height="8" rx="1" fill="#faf7f0" stroke="#181512" stroke-width="1.5"/>
+        </g>
+      </svg>
+    `;
+  }
+
+  /* =========================================================
+     NAVIGATION RENDERERS
+     ========================================================= */
+  function renderNav() {
+    const t = I18N[state.lang];
+    const items = [
+      { id: 'home', label: t.nav.home, icon: ICONS.home },
+      { id: 'plan', label: t.nav.plan, icon: ICONS.plan },
+      { id: 'walk', label: t.nav.walk, icon: ICONS.walk },
+      { id: 'walks', label: t.nav.walks, icon: ICONS.walks },
+      { id: 'me', label: t.nav.me, icon: ICONS.me }
+    ];
+
+    document.getElementById('desktopRail').innerHTML = `
+      <div>
+        <div class="brand-lockup">
+          <span class="brand-word">
+            <span class="brand-mark">${ICONS.trail}</span>
+            Traike
+          </span>
+        </div>
+        <div class="rail-nav">
+          ${items.map(it => `
+            <button type="button" class="rail-btn ${state.screen === it.id ? 'active' : ''}" onclick="setScreen('${it.id}')">
+              ${it.icon}
+              <span>${it.label}</span>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+      <div class="rail-footer">
+        <button type="button" class="btn-primary" onclick="setScreen('plan')">
+          <span>${t.home.cta}</span>
+        </button>
+        <button type="button" class="rail-btn ${state.screen === 'login' ? 'active' : ''}" onclick="setScreen('login')">
+          ${ICONS.me}
+          <span>${t.nav.login}</span>
+        </button>
+      </div>
+    `;
+
+    document.getElementById('phoneTopbar').innerHTML = `
+      <span class="brand-word">
+        <span class="brand-mark">${ICONS.trail}</span>
+        Traike
+      </span>
+      <button type="button" class="btn-secondary" style="min-height:34px;padding-inline:10px;font-size:var(--fs-xs);" onclick="setScreen('${state.screen === 'login' ? 'home' : 'login'}')">
+        <span class="orange-sq"></span>
+        <span>${t.topLoc}</span>
+      </button>
+    `;
+
+    document.getElementById('phoneTabs').innerHTML = items.map(it => `
+      <button type="button" class="tab-btn ${state.screen === it.id ? 'active' : ''}" onclick="setScreen('${it.id}')">
+        ${it.icon}
+        <span>${it.label}</span>
+      </button>
+    `).join('');
+  }
+
+  /* =========================================================
+     SCREEN A: HOME (BESPOKE SCENE + GIANT "65" + ROUTE ROWS)
+     ========================================================= */
+  function renderHome() {
+    const t = I18N[state.lang].home;
+    const p = I18N[state.lang].plan;
+    document.getElementById('screen-home').innerHTML = `
+      <div class="sheet-col">
+        <div class="scene-box">
+          ${renderLandscapeSVG()}
+          <div class="acc-slot">
+            <img src="assets/compass.png" alt="" onerror="this.src='${FALLBACK_ACC}'" />
+          </div>
+        </div>
+
+        <div class="hero-metric-row">
+          <div class="hero-numeral-group">
+            <span class="giant-num">65</span>
+            <div class="giant-unit-stack">
+              <span class="giant-unit">${t.unit}</span>
+              <span class="giant-sub">${t.sub}</span>
+            </div>
+          </div>
+          <div class="hero-badge-stack">
+            <span class="solid-pill">${t.dep}</span>
+            <span class="giant-sub">${t.depSub}</span>
+          </div>
+        </div>
+
+        <div class="sec-bar">
+          <span>${t.secRoute}</span>
+          <span class="muted">${t.secMeta}</span>
+        </div>
+
+        <div class="timeline-list">
+          ${t.stops.map(s => `
+            <div class="tl-row ${s.active ? 'active-stop' : ''}">
+              <span class="tl-time">${s.t}</span>
+              <span class="tl-node-wrap"><span class="tl-dot"></span></span>
+              <span class="tl-name">${s.name}</span>
+              <span class="tl-tag">${s.tag}</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="pad-block">
+          <button type="button" class="btn-primary" onclick="setScreen('plan')">
+            <span>${t.cta}</span>
+            ${ICONS.arrow}
+          </button>
+        </div>
+
+        <div class="sec-bar">
+          <span>${t.secRecent}</span>
+          <button type="button" style="border:0;background:none;text-decoration:underline;font-weight:700;cursor:pointer;font-size:var(--fs-xs);" onclick="setScreen('walks')">${t.allWalks}</button>
+        </div>
+
+        ${t.recent.map(r => `
+          <div class="dense-row">
+            ${ICONS.miniRoute}
+            <div class="dense-row-main">
+              <p class="dense-title">${r.title}</p>
+              <p class="dense-meta">${r.meta}</p>
+            </div>
+            <button type="button" class="btn-secondary" onclick="setScreen('walk')">${t.walkBtn}</button>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- Desktop Star Map Preview -->
+      <div class="canvas-col desktop-only-canvas">
+        <div class="map-stage">
+          ${renderMapSVG('home')}
+          <div class="map-hud-top">
+            <div class="map-chip"><span class="orange-sq"></span> ${p.mapChip}</div>
+            <button type="button" class="btn-secondary" style="background:var(--surface);" onclick="setScreen('walk')">${p.startWalkBtn} ${ICONS.arrow}</button>
+          </div>
+          <div class="map-attr">© OpenStreetMap · Traike</div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* =========================================================
+     SCREEN B: PLAN + GUIDE CHARACTER CHAT + 5 PHOTO CHIPS
+     ========================================================= */
+  function renderPlan() {
+    const t = I18N[state.lang].plan;
+    const guideImg = state.theme === 'night' ? 'assets/guide-night.jpg' : 'assets/guide.jpg';
+
+    document.getElementById('screen-plan').innerHTML = `
+      <div class="sheet-col wide-sheet">
+        <div class="guide-header">
+          <div class="scene-box compact">
+            ${renderLandscapeSVG()}
+          </div>
+          <div class="guide-card-row">
+            <div class="guide-portrait">
+              <img src="${guideImg}" alt="Traike walking guide" onerror="this.src='${FALLBACK_GUIDE}'" />
+            </div>
+            <div class="guide-speech">
+              <strong>${t.guideTitle}</strong>
+              <p>${t.guideLine}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pad-block">
+          <div class="field-label">
+            <label>${t.vibeLabel}</label>
+            <span>${t.vibeHint}</span>
+          </div>
+          <div class="theme-grid">
+            ${t.themes.map(th => {
+              const sel = state.selectedThemes.includes(th.id);
+              return `
+                <button type="button" class="theme-tile ${sel ? 'selected' : ''}" onclick="toggleVibe('${th.id}')">
+                  <img src="${th.img}" alt="" onerror="this.src='${FALLBACK_THUMB}'" />
+                  <span>${th.label}</span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="pad-block">
+          <div class="field-label">
+            <label for="routePrompt">${t.reqLabel}</label>
+            <span>${t.reqStart}</span>
+          </div>
+          <textarea id="routePrompt" class="hard-textarea">${t.reqValue}</textarea>
+        </div>
+
+        <div class="pad-block">
+          <div class="field-label">
+            <label>${t.timeLabel}</label>
+          </div>
+          <div class="seg-grid">
+            ${['45m', '60m', '90m', 'Open'].map((code, idx) => `
+              <button type="button" class="seg-cell ${state.duration === code ? 'active-orange' : ''}" onclick="setDuration('${code}')">
+                ${t.times[idx]}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <details class="adv-disclosure">
+          <summary>
+            <span>${t.advTitle}</span>
+            <span>+</span>
+          </summary>
+          <div class="pad-block" style="border-bottom:0;">
+            <div class="field-label"><label>${t.paceLabel}</label></div>
+            <div class="seg-grid">
+              ${['easy', 'normal', 'brisk'].map((pCode, idx) => `
+                <button type="button" class="seg-cell ${state.pace === pCode ? 'active-ink' : ''}" onclick="state.pace='${pCode}';renderPlan();">
+                  ${t.paces[idx]}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </details>
+
+        <div class="pad-block" style="border-bottom:0;">
+          <button type="button" class="btn-primary" onclick="setScreen('walk')">
+            <span>${t.cta}</span>
+            ${ICONS.arrow}
+          </button>
+        </div>
+      </div>
+
+      <!-- Desktop Star Map -->
+      <div class="canvas-col desktop-only-canvas">
+        <div class="map-stage">
+          ${renderMapSVG('plan')}
+          <div class="map-hud-top">
+            <div class="map-chip"><span class="orange-sq"></span> ${t.mapChip}</div>
+            <button type="button" class="btn-primary" style="width:auto;min-height:40px;padding-inline:14px;" onclick="setScreen('walk')">
+              <span>${t.startWalkBtn}</span>
+              ${ICONS.arrow}
+            </button>
+          </div>
+          <div class="map-attr">© OpenStreetMap · Traike</div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* =========================================================
+     SCREEN C: LIVE WALK (MAP STAR + BUSBO GIANT "4" SHEET)
+     ========================================================= */
+  function renderWalk() {
+    const t = I18N[state.lang].walk;
+
+    const mapMarkup = `
+      <div class="map-stage walk-map-phone">
+        ${renderMapSVG('walk')}
+        <div class="map-hud-top">
+          <div class="map-chip"><span class="orange-sq"></span> ${t.statusChip}</div>
+        </div>
+        <div class="map-attr">© OpenStreetMap · Traike</div>
+      </div>
+    `;
+
+    document.getElementById('screen-walk').innerHTML = `
+      ${state.device === 'phone' ? mapMarkup : ''}
+      <div class="sheet-col">
+        <div class="scene-box compact">
+          ${renderLandscapeSVG()}
+        </div>
+
+        <div class="hero-metric-row">
+          <div class="hero-numeral-group">
+            <span class="giant-num">${t.num}</span>
+            <div class="giant-unit-stack">
+              <span class="giant-unit">${t.unit}</span>
+              <span class="giant-sub">${t.sub}</span>
+            </div>
+          </div>
+          <div class="hero-badge-stack">
+            <span class="solid-pill">${t.eta}</span>
+            <span class="giant-sub">${t.etaSub}</span>
+          </div>
+        </div>
+
+        <div class="stop-focus-row">
+          <div class="pin-square">${ICONS.pin}</div>
+          <div class="dense-row-main">
+            <p class="dense-title">${t.currTitle}</p>
+            <p class="dense-meta">${t.currSub}</p>
+          </div>
+          <button type="button" class="btn-secondary">${ICONS.audio} <span>${t.audioBtn}</span></button>
+        </div>
+
+        <div class="sec-bar">
+          <span>${t.secStops}</span>
+          <span class="muted">${t.secLeft}</span>
+        </div>
+
+        <div class="timeline-list">
+          ${t.stops.map(s => `
+            <div class="tl-row ${s.past ? 'past' : ''} ${s.active ? 'active-stop' : ''}">
+              <span class="tl-time">${s.t}</span>
+              <span class="tl-node-wrap"><span class="tl-dot"></span></span>
+              <span class="tl-name">${s.name}</span>
+              <span class="tl-tag">${s.tag}</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="pad-block" style="display:flex;gap:8px;border-bottom:0;">
+          <button type="button" class="btn-secondary" onclick="setScreen('plan')">${t.rerouteBtn}</button>
+          <button type="button" class="btn-primary" style="flex:1;">
+            <span>${t.cta}</span>
+            ${ICONS.arrow}
+          </button>
+        </div>
+      </div>
+      ${state.device === 'desktop' ? `<div class="canvas-col">${mapMarkup}</div>` : ''}
+    `;
+  }
+
+  /* =========================================================
+     SCREEN D: MY WALKS & SOCIAL (BOOT ACCESSORY + DENSE ROWS)
+     ========================================================= */
+  function renderWalks() {
+    const t = I18N[state.lang].walks;
+    const rows = state.walksTab === 'mine' ? t.mineList : t.socialList;
+
+    document.getElementById('screen-walks').innerHTML = `
+      <div class="sheet-col wide-sheet">
+        <div class="scene-box compact">
+          ${renderLandscapeSVG()}
+          <div class="acc-slot">
+            <img src="assets/boot.png" alt="" onerror="this.src='${FALLBACK_ACC}'" />
+          </div>
+        </div>
+
+        <div class="hero-metric-row">
+          <div class="hero-numeral-group">
+            <span class="giant-num">${t.num}</span>
+            <div class="giant-unit-stack">
+              <span class="giant-unit">${t.unit}</span>
+              <span class="giant-sub">${t.sub}</span>
+            </div>
+          </div>
+          <div class="hero-badge-stack">
+            <span class="solid-pill">${t.badge}</span>
+          </div>
+        </div>
+
+        <div class="pad-block">
+          <div class="seg-grid">
+            <button type="button" class="seg-cell ${state.walksTab === 'mine' ? 'active-ink' : ''}" onclick="state.walksTab='mine';renderWalks();">${t.tabMine}</button>
+            <button type="button" class="seg-cell ${state.walksTab === 'social' ? 'active-ink' : ''}" onclick="state.walksTab='social';renderWalks();">${t.tabSocial}</button>
+          </div>
+        </div>
+
+        <div>
+          ${rows.map(r => `
+            <div class="dense-row">
+              ${ICONS.miniRoute}
+              <div class="dense-row-main">
+                <p class="dense-title">${r.title}</p>
+                <p class="dense-meta">${r.meta}</p>
+              </div>
+              <button type="button" class="btn-secondary" onclick="setScreen('walk')">${r.action}</button>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="pad-block" style="border-bottom:0;">
+          <button type="button" class="btn-primary" onclick="setScreen('plan')">
+            <span>${t.cta}</span>
+            ${ICONS.arrow}
+          </button>
+        </div>
+      </div>
+
+      <div class="canvas-col desktop-only-canvas">
+        <div class="map-stage">
+          ${renderMapSVG('walks')}
+          <div class="map-attr">© OpenStreetMap · Traike</div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* =========================================================
+     SCREEN E: ME & SETTINGS
+     ========================================================= */
+  function renderMe() {
+    const t = I18N[state.lang].me;
+
+    document.getElementById('screen-me').innerHTML = `
+      <div class="sheet-col wide-sheet">
+        <div class="scene-box compact">
+          ${renderLandscapeSVG()}
+        </div>
+
+        <div class="pad-block" style="display:flex;align-items:center;gap:12px;">
+          <div class="pin-square" style="font-family:var(--font-serif);font-weight:900;font-size:var(--fs-lg);">NL</div>
+          <div class="dense-row-main">
+            <h2 class="h-title">${t.name}</h2>
+            <p class="h-helper">${t.sub}</p>
+          </div>
+        </div>
+
+        <div class="sec-bar"><span>${t.secPrefs}</span></div>
+
+        <div class="pad-block">
+          <div class="field-label"><label>${t.langLabel}</label></div>
+          <div class="seg-grid">
+            <button type="button" class="seg-cell ${state.lang === 'en' ? 'active-ink' : ''}" onclick="setLang('en')">English</button>
+            <button type="button" class="seg-cell ${state.lang === 'he' ? 'active-ink' : ''}" onclick="setLang('he')">עברית</button>
+          </div>
+        </div>
+
+        <div class="pad-block">
+          <div class="field-label"><label>${t.themeLabel}</label></div>
+          <div class="seg-grid">
+            <button type="button" class="seg-cell ${state.theme === 'day' ? 'active-orange' : ''}" onclick="setTheme('day')">${t.dayOpt}</button>
+            <button type="button" class="seg-cell ${state.theme === 'night' ? 'active-orange' : ''}" onclick="setTheme('night')">${t.nightOpt}</button>
+          </div>
+        </div>
+
+        <div class="dense-row">
+          <div class="dense-row-main">
+            <p class="dense-title">${t.offlineLabel}</p>
+            <p class="dense-meta">${t.offlineMeta}</p>
+          </div>
+          <span class="solid-pill">OK</span>
+        </div>
+
+        <div class="pad-block" style="display:flex;flex-direction:column;gap:8px;border-bottom:0;">
+          <button type="button" class="btn-primary" onclick="setScreen('home')">${t.cta}</button>
+          <button type="button" class="btn-secondary" style="width:100%;" onclick="setScreen('login')">${t.signOut}</button>
+        </div>
+      </div>
+
+      <div class="canvas-col desktop-only-canvas">
+        <div class="map-stage">
+          ${renderMapSVG('me')}
+          <div class="map-attr">© OpenStreetMap · Traike</div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* =========================================================
+     SCREEN F: LOGIN (SCENE + REAL GUIDE + ONE PRIMARY ACTION)
+     ========================================================= */
+  function renderLogin() {
+    const t = I18N[state.lang].login;
+    const guideImg = state.theme === 'night' ? 'assets/guide-night.jpg' : 'assets/guide.jpg';
+
+    document.getElementById('screen-login').innerHTML = `
+      <div class="sheet-col wide-sheet">
+        <div class="guide-header">
+          <div class="scene-box tall">
+            ${renderLandscapeSVG()}
+          </div>
+          <div class="guide-card-row">
+            <div class="guide-portrait">
+              <img src="${guideImg}" alt="Traike guide" onerror="this.src='${FALLBACK_GUIDE}'" />
+            </div>
+            <div class="guide-speech">
+              <strong>${t.title}</strong>
+              <p>${t.helper}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pad-block">
+          <div class="field-label"><label for="loginEmail">${t.emailLabel}</label></div>
+          <input id="loginEmail" type="email" class="hard-input" value="${t.emailPh}" />
+        </div>
+
+        <div class="pad-block" style="display:flex;flex-direction:column;gap:10px;border-bottom:0;">
+          <button type="button" class="btn-primary" onclick="setScreen('home')">
+            <span>${t.cta}</span>
+            ${ICONS.arrow}
+          </button>
+          <button type="button" class="btn-secondary" style="width:100%;" onclick="setScreen('home')">${t.googleBtn}</button>
+          <button type="button" style="border:0;background:none;text-decoration:underline;min-height:44px;font-size:var(--fs-sm);font-weight:700;cursor:pointer;" onclick="setScreen('plan')">${t.guestBtn}</button>
+        </div>
+      </div>
+
+      <div class="canvas-col desktop-only-canvas">
+        <div class="map-stage">
+          ${renderMapSVG('login')}
+          <div class="map-attr">© OpenStreetMap · Traike</div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* =========================================================
+     REQUIRED PUBLIC CONTROLLER FUNCTIONS
+     setDevice / setLang / setTheme / setScreen
+     ========================================================= */
+  function renderAll() {
+    renderNav();
+    renderHome();
+    renderPlan();
+    renderWalk();
+    renderWalks();
+    renderMe();
+    renderLogin();
+  }
+
+  function setDevice(dev) {
+    state.device = dev;
+    document.getElementById('appFrame').setAttribute('data-device', dev);
+    document.getElementById('btn-dev-phone').classList.toggle('active', dev === 'phone');
+    document.getElementById('btn-dev-desktop').classList.toggle('active', dev === 'desktop');
+    renderWalk();
+  }
+
+  function setLang(lang) {
+    state.lang = lang;
+    const dir = lang === 'he' ? 'rtl' : 'ltr';
+    const frame = document.getElementById('appFrame');
+    frame.setAttribute('dir', dir);
+    frame.setAttribute('lang', lang);
+    document.getElementById('btn-lang-en').classList.toggle('active', lang === 'en');
+    document.getElementById('btn-lang-he').classList.toggle('active', lang === 'he');
+    renderAll();
+  }
+
+  function setTheme(theme) {
+    state.theme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('btn-theme-day').classList.toggle('active', theme === 'day');
+    document.getElementById('btn-theme-night').classList.toggle('active', theme === 'night');
+    renderAll();
+  }
+
+  function setScreen(screenId) {
+    state.screen = screenId;
+    document.getElementById('appFrame').setAttribute('data-screen', screenId);
+    document.querySelectorAll('.screen-view').forEach(el => {
+      el.classList.toggle('active', el.getAttribute('data-screen') === screenId);
+    });
+    document.querySelectorAll('.screen-pill').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-pill') === screenId);
+    });
+    renderNav();
+  }
+
+  function toggleVibe(id) {
+    const idx = state.selectedThemes.indexOf(id);
+    if (idx >= 0) {
+      if (state.selectedThemes.length > 1) state.selectedThemes.splice(idx, 1);
+    } else {
+      state.selectedThemes.push(id);
+    }
+    renderPlan();
+  }
+
+  function setDuration(code) {
+    state.duration = code;
+    renderPlan();
+  }
+
+  renderAll();
+</script>
+</body>
+</html>
