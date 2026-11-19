@@ -3816,28 +3816,17 @@ export function WalkPlannerApp({
         <div className={`${walkMode || hubTab ? "hidden " : ""}relative z-10 mx-auto mb-[17px] max-w-[440px] ps-[7px] pt-[7px] @4xl:mb-[14px] @4xl:pt-[5px] @6xl:mb-[17px] @6xl:pt-[7px]`}>
           {!compact && (
             <>
-          {/* Dotted route + pin that trail off the wordmark. */}
-          <svg
-            aria-hidden
-            viewBox="0 0 250 56"
-            className="pointer-events-none absolute start-[117px] top-[28px] h-[25px] w-[111px] rtl:-scale-x-100 @4xl:start-[100px] @4xl:top-[22px] @4xl:h-[19px] @4xl:w-[84px] @6xl:start-[117px] @6xl:top-[28px] @6xl:h-[25px] @6xl:w-[111px]"
-          >
-            <path d="M6 4C30 14 50 34 80 35S125 10 145 13 195 40 222 50" stroke="#c9663f" strokeWidth="3" strokeDasharray="5 7" strokeLinecap="round" fill="none" />
-            <path d="M237 18c-7 0-12 5-12 11.5 0 8 12 22.5 12 22.5s12-14.5 12-22.5C249 23 244 18 237 18Z" fill="#c4633b" />
-            <circle cx="237" cy="29.5" r="4" fill="#fcf6ee" />
-          </svg>
-          <Link
-            href="/"
-            className="relative block w-fit ms-[31px] font-display text-[24.7px] font-bold leading-[1.1] tracking-[0.01em] text-tk-wordmark @4xl:ms-[24px] @4xl:text-[21px] @6xl:ms-[31px] @6xl:text-[24.7px]"
-          >
-            Traike
+          <Link href="/" className="relative flex w-fit items-center gap-2 text-tk-wordmark">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/traike-icon.png" alt="" className="h-8 w-8 rounded-[8px]" />
+            <span className="font-app-serif text-[26px] font-semibold leading-none tracking-[0.005em]">Traike</span>
           </Link>
             </>
           )}
-          <h1 className="relative mt-[16px] font-display text-[28.6px] font-[650] leading-[1.1] tracking-[-0.02em] text-tk-ink @4xl:mt-[12px] @4xl:text-[24px] @6xl:mt-[16px] @6xl:text-[28.6px]">
+          <h1 className="relative mt-[16px] font-app-serif text-[30px] font-semibold leading-[1.1] tracking-[-0.01em] text-tk-ink @4xl:mt-[12px] @4xl:text-[24px] @6xl:mt-[16px] @6xl:text-[28.6px]">
             {isAdvancedOpen ? "Advanced planning" : "Your walk, right now"}
           </h1>
-          <p className="relative mt-[6px] max-w-[285px] text-[15.9px] leading-[22.2px] text-tk-lede @4xl:mt-[5px] @4xl:max-w-[250px] @4xl:text-[14px] @4xl:leading-[19.5px] @6xl:mt-[6px] @6xl:max-w-[285px] @6xl:text-[15.9px] @6xl:leading-[22.2px]">
+          <p className="relative mt-[6px] max-w-[285px] font-app-sans text-[15.9px] leading-[22.2px] text-tk-lede @4xl:mt-[5px] @4xl:max-w-[250px] @4xl:text-[14px] @4xl:leading-[19.5px] @6xl:mt-[6px] @6xl:max-w-[285px] @6xl:text-[15.9px] @6xl:leading-[22.2px]">
             {isAdvancedOpen
               ? "Place your own stops, set the rules, or search for a marked hike."
               : "Tell us where you are and how long you have — we’ll build the walk."}
@@ -3851,7 +3840,7 @@ export function WalkPlannerApp({
                 ? "Back to the simple walk builder"
                 : "Open the full planner: your own stops, route rules and hike search"
             }
-            className="absolute -top-[10px] end-0 inline-flex h-[31px] items-center gap-[9px] rounded-full border border-[#a9b7b0] dark:border-tk-line bg-tk-bubble ps-[14px] pe-[15px] text-[12.75px] font-semibold leading-none text-tk-ink shadow-tk-soft transition-colors hover:bg-paper @4xl:h-[28px] @4xl:gap-[7px] @4xl:ps-[11px] @4xl:pe-[12px] @4xl:text-[11.5px] @6xl:h-[31px] @6xl:gap-[9px] @6xl:ps-[14px] @6xl:pe-[15px] @6xl:text-[12.75px]"
+            className="absolute -top-[10px] end-0 inline-flex h-[31px] items-center gap-[9px] rounded-full bg-paper/60 ps-[12px] pe-[13px] font-app-sans text-[12.75px] font-semibold leading-none text-tk-ink backdrop-blur-sm transition-colors hover:bg-paper @4xl:h-[28px] @4xl:gap-[7px] @4xl:ps-[11px] @4xl:pe-[12px] @4xl:text-[11.5px] @6xl:h-[31px] @6xl:gap-[9px] @6xl:ps-[14px] @6xl:pe-[15px] @6xl:text-[12.75px]"
           >
             {isAdvancedOpen ? (
               <IconCollapse className="h-[14px] w-[14px]" />
