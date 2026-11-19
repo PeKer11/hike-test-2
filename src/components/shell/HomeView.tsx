@@ -91,12 +91,14 @@ export function HomeView({
   const [last, setLast] = useState<SavedWalk | null>(null);
   const [walkCount, setWalkCount] = useState<number | null>(null);
   const [hour, setHour] = useState(12);
+  const [homeBg, setHomeBg] = useState<"city" | "forest">("city");
   const [socialName, setSocialName] = useState<string | null>(null);
   const [walkingNames, setWalkingNames] = useState<string[]>([]);
 
   // Read on the client only: the server cannot know the time of day or this device's storage.
   useEffect(() => {
     setHour(new Date().getHours());
+    if (new URLSearchParams(window.location.search).get("homebg") === "forest") setHomeBg("forest");
     setSnapshot(loadActiveWalk());
   }, []);
   useEffect(() => {
@@ -141,16 +143,27 @@ export function HomeView({
   const total = snapshot ? snapshot.plan.orderedAttractions.length : 0;
 
   return (
-    <div className="fixed inset-0 z-[900] overflow-y-auto bg-cream font-brand text-charcoal lg:start-[72px]">
-      <Image src="/images/hub-mountain-lake-sunset.png" alt="" fill priority sizes="100vw" aria-hidden className="scale-105 object-cover object-center blur-lg dark:hidden" />
-      <Image src="/images/hub-night.jpg" alt="" fill sizes="100vw" aria-hidden className="hidden scale-105 object-cover object-center blur-lg dark:block" />
-      <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-cream/80 via-cream/60 to-cream/85" />
-      <div className="relative mx-auto flex w-full max-w-[960px] flex-col gap-4 px-4 pt-10 pb-[calc(96px+env(safe-area-inset-bottom))] lg:px-8 lg:pb-12">
-        <h1 className="font-display text-[36px] leading-[40px] text-forest">
-          {t[greetingKey(hour)]}
-          {socialName ?? greetingName ? `, ${socialName ?? greetingName}` : ""}
-        </h1>
-
+    <div className="font-app-sans fixed inset-0 z-[900] overflow-y-auto bg-cream text-charcoal lg:start-[72px]">
+      {/* Round 13 hero: the photo is shown in full (no blur, no wash), type sits on it. */}
+      <div className="relative h-[300px] w-full overflow-hidden">
+        <Image src={homeBg === "forest" ? "/images/traike/home-forest.jpg" : "/images/traike/home-city.jpg"} alt="" fill priority sizes="100vw" aria-hidden className="object-cover object-[50%_38%] dark:hidden" />
+        <Image src={homeBg === "forest" ? "/images/traike/home-forest.jpg" : "/images/traike/home-city-night.jpg"} alt="" fill sizes="100vw" aria-hidden className="hidden object-cover object-[50%_38%] dark:block" />
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/10 to-transparent" />
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-cream" />
+        <div className="relative mx-auto flex max-w-[960px] items-center px-4 pt-5 lg:px-8">
+          <span className="flex items-center gap-2.5 text-[#FFF8EE] [text-shadow:0_2px_12px_rgba(0,0,0,.45)]">
+            <Image src="/traike-icon.png" alt="" width={30} height={30} className="rounded-lg" />
+            <span className="font-app-serif tracking-tight text-[24px] font-bold leading-none">Traike</span>
+          </span>
+        </div>
+        <div className="absolute inset-x-0 bottom-10">
+          <h1 className="font-app-serif tracking-tight mx-auto max-w-[960px] px-4 text-[38px] font-bold leading-[42px] text-[#FFF8EE] [text-shadow:0_2px_14px_rgba(0,0,0,.5)] lg:px-8">
+            {t[greetingKey(hour)]}
+            {socialName ?? greetingName ? `, ${socialName ?? greetingName}` : ""}
+          </h1>
+        </div>
+      </div>
+      <div className="relative mx-auto flex w-full max-w-[960px] flex-col gap-4 px-4 pt-2 pb-[calc(96px+env(safe-area-inset-bottom))] lg:px-8 lg:pb-12">
         {walkLive || snapshot ? (
           <section className={CARD} aria-label={t.continueWalk}>
             <h2 className="text-[20px] font-semibold leading-[26px] text-tk-ink">{walkLive ? t.backToWalk : t.continueWalk}</h2>

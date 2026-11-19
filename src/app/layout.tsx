@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Heebo, Secular_One } from "next/font/google";
+import { Fraunces, Heebo, Manrope, Secular_One } from "next/font/google";
 import { ThemeSync } from "@/components/theme/ThemeSync";
 import { THEME_INIT_SCRIPT } from "@/lib/theme/theme";
 import "./globals.css";
@@ -16,6 +16,9 @@ const secular = Secular_One({
   variable: "--font-secular",
   display: "swap",
 });
+
+const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap" });
+const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Traike — Your Personal Hiking Companion",
@@ -47,7 +50,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body
-        className={`${heebo.variable} ${secular.variable} antialiased`}
+        className={`${heebo.variable} ${secular.variable} ${fraunces.variable} ${manrope.variable} antialiased`}
       >
         <ThemeSync />
         {children}

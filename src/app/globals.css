@@ -120,6 +120,9 @@
   /* Traike marketing tokens (DESIGN.md) — used by / and /pricing only */
   --font-brand: var(--font-heebo);
   --font-display: var(--font-secular), var(--font-heebo), sans-serif;
+  /* Round 13 app type: Fraunces headlines, Manrope text; Hebrew falls through to Heebo. */
+  --font-app-serif: var(--font-fraunces), var(--font-heebo), serif;
+  --font-app-sans: var(--font-manrope), var(--font-heebo), sans-serif;
   --color-paper: var(--tk-paper);
   --color-on-accent: var(--tk-on-accent);
   --color-terra: var(--tk-terra);
@@ -231,3 +234,4 @@ body {
   from { transform: translateY(24px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
