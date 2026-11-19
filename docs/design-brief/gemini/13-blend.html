@@ -1704,6 +1704,16 @@ SELF-CHECK ANSWERS:
   html[data-chip="b"] .loc-chip:not(#z) .chip-text{color:#4a3910!important}
   html[data-chip="b"] .loc-chip:not(#z) .ring{border-color:#4a3910!important;background:#fffbf0!important}
   html[data-chip="b"] .loc-chip:not(#z) .ring.now::after{background:#C4673A!important}
+
+  /* ROUND 13k: Plan my walk lives in the hero; hero cropped tighter */
+  .hero-cta{padding:0!important;margin-block-start:14px;position:relative;z-index:5}
+  .hero-cta,.hero-cta .btn-primary{width:100%!important;display:flex}.hero-cta .btn-primary{height:48px}.hero-cta{max-width:none!important}.band-home-hero .plan-title-wrap,.band-home .plan-title-wrap,.band-home .plan-header-row{width:100%!important;max-width:none!important;flex:1}
+  .band-home{height:auto!important;min-height:0!important;padding-block-end:14px!important}
+  .band-home .band-art-home,.band-art-home{background-position:50% 30%!important}
+
+  /* ROUND 13l: the city photo has a smeared patch baked in at its top-right — crop it out */
+  html:not([data-homebg="forest"]) .band-art-photo,html .band-plan-photo:not(.band-home-hero) .band-art-photo{background-size:auto 150%!important;background-position:100% 100%!important}
+  html:not([data-homebg="forest"]) .band-art-home{background-size:auto 150%!important;background-position:100% 100%!important}
 </style>
 </head>
 <body>
@@ -1965,8 +1975,18 @@ SELF-CHECK ANSWERS:
                 <div class="hf"><b><bdi>4</bdi></b><i data-en>stops</i><i data-he>תחנות</i></div>
                 <div class="hf"><b><bdi>120</bdi></b><i data-en>m away</i><i data-he>מ׳ ממך</i></div>
               </div>
-              <p class="hero-hint" data-en>Tap “Plan my walk” below — pick a vibe and a time, and Traike builds your route.</p>
-              <p class="hero-hint" data-he>לחצו על ״תכנן לי הליכה״ — בחרו אווירה וזמן, ו־Traike בונה את המסלול.</p>
+
+          
+          <div class="cta-wrap hero-cta">
+            <button type="button" class="btn-primary" onclick="setScreen('plan')">
+              <span data-en>Plan my walk</span>
+              <span data-he>תכנן לי הליכה</span>
+              <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>
+            </button>
+          </div>
+
             </div>
           </div>
 
@@ -2013,17 +2033,6 @@ SELF-CHECK ANSWERS:
               <span class="stop-tag" data-en>Sunset</span>
               <span class="stop-tag" data-he>שקיעה</span>
             </div>
-          </div>
-
-          <!-- ONE Primary Button -->
-          <div class="cta-wrap">
-            <button type="button" class="btn-primary" onclick="setScreen('plan')">
-              <span data-en>Plan my walk</span>
-              <span data-he>תכנן לי הליכה</span>
-              <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12h14M13 6l6 6-6 6"/>
-              </svg>
-            </button>
           </div>
 
           <div class="sec-bar">
