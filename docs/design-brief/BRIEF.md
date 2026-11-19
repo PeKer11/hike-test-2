@@ -130,3 +130,91 @@ REQUIREMENTS for round 6:
 - Typography: serif display (e.g. Fraunces/Newsreader) only for logo, giant numerals and 1 headline per screen; one humanist sans (e.g. Figtree/Instrument Sans/Heebo for Hebrew) for everything else; min 14px body.
 - Keep every earlier ban (no green dots/pills, glows/orbs, purple/blue gradients, nested cards, accent-rail borders, border-only selection, eyebrow labels, emoji, Inter/default Lucide, text <13px), zero overflow at 390px, Hebrew perfect.
 - Self-check before answering: would a person who loves the current app see this as the SAME product, only far better? If any block looks pasted on, fix it.
+
+
+# ROUND 7 — OWNER: "ROUND 5 WAS GREAT, ONLY THE IMAGES WERE NOT GOOD. BUTTONS AND ALL THE REST LIKE ROUND 5."
+Owner verdict (after rounds 5 and 6): Round 5 was great EXCEPT the images. The header he loved in round 6 is the ME screen (`r6-phone-me`): a smooth warm sunset gradient that melts into the surface. The round-4 flat vector illustrations are also not good. He wants "something in the middle that fits the app". And: "all the buttons and the rest should be like round 5."
+
+THEREFORE:
+1. BASE = THE ROUND 5 FILE (supplied as source below). Keep it exactly: layout skeleton, hard-edged sheet, hairline rows, solid black selected row/chip/tab pill, segmented controls, the orange primary button with dark lip, chips, map, the big guide in his arch with the speech card, giant serif numeral, 3D accessories, tab bar, desktop rail. Do NOT adopt round 6's floating panel, soft rounded sheet, tinted selections or orange-underline tab bar. Buttons/controls/rows/tab bar = identical to round 5.
+2. CHANGE ONLY THE IMAGERY AND THE HEADER BAND:
+   - Remove the alpine mountain-lake photo (wrong place: Traike is Israeli CITY walking, not alpine) and any flat vector scene.
+   - New header = round-6 "Me" style: smooth warm sunset gradient (deep terracotta/amber at the top fading to the surface cream/dusk-charcoal with a long smooth fade, no hard bottom edge) PLUS the app's OWN painted Mediterranean old-city art, supplied as `asset-city-hero-day` / `asset-city-hero-night` (stone wall, iron lantern, bougainvillea, church tower over the sea, hiker trail sign, olive leaves). Use these real files at their native warm colours: place the image on the header (cover, aligned so the lantern + tower + sign remain visible and not cut), blend it with a warm gradient overlay so it sits in the same orange family, with enough scrim under white text. The headline/numeral sits on the calm stone-wall (left) part, never over the tower or sign. Night uses the night file (moon, lit lantern).
+   - Reuse the same art on every screen as the band (different crop/height per screen: tall on home/plan/walk, shorter on walks/me/login). `asset-empty-walks` (hand-drawn footprints + flag) may be used for empty states.
+   - The guide stays big and uncropped on the plan chat as in round 5.
+3. Keep Hebrew/RTL perfect (mirror the art crop so the sign sits on the reading-end side), zero overflow at 390, same ban list, same toggle functions and the 6 screens.
+
+
+# ROUND 8 — OWNER: "ROUND 5 WAS GREAT EXCEPT THE IMAGES; THE ME HEADER OF ROUND 6 WAS GREAT. IT MUST BE UNIQUE AND HIGH QUALITY IN ITS OWN WAY." SPECIFIC COMPLAINT: the location chip (dark glass box + small orange square + "Tel Aviv · Habima") feels unrelated — the dot, the colours, the font.
+
+BASE = the round 7 file (round 5 structure). Keep: layout skeleton, hard-edged sheet, dense hairline rows, solid selected row, the orange primary button with dark lip, giant serif numeral, big guide in his arch with the speech card, map as the star, max ONE 3D accessory, tab bar, desktop rail, toggles setDevice/setLang/setTheme/setScreen, screens home/plan/walk/walks/me/login.
+Round 8 fixes COHERENCE. Every element must come from ONE system called "Trail mark on limestone": two primitives + one material + two colour roles. If an element is not built from these, delete it.
+
+## The system
+- RING = a stop. 14px circle, 2px ink rim, surface fill. NOW-RING adds a 6px leather core (= the face of assets/pin.png). It is the ONLY point symbol in the app: location chip, list stops, map stops, logo, map-pin face. No squares, no plain dots anywhere.
+- TRAIL = a round-capped line in Pine Ink: the map route, the 2px spine through the stop list, the logo, icon strokes.
+- PAPER = anything on top of the art or the map is a cut piece of the sheet: surface fill, radius 6, 1px hairline, 2px ink lip beneath (box-shadow 0 2px 0). Never dark glass.
+- LEATHER #D2602F = "go / you / now" ONLY: the one primary button, ring cores, the current-stop time tag, walker marker, map-pin core. Text on leather = #111915, never white.
+- PINE INK #1B2620 = text, outlines, route, and EVERY selected state (vibe chips, time segment, tab pill, current row). It reads black but matches the boot sole / pin body / compass bezel.
+
+## Tokens (use exactly)
+Day: surface #F8F3EA, surface-2 #F0E8DA, line #DDD2C0, ink #1B2620, muted #5E584D, leather #D2602F, on-leather #111915, lip #1B2620, route-past #B4AA9A, spine #CBBFAD, on-art #FFF5E8, map land #F2ECE1 / block #E6DDCD / park #DCE3D2 / water #C9DADF / road #FFF / label #6A6357.
+Sky (day): linear-gradient(180deg,#8A3311 0%,#A2420F 24%,#B24B12 46%,#B85016 60%,#D2793A 71%,#EAAE7B 81%,#F5D9BC 91%,var(--surface) 100%).
+Night: surface #1A1613, surface-2 #231E19, paper #29221C, line #3A322A, ink #F2EADC, muted #B5AA99, leather #E06A38, on-leather #111915, button lip #6E2A0F (border #0E0B09), selected fill #EDE3D3 with text #1A1613, route #F2EADC, route-past #5F574D, spine #4A4038, on-art #FFF1DE, map land #1F1B17 / block #29231E / park #232A22 / water #1B272C / road #2E2822 / label #A69B8B.
+Sky (night): linear-gradient(180deg,#120E0C 0%,#1A130F 30%,#26180F 55%,#2A1C13 66%,#231A14 82%,var(--surface) 100%).
+
+## Type (replace Fraunces and Heebo everywhere)
+Load: https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@600;700&family=Assistant:wght@400;600;700&display=swap
+- Frank Ruhl Libre (Hebrew + Latin, same face both languages): 700 = hero numeral + wordmark; 600 = the one headline per screen + speech title.
+- Assistant (Hebrew + Latin): 400 body, 600 rows/labels/chips, 700 buttons.
+- Sizes (phone/desktop): Hero 72/88 (lh .86, -0.03em) · Title 28/34 · Lead 18 (row names, buttons, unit) · Body 16 · Meta 14 (times, helper, tab labels). Nothing under 14 (map attribution 13).
+- Hebrew: letter-spacing 0, body lh 1.5, use ״ ׳ (ק״מ, דק׳, מ׳), wrap digits in <bdi>. Times tabular in a fixed 52px column. NO text-shadow anywhere.
+
+## Shape
+Radius 6 on every control (buttons, chips, paper tags, inputs, segmented, tab pill, speech card, map callouts); 4 on nested items (thumbnails, time tag); 0 on rows/sheet; full-round only for the Ring and the arch top. Strokes: 1px line = row rules; 1.5px ink = control outlines; icons 22px custom SVG, stroke-width 1.75 on a 24 viewBox, round caps/joins; route 6px phone / 7px desktop with 2px surface casing. Only shadows: paper lip, primary-button lip, one drop-shadow on the 3D accessory.
+
+## Components
+- LOCATION CHIP: paper tag, height 36, padding-inline 10px 12px, gap 8, Assistant 600 16 ink, leading NOW-RING, label specific-first "Habima · Tel Aviv" / "הבימה · תל אביב", max-width 62% with ellipsis. Night: fill #29221C, text + ring rim #F2EADC. It is the only chip on the band.
+- PAPER TAG (map summary "4 stops · 4.1 km", zoom buttons): same build; leading item = Ring (place) or the 20px Walks icon (info).
+- TIME TAG: leather fill, on-leather Assistant 700 14 tabular, h 26, radius 4, no border. Only for the current/next stop's time (selected row, map callout). Never on the band; delete the floating "18:15" / "ETA" stickers.
+- PRIMARY BUTTON (round 5): h 52, radius 6, leather, on-leather Assistant 700 18, 1.5px ink border + 4px ink bottom lip (night lip #6E2A0F), pressed = translateY(2px) + 2px lip. ONE per screen on desktop too: remove the rail's "Plan my walk"; "Start live walk" only where it is the primary.
+- SECONDARY: h 44, radius 6, surface, 1.5px ink outline, Assistant 700 16, no lip.
+- SEGMENTED: 1.5px ink outer, radius 6, 44px cells, 1px line dividers, 600 16 tabular; selected = Pine fill + surface text (night: #EDE3D3 + #1A1613). Orange stays reserved for the action.
+- VIBE CHIPS: h 44, radius 6, 1.5px ink, 30px photo radius 4, Assistant 600 16; selected = Pine fill.
+- STOP ROWS: 52px time | 22px Ring | name Lead 18/600 | tag Meta 14 muted; min-h 52; a 2px spine (#CBBFAD) joins the Rings across rows. Current row = solid Pine, surface text, time tag, ring rim surface + leather core. Past stop = 10px solid route-past dot.
+- WALK ROWS: 48px mini-map tile (map-land, radius 4, 1px line) with the real route in a 2.5px Trail, start Now-Ring, finish bullseye. Delete the clip-art glyph boxes.
+- TAB BAR (round 5): 1.5px ink top rule, 52px tabs, selected = Pine pill radius 6. Custom icons: Home house; Plan = brand mark; Walk = the hiker-with-stick from the painted trail sign; Walks = two rings + curve; Me = head ring + shoulder arc. No Lucide.
+- BRAND: 26px mark = trail curve rising to a Now-Ring (cream/on-art on the band, ink on the sheet) + "Traike" Frank Ruhl 700 24. The orange logo tile is retired.
+- SPEECH CARD: paper, radius 6, padding 12/14, title Frank Ruhl 600 18, body Assistant 400 16 muted, max 2 lines, 12px tail toward the guide.
+- GUIDE ARCH (round 5): 136x184, radius 68 68 6 6, object-position 50% 0, no mask/border, overlaps the seam by 18px.
+- MAP: paper map tokens, streets 10/6px white with 1px #E2D8C8 casing, labels Assistant 600 14 with 3px land halo, never covered. Route ink 6/7px + 2px surface casing, passed part route-past. Stops = Rings; finish = 20px ring with 8px ink core. Next stop = SVG of pin.png (30x38 Pine teardrop, 8px surface ring, 4.5px leather core) + ink callout (surface text 600 16, radius 6, time tag) placed on the side away from the walker. Walker = 34px leather disc, 2.5px surface ring, 1.5px ink hairline, 18px surface hiker glyph.
+- 3D ACCESSORY: max one, 60px, on the seam at the band's inline-end (bottom -20px), never on text. Home compass, Walk pin.png, Walks boot. None on Plan/Login/Me.
+
+## Header band ("the painting is printed onto the sunset")
+1. Band background = the sky gradient only (no side scrim; it leaves a seam).
+2. Art box .band-art: absolute, top 0, full width, height = --art-h; background: assets/city-hero-day.jpg (night: city-hero-night.jpg) no-repeat; background-size: auto 100% (NEVER cover, never taller than 340px); background-position: right top.
+   Day: mix-blend-mode: multiply (the pale sky + plain stone become sunset; tower/sign/leaves keep their detail).
+   Night: mix-blend-mode: normal; filter: saturate(.9).
+3. Masks on the art box, intersected (mask-composite: intersect; -webkit-mask-composite: source-in):
+   horizontal linear-gradient(90deg, transparent 0 22%, #000 58%);
+   vertical day linear-gradient(180deg, transparent 0, #000 30%, #000 56%, transparent 100%) (hides the file's blurred top-right smudge);
+   vertical night linear-gradient(180deg, #000 0, #000 56%, transparent 100%) (keep the moon whole).
+4. Text lives on the inline-start half and must end above 62% of the band height (white on #B85016 = 4.6:1). Below 62% is the melt: only the guide, speech card and accessory go there.
+5. Sizes (phone band / art-h): Home 300/264 · Plan & Login 330/250 · Walk 280/246 · Walks 200/200 · Me 200, SKY ONLY, no art (= the loved round-6 Me header). Desktop column: Home 300/264, Plan 330/250, Walk 290/256; wide desktop bands 240/240. Gutter 16 phone, 20 desktop column.
+6. RTL: transform: scaleX(-1) on .band-art only. Keep background-position right and the physical mask directions; the flip mirrors image and masks together (sign + tower to the left, calm sky + text on the right). Also flip brand mark, arrows, hiker glyph, speech tail, segmented order. Do NOT flip the map, route geometry or digits.
+7. Band content per screen: top bar = brand (start) + location chip (end). Home: numeral "65 min" + one facts line ("4.1 km · Golden-hour walk to Jaffa Port"). Walk: numeral "4 min · 310 m" + one direction line; the chip becomes "Stop 2 of 4 · ETA 19:20". Plan/Login: headline + guide + speech card. Walks: title. Me: name + email line.
+
+## Self-check (answer every line before returning)
+- [ ] Is every point symbol on every screen a Ring (or the pin, whose face is a Ring)? Zero squares, zero plain dots?
+- [ ] Is leather used only for: one primary button, ring cores, current-stop time tag, walker, pin core? Count the orange things per screen: 1 big + small "now" marks only.
+- [ ] Is every selected state the same Pine fill (chips, segment, tab, row, rail)?
+- [ ] Is every element on art/map paper (cream, radius 6, hairline, lip)? No dark glass anywhere?
+- [ ] Only Frank Ruhl Libre and Assistant loaded and used; Hebrew in the same faces; nothing under 14px; no text-shadow?
+- [ ] Only radii 6 / 4 / 0 / round? Only the three allowed shadows?
+- [ ] Day band: multiply art, no washed-out right side, no muddy pink, no visible smudge or seam; white text above the 62% line; art never upscaled past 340px tall?
+- [ ] Night band: moon whole, blue only on the art side, melts into #1A1613 with no edge?
+- [ ] Hebrew: art mirrored, text on the right on calm sky, ״ ׳ used, digits isolated, zero overflow at 390?
+- [ ] Desktop: exactly one primary button visible; map labels never covered; callout never overlaps the walker?
+- [ ] Bans: no green dots/pills, glows/orbs, purple/blue gradients, nested cards, accent-rail borders, border-only selection, eyebrow labels, emoji, Inter/Heebo/Fraunces/default Lucide, text <13px.
+- [ ] Would someone who loves round 5 call this "the same app, finally made by one hand"?
+```
