@@ -25,4 +25,25 @@ describe("returnToStart", () => {
     const loop = await planWalkOrder({ ...base, returnToStart: true }, stops);
     expect(loop.orderedAttractions.map((a) => a.id)).toHaveLength(3);
   });
+
+  it("closes at returnTo (the real start), not at the walker's position (L4b)", async () => {
+    // Walker is 2 km east of the start; the stop is back west, 0.5 km from the start.
+    const here = { lat: 32.0, lng: 34.92 };
+    const realStart = { lat: 32.0, lng: 34.9 };
+    const stops = [stop("a", 32.0, 34.905)];
+    const toWalkerPos = await planWalkOrder({ ...base, origin: here, availableMinutes: 60, returnToStart: true }, stops);
+    const toRealStart = await planWalkOrder(
+      { ...base, origin: here, availableMinutes: 60, returnToStart: true, returnTo: realStart },
+      stops,
+    );
+    // Home is 0.5 km from the stop either way here; the point is the budget uses returnTo, so a far-away closing point costs more.
+    const farStart = { lat: 32.0, lng: 34.8 };
+    const toFar = await planWalkOrder(
+      { ...base, origin: here, availableMinutes: 60, returnToStart: true, returnTo: farStart },
+      stops,
+    );
+    expect(toWalkerPos.orderedAttractions.length).toBe(1);
+    expect(toRealStart.orderedAttractions.length).toBe(1);
+    expect(toFar.orderedAttractions.length).toBe(0);
+  });
 });

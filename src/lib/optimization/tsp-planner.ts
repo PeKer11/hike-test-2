@@ -470,7 +470,7 @@ export async function planWalkOrder(
   // Minutes to walk from the last stop of `list` back to the origin (loops only).
   const homeMinutes = (list: Attraction[]): number =>
     request.returnToStart && list.length > 0
-      ? (dist(list[list.length - 1], originPoint) / 1000) * walkingPaceMinPerKm
+      ? (dist(list[list.length - 1], (request.returnTo ? { coordinates: request.returnTo } : originPoint)) / 1000) * walkingPaceMinPerKm
       : 0;
 
   // tourIndices are 1-based indices into [origin, ...usable]

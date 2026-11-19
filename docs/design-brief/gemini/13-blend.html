@@ -1648,8 +1648,11 @@ SELF-CHECK ANSWERS:
   .band-home-hero .brand .rtl-flip circle:last-child{fill:#14110E}
   .band-home-hero .hero-num{font-size:84px}
   .band-home-hero .band-facts{font-weight:600;opacity:.82;max-width:none;white-space:nowrap}
-  .band-home-hero .loc-chip{background:#14110E!important;color:#FFF6EA!important;border:0!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-  .band-home-hero .loc-chip .ring{border-color:#FFF6EA!important}
+  /* ROUND 13f: location control = the primary button's language (hard edge + dark lip), cream, no shine */
+  .loc-chip,button.loc-chip{background:var(--paper,#F7F1E8)!important;color:var(--ink,#14110E)!important;border:1.5px solid var(--btn-border,#1F251F)!important;border-radius:var(--r-ctrl,6px)!important;box-shadow:0 3px 0 var(--btn-border,#1F251F)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;font-weight:700}
+  .loc-chip .ring{border-color:var(--leather,#C4673A)!important}
+  .loc-chip .ring.now{background:var(--leather,#C4673A)!important}
+  .band-home-hero .loc-chip{background:var(--paper,#F7F1E8)!important;color:var(--ink,#14110E)!important;border:1.5px solid var(--btn-border,#1F251F)!important}
 </style>
 </head>
 <body>

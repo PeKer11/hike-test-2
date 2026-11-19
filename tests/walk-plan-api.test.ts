@@ -951,7 +951,6 @@ describe("POST /api/walk-plan — max end distance from origin", () => {
   // a zero limit would empty every walk it touched.
   it.each([
     ["a blank field", undefined],
-    ["a zero", 0],
     ["something that is not a number", "soon"],
   ])("treats %s as no constraint at all", async (_label, value) => {
     mockFetchAttractions.mockResolvedValueOnce(discovered());
@@ -961,6 +960,18 @@ describe("POST /api/walk-plan — max end distance from origin", () => {
 
     expect(response.status).toBe(200);
     expect(plan.orderedAttractions.at(-1).id).toBe("far");
+  });
+
+  // A zero is "back where I started": no stop is stripped, but the plan is ordered as
+  // a loop and the way home counts (it used to be silently ignored, L4a).
+  it("treats a zero as a loop: the way home counts, so the farthest stop no longer fits 90 min", async () => {
+    mockFetchAttractions.mockResolvedValueOnce(discovered());
+
+    const response = await POST(postRequest(endDistanceBody(0)));
+    const plan = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(plan.orderedAttractions.map((a: { id: string }) => a.id).sort()).toEqual(["middle", "near"]); // far: 60 min of visits + 2 x 16.5 min of walking > 90
   });
 
   // A mid-walk rebuild posts the walker's current position as `lat`/`lng` and

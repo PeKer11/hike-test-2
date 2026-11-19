@@ -408,6 +408,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Exactly 0 is "come back to where I started": the route gets a final leg
     // back to the origin, and no limit that would strip stops.
     const returnToStart = requestedEndDistance === 0;
+    // Where a loop closes. Mid-walk the origin is the walker's position, so the client sends the real start.
+    const requestedReturnTo = (body as { returnTo?: { lat?: unknown; lng?: unknown } }).returnTo;
+    const returnTo =
+      requestedReturnTo &&
+      typeof requestedReturnTo.lat === "number" && Number.isFinite(requestedReturnTo.lat) &&
+      typeof requestedReturnTo.lng === "number" && Number.isFinite(requestedReturnTo.lng)
+        ? { lat: requestedReturnTo.lat, lng: requestedReturnTo.lng }
+        : undefined;
     const maxEndDistanceFromOriginMeters =
       typeof requestedEndDistance === "number" &&
       Number.isFinite(requestedEndDistance) &&
@@ -604,7 +612,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         fixedOrder: body.fixedOrder === true && explicitAttractions !== undefined ? true : undefined,
         pinnedAttractionIds,
         // An end-distance of 0 means "back where I started" (a fresh build only).
-        returnToStart: params.maxEndDistanceFromOriginMeters === 0 && !endAnchor ? true : undefined,
+        // Read from the raw request: `params` has already turned 0 into "absent", so this was never true (L4a).
+        returnToStart: returnToStart ? true : undefined,
+        returnTo: returnToStart ? returnTo : undefined,
       };
 
       return { plan: await buildWalkPlan(planRequest, selected), planRequest };
@@ -716,7 +726,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           const waypoints: Coordinates[] = [
             origin,
             ...plan.orderedAttractions.map((a) => a.coordinates),
-            ...(returnToStart ? [origin] : []),
+            ...(returnToStart ? [returnTo ?? origin] : []),
           ];
           const avoidStreets = Array.isArray(body.avoidStreets)
             ? body.avoidStreets.filter((x): x is string => typeof x === "string").slice(0, 10)
