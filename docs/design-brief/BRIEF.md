@@ -249,3 +249,18 @@ Inside the HTML, in an HTML comment at the top, give 3 lines per screen: what th
 - [ ] Any empty area, collision, or text under 14px or below AA?
 - [ ] Is everything below the header unchanged from round 8 apart from header-driven spacing?
 - [ ] Bans: green dots/pills, glows/orbs, purple/blue gradients, nested cards, accent-rail borders, border-only selection, eyebrow labels, emoji, Inter/Heebo/Fraunces/default Lucide, text <13px.
+
+
+# ROUND 10 — ONLY THE HEADER PICTURE. OWNER: "I expected something DRAWN/PAINTED up there. Round 9 was awful." (rejected-r9-phone-day.png). A Claude-made SVG attempt at the Home picture was also rejected (rejected-fable-home-day.png: too digital, too "AI": smooth gradients, perfect symmetry, generic skyline, glow-like sun).
+
+Scope: ONLY the picture at the top of each screen (home, plan, walk, walks, login). Not the rest of the app. Me stays a plain sunset. Deliver ONE HTML page that shows each header picture at phone size (390x300) day and night side by side with a placeholder white text line over it to prove legibility, plus the same at desktop 1180x300. Each picture is inline SVG and/or CSS (no raster available).
+
+Must NOT look AI-generated. Concretely:
+- Hand-made feel: gouache / linocut / screen-print poster. Flat opaque shapes with slightly irregular edges (use feTurbulence + feDisplacementMap on shapes for wobbly edges), paper grain, visible misregistration of 1-2px between colour layers, limited palette of 5-7 colours per picture. No soft airbrushed gradients except the sky, no glows, no lens flare, no perfect circles for sun/moon.
+- Asymmetric, specific composition like a real travel poster: strong foreground shape, one focal landmark, big calm sky area for text. Real, recognisable Tel Aviv / Jaffa things: Jaffa clock tower and Ottoman stone, Old Jaffa alleys with stone arches and hanging planters, Habima, Bauhaus white-city balconies with rolled shutters, Carmel market awnings and crates, Mediterranean harbour boats, ficus / palm silhouettes, bougainvillea, laundry lines, electric wires and AC units (the real city texture).
+- Each screen a different scene; same palette and printing technique so they are one family.
+- Palette stays in the app's sunset world: leather #D2602F, deep rust #8A3311, amber #D8903E, cream #F8F3EA, Pine ink #1B2620, plus ONE accent per picture. Night = dusk indigo-charcoal #1A1613/#26180F with 2-3 lit windows in amber.
+- Text zone top-start 60% x 55% stays calm; the bottom melts into the cream (day) / #1A1613 (night) sheet colour without a hard edge; RTL: picture flips with scaleX(-1) so the calm sky is on the right in Hebrew; nothing important near the edges.
+- plan: leave a ~140x190 free zone at the bottom-start for the guide photo.
+- Self-check at the end (HTML comment): does any picture still look like a smooth digital gradient scene? If yes redo it.
+Output only the HTML.
