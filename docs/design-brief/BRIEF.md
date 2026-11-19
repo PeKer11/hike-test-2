@@ -110,3 +110,23 @@ REDO the TOP of every screen:
 4. At most ONE small glossy 3D accessory per screen, never colliding with text (compass on home, pin on walk, boot on walks, signpost on login).
 5. Optional tasteful touch: a thin hand-drawn trail line or route glyph crossing the band, as part of the atmosphere — only if it stays clean.
 6. Keep the Hebrew/RTL perfect and zero overflow at 390px. Same ban list as before (no green dots/pills, glows/orbs, purple/blue gradients, nested cards, accent-rail borders, border-only selection, eyebrow labels, emoji, Inter/default Lucide, text <13px).
+
+
+# ROUND 6 — OWNER: "BETTER, BUT A BIT 'AI' AND NOT SMOOTH WITH THE REST OF THE PAGE STRUCTURE"
+Owner verdict on round 5 (shots `r5-*`): "better, but feels a little AI and a little not smooth with the rest of the page structure. Try another round."
+
+Diagnosis (look at r5-phone-home, r5-desktop-plan, r5-phone-walk and compare with cur-* = the real app, which the owner likes the atmosphere of):
+1. It is a STACK OF SEPARATE BLOCKS: black title bar, photo rectangle, hairline-ruled sheet, black selected row, black tab bar. Every block has its own hard edge, so nothing flows. The real app is ONE continuous warm surface: the photo melts into the panel, the panel floats over the map.
+2. Too much pure black fill and too many 1px rules (black selected rows, black selected chips, black tab pill, black map pill). That reads "generated dashboard". Use warm ink only for text and the route line; selection = soft orange tint + orange hairline + bold text, or a small orange marker, NOT a black block.
+3. The photo band is a hard rectangle with a pasted-on look (headline sits on busy mountains, compass floats, dashed line crosses text). Make it a blended hero: photo fades with a long smooth gradient into the surface colour (no visible bottom edge), headline on a calm part with enough scrim, no floating decoration over text.
+4. Content is generic template copy in generic rows ("Tonight's suggested route" etc.). Make rows feel like the product: time on a vertical route spine with stop dots connected by a thin trail line (the route itself is the list), place photo thumbnails (use the real theme photos), walking minutes between stops.
+5. Inconsistent spacing/radius. Use ONE 8px grid, ONE radius family (cards 14px, controls 10px, pills full), ONE shadow level, ONE hairline colour. Same horizontal gutter on every screen.
+
+REQUIREMENTS for round 6:
+- Layout skeleton must match the real app's structure: DESKTOP = slim icon rail on the left, a ~440px soft panel (rounded, slightly translucent warm cream, soft single shadow) FLOATING over a full-bleed real-looking map; the sunset photo only as the blended header of that panel. PHONE = full-bleed map or full-bleed photo hero on top, a rounded bottom sheet (20px top radius, grab handle) that overlaps it; floating bottom nav inside the same cream surface (no black bar).
+- The map is real-looking (cream land, soft green parks, pale blue water, thin white streets with names), not abstract blocks; thick warm-ink route with hollow stops, one big orange pin with a name label.
+- Keep: giant serif numeral on home/walk, ONE orange primary button (soft lip, not a hard black underline), serif logo, real guide cut-out clearly visible in the chat (phone + desktop) standing on the panel header with the speech card beside him, photo theme chips, EN/HE RTL, day + night, same toggle functions and screens (home, plan, walk, walks, me, login).
+- Segmented controls and chips: selected = solid orange or orange tint with orange text, unselected = cream with hairline. Tab bar selected = orange icon + label with a short orange underline, no black pill.
+- Typography: serif display (e.g. Fraunces/Newsreader) only for logo, giant numerals and 1 headline per screen; one humanist sans (e.g. Figtree/Instrument Sans/Heebo for Hebrew) for everything else; min 14px body.
+- Keep every earlier ban (no green dots/pills, glows/orbs, purple/blue gradients, nested cards, accent-rail borders, border-only selection, eyebrow labels, emoji, Inter/default Lucide, text <13px), zero overflow at 390px, Hebrew perfect.
+- Self-check before answering: would a person who loves the current app see this as the SAME product, only far better? If any block looks pasted on, fix it.
