@@ -51,10 +51,10 @@ SELF-CHECK ANSWERS:
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Traike — Trail Mark on Limestone (Round 9)</title>
+<title>Traike — Round 13</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@500;600;700&family=Frank+Ruhl+Libre:wght@600;700&family=Assistant:wght@400;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,500..800,0..100,0..1;1,9..144,500..800,0..100,0..1&family=Manrope:wght@500;600;700&family=Frank+Ruhl+Libre:wght@600;700&family=Assistant:wght@400;600;700&display=swap" rel="stylesheet" />
 <style>
   /* =========================================================
      1. "TRAIL MARK ON LIMESTONE" — ROLE TOKENS (DAY & NIGHT)
@@ -1666,6 +1666,20 @@ SELF-CHECK ANSWERS:
   html[data-homebg="forest"] .band-art-home::before{background:linear-gradient(180deg,rgba(14,22,16,.50) 0%,rgba(14,22,16,.12) 38%,rgba(14,22,16,0) 62%,rgba(247,241,232,.55) 88%,var(--paper,#F7F1E8) 100%)!important;mix-blend-mode:normal!important;opacity:1!important}
   html[data-homebg="forest"] .band-home-hero .brand-word,html[data-homebg="forest"] .band-home-hero .hero-num,html[data-homebg="forest"] .band-home-hero .hero-unit,html[data-homebg="forest"] .band-home-hero .band-facts{color:#FFF8EE!important;text-shadow:0 2px 14px rgba(0,0,0,.45)}
   html[data-homebg="forest"] .band-home-hero .band-topbar .loc-chip,html[data-homebg="forest"] .band-home-hero .band-topbar button.loc-chip{color:#FFF8EE!important;text-shadow:0 1px 10px rgba(0,0,0,.5);text-decoration-color:rgba(255,248,238,.55)}
+
+  /* ROUND 13h: Home facts as designed stats + eyebrow; Plan title in Fraunces soft/wonky italic */
+  .hero-eyebrow{font-family:var(--font-sans);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-block-end:2px;opacity:.85;color:var(--on-art)}
+  .hero-facts{display:flex;gap:0;margin-block-start:12px}
+  .hero-facts .hf{display:flex;flex-direction:column;gap:2px;padding-inline:0 16px;margin-inline-end:16px;border-inline-end:1px solid currentColor;border-inline-end-color:rgba(20,17,14,.28)}
+  .hero-facts .hf:last-child{border-inline-end:0;margin-inline-end:0}
+  .hero-facts b{font-family:var(--font-serif);font-size:26px;font-weight:600;line-height:1;font-variation-settings:"SOFT" 100,"WONK" 1;color:var(--on-art)}
+  .hero-facts i{font-style:normal;font-family:var(--font-sans);font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.75;color:var(--on-art)}
+  .band-home-hero .hero-eyebrow,.band-home-hero .hero-facts b,.band-home-hero .hero-facts i{color:#14110E!important}
+  html[data-homebg="forest"] .band-home-hero .hero-eyebrow,html[data-homebg="forest"] .band-home-hero .hero-facts b,html[data-homebg="forest"] .band-home-hero .hero-facts i{color:#FFF8EE!important;text-shadow:0 2px 14px rgba(0,0,0,.45)}
+  html[data-homebg="forest"] .hero-facts .hf{border-inline-end-color:rgba(255,248,238,.4)}
+  .band-plan-photo .band-title,.band-title{font-variation-settings:"SOFT" 100,"WONK" 1;font-weight:600;letter-spacing:-.02em}
+  .band-title em{font-style:italic;font-weight:500;font-variation-settings:"SOFT" 100,"WONK" 1}
+  html[lang="he"] .band-title em,[dir="rtl"] .band-title em{font-style:normal}
 </style>
 </head>
 <body>
@@ -1795,7 +1809,7 @@ SELF-CHECK ANSWERS:
   <div class="gallery-bar-top">
     <div class="gallery-brand">
       <strong>Traike</strong>
-      <span>Round 9 · Six Distinct Sky Compositions · One System</span>
+      <span>Round 13 · blend</span>
     </div>
     <div class="ctrl-groups">
       <div class="ctrl-seg" role="group" aria-label="Language">
@@ -1912,14 +1926,16 @@ SELF-CHECK ANSWERS:
 
           <div class="plan-header-row">
             <div class="plan-title-wrap">
+              <div class="hero-eyebrow"><span data-en>Suggested for tonight</span><span data-he>הצעה להערב</span></div>
               <div class="hero-stat">
                 <span class="hero-num"><bdi>65</bdi></span>
                 <span class="hero-unit" data-en>min</span>
                 <span class="hero-unit" data-he>דק׳</span>
               </div>
-              <div class="band-facts">
-                <span data-en>4.1 km · 4 stops</span>
-                <span data-he><bdi>4.1</bdi> ק״מ · <bdi>4</bdi> תחנות</span>
+              <div class="hero-facts">
+                <div class="hf"><b><bdi>4.1</bdi></b><i data-en>km</i><i data-he>ק״מ</i></div>
+                <div class="hf"><b><bdi>4</bdi></b><i data-en>stops</i><i data-he>תחנות</i></div>
+                <div class="hf"><b><bdi>120</bdi></b><i data-en>m away</i><i data-he>מ׳ ממך</i></div>
               </div>
             </div>
           </div>
@@ -2131,7 +2147,7 @@ SELF-CHECK ANSWERS:
 
           <div class="plan-header-row">
             <div class="plan-title-wrap">
-              <h1 class="band-title" data-en>Where shall we walk?</h1>
+              <h1 class="band-title" data-en>Where shall <em>we walk?</em></h1>
               <h1 class="band-title" data-he>לאן נצא ללכת היום?</h1>
               <p class="plan-sub" data-en>AI walking companion · Israel</p>
               <p class="plan-sub" data-he>מלווה הליכה חכם בעיר</p>
