@@ -248,9 +248,21 @@ export async function runMeteredTurn<T>(
     let billed = 0;
     try {
       const choice = deps.choice ?? config.primary;
-      const { value, billedMicros } = await fn(choice, resolveReasoningEffort(tier, choice.model, env));
-      billed = billedMicros;
-      return value;
+      try {
+        const { value, billedMicros } = await fn(choice, resolveReasoningEffort(tier, choice.model, env));
+        billed = billedMicros;
+        return value;
+      } catch (first) {
+        // The primary model failed for its own reasons (down, key missing, bad response): try the configured fallback once.
+        const fb = config.fallback;
+        if (deps.choice || !fb || !isProviderFailure(first)) throw first;
+        const spentFirst = (first as { billedMicros?: unknown } | null)?.billedMicros;
+        if (typeof spentFirst === "number" && Number.isFinite(spentFirst) && spentFirst > 0) billed = spentFirst;
+        console.warn(`[llm] ${choice.provider}/${choice.model} failed; falling back to ${fb.provider}/${fb.model}`);
+        const second = await fn(fb, resolveReasoningEffort(tier, fb.model, env));
+        billed += second.billedMicros;
+        return second.value;
+      }
     } catch (error) {
       const spent = (error as { billedMicros?: unknown } | null)?.billedMicros;
       if (typeof spent === "number" && Number.isFinite(spent) && spent > 0) billed = spent;
@@ -261,4 +273,10 @@ export async function runMeteredTurn<T>(
   } finally {
     if (lock && token && guard.lockKey) await lock.release(guard.lockKey, token).catch(() => undefined);
   }
+}
+
+/** Only a failure of the model call itself is worth a second model; a cancel, a budget stop or a busy lock is not. */
+function isProviderFailure(error: unknown): boolean {
+  const name = (error as { name?: string } | null)?.name;
+  return name === "BilledFailureError" || name === "MissingKeyError" || name === "HttpStatusError";
 }

@@ -66,6 +66,14 @@ function zeroConfigOpenAi(env: Env, tier: LlmTier): ProviderChoice | null {
   return { provider: "openai", model: OPENAI_ZERO_CONFIG[tier] };
 }
 
+/** Zero-config runs with both keys set: the other provider backs up the primary. */
+function zeroConfigFallback(primary: ProviderChoice, env: Env, tier: LlmTier): ProviderChoice | null {
+  if (Object.keys(env).some((k) => /^LLM_(PROVIDER|MODEL)/.test(k) && env[k]?.trim())) return null;
+  if (primary.provider === "anthropic") return zeroConfigOpenAi(env, tier);
+  if (primary.provider === "openai" && env.ANTHROPIC_API_KEY?.trim()) return { provider: "anthropic", model: ANTHROPIC_ZERO_CONFIG_MODEL };
+  return null;
+}
+
 function choose(provider: string | undefined, model: string | undefined): ProviderChoice | null {
   const name = provider && isProvider(provider) ? provider : provider ? null : "gemini";
   if (!name) return null;
@@ -88,7 +96,7 @@ export function resolveLlmConfig(
   const fbProvider = tierVar(env, "LLM_FALLBACK_PROVIDER", tier);
   const fallback = fbProvider
     ? choose(fbProvider, tierVar(env, "LLM_FALLBACK_MODEL", tier))
-    : null;
+    : zeroConfigFallback(primary, env, tier);
 
   const budget = Number(env.LLM_DAILY_BUDGET_USD);
   return {

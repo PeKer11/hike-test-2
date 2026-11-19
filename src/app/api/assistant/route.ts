@@ -33,6 +33,9 @@ import { makeVariant } from "@/lib/walks/variants";
 import { createClient } from "@/lib/supabase/server";
 import { listMyWalks } from "@/lib/walks/saved-walks";
 
+/** A turn may run up to 90s plus the summary; the platform default can cut it off first. */
+export const maxDuration = 120;
+
 const MAX_MESSAGE_CHARS = 1000;
 /** Chats kept per walker; the oldest is deleted when a new one starts. */
 const MAX_CHATS = 5;

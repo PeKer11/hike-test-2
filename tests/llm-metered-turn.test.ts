@@ -170,3 +170,34 @@ describe("turn lock cancel", () => {
     expect(await lock.isCancelled("k")).toBe(false);
   });
 });
+
+describe("runMeteredTurn fallback model", () => {
+  const both = { ANTHROPIC_API_KEY: "a", OPENAI_API_KEY: "o" };
+
+  it("retries once on the other provider when the primary fails, and bills both", async () => {
+    const { store, total } = fakeStore();
+    const seen: string[] = [];
+    const value = await runMeteredTurn(
+      ctx,
+      3,
+      async (c) => {
+        seen.push(c.provider);
+        if (c.provider === "anthropic") throw new BilledFailureError(100, new Error("down"));
+        return { value: "ok", billedMicros: 50 };
+      },
+      { budget: createBudgetGuard(store), env: both },
+    );
+    expect(value).toBe("ok");
+    expect(seen).toEqual(["anthropic", "openai"]);
+    expect(total()).toBe(150);
+  });
+
+  it("does not fall back after a cancel", async () => {
+    const { store } = fakeStore();
+    const seen: string[] = [];
+    await expect(
+      runMeteredTurn(ctx, 3, async (c) => { seen.push(c.provider); throw new TurnCancelledError(0); }, { budget: createBudgetGuard(store), env: both }),
+    ).rejects.toBeInstanceOf(TurnCancelledError);
+    expect(seen).toEqual(["anthropic"]);
+  });
+});
