@@ -1619,15 +1619,17 @@ SELF-CHECK ANSWERS:
   .band-walks{min-height:232px!important}
   .band-walks .band-title,.band-walks .walks-mileage-txt{text-shadow:0 1px 10px rgba(60,20,6,.55)}
 
-  /* ROUND 13: swapped headers, arch on walks, quieter location chip */
+  /* ROUND 13b */
   .band-art-photo{background:var(--hero-art) 94% 0%/auto 118% no-repeat}
-  .band-art-photo::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#7E2A0B 0%,#A63F12 45%,#C9622A 80%,#E3965B 100%);mix-blend-mode:multiply;opacity:.93}
-  .band-home-photo{height:340px}
-  .band-home-photo .plan-title-wrap{max-width:70%}
-  .band-home-photo .hero-num{font-size:84px}
-  .band-plan:not(.band-home-photo) .band-art::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(255,236,214,.30),rgba(255,236,214,.14) 60%,transparent)}
-  .band-walks .band-title{max-width:170px}
-  .jaffa-window.walks-arch{width:104px;height:128px;margin-inline-end:2px;border-radius:52px 52px var(--r-ctrl) var(--r-ctrl);border-width:3px;background-size:330px auto;background-position:92% 66%;box-shadow:0 5px 0 var(--ink)}
+  .band-art-photo::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#8E3A18 0%,#B0562A 45%,#CE7A46 80%,#E8A878 100%);mix-blend-mode:multiply;opacity:.8}
+  .band-plan-photo{height:330px}
+  .band-home{height:310px!important}
+  .band-walks{min-height:310px!important}
+  .band-walks .band-art::after,.band-home .band-art::after{height:30%}
+  .band-home .home-trail-stage{display:none}
+  .band-home .home-copy{max-width:70%}
+  .band-home .band-art::before,.band-walks .band-art::before{display:none}
+  .band-walks .band-title{max-width:230px}
   .loc-chip,button.loc-chip{background:rgba(255,247,236,.16)!important;color:var(--on-art)!important;border:1px solid rgba(255,247,236,.55)!important;box-shadow:none!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
   .loc-chip .ring{border-color:var(--on-art)!important}
 </style>
@@ -1861,7 +1863,113 @@ SELF-CHECK ANSWERS:
          ======================================================= -->
     <section class="screen" data-id="home" aria-label="Home">
       <div class="col-sheet paired">
-        <header class="band band-plan band-home-photo band-has-art"><div class="band-art band-art-photo" aria-hidden="true"></div>
+        <header class="band band-home band-has-art"><div class="band-art"><svg class="a-day" preserveAspectRatio="xMidYMax slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A3311"/><stop offset=".62" stop-color="#B85016"/><stop offset=".8" stop-color="#E8A465"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
+<linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A8481A"/><stop offset=".3" stop-color="#DE9A5C"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
+<radialGradient id="u" gradientUnits="userSpaceOnUse" cx="130" cy="192" r="50"><stop offset="0" stop-color="#FFC27A" stop-opacity=".24"/><stop offset="1" stop-color="#FFC27A" stop-opacity="0"/></radialGradient>
+<linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".74" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+<mask id="m"><rect width="390" height="300" fill="url(#f)"/></mask>
+<filter id="g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .1 0 0 0 0 .05 0 0 0 0 .02 0 0 0 .5 -.17"/></filter>
+</defs>
+<g mask="url(#m)">
+<rect width="390" height="300" fill="url(#s)"/>
+<g stroke="#F2B36B" stroke-linecap="round" fill="none" opacity=".16">
+<path d="M250 132h70" stroke-width="7"/><path d="M286 144h80" stroke-width="5"/><path d="M20 176h70" stroke-width="5"/><path d="M330 60h36" stroke-width="5"/>
+</g>
+<circle cx="130" cy="192" r="50" fill="url(#u)"/>
+<circle cx="130" cy="192" r="16" fill="#FCE3B0"/>
+<path d="M0 190V181H20V177H28V181H50V173H56V181H80V178H90V183L130 185L170 187L210 190Z" fill="#8F3A14" opacity=".55"/>
+<rect y="190" width="390" height="110" fill="url(#w)"/>
+<g stroke="#FCE3B0" stroke-linecap="round" opacity=".8">
+<path d="M118 197h24" stroke-width="3"/><path d="M110 204h40" stroke-width="3"/><path d="M122 211h18" stroke-width="2.5"/><path d="M114 218h30" stroke-width="2"/><path d="M126 225h12" stroke-width="2"/>
+</g>
+<path d="M150 190L176 185H190V177H206V170H222V163H238V156H258V126L262 113L266 126V148H284V156L330 152L390 150V300H190Z" fill="#6E2A12"/>
+<g fill="#F6C27A" opacity=".7"><rect x="212" y="176" width="3" height="4"/><rect x="228" y="170" width="3" height="4"/><rect x="244" y="164" width="3" height="4"/><rect x="272" y="156" width="3" height="4"/></g>
+<g stroke="#3A1D14" stroke-width="1.6" stroke-linecap="round" fill="none"><path d="M246 98q4 -4 7 0q3 -4 7 0"/><path d="M272 84q3 -3 5 0q2 -3 5 0"/></g>
+<g fill="#3A1D14">
+<rect x="290" y="140" width="24" height="46"/><rect x="292" y="112" width="20" height="28"/><rect x="288" y="137" width="28" height="4"/><rect x="290" y="109" width="24" height="4"/><rect x="294" y="97" width="16" height="13"/><path d="M292 98L302 80L312 98Z"/><rect x="291" y="91" width="3" height="7"/><rect x="310" y="91" width="3" height="7"/>
+</g>
+<path d="M302 81V73" stroke="#3A1D14" stroke-width="2" stroke-linecap="round"/>
+<g fill="#E0733A" opacity=".75"><rect x="290" y="141" width="6" height="45"/><rect x="292" y="113" width="5" height="24"/><rect x="294" y="98" width="4" height="11"/></g>
+<path d="M299 162v-7a3 3 0 0 1 6 0v7z" fill="#1B2620"/>
+<circle cx="302" cy="124" r="6.5" fill="#F8F3EA" stroke="#1B2620" stroke-width="2"/>
+<path d="M302 124V120M302 124L305 126" stroke="#1B2620" stroke-width="1.5" stroke-linecap="round"/>
+<g fill="#4E2212">
+<path d="M186 222Q226 198 258 192V184H274V176H290V184H316V176H330V168H346Q353 154 360 168V174H390V300H186Z"/>
+<rect x="322" y="136" width="4" height="40"/><rect x="320.500" y="148" width="7" height="2.500"/><path d="M321 136L324 126L327 136Z"/>
+</g>
+<g fill="#F6C27A" opacity=".75"><rect x="264" y="190" width="3" height="5"/><rect x="280" y="184" width="3" height="5"/><rect x="334" y="176" width="3" height="5"/><rect x="350" y="174" width="3" height="5"/><rect x="372" y="182" width="3" height="5"/></g>
+<g fill="#1B2620"><path d="M46 216h30l-5 7h-20z"/><path d="M168 207h16l-3 4h-10z"/></g>
+<path d="M60 216V197M176 207V196" stroke="#1B2620" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M62 199V213H73Z" fill="#F8F3EA" opacity=".85"/>
+<path d="M0 238Q60 228 130 233T250 228L390 216V300H0Z" fill="#1B2620"/>
+<g stroke="#1B2620" stroke-linecap="round" fill="none">
+<path d="M368 236Q360 190 364 146" stroke-width="5"/>
+<g stroke-width="4"><path d="M364 146q-12 -10 -26 2"/><path d="M364 146q-8 -18 -22 -16"/><path d="M364 146q2 -16 -6 -24"/><path d="M364 146q10 -16 22 -10"/><path d="M364 146q14 -6 22 8"/><path d="M364 146q-4 8 -16 14"/></g>
+</g>
+<g fill="#B8325E"><circle cx="378" cy="204" r="8"/><circle cx="366" cy="210" r="7"/><circle cx="352" cy="213" r="5"/><circle cx="384" cy="194" r="5"/></g>
+<g fill="#D9567A"><circle cx="374" cy="200" r="3.500"/><circle cx="362" cy="207" r="3"/><circle cx="382" cy="208" r="2.500"/><circle cx="351" cy="211" r="2"/></g>
+<path d="M56 246C120 236 170 250 214 232S262 204 300 190" fill="none" stroke="#F8F3EA" stroke-width="3" stroke-linecap="round"/>
+<g fill="#F8F3EA" stroke="#1B2620" stroke-width="2.500">
+<circle cx="56" cy="246" r="5"/><circle cx="142.500" cy="242" r="5.500"/><circle cx="214" cy="232" r="6"/><circle cx="259" cy="209.500" r="6.500"/><circle cx="300" cy="190" r="8" fill="#D2602F"/>
+</g>
+<rect width="390" height="300" filter="url(#g)"/>
+</g>
+</svg><svg class="a-night" preserveAspectRatio="xMidYMax slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg" style="filter:brightness(.55) saturate(.85)">
+<defs>
+<linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A3311"/><stop offset=".62" stop-color="#B85016"/><stop offset=".8" stop-color="#E8A465"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
+<linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A8481A"/><stop offset=".3" stop-color="#DE9A5C"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
+<radialGradient id="u" gradientUnits="userSpaceOnUse" cx="130" cy="192" r="50"><stop offset="0" stop-color="#FFC27A" stop-opacity=".24"/><stop offset="1" stop-color="#FFC27A" stop-opacity="0"/></radialGradient>
+<linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".74" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+<mask id="m"><rect width="390" height="300" fill="url(#f)"/></mask>
+<filter id="g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .1 0 0 0 0 .05 0 0 0 0 .02 0 0 0 .5 -.17"/></filter>
+</defs>
+<g mask="url(#m)">
+<rect width="390" height="300" fill="url(#s)"/>
+<g stroke="#F2B36B" stroke-linecap="round" fill="none" opacity=".16">
+<path d="M250 132h70" stroke-width="7"/><path d="M286 144h80" stroke-width="5"/><path d="M20 176h70" stroke-width="5"/><path d="M330 60h36" stroke-width="5"/>
+</g>
+<circle cx="130" cy="192" r="50" fill="url(#u)"/>
+<circle cx="130" cy="192" r="16" fill="#FCE3B0"/>
+<path d="M0 190V181H20V177H28V181H50V173H56V181H80V178H90V183L130 185L170 187L210 190Z" fill="#8F3A14" opacity=".55"/>
+<rect y="190" width="390" height="110" fill="url(#w)"/>
+<g stroke="#FCE3B0" stroke-linecap="round" opacity=".8">
+<path d="M118 197h24" stroke-width="3"/><path d="M110 204h40" stroke-width="3"/><path d="M122 211h18" stroke-width="2.5"/><path d="M114 218h30" stroke-width="2"/><path d="M126 225h12" stroke-width="2"/>
+</g>
+<path d="M150 190L176 185H190V177H206V170H222V163H238V156H258V126L262 113L266 126V148H284V156L330 152L390 150V300H190Z" fill="#6E2A12"/>
+<g fill="#F6C27A" opacity=".7"><rect x="212" y="176" width="3" height="4"/><rect x="228" y="170" width="3" height="4"/><rect x="244" y="164" width="3" height="4"/><rect x="272" y="156" width="3" height="4"/></g>
+<g stroke="#3A1D14" stroke-width="1.6" stroke-linecap="round" fill="none"><path d="M246 98q4 -4 7 0q3 -4 7 0"/><path d="M272 84q3 -3 5 0q2 -3 5 0"/></g>
+<g fill="#3A1D14">
+<rect x="290" y="140" width="24" height="46"/><rect x="292" y="112" width="20" height="28"/><rect x="288" y="137" width="28" height="4"/><rect x="290" y="109" width="24" height="4"/><rect x="294" y="97" width="16" height="13"/><path d="M292 98L302 80L312 98Z"/><rect x="291" y="91" width="3" height="7"/><rect x="310" y="91" width="3" height="7"/>
+</g>
+<path d="M302 81V73" stroke="#3A1D14" stroke-width="2" stroke-linecap="round"/>
+<g fill="#E0733A" opacity=".75"><rect x="290" y="141" width="6" height="45"/><rect x="292" y="113" width="5" height="24"/><rect x="294" y="98" width="4" height="11"/></g>
+<path d="M299 162v-7a3 3 0 0 1 6 0v7z" fill="#1B2620"/>
+<circle cx="302" cy="124" r="6.5" fill="#F8F3EA" stroke="#1B2620" stroke-width="2"/>
+<path d="M302 124V120M302 124L305 126" stroke="#1B2620" stroke-width="1.5" stroke-linecap="round"/>
+<g fill="#4E2212">
+<path d="M186 222Q226 198 258 192V184H274V176H290V184H316V176H330V168H346Q353 154 360 168V174H390V300H186Z"/>
+<rect x="322" y="136" width="4" height="40"/><rect x="320.500" y="148" width="7" height="2.500"/><path d="M321 136L324 126L327 136Z"/>
+</g>
+<g fill="#F6C27A" opacity=".75"><rect x="264" y="190" width="3" height="5"/><rect x="280" y="184" width="3" height="5"/><rect x="334" y="176" width="3" height="5"/><rect x="350" y="174" width="3" height="5"/><rect x="372" y="182" width="3" height="5"/></g>
+<g fill="#1B2620"><path d="M46 216h30l-5 7h-20z"/><path d="M168 207h16l-3 4h-10z"/></g>
+<path d="M60 216V197M176 207V196" stroke="#1B2620" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M62 199V213H73Z" fill="#F8F3EA" opacity=".85"/>
+<path d="M0 238Q60 228 130 233T250 228L390 216V300H0Z" fill="#1B2620"/>
+<g stroke="#1B2620" stroke-linecap="round" fill="none">
+<path d="M368 236Q360 190 364 146" stroke-width="5"/>
+<g stroke-width="4"><path d="M364 146q-12 -10 -26 2"/><path d="M364 146q-8 -18 -22 -16"/><path d="M364 146q2 -16 -6 -24"/><path d="M364 146q10 -16 22 -10"/><path d="M364 146q14 -6 22 8"/><path d="M364 146q-4 8 -16 14"/></g>
+</g>
+<g fill="#B8325E"><circle cx="378" cy="204" r="8"/><circle cx="366" cy="210" r="7"/><circle cx="352" cy="213" r="5"/><circle cx="384" cy="194" r="5"/></g>
+<g fill="#D9567A"><circle cx="374" cy="200" r="3.500"/><circle cx="362" cy="207" r="3"/><circle cx="382" cy="208" r="2.500"/><circle cx="351" cy="211" r="2"/></g>
+<path d="M56 246C120 236 170 250 214 232S262 204 300 190" fill="none" stroke="#F8F3EA" stroke-width="3" stroke-linecap="round"/>
+<g fill="#F8F3EA" stroke="#1B2620" stroke-width="2.500">
+<circle cx="56" cy="246" r="5"/><circle cx="142.500" cy="242" r="5.500"/><circle cx="214" cy="232" r="6"/><circle cx="259" cy="209.500" r="6.500"/><circle cx="300" cy="190" r="8" fill="#D2602F"/>
+</g>
+<rect width="390" height="300" filter="url(#g)"/>
+</g>
+</svg></div>
           <div class="band-topbar">
             <span class="brand on-art hide-desktop">
               <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
@@ -1878,8 +1986,8 @@ SELF-CHECK ANSWERS:
             </button>
           </div>
 
-          <div class="plan-header-row">
-            <div class="plan-title-wrap">
+          <div class="home-hero-grid">
+            <div class="home-copy">
               <div class="hero-stat">
                 <span class="hero-num"><bdi>65</bdi></span>
                 <span class="hero-unit" data-en>min</span>
@@ -1890,17 +1998,30 @@ SELF-CHECK ANSWERS:
                 <span data-he><bdi>4.1</bdi> ק״מ · <bdi>4</bdi> תחנות<br/>הליכת שקיעה לנמל יפו</span>
               </div>
             </div>
-          </div>
 
-          <!-- Guide Arch + Paper Speech Card -->
-          <div class="guide-stage">
-            <img class="guide-arch day-only" src="assets/guide.jpg" alt="Traike walking guide" />
-            <img class="guide-arch night-only" src="assets/guide-night.jpg" alt="Traike walking guide at night" />
-            <div class="speech-card">
-              <h2 class="speech-title" data-en>Chat with Traike</h2>
-              <h2 class="speech-title" data-he>שיחה עם טרייק</h2>
-              <p class="speech-body" data-en>Pick a vibe or name your stops — I'll thread a calm route.</p>
-              <p class="speech-body" data-he>בחרו אווירה או כתבו תחנות — אחבר לכם מסלול מדויק.</p>
+            <!-- Crafted SVG Trail ascending 4 Rings to the Sunset Disc / Night Crescent + 3D Compass inside sky -->
+            <div class="home-trail-stage" aria-hidden="true">
+              <svg class="home-trail-svg rtl-flip" viewBox="0 0 142 162" fill="none">
+                <!-- Subtle Mediterranean Old-Jaffa arch & belltower horizon line -->
+                <path d="M8 138H52V124C52 118 62 118 62 124V138H96V110L102 98L108 110V138H136" stroke="var(--sky-arch-stroke)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- Day Sun Disc -->
+                <circle class="day-only" cx="104" cy="30" r="21" fill="var(--sun-disc)" fill-opacity="0.92"/>
+                <!-- Night Crescent Moon -->
+                <path class="night-only" d="M111 16A18 18 0 1 0 124 41A14 14 0 0 1 111 16Z" fill="var(--sun-disc)"/>
+                <!-- Winding 4-stop Trail rising from start Ring to Jaffa overlook -->
+                <path d="M18 140C38 134 36 108 56 100C78 92 70 66 94 54C102 50 104 42 104 34" stroke="var(--on-art)" stroke-width="3" stroke-linecap="round"/>
+                <!-- Stop 1 (Now-Ring) -->
+                <circle cx="18" cy="140" r="6.5" fill="var(--paper)" stroke="#1B2620" stroke-width="2"/>
+                <circle cx="18" cy="140" r="2.8" fill="var(--leather)"/>
+                <!-- Stop 2 -->
+                <circle cx="56" cy="100" r="5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
+                <!-- Stop 3 -->
+                <circle cx="84" cy="64" r="5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
+                <!-- Stop 4 (Sunset Finish Ring) -->
+                <circle cx="104" cy="34" r="7" fill="var(--paper)" stroke="#1B2620" stroke-width="2"/>
+                <circle cx="104" cy="34" r="3" fill="var(--leather)"/>
+              </svg>
+              <img class="home-compass" src="assets/compass.png" alt="" onerror="this.style.display='none'" />
             </div>
           </div>
         </header>
@@ -2095,232 +2216,7 @@ SELF-CHECK ANSWERS:
          ======================================================= -->
     <section class="screen" data-id="plan" aria-label="Plan a walk">
       <div class="col-sheet paired">
-        <header class="band band-plan band-has-art"><div class="band-art"><svg class="a-day" preserveAspectRatio="xMidYMin slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
-          <rect width="390" height="300" fill="url(#sky-day)"/>
-
-          <!-- Soft brushed clouds -->
-          <path d="M40,148 C95,140 165,142 230,150 C185,156 95,156 40,148 Z" fill="#F7C98B" opacity="0.28"/>
-          <path d="M150,112 C210,104 285,106 340,114 C290,119 205,118 150,112 Z" fill="#F2A65A" opacity="0.24"/>
-
-          <!-- Setting Mediterranean Sun & Halo -->
-          <circle cx="132" cy="184" r="46" fill="#FFE6A3" opacity="0.26"/>
-          <circle cx="132" cy="186" r="23" fill="#FFF0BD" opacity="0.88"/>
-
-          <!-- Distant Mediterranean Sea -->
-          <path d="M0,192 L265,192 L265,258 L0,258 Z" fill="#D97B38" opacity="0.65"/>
-          <path d="M0,192 C75,190 155,191 245,193 L245,232 L0,232 Z" fill="#E89A54" opacity="0.55"/>
-
-          <!-- Sun Shimmer Paths on Water -->
-          <g fill="#FFF3C4" opacity="0.78">
-            <path d="M106,196 C124,195 144,195 158,196 C146,199 120,199 106,196 Z"/>
-            <path d="M113,203 C128,202 142,202 152,203 C140,206 123,206 113,203 Z"/>
-            <path d="M102,211 C122,210 146,210 163,212 C145,214 120,214 102,211 Z"/>
-            <path d="M118,220 C130,219 143,219 151,221 C141,223 127,223 118,220 Z"/>
-          </g>
-
-          <!-- Old Jaffa Breakwater Reef -->
-          <path d="M34,214 C62,211 92,212 114,215 L106,218 L30,217 Z" fill="#7A3319" opacity="0.7"/>
-
-          <!-- Small Lateen Sailboat off Jaffa Port -->
-          <g transform="translate(72, 203)">
-            <path d="M0,6 L22,6 L18,10 L4,10 Z" fill="#592312"/>
-            <path d="M11,6 L11,-11 L21,4 Z" fill="#FFF0CC" opacity="0.92"/>
-            <path d="M10,6 L10,-8 L2,5 Z" fill="#F2C185" opacity="0.82"/>
-          </g>
-
-          <!-- Old Jaffa Stepped Kurkar Hill & Architecture -->
-          <path d="M168,218 L184,188 L208,186 L216,168 L254,166 L278,144 L348,146 L390,160 L390,255 L155,255 Z" fill="#9E421E"/>
-
-          <!-- St. Peter's Church Bell Tower (Iconic Jaffa silhouette + sunlit limestone face) -->
-          <g transform="translate(268, 86)">
-            <!-- Sunlit west facade -->
-            <rect x="0" y="28" width="13" height="58" fill="#F5CA8C"/>
-            <!-- Shaded east facade -->
-            <rect x="13" y="28" width="11" height="58" fill="#8C3718"/>
-            <!-- Belfry cornice -->
-            <rect x="-2" y="26" width="28" height="3" fill="#FADBA8"/>
-            <rect x="-2" y="48" width="28" height="2.5" fill="#FADBA8"/>
-            <!-- Arched belfry windows -->
-            <path d="M4,33 A3,3 0 0,1 10,33 L10,44 L4,44 Z" fill="#59200E"/>
-            <path d="M16,33 A2.5,2.5 0 0,1 21,33 L21,44 L16,44 Z" fill="#47180A"/>
-            <!-- Pointed Baroque-Franciscan Spire -->
-            <path d="M0,26 L12,2 L13,26 Z" fill="#F7D59C"/>
-            <path d="M12,2 L24,26 L13,26 Z" fill="#782B11"/>
-            <path d="M12,-4 L12,3 M9.5,-1 L14.5,-1" stroke="#59200E" stroke-width="1.3" stroke-linecap="round"/>
-          </g>
-
-          <!-- Mahmoudiya Dome & Cascading Jaffa Limestone Houses -->
-          <path d="M233,166 C233,154 249,154 249,166 Z" fill="#F2BE7E"/>
-          <path d="M241,154 C246,154 249,159 249,166 L241,166 Z" fill="#8C3718"/>
-
-          <!-- Sunlit West Walls of Jaffa Houses -->
-          <g>
-            <!-- House block 1 -->
-            <rect x="212" y="168" width="18" height="24" fill="#F4C789"/>
-            <rect x="230" y="168" width="16" height="24" fill="#853316"/>
-            <!-- House block 2 -->
-            <rect x="248" y="160" width="22" height="28" fill="#F7D399"/>
-            <rect x="270" y="160" width="18" height="28" fill="#7D2E13"/>
-            <!-- Lower port warehouses -->
-            <rect x="182" y="188" width="26" height="22" fill="#EBB475"/>
-            <rect x="208" y="188" width="24" height="22" fill="#7A2D13"/>
-            <rect x="236" y="182" width="32" height="26" fill="#F2C385"/>
-            <rect x="268" y="182" width="26" height="26" fill="#6E260E"/>
-            <!-- Tiny arched windows -->
-            <path d="M254,167 A2.5,2.5 0 0,1 259,167 L259,174 L254,174 Z" fill="#5E210D"/>
-            <path d="M262,167 A2.5,2.5 0 0,1 267,167 L267,174 L262,174 Z" fill="#5E210D"/>
-            <path d="M190,195 A3,3 0 0,1 196,195 L196,204 L190,204 Z" fill="#5E210D"/>
-            <path d="M200,195 A3,3 0 0,1 206,195 L206,204 L200,204 Z" fill="#5E210D"/>
-            <path d="M245,190 A3,3 0 0,1 251,190 L251,199 L245,199 Z" fill="#5E210D"/>
-            <path d="M256,190 A3,3 0 0,1 262,190 L262,199 L256,199 Z" fill="#5E210D"/>
-          </g>
-
-          <!-- Harbor Sea Wall & Promenade Curve -->
-          <path d="M142,222 C195,216 260,212 340,214 L340,234 L135,230 Z" fill="#D99457"/>
-          <path d="M142,222 C195,216 260,212 340,214" stroke="#FFE3B0" stroke-width="1.4" fill="none" opacity="0.75"/>
-
-          <!-- Slender Cypresses & Date Palm on the Bluff -->
-          <path d="M302,178 C303,152 306,136 308,126 C310,136 313,152 314,178 Z" fill="#363F27"/>
-          <path d="M316,182 C317,160 319,147 321,139 C323,147 325,160 326,182 Z" fill="#2B331F"/>
-          <path d="M332,195 Q328,158 323,130" stroke="#4A2512" stroke-width="3.2" fill="none"/>
-          <use href="#palm-crown-day" transform="translate(323,130) scale(0.72)"/>
-
-          <!-- Foreground Right Kurkar Limestone Archway Framing the View -->
-          <path d="M286,0 L390,0 L390,290 L352,290 L352,126 C352,66 320,24 286,0 Z" fill="#63230E"/>
-          <!-- Sunlit inner archchamfer (warm limestone blocks) -->
-          <path d="M286,0 C320,24 352,66 352,126 L352,275 L361,275 L361,124 C361,60 328,18 296,0 Z" fill="#E8A968"/>
-          <!-- Individual stone voussoir joints on arch -->
-          <g stroke="#7A2E14" stroke-width="1" opacity="0.55">
-            <line x1="316" y1="24" x2="324" y2="18"/>
-            <line x1="333" y1="48" x2="342" y2="43"/>
-            <line x1="345" y1="76" x2="355" y2="73"/>
-            <line x1="351" y1="106" x2="361" y2="105"/>
-            <line x1="352" y1="138" x2="361" y2="138"/>
-            <line x1="352" y1="170" x2="361" y2="170"/>
-          </g>
-
-          <!-- Foreground Winding Promenade Parapet Leading Toward Jaffa -->
-          <path d="M0,256 C95,244 215,232 390,224 L390,300 L0,300 Z" fill="#C9854B"/>
-          <path d="M0,256 C95,244 215,232 360,225" stroke="#FCE2B6" stroke-width="2" fill="none" opacity="0.8"/>
-
-          <!-- Cascading Bougainvillea & Olive Twigs from Foreground Arch -->
-          <path d="M295,6 C310,26 328,34 348,42" stroke="#3D2616" stroke-width="2" fill="none"/>
-          <use href="#bougainvillea-spray" transform="translate(302, 12) rotate(18) scale(0.95)"/>
-          <use href="#bougainvillea-spray" transform="translate(334, 34) rotate(35) scale(0.85)"/>
-          <use href="#bougainvillea-spray" transform="translate(344, 68) rotate(65) scale(0.75)"/>
-
-          <!-- Two wheeling swifts -->
-          <use href="#swift" transform="translate(212, 92) scale(0.55) rotate(-8)" fill="#591E0B" opacity="0.75"/>
-          <use href="#swift" transform="translate(232, 82) scale(0.42) rotate(6)" fill="#591E0B" opacity="0.65"/>
-
-          <!-- Readability & Cream Sheet Melt -->
-          <rect width="390" height="220" fill="url(#text-guard-day)"/>
-          
-          
-        </svg><svg class="a-night" preserveAspectRatio="xMidYMin slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
-          <rect width="390" height="300" fill="url(#sky-night)"/>
-
-          <!-- Crisp Stars & Crescent Moon -->
-          <g fill="#FFF2CC">
-            <circle cx="155" cy="52" r="1.1" opacity="0.8"/>
-            <circle cx="204" cy="38" r="1.3" opacity="0.9"/>
-            <circle cx="248" cy="64" r="1" opacity="0.65"/>
-            <circle cx="118" cy="84" r="0.9" opacity="0.55"/>
-            <circle cx="295" cy="46" r="1.1" opacity="0.75"/>
-          </g>
-          <!-- Crescent Moon -->
-          <path d="M194,76 A14,14 0 1,1 180,94 A11,11 0 1,0 194,76 Z" fill="#FFEBB8"/>
-
-          <!-- Night Mediterranean Sea -->
-          <path d="M0,192 L265,192 L265,258 L0,258 Z" fill="#2A2038" opacity="0.85"/>
-
-          <!-- Golden Harbor & Moon Reflections on Water -->
-          <g fill="#FFCF7D" opacity="0.68">
-            <path d="M174,197 C185,196 198,196 208,197 C198,199 183,199 174,197 Z"/>
-            <path d="M168,205 C188,204 214,204 232,206 C212,208 185,208 168,205 Z"/>
-            <path d="M182,213 C202,212 226,212 242,214 C224,216 198,216 182,213 Z"/>
-            <path d="M112,202 C124,201 136,201 144,202 C135,204 121,204 112,202 Z"/>
-          </g>
-
-          <!-- Fishing Boat with Warm Mast Lantern -->
-          <g transform="translate(92, 204)">
-            <path d="M0,6 L22,6 L18,10 L4,10 Z" fill="#181322"/>
-            <line x1="11" y1="6" x2="11" y2="-8" stroke="#2D2338" stroke-width="1.3"/>
-            <circle cx="11" cy="-6" r="5" fill="url(#lantern-halo-night)"/>
-            <circle cx="11" cy="-6" r="1.6" fill="#FFEAA6"/>
-          </g>
-
-          <!-- Old Jaffa Night Hill Silhouette -->
-          <path d="M168,218 L184,188 L208,186 L216,168 L254,166 L278,144 L348,146 L390,160 L390,255 L155,255 Z" fill="#261B2E"/>
-
-          <!-- Warm Uplight Glow on St. Peter's Spire -->
-          <circle cx="280" cy="138" r="48" fill="url(#lantern-halo-night)" opacity="0.55"/>
-          <g transform="translate(268, 86)">
-            <rect x="0" y="28" width="13" height="58" fill="#9E6242"/>
-            <rect x="13" y="28" width="11" height="58" fill="#2A1D33"/>
-            <rect x="-2" y="26" width="28" height="3" fill="#C48156"/>
-            <rect x="-2" y="48" width="28" height="2.5" fill="#C48156"/>
-            <!-- Lit belfry arch -->
-            <path d="M4,33 A3,3 0 0,1 10,33 L10,44 L4,44 Z" fill="#FFD984"/>
-            <path d="M16,33 A2.5,2.5 0 0,1 21,33 L21,44 L16,44 Z" fill="#C78A44"/>
-            <path d="M0,26 L12,2 L13,26 Z" fill="#B5734E"/>
-            <path d="M12,2 L24,26 L13,26 Z" fill="#24182B"/>
-            <path d="M12,-4 L12,3 M9.5,-1 L14.5,-1" stroke="#8C5940" stroke-width="1.3" stroke-linecap="round"/>
-          </g>
-
-          <!-- Ottoman Dome & Houses with Glowing Amber Windows -->
-          <path d="M233,166 C233,154 249,154 249,166 Z" fill="#6E443B"/>
-          <g>
-            <rect x="212" y="168" width="18" height="24" fill="#4A2E38"/>
-            <rect x="230" y="168" width="16" height="24" fill="#24182B"/>
-            <rect x="248" y="160" width="22" height="28" fill="#59363D"/>
-            <rect x="182" y="188" width="26" height="22" fill="#472D38"/>
-            <rect x="236" y="182" width="32" height="26" fill="#52333B"/>
-            <!-- Warm glowing Jaffa windows -->
-            <g fill="#FFE08C">
-              <rect x="218" y="174" width="4" height="6" rx="2"/>
-              <rect x="254" y="167" width="4.5" height="7" rx="2.2"/>
-              <rect x="262" y="167" width="4.5" height="7" rx="2.2"/>
-              <rect x="191" y="195" width="5" height="7" rx="2.5"/>
-              <rect x="246" y="190" width="5" height="8" rx="2.5"/>
-              <rect x="257" y="190" width="5" height="8" rx="2.5"/>
-            </g>
-          </g>
-
-          <!-- Harbor Quay Lanterns -->
-          <path d="M142,222 C195,216 260,212 340,214 L340,234 L135,230 Z" fill="#4A2F35"/>
-          <g fill="#FFE499">
-            <circle cx="176" cy="218" r="1.8"/>
-            <circle cx="204" cy="216" r="1.8"/>
-            <circle cx="234" cy="214" r="1.8"/>
-            <circle cx="266" cy="213" r="1.8"/>
-          </g>
-
-          <!-- Cypresses & Palm -->
-          <path d="M302,178 C303,152 306,136 308,126 C310,136 313,152 314,178 Z" fill="#181A24"/>
-          <path d="M332,195 Q328,158 323,130" stroke="#1A1521" stroke-width="3.2" fill="none"/>
-          <use href="#palm-crown-night" transform="translate(323,130) scale(0.72)"/>
-
-          <!-- Foreground Right Kurkar Archway Lit by Hanging Iron Lantern -->
-          <path d="M286,0 L390,0 L390,290 L352,290 L352,126 C352,66 320,24 286,0 Z" fill="#1D1524"/>
-          <path d="M286,0 C320,24 352,66 352,126 L352,275 L361,275 L361,124 C361,60 328,18 296,0 Z" fill="#8C533E"/>
-
-          <!-- Wrought-Iron Wall Lantern on Arch -->
-          <circle cx="332" cy="112" r="38" fill="url(#lantern-halo-night)"/>
-          <path d="M352,102 C344,102 336,100 332,104 L332,108" stroke="#1A1421" stroke-width="1.8" fill="none"/>
-          <path d="M327,108 L337,108 L335,120 L329,120 Z" fill="#FFEAA3" stroke="#1A1421" stroke-width="1.4"/>
-
-          <!-- Foreground Promenade -->
-          <path d="M0,256 C95,244 215,232 390,224 L390,300 L0,300 Z" fill="#7D5243"/>
-          <path d="M0,256 C95,244 215,232 360,225" stroke="#E8B482" stroke-width="1.5" fill="none" opacity="0.55"/>
-
-          <use href="#bougainvillea-spray-night" transform="translate(302, 12) rotate(18) scale(0.95)"/>
-          <use href="#bougainvillea-spray-night" transform="translate(334, 34) rotate(35) scale(0.85)"/>
-
-          <rect width="390" height="220" fill="url(#text-guard-night)"/>
-          
-          
-        </svg></div>
+        <header class="band band-plan band-plan-photo band-has-art"><div class="band-art band-art-photo" aria-hidden="true"></div>
           <div class="band-topbar">
             <span class="brand on-art hide-desktop">
               <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
@@ -2763,136 +2659,112 @@ SELF-CHECK ANSWERS:
          ======================================================= -->
     <section class="screen" data-id="walks" aria-label="My walks and friends">
       <header class="band band-walks band-has-art"><div class="band-art"><svg class="a-day" preserveAspectRatio="xMidYMax slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
-          <rect width="390" height="300" fill="url(#sky-day)"/>
-
-          <!-- Distant Carmel / Galilee-to-Jaffa Sweeping Horizon Clouds -->
-          <path d="M180,136 C245,126 325,128 385,138 C330,143 235,142 180,136 Z" fill="#F9CF93" opacity="0.34"/>
-
-          <!-- Distant Sunlit Headland Ridge (Jaffa / Bat Yam curve) -->
-          <path d="M0,184 C65,182 115,175 158,176 C182,176 198,184 215,186 L0,188 Z" fill="#9E3F1C" opacity="0.78"/>
-
-          <!-- Mediterranean Sea & Gentle Rolling Surf -->
-          <path d="M0,185 L390,185 L390,256 L0,256 Z" fill="#CC6E33" opacity="0.68"/>
-          <!-- Cream-gold foam lines curving into the bay -->
-          <path d="M24,204 C92,202 165,208 238,222" stroke="#FFE9BD" stroke-width="1.6" stroke-linecap="round" fill="none" opacity="0.78"/>
-          <path d="M58,216 C118,214 182,220 252,234" stroke="#FFE9BD" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.62"/>
-
-          <!-- Sandy Shoreline Curve -->
-          <path d="M85,238 C165,228 245,216 390,198 L390,275 L85,275 Z" fill="#E5A265"/>
-
-          <!-- Sweeping Tel Aviv Coastal Park Hill & Tayelet Promenade -->
-          <path d="M140,262 C208,228 286,192 390,178 L390,285 L120,285 Z" fill="#4A5936"/>
-          <path d="M155,264 C222,232 294,200 390,188 L390,285 L145,285 Z" fill="#D99255"/>
-
-          <!-- Classic Sunlit Limestone Balustrade Along the Promenade -->
-          <path d="M168,256 C230,224 298,196 390,184 L390,194 C298,206 230,234 168,264 Z" fill="#FADAB0"/>
-          <path d="M168,256 C230,224 298,196 390,184" stroke="#FFF4DC" stroke-width="1.6" fill="none"/>
-
-          <!-- Palm Trees Swaying in the Sea Breeze on Charles Clore Bluff -->
-          <g>
-            <path d="M336,192 Q330,152 322,122" stroke="#592611" stroke-width="3.2" fill="none"/>
-            <use href="#palm-crown-day" transform="translate(322,122) scale(0.76) rotate(-6)"/>
-
-            <path d="M366,188 Q364,142 358,106" stroke="#4D200E" stroke-width="3.6" fill="none"/>
-            <use href="#palm-crown-day" transform="translate(358,106) scale(0.88) rotate(5)"/>
-
-            <!-- Tamarisk / Coastal Pine Cushion -->
-            <path d="M304,198 C312,184 332,182 344,192 C354,182 374,182 386,192 L304,198 Z" fill="#364227"/>
-          </g>
-
-          <!-- Two Expressive Walkers (Friends) Strolling Together on the Promenade -->
-          <g transform="translate(264, 185)">
-            <!-- Long golden-hour cast shadows -->
-            <ellipse cx="12" cy="24" rx="10" ry="2" fill="#8C3D19" opacity="0.45"/>
-            <ellipse cx="26" cy="22" rx="10" ry="2" fill="#8C3D19" opacity="0.45"/>
-            <!-- Friend 1 (left, mid-stride with daypack) -->
-            <circle cx="6" cy="4" r="2.7" fill="#4A1A0A"/>
-            <path d="M5,7 L8,7 L9,15 L4,15 Z" fill="#FFF0D4"/>
-            <path d="M8,8 C11,8 11,13 8,14 Z" fill="#C94A29"/>
-            <path d="M5,15 L3,23 M8,15 L10,23" stroke="#4A1A0A" stroke-width="1.8" stroke-linecap="round"/>
-            <!-- Friend 2 (right, sunhat & flowing jacket) -->
-            <circle cx="19" cy="3" r="2.6" fill="#4A1A0A"/>
-            <ellipse cx="19" cy="2.2" rx="4.8" ry="1.3" fill="#FAD79B"/>
-            <path d="M17,6 L21,6 L23,15 L16,15 Z" fill="#E0533C"/>
-            <path d="M18,15 L16,22 M20,15 L23,22" stroke="#4A1A0A" stroke-width="1.8" stroke-linecap="round"/>
-          </g>
-
-          <!-- Distant Sailboat & Sea Swifts -->
-          <g transform="translate(128, 181)">
-            <path d="M0,5 L14,5 L12,7.5 L2,7.5 Z" fill="#59220E"/>
-            <path d="M7,5 L7,-6 L13,4 Z" fill="#FFF2D2"/>
-          </g>
-          <use href="#swift" transform="translate(242, 98) scale(0.52) rotate(-10)" fill="#591E0B" opacity="0.72"/>
-          <use href="#swift" transform="translate(262, 88) scale(0.4) rotate(4)" fill="#591E0B" opacity="0.6"/>
-
-          <rect width="390" height="210" fill="url(#text-guard-day)"/>
-          
-          
-        </svg><svg class="a-night" preserveAspectRatio="xMidYMax slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
-          <rect width="390" height="300" fill="url(#sky-night)"/>
-
-          <!-- Evening Stars -->
-          <g fill="#FFF2CC">
-            <circle cx="210" cy="48" r="1.2" opacity="0.85"/>
-            <circle cx="268" cy="36" r="1" opacity="0.7"/>
-            <circle cx="312" cy="58" r="1.3" opacity="0.85"/>
-            <circle cx="164" cy="70" r="0.9" opacity="0.55"/>
-          </g>
-
-          <!-- Distant Headland with Necklace of Harbor Lights -->
-          <path d="M0,184 C65,182 115,175 158,176 C182,176 198,184 215,186 L0,188 Z" fill="#23192E"/>
-          <g fill="#FFE08C" opacity="0.85">
-            <circle cx="88" cy="182" r="1.1"/>
-            <circle cx="104" cy="180" r="1.2"/>
-            <circle cx="122" cy="179" r="1.3"/>
-            <circle cx="138" cy="178" r="1.1"/>
-            <circle cx="154" cy="178" r="1.4"/>
-            <circle cx="172" cy="180" r="1.1"/>
-          </g>
-
-          <!-- Night Sea & Shimmering Reflections -->
-          <path d="M0,185 L390,185 L390,256 L0,256 Z" fill="#292038" opacity="0.88"/>
-          <path d="M24,204 C92,202 165,208 238,222" stroke="#F7C98B" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.45"/>
-          <path d="M98,192 L176,192" stroke="#FFD984" stroke-width="1" stroke-dasharray="3 6" opacity="0.55"/>
-
-          <!-- Night Beach & Promenade -->
-          <path d="M85,238 C165,228 245,216 390,198 L390,275 L85,275 Z" fill="#593B42"/>
-          <path d="M140,262 C208,228 286,192 390,178 L390,285 L120,285 Z" fill="#1F2429"/>
-          <path d="M155,264 C222,232 294,200 390,188 L390,285 L145,285 Z" fill="#6E4A47"/>
-
-          <!-- Promenade Balustrade & Warm Globe Lamps -->
-          <path d="M168,256 C230,224 298,196 390,184 L390,194 C298,206 230,234 168,264 Z" fill="#9E6E62"/>
-          <!-- Glowing Promenade Lamps -->
-          <g>
-            <circle cx="235" cy="212" r="22" fill="url(#lantern-halo-night)"/>
-            <line x1="235" y1="212" x2="235" y2="226" stroke="#1A1524" stroke-width="1.6"/>
-            <circle cx="235" cy="211" r="2.6" fill="#FFF0B8"/>
-
-            <circle cx="298" cy="188" r="26" fill="url(#lantern-halo-night)"/>
-            <line x1="298" y1="188" x2="298" y2="203" stroke="#1A1524" stroke-width="1.8"/>
-            <circle cx="298" cy="187" r="2.8" fill="#FFF0B8"/>
-          </g>
-
-          <!-- Night Palms -->
-          <path d="M336,192 Q330,152 322,122" stroke="#1A1521" stroke-width="3.2" fill="none"/>
-          <use href="#palm-crown-night" transform="translate(322,122) scale(0.76) rotate(-6)"/>
-          <path d="M366,188 Q364,142 358,106" stroke="#1A1521" stroke-width="3.6" fill="none"/>
-          <use href="#palm-crown-night" transform="translate(358,106) scale(0.88) rotate(5)"/>
-
-          <!-- Two Evening Walkers Under Lantern Glow -->
-          <g transform="translate(264, 185)">
-            <circle cx="6" cy="4" r="2.7" fill="#181221"/>
-            <path d="M5,7 L8,7 L9,15 L4,15 Z" fill="#FFD996"/>
-            <path d="M5,15 L3,23 M8,15 L10,23" stroke="#181221" stroke-width="1.8" stroke-linecap="round"/>
-            <circle cx="19" cy="3" r="2.6" fill="#181221"/>
-            <path d="M17,6 L21,6 L23,15 L16,15 Z" fill="#C95249"/>
-            <path d="M18,15 L16,22 M20,15 L23,22" stroke="#181221" stroke-width="1.8" stroke-linecap="round"/>
-          </g>
-
-          <rect width="390" height="210" fill="url(#text-guard-night)"/>
-          
-          
-        </svg></div>
+<defs>
+<linearGradient id="w_s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A3311"/><stop offset=".62" stop-color="#B85016"/><stop offset=".8" stop-color="#E8A465"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
+<linearGradient id="w_w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A8481A"/><stop offset=".3" stop-color="#DE9A5C"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
+<radialGradient id="w_u" gradientUnits="userSpaceOnUse" cx="130" cy="192" r="50"><stop offset="0" stop-color="#FFC27A" stop-opacity=".24"/><stop offset="1" stop-color="#FFC27A" stop-opacity="0"/></radialGradient>
+<linearGradient id="w_f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".74" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+<mask id="w_m"><rect width="390" height="300" fill="url(#w_f)"/></mask>
+<filter id="w_g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .1 0 0 0 0 .05 0 0 0 0 .02 0 0 0 .5 -.17"/></filter>
+</defs>
+<g mask="url(#w_m)">
+<rect width="390" height="300" fill="url(#w_s)"/>
+<g stroke="#F2B36B" stroke-linecap="round" fill="none" opacity=".16">
+<path d="M250 132h70" stroke-width="7"/><path d="M286 144h80" stroke-width="5"/><path d="M20 176h70" stroke-width="5"/><path d="M330 60h36" stroke-width="5"/>
+</g>
+<circle cx="130" cy="192" r="50" fill="url(#w_u)"/>
+<circle cx="130" cy="192" r="16" fill="#FCE3B0"/>
+<path d="M0 190V181H20V177H28V181H50V173H56V181H80V178H90V183L130 185L170 187L210 190Z" fill="#8F3A14" opacity=".55"/>
+<rect y="190" width="390" height="110" fill="url(#w_w)"/>
+<g stroke="#FCE3B0" stroke-linecap="round" opacity=".8">
+<path d="M118 197h24" stroke-width="3"/><path d="M110 204h40" stroke-width="3"/><path d="M122 211h18" stroke-width="2.5"/><path d="M114 218h30" stroke-width="2"/><path d="M126 225h12" stroke-width="2"/>
+</g>
+<path d="M150 190L176 185H190V177H206V170H222V163H238V156H258V126L262 113L266 126V148H284V156L330 152L390 150V300H190Z" fill="#6E2A12"/>
+<g fill="#F6C27A" opacity=".7"><rect x="212" y="176" width="3" height="4"/><rect x="228" y="170" width="3" height="4"/><rect x="244" y="164" width="3" height="4"/><rect x="272" y="156" width="3" height="4"/></g>
+<g stroke="#3A1D14" stroke-width="1.6" stroke-linecap="round" fill="none"><path d="M246 98q4 -4 7 0q3 -4 7 0"/><path d="M272 84q3 -3 5 0q2 -3 5 0"/></g>
+<g fill="#3A1D14">
+<rect x="290" y="140" width="24" height="46"/><rect x="292" y="112" width="20" height="28"/><rect x="288" y="137" width="28" height="4"/><rect x="290" y="109" width="24" height="4"/><rect x="294" y="97" width="16" height="13"/><path d="M292 98L302 80L312 98Z"/><rect x="291" y="91" width="3" height="7"/><rect x="310" y="91" width="3" height="7"/>
+</g>
+<path d="M302 81V73" stroke="#3A1D14" stroke-width="2" stroke-linecap="round"/>
+<g fill="#E0733A" opacity=".75"><rect x="290" y="141" width="6" height="45"/><rect x="292" y="113" width="5" height="24"/><rect x="294" y="98" width="4" height="11"/></g>
+<path d="M299 162v-7a3 3 0 0 1 6 0v7z" fill="#1B2620"/>
+<circle cx="302" cy="124" r="6.5" fill="#F8F3EA" stroke="#1B2620" stroke-width="2"/>
+<path d="M302 124V120M302 124L305 126" stroke="#1B2620" stroke-width="1.5" stroke-linecap="round"/>
+<g fill="#4E2212">
+<path d="M186 222Q226 198 258 192V184H274V176H290V184H316V176H330V168H346Q353 154 360 168V174H390V300H186Z"/>
+<rect x="322" y="136" width="4" height="40"/><rect x="320.500" y="148" width="7" height="2.500"/><path d="M321 136L324 126L327 136Z"/>
+</g>
+<g fill="#F6C27A" opacity=".75"><rect x="264" y="190" width="3" height="5"/><rect x="280" y="184" width="3" height="5"/><rect x="334" y="176" width="3" height="5"/><rect x="350" y="174" width="3" height="5"/><rect x="372" y="182" width="3" height="5"/></g>
+<g fill="#1B2620"><path d="M46 216h30l-5 7h-20z"/><path d="M168 207h16l-3 4h-10z"/></g>
+<path d="M60 216V197M176 207V196" stroke="#1B2620" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M62 199V213H73Z" fill="#F8F3EA" opacity=".85"/>
+<path d="M0 238Q60 228 130 233T250 228L390 216V300H0Z" fill="#1B2620"/>
+<g stroke="#1B2620" stroke-linecap="round" fill="none">
+<path d="M368 236Q360 190 364 146" stroke-width="5"/>
+<g stroke-width="4"><path d="M364 146q-12 -10 -26 2"/><path d="M364 146q-8 -18 -22 -16"/><path d="M364 146q2 -16 -6 -24"/><path d="M364 146q10 -16 22 -10"/><path d="M364 146q14 -6 22 8"/><path d="M364 146q-4 8 -16 14"/></g>
+</g>
+<g fill="#B8325E"><circle cx="378" cy="204" r="8"/><circle cx="366" cy="210" r="7"/><circle cx="352" cy="213" r="5"/><circle cx="384" cy="194" r="5"/></g>
+<g fill="#D9567A"><circle cx="374" cy="200" r="3.500"/><circle cx="362" cy="207" r="3"/><circle cx="382" cy="208" r="2.500"/><circle cx="351" cy="211" r="2"/></g>
+<path d="M56 246C120 236 170 250 214 232S262 204 300 190" fill="none" stroke="#F8F3EA" stroke-width="3" stroke-linecap="round"/>
+<g fill="#F8F3EA" stroke="#1B2620" stroke-width="2.500">
+<circle cx="56" cy="246" r="5"/><circle cx="142.500" cy="242" r="5.500"/><circle cx="214" cy="232" r="6"/><circle cx="259" cy="209.500" r="6.500"/><circle cx="300" cy="190" r="8" fill="#D2602F"/>
+</g>
+<rect width="390" height="300" filter="url(#w_g)"/>
+</g>
+</svg><svg class="a-night" preserveAspectRatio="xMidYMax slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg" style="filter:brightness(.55) saturate(.85)">
+<defs>
+<linearGradient id="w_s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A3311"/><stop offset=".62" stop-color="#B85016"/><stop offset=".8" stop-color="#E8A465"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
+<linearGradient id="w_w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A8481A"/><stop offset=".3" stop-color="#DE9A5C"/><stop offset="1" stop-color="#F8F3EA"/></linearGradient>
+<radialGradient id="w_u" gradientUnits="userSpaceOnUse" cx="130" cy="192" r="50"><stop offset="0" stop-color="#FFC27A" stop-opacity=".24"/><stop offset="1" stop-color="#FFC27A" stop-opacity="0"/></radialGradient>
+<linearGradient id="w_f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".74" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+<mask id="w_m"><rect width="390" height="300" fill="url(#w_f)"/></mask>
+<filter id="w_g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .1 0 0 0 0 .05 0 0 0 0 .02 0 0 0 .5 -.17"/></filter>
+</defs>
+<g mask="url(#w_m)">
+<rect width="390" height="300" fill="url(#w_s)"/>
+<g stroke="#F2B36B" stroke-linecap="round" fill="none" opacity=".16">
+<path d="M250 132h70" stroke-width="7"/><path d="M286 144h80" stroke-width="5"/><path d="M20 176h70" stroke-width="5"/><path d="M330 60h36" stroke-width="5"/>
+</g>
+<circle cx="130" cy="192" r="50" fill="url(#w_u)"/>
+<circle cx="130" cy="192" r="16" fill="#FCE3B0"/>
+<path d="M0 190V181H20V177H28V181H50V173H56V181H80V178H90V183L130 185L170 187L210 190Z" fill="#8F3A14" opacity=".55"/>
+<rect y="190" width="390" height="110" fill="url(#w_w)"/>
+<g stroke="#FCE3B0" stroke-linecap="round" opacity=".8">
+<path d="M118 197h24" stroke-width="3"/><path d="M110 204h40" stroke-width="3"/><path d="M122 211h18" stroke-width="2.5"/><path d="M114 218h30" stroke-width="2"/><path d="M126 225h12" stroke-width="2"/>
+</g>
+<path d="M150 190L176 185H190V177H206V170H222V163H238V156H258V126L262 113L266 126V148H284V156L330 152L390 150V300H190Z" fill="#6E2A12"/>
+<g fill="#F6C27A" opacity=".7"><rect x="212" y="176" width="3" height="4"/><rect x="228" y="170" width="3" height="4"/><rect x="244" y="164" width="3" height="4"/><rect x="272" y="156" width="3" height="4"/></g>
+<g stroke="#3A1D14" stroke-width="1.6" stroke-linecap="round" fill="none"><path d="M246 98q4 -4 7 0q3 -4 7 0"/><path d="M272 84q3 -3 5 0q2 -3 5 0"/></g>
+<g fill="#3A1D14">
+<rect x="290" y="140" width="24" height="46"/><rect x="292" y="112" width="20" height="28"/><rect x="288" y="137" width="28" height="4"/><rect x="290" y="109" width="24" height="4"/><rect x="294" y="97" width="16" height="13"/><path d="M292 98L302 80L312 98Z"/><rect x="291" y="91" width="3" height="7"/><rect x="310" y="91" width="3" height="7"/>
+</g>
+<path d="M302 81V73" stroke="#3A1D14" stroke-width="2" stroke-linecap="round"/>
+<g fill="#E0733A" opacity=".75"><rect x="290" y="141" width="6" height="45"/><rect x="292" y="113" width="5" height="24"/><rect x="294" y="98" width="4" height="11"/></g>
+<path d="M299 162v-7a3 3 0 0 1 6 0v7z" fill="#1B2620"/>
+<circle cx="302" cy="124" r="6.5" fill="#F8F3EA" stroke="#1B2620" stroke-width="2"/>
+<path d="M302 124V120M302 124L305 126" stroke="#1B2620" stroke-width="1.5" stroke-linecap="round"/>
+<g fill="#4E2212">
+<path d="M186 222Q226 198 258 192V184H274V176H290V184H316V176H330V168H346Q353 154 360 168V174H390V300H186Z"/>
+<rect x="322" y="136" width="4" height="40"/><rect x="320.500" y="148" width="7" height="2.500"/><path d="M321 136L324 126L327 136Z"/>
+</g>
+<g fill="#F6C27A" opacity=".75"><rect x="264" y="190" width="3" height="5"/><rect x="280" y="184" width="3" height="5"/><rect x="334" y="176" width="3" height="5"/><rect x="350" y="174" width="3" height="5"/><rect x="372" y="182" width="3" height="5"/></g>
+<g fill="#1B2620"><path d="M46 216h30l-5 7h-20z"/><path d="M168 207h16l-3 4h-10z"/></g>
+<path d="M60 216V197M176 207V196" stroke="#1B2620" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M62 199V213H73Z" fill="#F8F3EA" opacity=".85"/>
+<path d="M0 238Q60 228 130 233T250 228L390 216V300H0Z" fill="#1B2620"/>
+<g stroke="#1B2620" stroke-linecap="round" fill="none">
+<path d="M368 236Q360 190 364 146" stroke-width="5"/>
+<g stroke-width="4"><path d="M364 146q-12 -10 -26 2"/><path d="M364 146q-8 -18 -22 -16"/><path d="M364 146q2 -16 -6 -24"/><path d="M364 146q10 -16 22 -10"/><path d="M364 146q14 -6 22 8"/><path d="M364 146q-4 8 -16 14"/></g>
+</g>
+<g fill="#B8325E"><circle cx="378" cy="204" r="8"/><circle cx="366" cy="210" r="7"/><circle cx="352" cy="213" r="5"/><circle cx="384" cy="194" r="5"/></g>
+<g fill="#D9567A"><circle cx="374" cy="200" r="3.500"/><circle cx="362" cy="207" r="3"/><circle cx="382" cy="208" r="2.500"/><circle cx="351" cy="211" r="2"/></g>
+<path d="M56 246C120 236 170 250 214 232S262 204 300 190" fill="none" stroke="#F8F3EA" stroke-width="3" stroke-linecap="round"/>
+<g fill="#F8F3EA" stroke="#1B2620" stroke-width="2.500">
+<circle cx="56" cy="246" r="5"/><circle cx="142.500" cy="242" r="5.500"/><circle cx="214" cy="232" r="6"/><circle cx="259" cy="209.500" r="6.500"/><circle cx="300" cy="190" r="8" fill="#D2602F"/>
+</g>
+<rect width="390" height="300" filter="url(#w_g)"/>
+</g>
+</svg></div>
         <div class="band-topbar">
           <span class="brand on-art hide-desktop">
             <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
@@ -2914,21 +2786,13 @@ SELF-CHECK ANSWERS:
             <h1 class="band-title" data-en>My walks &amp; friends</h1>
             <h1 class="band-title" data-he>המסלולים שלי וחברים</h1>
             <div class="walks-mileage-trail">
-              <svg class="walks-mileage-svg rtl-flip" viewBox="0 0 112 18" fill="none" aria-hidden="true">
-                <path d="M9 9H103" stroke="var(--on-art)" stroke-width="2.4" stroke-linecap="round"/>
-                <circle cx="9" cy="9" r="5.5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
-                <circle cx="40" cy="9" r="5.5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
-                <circle cx="71" cy="9" r="5.5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
-                <circle cx="103" cy="9" r="6.5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
-                <circle cx="103" cy="9" r="2.8" fill="var(--leather)"/>
-              </svg>
+              
               <span class="walks-mileage-txt" data-en>12 walks · 48.4 km</span>
               <span class="walks-mileage-txt" data-he><bdi>12</bdi> הליכות · <bdi>48.4</bdi> ק״מ</span>
             </div>
           </div>
 
-          <div class="jaffa-window walks-arch" aria-hidden="true"></div>
-        </div>
+          </div>
       </header>
 
       <div class="sheet">
