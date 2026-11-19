@@ -218,3 +218,34 @@ Radius 6 on every control (buttons, chips, paper tags, inputs, segmented, tab pi
 - [ ] Bans: no green dots/pills, glows/orbs, purple/blue gradients, nested cards, accent-rail borders, border-only selection, eyebrow labels, emoji, Inter/Heebo/Fraunces/default Lucide, text <13px.
 - [ ] Would someone who loves round 5 call this "the same app, finally made by one hand"?
 ```
+
+
+# ROUND 9 — OWNER: "OK, BUT MORE UNIQUE AND HIGH QUALITY, AND WHY IS EVERY SCREEN THE SAME AT THE TOP?" + "THE TOP IMAGE NEEDS A COMPLETE REDESIGN." + "GIVE GEMINI MORE FREEDOM IF IT UNDERSTANDS THE PRINCIPLES."
+
+You have more freedom this round. Below are principles and hard limits, not pixel recipes. Decide the compositions yourself.
+
+## What stays (approved, do not touch)
+Everything below the header: hard-edged sheet, dense rows, solid Pine selected row, ONE leather primary button with dark lip, giant serif numeral, map as the star, Ring/Trail/Paper identity from round 8, Frank Ruhl Libre + Assistant, cream-paper location chip with Ring, tab bar, desktop rail, tokens from round 8. The Me header (smooth sunset gradient, no art) was loved.
+
+## What you redesign: the whole top of every screen
+Owner: the top image/header needs a complete redesign. Round 8 failed because (a) the same city-painting strip with the same tint sat on every screen, (b) the day tint was muddy brown-purple, (c) on phone Home there was empty orange area under the text, (d) the compass touched the header/sheet seam.
+Principles:
+1. EACH SCREEN GETS ITS OWN TOP, built as one family (same sky language, same Ring/Trail/Paper vocabulary, same melt into the sheet) but a different composition: Home, Plan, Walk, Walks, Me, Login must not be recognisable as the same header with different text.
+2. Make the sky beautiful first: a clean, smooth sunset (day) and dusk (night) gradient like the loved Me header. Art is an accent in that sky, never a tinted photo strip. If an asset looks muddy, washed out or blurred after blending, do not use it. Fewer, better elements beat a full-width picture.
+3. Use only real assets and vector you draw: assets/city-hero-day.jpg / city-hero-night.jpg (crop, mask or use only the parts that look good; day file is washed out on the right and plain on the left), guide.jpg / guide-night.jpg, compass.png, boot.png, pin.png, empty-walks art, theme thumbnails, the real map. You may draw Trail lines, Rings, simple skyline silhouettes or a sun disc in SVG/CSS if they look crafted, not clip-art. Traike is Israeli city walking: no alpine mountains, no tents.
+4. Every header carries meaning for its screen: Home = invitation to the suggested walk (maybe the route trail climbing into the sky); Plan = conversation with the guide; Walk = live, the next turn, may be map-led; Walks = your history; Me = calm sunset only; Login = welcome. You may propose that a header shows the map or a route trail instead of a picture.
+5. No empty colour block, no element touching the header/sheet seam by accident, nothing covering text. Text on the sky must keep AA contrast.
+6. Dimensions are yours to choose, but the sheet must start no later than round 8 (phone <= 330px band) so the content stays above the fold.
+7. RTL: a Hebrew screen is a designed mirror, not a flipped image with broken composition. Check each header in HE.
+8. Day and night are both first class; night must not just darken day.
+
+## Deliverable
+ONE self-contained HTML file, same toggles setDevice/setLang/setTheme/setScreen, screens home/plan/walk/walks/me/login, phone 390 + desktop 1180, EN + HE, day + night. Asset paths assets/... Output only the HTML.
+Inside the HTML, in an HTML comment at the top, give 3 lines per screen: what the top shows and why, so the owner can read the intent.
+
+## Self-check (answer in the comment too)
+- [ ] Put the six phone tops side by side: are they six distinct compositions of one family?
+- [ ] Is the sky smooth, with no muddy tint, seam or smudge, day and night?
+- [ ] Any empty area, collision, or text under 14px or below AA?
+- [ ] Is everything below the header unchanged from round 8 apart from header-driven spacing?
+- [ ] Bans: green dots/pills, glows/orbs, purple/blue gradients, nested cards, accent-rail borders, border-only selection, eyebrow labels, emoji, Inter/Heebo/Fraunces/default Lucide, text <13px.
