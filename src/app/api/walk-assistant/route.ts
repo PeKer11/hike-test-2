@@ -58,8 +58,17 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const t = body.timing as Record<string, unknown> | undefined;
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(-2880, Math.min(2880, Math.round(v))) : null);
+  const kmh = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0.5 && v <= 15 ? Math.round(v * 10) / 10 : null);
   const timing = t
-    ? { elapsedMin: num(t.elapsedMin), remainingMin: num(t.remainingMin), availableMin: num(t.availableMin), overBudget: t.overBudget === true }
+    ? {
+        elapsedMin: num(t.elapsedMin),
+        remainingMin: num(t.remainingMin),
+        availableMin: num(t.availableMin),
+        overBudget: t.overBudget === true,
+        plannedKmh: kmh(t.plannedKmh),
+        measuredKmh: kmh(t.measuredKmh),
+        spareMin: num(t.spareMin),
+      }
     : undefined;
 
   const supabase = await createClient();

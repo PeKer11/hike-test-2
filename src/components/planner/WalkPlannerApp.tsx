@@ -3584,12 +3584,24 @@ export function WalkPlannerApp({
         amenities: chatAmenityItems(route.discovery),
         position: snap.tick.position,
         timing: walkStats
-          ? {
-              elapsedMin: Math.round(walkStats.elapsedMin),
-              remainingMin: walkStats.timeToFinishMin === null ? null : Math.round(walkStats.timeToFinishMin),
-              availableMin: walkInputRef.current?.availableMinutes ?? 0,
-              overBudget: walkStats.overBudget,
-            }
+          ? (() => {
+              const available = walkInputRef.current?.availableMinutes ?? 0;
+              const planned = walkInputRef.current?.walkingPaceMinPerKm;
+              const measured = latestPaceUpdateRef.current?.paceMinPerKm;
+              const toKmh = (p?: number | null) => (p && p > 0 ? Math.round((60 / p) * 10) / 10 : null);
+              return {
+                elapsedMin: Math.round(walkStats.elapsedMin),
+                remainingMin: walkStats.timeToFinishMin === null ? null : Math.round(walkStats.timeToFinishMin),
+                availableMin: available,
+                overBudget: walkStats.overBudget,
+                plannedKmh: toKmh(planned),
+                measuredKmh: toKmh(measured),
+                spareMin:
+                  available > 0 && walkStats.timeToFinishMin !== null
+                    ? Math.round(available - walkStats.elapsedMin - walkStats.timeToFinishMin)
+                    : null,
+              };
+            })()
           : undefined,
       };
     },

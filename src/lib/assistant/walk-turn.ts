@@ -8,11 +8,14 @@ import { cleanUntrustedText, UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "@/lib/
 import { BilledFailureError } from "@/lib/llm/types";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
+import { parseIntent } from "@/lib/walk/chat/intent";
 import { parseToolArgs, WALK_TOOL_ARGS } from "./tool-schemas";
 
 const MAX_MODEL_CALLS = 5;
 /** Tool calls one turn may run in total, so a hijacked model cannot loop the paid map APIs. */
 const MAX_TOOL_CALLS = 8;
+/** Clearly ahead of time: a model-proposed skip is dropped unless the walker asked for one. */
+const AHEAD_NO_SKIP_MIN = 15;
 const MAX_OUTPUT_TOKENS = 1500;
 const TURN_TIMEOUT_MS = 30_000;
 const CATEGORIES: AttractionCategory[] = ["food", "nature", "park", "museum", "landmark", "viewpoint", "religious", "shopping", "entertainment", "other"];
@@ -23,7 +26,7 @@ export const WALK_SYSTEM = `You are Traike's companion for a walker who is walki
 - If they ask for several changes (add two places, remove one, swap one), call a propose_ tool for EVERY one of them in the same turn; the app combines them into one button. If they ask to remove a stop, always call propose_skip_stop for it, even if they asked before.
 - If they ask you to add or pick a stop, choose the best fit yourself (find_places, then propose_add_stop for ONE place) say in a few words why it suits them, and end by asking whether it fits or they want another. If they asked you to ask first, do not search yet: ask one short question about the kind of place they want.
 - Use what you know about the walker (below) to choose; never ask again for what you already know. When they tell you something lasting about themselves (diet, mobility, kids or a dog, strong likes or dislikes), call remember once. Never remember one-off requests.
-- Off route, or short on time: bring a first proposal and ask, never decide for them. If the time is over (see Time), say so, propose which ONE stop to cut and why, and ask; offer another candidate if they refuse. If a remaining stop is far or they say they dislike it but really want another, offer to drop the others instead. If the order of the stops may no longer suit them (hunger, closing time), ask before suggesting a new order. Always end with propose_skip_stop / propose_add_stop buttons for what you suggest.
+- Off route, or short on time (see Pace: behind means one stop to cut or more time; ahead means one stop to add or a longer loop): bring a first proposal and ask, never decide for them. If the time is over (see Time), say so, propose which ONE stop to cut and why, and ask; offer another candidate if they refuse. If a remaining stop is far or they say they dislike it but really want another, offer to drop the others instead. If the order of the stops may no longer suit them (hunger, closing time), ask before suggesting a new order. Always end with propose_skip_stop / propose_add_stop buttons for what you suggest.
 - You do not know opening hours, prices or crowds; say so rather than guess.`;
 
 const TOOLS: ToolDef[] = [
@@ -82,11 +85,38 @@ export type WalkAction =
   | { kind: "skip-stop"; stopIndex: number }
   | { kind: "head-back" };
 
+export interface WalkTiming {
+  elapsedMin: number | null;
+  remainingMin: number | null;
+  availableMin: number | null;
+  overBudget: boolean;
+  /** Pace the walk is planned at and the walker's measured speed, km/h. */
+  plannedKmh?: number | null;
+  measuredKmh?: number | null;
+  /** Allowed minus (walked + projected remaining). Positive = ahead, negative = behind. */
+  spareMin?: number | null;
+}
+
+/** Spare minutes within this either way: say nothing about pace. */
+export const PACE_QUIET_MIN = 8;
+
+/** The fixed pace sentence for the model; only the numbers vary. Empty while on schedule. */
+export function paceLine(t: WalkTiming): string {
+  const spare = t.spareMin;
+  if (typeof spare !== "number" || !Number.isFinite(spare) || Math.abs(spare) < PACE_QUIET_MIN) return "";
+  const speeds =
+    t.plannedKmh && t.measuredKmh ? ` The walk is planned at ${t.plannedKmh} km/h; the walker is moving at ${t.measuredKmh} km/h.` : "";
+  const n = Math.abs(Math.round(spare));
+  return spare > 0
+    ? `\nPace:${speeds} They are about ${n} min AHEAD of time. Ahead means offer to add a stop or a longer loop; never propose cutting a stop unless the walker asks.`
+    : `\nPace:${speeds} They are about ${n} min BEHIND. Behind means offer more time or skipping one stop.`;
+}
+
 export interface WalkTurnInput {
   history: Array<{ role: "user" | "assistant"; content: string }>;
   position: Coordinates;
   stops: string[];
-  timing?: { elapsedMin: number | null; remainingMin: number | null; availableMin: number | null; overBudget: boolean };
+  timing?: WalkTiming;
   /** What is already remembered about the walker (see route.ts). */
   memoryNote?: string;
   choice: ProviderChoice;
@@ -108,7 +138,7 @@ export async function runWalkTurn(
   const ceiling = input.costCeilingMicros ?? ceilingMicros("WALK_TURN_CEILING_USD", 0.08);
   // Numbers only in the system prompt; stop names and saved memory are outside text and go in as fenced data.
   const ctx = input.timing
-    ? `\nTime: ${input.timing.elapsedMin ?? "?"} min walked, about ${input.timing.remainingMin ?? "?"} min left to finish, ${input.timing.availableMin ?? "?"} min allowed${input.timing.overBudget ? " — OVER the allowed time" : ""}.`
+    ? `\nTime: ${input.timing.elapsedMin ?? "?"} min walked, about ${input.timing.remainingMin ?? "?"} min left to finish, ${input.timing.availableMin ?? "?"} min allowed${input.timing.overBudget ? " — OVER the allowed time" : ""}.${paceLine(input.timing)}`
     : "";
   const stopsText = input.stops.length ? input.stops.map((s, i) => `${i + 1}. ${cleanUntrustedText(s, 80)}`).join("; ") : "none";
   const background = [
@@ -196,7 +226,15 @@ export async function runWalkTurn(
           } else output = { error: "unknown place_id" };
         } else if (name === "propose_skip_stop") {
           const idx = Number(args.stop_number) - 1;
-          if (Number.isInteger(idx) && idx >= 0 && idx < input.stops.length) {
+          const lastUser = [...input.history].reverse().find((m) => m.role === "user")?.content ?? "";
+          const aheadNoAsk =
+            typeof input.timing?.spareMin === "number" &&
+            input.timing.spareMin > AHEAD_NO_SKIP_MIN &&
+            parseIntent(lastUser, []).intent !== "skip" &&
+            parseIntent(lastUser, []).intent !== "shorter";
+          if (aheadNoAsk) {
+            output = { error: "the walker is ahead of time and did not ask to cut; offer adding a stop or a longer loop instead" };
+          } else if (Number.isInteger(idx) && idx >= 0 && idx < input.stops.length) {
             actions.push({ kind: "skip-stop", stopIndex: idx });
             output = { ok: true };
           } else output = { error: "no such stop" };
