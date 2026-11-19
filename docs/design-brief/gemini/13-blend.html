@@ -54,7 +54,7 @@ SELF-CHECK ANSWERS:
 <title>Traike — Trail Mark on Limestone (Round 9)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@600;700&family=Assistant:wght@400;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@500;600;700&family=Frank+Ruhl+Libre:wght@600;700&family=Assistant:wght@400;600;700&display=swap" rel="stylesheet" />
 <style>
   /* =========================================================
      1. "TRAIL MARK ON LIMESTONE" — ROLE TOKENS (DAY & NIGHT)
@@ -126,8 +126,8 @@ SELF-CHECK ANSWERS:
     --sky-arch-stroke: rgba(255, 245, 232, 0.34);
     --sky-silhouette: rgba(92, 30, 8, 0.32);
 
-    --font-serif: 'Frank Ruhl Libre', serif;
-    --font-sans: 'Assistant', sans-serif;
+    --font-serif: 'Fraunces','Frank Ruhl Libre', serif;
+    --font-sans: 'Manrope','Assistant', sans-serif;
 
     --fs-hero: 72px;
     --fs-title: 28px;
@@ -1653,6 +1653,19 @@ SELF-CHECK ANSWERS:
   .loc-chip .ring{border-color:var(--leather,#C4673A)!important}
   .loc-chip .ring.now{background:var(--leather,#C4673A)!important}
   .band-home-hero .loc-chip{background:var(--paper,#F7F1E8)!important;color:var(--ink,#14110E)!important;border:1.5px solid var(--btn-border,#1F251F)!important}
+
+  /* ROUND 13g: no guide on Home; location = quiet text on photo bands; real Traike icon; Fraunces + Manrope */
+  .brand-mark{width:30px;height:30px;border-radius:8px;display:block;object-fit:cover}
+  .band-plan-photo .band-topbar .loc-chip,.band-plan-photo .band-topbar button.loc-chip,.band-home-hero .loc-chip{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:var(--on-art)!important;padding:4px 2px!important;font-weight:600;letter-spacing:.02em;text-shadow:0 1px 8px rgba(0,0,0,.35);text-decoration:underline;text-decoration-color:rgba(255,247,236,.45);text-underline-offset:5px}
+  .band-plan-photo .band-topbar .loc-chip .ring{border-color:var(--leather)!important}
+  .band-plan-photo .band-topbar .loc-chip .ring.now{background:var(--leather)!important}
+  .band-title,.speech-title,.hero-num{font-optical-sizing:auto;letter-spacing:-.01em}
+  .band-home-hero .band-topbar .loc-chip,.band-home-hero .band-topbar button.loc-chip{color:var(--ink,#14110E)!important;text-shadow:none;text-decoration-color:rgba(20,17,14,.35)}
+  /* Home variant: forest photo (meadow-hiker), fully visible, white type */
+  html[data-homebg="forest"] .band-art-home{background:url(assets/meadow-hiker.jpg) 50% 38%/cover no-repeat!important}
+  html[data-homebg="forest"] .band-art-home::before{background:linear-gradient(180deg,rgba(14,22,16,.50) 0%,rgba(14,22,16,.12) 38%,rgba(14,22,16,0) 62%,rgba(247,241,232,.55) 88%,var(--paper,#F7F1E8) 100%)!important;mix-blend-mode:normal!important;opacity:1!important}
+  html[data-homebg="forest"] .band-home-hero .brand-word,html[data-homebg="forest"] .band-home-hero .hero-num,html[data-homebg="forest"] .band-home-hero .hero-unit,html[data-homebg="forest"] .band-home-hero .band-facts{color:#FFF8EE!important;text-shadow:0 2px 14px rgba(0,0,0,.45)}
+  html[data-homebg="forest"] .band-home-hero .band-topbar .loc-chip,html[data-homebg="forest"] .band-home-hero .band-topbar button.loc-chip{color:#FFF8EE!important;text-shadow:0 1px 10px rgba(0,0,0,.5);text-decoration-color:rgba(255,248,238,.55)}
 </style>
 </head>
 <body>
@@ -1793,6 +1806,10 @@ SELF-CHECK ANSWERS:
         <button type="button" id="btn-day" aria-pressed="true" onclick="setTheme('day')">Sunset Day</button>
         <button type="button" id="btn-night" aria-pressed="false" onclick="setTheme('night')">Dusk Night</button>
       </div>
+      <div class="ctrl-seg" role="group" aria-label="Home background">
+        <button type="button" id="btn-hb-city" aria-pressed="true" onclick="setHomeBg('city')">Home: City</button>
+        <button type="button" id="btn-hb-forest" aria-pressed="false" onclick="setHomeBg('forest')">Home: Forest</button>
+      </div>
       <div class="ctrl-seg" role="group" aria-label="Device">
         <button type="button" id="btn-phone" aria-pressed="true" onclick="setDevice('phone')">Phone (390)</button>
         <button type="button" id="btn-desktop" aria-pressed="false" onclick="setDevice('desktop')">Desktop (1180)</button>
@@ -1820,11 +1837,7 @@ SELF-CHECK ANSWERS:
       <div>
         <div class="rail-brand-row">
           <span class="brand on-sheet">
-            <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
-              <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-              <circle cx="19.5" cy="6.5" r="5" fill="var(--surface)" stroke="currentColor" stroke-width="2"/>
-              <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
-            </svg>
+            <img class="brand-mark" src="assets/traike-icon.png" width="30" height="30" alt="" />
             <span class="brand-word">Traike</span>
           </span>
         </div>
@@ -1887,11 +1900,7 @@ SELF-CHECK ANSWERS:
         <header class="band band-plan band-plan-photo band-home-hero band-has-art"><div class="band-art band-art-photo band-art-home" aria-hidden="true"></div>
           <div class="band-topbar">
             <span class="brand on-art hide-desktop">
-              <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
-                <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-                <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
-                <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
-              </svg>
+              <img class="brand-mark" src="assets/traike-icon.png" width="30" height="30" alt="" />
               <span class="brand-word">Traike</span>
             </span>
             <button type="button" class="paper-tag loc-chip" onclick="setScreen('plan')">
@@ -1915,18 +1924,7 @@ SELF-CHECK ANSWERS:
             </div>
           </div>
 
-          <!-- Guide Arch + Paper Speech Card -->
-          <div class="guide-stage">
-            <img class="guide-arch day-only" src="assets/guide.jpg" alt="Traike walking guide" />
-            <img class="guide-arch night-only" src="assets/guide-night.jpg" alt="Traike walking guide at night" />
-            <div class="speech-card">
-              <h2 class="speech-title" data-en>Chat with Traike</h2>
-              <h2 class="speech-title" data-he>שיחה עם טרייק</h2>
-              <p class="speech-body" data-en>Pick a vibe or name your stops — I'll thread a calm route.</p>
-              <p class="speech-body" data-he>בחרו אווירה או כתבו תחנות — אחבר לכם מסלול מדויק.</p>
-            </div>
-          </div>
-        </header>
+          </header>
 
         <div class="sheet">
           <div class="sec-bar">
@@ -2121,11 +2119,7 @@ SELF-CHECK ANSWERS:
         <header class="band band-plan band-plan-photo band-has-art"><div class="band-art band-art-photo" aria-hidden="true"></div>
           <div class="band-topbar">
             <span class="brand on-art hide-desktop">
-              <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
-                <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-                <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
-                <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
-              </svg>
+              <img class="brand-mark" src="assets/traike-icon.png" width="30" height="30" alt="" />
               <span class="brand-word">Traike</span>
             </span>
             <button type="button" class="paper-tag loc-chip">
@@ -2669,11 +2663,7 @@ SELF-CHECK ANSWERS:
 </svg></div>
         <div class="band-topbar">
           <span class="brand on-art hide-desktop">
-            <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
-              <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-              <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
-              <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
-            </svg>
+            <img class="brand-mark" src="assets/traike-icon.png" width="30" height="30" alt="" />
             <span class="brand-word">Traike</span>
           </span>
           <span class="paper-tag loc-chip">
@@ -2814,11 +2804,7 @@ SELF-CHECK ANSWERS:
       <header class="band band-me">
         <div class="band-topbar">
           <span class="brand on-art hide-desktop">
-            <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
-              <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-              <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
-              <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
-            </svg>
+            <img class="brand-mark" src="assets/traike-icon.png" width="30" height="30" alt="" />
             <span class="brand-word">Traike</span>
           </span>
           <span class="paper-tag loc-chip">
@@ -3017,11 +3003,7 @@ SELF-CHECK ANSWERS:
         </svg></div>
           <div class="band-topbar">
             <span class="brand on-art">
-              <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
-                <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-                <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
-                <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
-              </svg>
+              <img class="brand-mark" src="assets/traike-icon.png" width="30" height="30" alt="" />
               <span class="brand-word">Traike</span>
             </span>
             <button type="button" class="paper-tag loc-chip" onclick="setScreen('plan')">
@@ -3157,6 +3139,11 @@ SELF-CHECK ANSWERS:
     }
   }
 
+  function setHomeBg(v) {
+    document.documentElement.setAttribute('data-homebg', v);
+    document.getElementById('btn-hb-city').setAttribute('aria-pressed', String(v === 'city'));
+    document.getElementById('btn-hb-forest').setAttribute('aria-pressed', String(v === 'forest'));
+  }
   function setTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     document.getElementById('btn-day').setAttribute('aria-pressed', String(theme === 'day'));

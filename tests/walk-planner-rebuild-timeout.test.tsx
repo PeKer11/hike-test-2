@@ -295,8 +295,10 @@ describe("a mid-walk rebuild that never answers", () => {
     expect(walkPlanSignals).toHaveLength(1);
     expect(walkPlanSignals[0].aborted).toBe(false);
 
-    fireEvent.click(screen.getAllByRole("button", { name: /End walk/i })[0]);
-    fireEvent.click(screen.getAllByRole("button", { name: /End walk/i })[0]); // second tap confirms
+    // The plan stays on screen during a mid-walk rebuild now, so the plan card's own
+    // one-tap "End Walk" is there too; the HUD's button is the one that asks twice.
+    fireEvent.click(screen.getByRole("button", { name: "End walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "End walk?" })); // second tap confirms
     await flush();
 
     expect(walkPlanSignals[0].aborted).toBe(true);

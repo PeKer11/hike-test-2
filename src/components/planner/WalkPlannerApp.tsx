@@ -494,6 +494,14 @@ export function WalkPlannerApp({
   // may say the walker is still astray when they have long since rejoined.
   const isOffRouteRef = useRef(false);
   const buildWalkRequestIdRef = useRef(0);
+  // A mid-walk rebuild is in flight (the walk still runs on its old route), and the
+  // latest assistant build that arrived meanwhile, waiting for it to finish.
+  const midWalkRebuildInFlightRef = useRef(false);
+  const queuedMidWalkBuildRef = useRef<{
+    input: WalkCompanionInput;
+    options: Parameters<typeof handleBuildWalk>[1];
+    resolve: (plan: WalkPlan | null) => void;
+  } | null>(null);
   // Aborts the build in flight, if any: the overlay's "Keep my current route"
   // and End walk both go through it.
   const cancelBuildRef = useRef<(() => void) | null>(null);
@@ -1422,6 +1430,18 @@ export function WalkPlannerApp({
       aiDecided?: boolean;
     },
   ): Promise<WalkPlan | null> => {
+    // One mid-walk rebuild at a time. The walk keeps running on its old route while a
+    // rebuild is in flight, so a second request must not tear that down halfway:
+    // automatic triggers simply fire again after their cooldown, but a route the
+    // assistant built is the walker's own request, so the latest one waits its turn.
+    if (options?.autoResume && midWalkRebuildInFlightRef.current) {
+      if (!options.aiDecided) return null;
+      return new Promise<WalkPlan | null>((resolve) => {
+        queuedMidWalkBuildRef.current?.resolve(null);
+        queuedMidWalkBuildRef.current = { input, options, resolve };
+      });
+    }
+    if (!options?.autoResume) midWalkRebuildInFlightRef.current = false;
     const rulesBefore = routeRulesRef.current; // for the undo snapshot: the rules the current plan was built with
     if (options?.routeRules !== undefined) routeRulesRef.current = options.routeRules;
     else if (options?.keepAttractions === undefined) routeRulesRef.current = undefined;
@@ -1438,22 +1458,31 @@ export function WalkPlannerApp({
             routeRules: rulesBefore,
           }
         : null;
-    if (snapshot) {
+    // Make before break: during a mid-walk rebuild nothing is torn down until the
+    // server has answered with a usable route. GPS, stats, the deviation monitor and
+    // the recorder keep running on the old route, so a failed or slow rebuild costs the
+    // walker nothing. `commitSwap` is the one synchronous block that swaps the walk over.
+    const commitSwap = () => {
       // Keep the *first* snapshot of a re-plan chain. A "+15 min" retry is another
       // automatic step on top of an already-adjusted plan, so overwriting here would
       // make "back to previous route" land on an intermediate auto-generated plan
       // instead of the route the walker deliberately started on. A user-initiated
       // build clears it below, which is where a genuinely new chain begins.
-      setPreviousPlan((prev) => prev ?? snapshot);
+      if (snapshot) setPreviousPlan((prev) => prev ?? snapshot);
+      stopWalkTracking();
+      walkInputRef.current = input;
+      setLastWalkInput(input);
+      walkStartTimeRef.current = Date.now();
+      latestPaceUpdateRef.current = null;
+      setPinnedTimeWarning(null);
+      setCurrentPosition(input.origin);
+    };
+    if (snapshot) {
+      midWalkRebuildInFlightRef.current = true;
+      setRebuildingMidWalk(true);
+    } else {
+      commitSwap();
     }
-
-    if (snapshot) setRebuildingMidWalk(true);
-    stopWalkTracking();
-    walkInputRef.current = input;
-    setLastWalkInput(input);
-    walkStartTimeRef.current = Date.now();
-    latestPaceUpdateRef.current = null;
-    setPinnedTimeWarning(null);
     if (!options?.autoResume) {
       lastLocalRejoinAtRef.current = Number.NEGATIVE_INFINITY;
       setPreviousPlan(null);
@@ -1474,7 +1503,6 @@ export function WalkPlannerApp({
       if (walkPhase !== "walking") walkedTrackRef.current = [];
       walkStartPointRef.current = input.origin;
     }
-    setCurrentPosition(input.origin);
 
     // Attractions the walker already reached are done — never re-plan them back
     // into the route. If that empties the kept set, the API falls back to fresh
@@ -1493,7 +1521,7 @@ export function WalkPlannerApp({
     const requestId = buildWalkRequestIdRef.current;
 
     setWalkPlanError(null);
-    setWalkPlan(null);
+    if (!snapshot) setWalkPlan(null);
     setIsWalkPlanLoading(true);
     setIsWalkPlanSlow(false);
 
@@ -1550,8 +1578,7 @@ export function WalkPlannerApp({
         if (requestId !== buildWalkRequestIdRef.current) return null;
         if (!aiRes.ok || !ai.stops?.length) {
           if (snapshot) {
-            revertToSnapshot(snapshot);
-            reportReplanFailed();
+            reportReplanFailed(); // nothing was torn down: the walker is still on the old route
             return null;
           }
           // The AI itself failed (not sign-in, budget or bad input): the rule-based planner can still build the walk.
@@ -1603,16 +1630,15 @@ export function WalkPlannerApp({
         // mid-walk because Overpass/ORS blipped is worse than keeping the route
         // they were on, so put it back and say so.
         if (snapshot) {
-          revertToSnapshot(snapshot);
           reportReplanFailed();
         } else {
           setWalkPlanError(data.error ?? "Failed to build walk plan.");
         }
       } else if (snapshot && (data.orderedAttractions.length === 0 || (data.geometry?.length ?? 0) < 2)) {
         // A route with no stops or no line would drop the walker out of the walk; keep the one they were on.
-        revertToSnapshot(snapshot);
         reportReplanFailed();
       } else {
+        if (snapshot) commitSwap();
         showPlan(data, data.geometry ?? [], options?.autoResume === true);
         built = data;
         if (options?.backfillGeometry && data.geometry && data.geometry.length >= 2) {
@@ -1691,7 +1717,6 @@ export function WalkPlannerApp({
     } catch {
       if (requestId !== buildWalkRequestIdRef.current) return null;
       if (snapshot) {
-        revertToSnapshot(snapshot);
         if (cancelled) setWalkTrackingMessage(REPLAN_CANCELLED_MESSAGE);
         else reportReplanFailed();
       } else {
@@ -1712,6 +1737,17 @@ export function WalkPlannerApp({
         setIsWalkPlanLoading(false);
         setIsWalkPlanSlow(false);
         setRebuildingMidWalk(false);
+        if (snapshot) {
+          midWalkRebuildInFlightRef.current = false;
+          const queued = queuedMidWalkBuildRef.current;
+          if (queued) {
+            queuedMidWalkBuildRef.current = null;
+            // Rebuild from where the walker is now, not where the chat answer was composed.
+            const here = latestPaceUpdateRef.current?.currentPosition ?? matchedRef.current?.point;
+            const input = here ? { ...queued.input, origin: here } : queued.input;
+            void handleBuildWalk(input, queued.options).then(queued.resolve);
+          }
+        }
       }
     }
     return built;
@@ -3330,8 +3366,8 @@ export function WalkPlannerApp({
   let walkAlert: WalkAlert | null = null;
   if (walkMode) {
     if (rebuildingMidWalk && isWalkPlanLoading) {
-      // Tracking is down while this runs; say so, and let the walker bail out
-      // to the route they were already on instead of waiting it out.
+      // The walk keeps running on the old route meanwhile; the walker can bail
+      // out of the rebuild instead of waiting it out.
       walkAlert = {
         id: "rebuilding",
         tone: "info",
