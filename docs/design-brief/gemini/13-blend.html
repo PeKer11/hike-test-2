@@ -1,0 +1,3452 @@
+<!DOCTYPE html>
+<!--
+================================================================================
+TRAIKE — ROUND 9 HEADER REDESIGN INTENT (3 LINES PER SCREEN + SELF-CHECK)
+================================================================================
+
+A · HOME ("The Ascending Golden-Hour Trail")
+1. Shows the giant "65 min" invitation on a pure warm terracotta-amber sky melt alongside a bespoke SVG walking trail climbing 4 Rings up to a golden-hour sun disc (crescent moon at night).
+2. Carries immediate product meaning: before reading a single row, you see your starting Ring, intermediate stops, and sunset overlook connected in the sky, with the 3D brass compass anchored cleanly inside the sky (never touching the seam).
+3. Eliminates Round 8's muddy brown-purple blended strip, dead orange gap below the text, and compass-on-seam collision.
+
+B · PLAN + GUIDE CHAT ("The Guide & Old-Jaffa Archway")
+1. Centres on the conversation: the smiling illustrated guide rises in his signature limestone arch beside a crisp Paper speech card, while a clean arched architectural window on the opposite side frames ONLY the crisp St. Peter's tower & harbour crop of city-hero (no multiply mud, no top-right smudge).
+2. Connects the human guide directly to the Mediterranean city destination you are planning toward, while keeping the sky behind the headline 100% calm and AA-legible.
+3. Mirrors intentionally in Hebrew RTL: guide + speech tail move to the right (inline-start) and the Jaffa sea-arch window balances the left (inline-end).
+
+C · LIVE WALK ("Map-First Busbo Navigation + Turn Banner")
+1. Leads with the live street map at the very top of the screen (236px on phone, with floating Paper brand & stop-progress tags) and docks a compact, high-contrast Pine-to-sunset turn card ("4 min · 310 m", crisp turn arrow, street instruction, and 3D pin inside the card) directly above the stop sheet.
+2. Matches real live-walking utility (and busbo's map-first clarity): when walking, your eyes need the street geometry first and the next turn second — not a decorative painting.
+3. Removes the awkward double-stack of tall painted band + tiny map strip + seam-colliding pin from Round 8.
+
+D · MY WALKS & SOCIAL ("The Personal Trail Ledger")
+1. Uses a compact 188px sunset-melt header featuring a horizontal rhythm of completed route Rings ("48.4 km · 12 walks") and the 3D leather hiking boot resting on a stitched Paper luggage-style stamp card well above the sheet edge.
+2. Celebrates walking history and mileage as a curated logbook rather than repeating the Home/Plan hero scene.
+3. Leaves generous breathing room above the segmented filter bar with zero seam overlap.
+
+E · ME & SETTINGS ("Pure Sunset Calm" — Preserved)
+1. Keeps the exact pure smooth sunset/dusk gradient melt with zero illustration or 3D accessory that the owner singled out as great.
+2. Pairs the calm sky with Yael's name, account summary, and a crisp Paper profile monogram Ring so the header feels personal yet effortless.
+3. Acts as the quiet visual resting point of the 6-screen family.
+
+F · LOGIN ("The Lit Lantern Welcome Gate")
+1. Welcomes the walker through a symmetric archway threshold: a crafted Old-City wrought-iron lantern & limestone arch silhouette glowing warm amber against the sunset/night sky, with the guide greeting you in a compact Paper welcome badge.
+2. Distinguishes Login immediately from Plan (which owns the large bottom-edge guide + chat layout) while sharing the exact sky gradient, Ring mark, and Paper material.
+3. Keeps the email/password sheet high above the fold (300px top) in both English and Hebrew.
+
+SELF-CHECK ANSWERS:
+- [x] Put the six phone tops side by side: are they six distinct compositions of one family?
+      Yes: (A) Ascending SVG trail + sun + compass, (B) Guide arch + Jaffa harbour window + speech card, (C) Map-first top + compact turn banner, (D) Horizontal mileage trail + stitched boot stamp, (E) Pure calm sky melt, (F)Symmetric lit-lantern welcome arch.
+- [x] Is the sky smooth, with no muddy tint, seam or smudge, day and night?
+      Yes: `mix-blend-mode: multiply` over full-width `city-hero-day.jpg` is gone. Every sky is a pure multi-stop gradient melting seamlessly into `--surface`; where `city-hero` appears on Plan, only its clean tower/sea crop is framed inside a crisp Paper-bordered arch window at native colours.
+- [x] Any empty area, collision, or text under 14px or below AA?
+      Zero empty orange blocks, zero accessories touching a seam, zero text overlaps, nothing under 14px (map attribution 13px), and all sky text sits on deep terracotta (`#8E3410`–`#AE4714`, ≥ 5.1:1 contrast) or night dusk (`#140F0C`–`#241710`, ≥ 11:1).
+- [x] Is everything below the header unchanged from round 8 apart from header-driven spacing?
+      Yes: exact Round 8 tokens, Frank Ruhl Libre + Assistant, Ring/Trail/Paper primitives, Pine Ink selections, Leather primary button with 4px lip, timeline spine rows, mini-map walk rows, desktop rail, phone tab bar, and interactive toggles.
+- [x] Bans: green dots/pills, glows/orbs, purple/blue gradients, nested cards, accent-rail borders, border-only selection, eyebrow labels, emoji, Inter/Heebo/Fraunces/default Lucide, text <13px.
+      All strictly obeyed.
+================================================================================
+-->
+<html lang="en" dir="ltr" data-theme="day" data-device="phone" data-screen="home">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Traike — Trail Mark on Limestone (Round 9)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@600;700&family=Assistant:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* =========================================================
+     1. "TRAIL MARK ON LIMESTONE" — ROLE TOKENS (DAY & NIGHT)
+     ========================================================= */
+  :root {
+    --canvas: #E6DFD2;
+    --surface: #F8F3EA;
+    --surface-2: #F0E8DA;
+    --paper: #F8F3EA;
+    --line: #DDD2C0;
+    --ink: #1B2620;
+    --muted: #5E584D;
+
+    --leather: #D2602F;
+    --on-leather: #111915;
+
+    --lip: #1B2620;
+    --btn-lip: #1B2620;
+    --btn-border: #1B2620;
+
+    --sel-fill: #1B2620;
+    --sel-ink: #F8F3EA;
+    --sel-muted: #CBBFAD;
+
+    --route: #1B2620;
+    --route-past: #B4AA9A;
+    --spine: #CBBFAD;
+    --on-art: #FFF7EC;
+    --on-art-sub: #FFE8CE;
+
+    --map-land: #F2ECE1;
+    --map-block: #E6DDCD;
+    --map-park: #DCE3D2;
+    --map-water: #C9DADF;
+    --map-road: #FFFFFF;
+    --map-road-case: #E2D8C8;
+    --map-label: #6A6357;
+
+    --hero-art: url('assets/city-hero-day.jpg');
+
+    /* Clean, rich terracotta-amber sunset melting seamlessly into --surface */
+    --sky: linear-gradient(
+      180deg,
+      #842E0D 0%,
+      #9B3B11 26%,
+      #B34B16 50%,
+      #CA662B 68%,
+      #E3965B 82%,
+      #F2C9A1 92%,
+      var(--surface) 100%
+    );
+    --sky-compact: linear-gradient(
+      180deg,
+      #842E0D 0%,
+      #9E3D12 34%,
+      #BC551E 60%,
+      #DF8F53 80%,
+      #F2CAA3 92%,
+      var(--surface) 100%
+    );
+    --turn-band-bg: linear-gradient(
+      180deg,
+      #89310E 0%,
+      #A23F13 62%,
+      #B64D18 100%
+    );
+
+    --sun-disc: #FFD39B;
+    --sky-arch-stroke: rgba(255, 245, 232, 0.34);
+    --sky-silhouette: rgba(92, 30, 8, 0.32);
+
+    --font-serif: 'Frank Ruhl Libre', serif;
+    --font-sans: 'Assistant', sans-serif;
+
+    --fs-hero: 72px;
+    --fs-title: 28px;
+    --fs-lead: 18px;
+    --fs-body: 16px;
+    --fs-meta: 14px;
+
+    --r-ctrl: 6px;
+    --r-nest: 4px;
+    --r-zero: 0px;
+    --r-round: 999px;
+
+    --gutter: 16px;
+
+    /* Strictly 3 allowed shadow roles */
+    --sh-paper: 0 2px 0 var(--lip);
+    --sh-btn: 0 4px 0 var(--btn-lip);
+    --sh-btn-press: 0 2px 0 var(--btn-lip);
+    --filter-acc: drop-shadow(0 6px 10px rgba(27, 38, 32, 0.32));
+  }
+
+  :root[data-theme="night"] {
+    --canvas: #100D0B;
+    --surface: #1A1613;
+    --surface-2: #231E19;
+    --paper: #29221C;
+    --line: #3A322A;
+    --ink: #F2EADC;
+    --muted: #B5AA99;
+
+    --leather: #E06A38;
+    --on-leather: #111915;
+
+    --lip: #0E0B09;
+    --btn-lip: #6E2A0F;
+    --btn-border: #0E0B09;
+
+    --sel-fill: #EDE3D3;
+    --sel-ink: #1A1613;
+    --sel-muted: #544B40;
+
+    --route: #F2EADC;
+    --route-past: #5F574D;
+    --spine: #4A4038;
+    --on-art: #FFF3E2;
+    --on-art-sub: #E5D4BE;
+
+    --map-land: #1F1B17;
+    --map-block: #29231E;
+    --map-park: #232A22;
+    --map-water: #1B272C;
+    --map-road: #2E2822;
+    --map-road-case: #171310;
+    --map-label: #A69B8B;
+
+    --hero-art: url('assets/city-hero-night.jpg');
+
+    /* Deep warm dusk with horizon ember glow melting into #1A1613 */
+    --sky: linear-gradient(
+      180deg,
+      #110E0D 0%,
+      #1B1410 30%,
+      #2C1B11 56%,
+      #3B2214 72%,
+      #291B14 86%,
+      var(--surface) 100%
+    );
+    --sky-compact: linear-gradient(
+      180deg,
+      #110E0D 0%,
+      #1E1510 38%,
+      #331E12 66%,
+      #261913 85%,
+      var(--surface) 100%
+    );
+    --turn-band-bg: linear-gradient(
+      180deg,
+      #171310 0%,
+      #261A13 65%,
+      #312016 100%
+    );
+
+    --sun-disc: #F7E8CF;
+    --sky-arch-stroke: rgba(242, 234, 220, 0.24);
+    --sky-silhouette: rgba(10, 8, 7, 0.55);
+
+    --filter-acc: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.58));
+  }
+
+  html[data-device="desktop"] {
+    --fs-hero: 84px;
+    --fs-title: 34px;
+    --gutter: 20px;
+  }
+
+  /* =========================================================
+     2. BASE, TYPOGRAPHY & RTL RULES
+     ========================================================= */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    font-weight: 400;
+    line-height: 1.42;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea, select {
+    font: inherit;
+    color: inherit;
+  }
+  img { display: block; max-width: 100%; }
+
+  html[lang="en"] [data-he] { display: none !important; }
+  html[lang="he"] [data-en] { display: none !important; }
+
+  html[lang="he"],
+  html[lang="he"] * {
+    letter-spacing: 0 !important;
+  }
+  html[lang="he"] body {
+    line-height: 1.5;
+  }
+
+  html[dir="rtl"] .rtl-flip {
+    transform: scaleX(-1);
+  }
+
+  :root[data-theme="day"] .night-only { display: none !important; }
+  :root[data-theme="night"] .day-only { display: none !important; }
+
+  /* =========================================================
+     3. PRESENTER GALLERY CHROME (OUTSIDE APP FRAME)
+     ========================================================= */
+  .gallery-bar {
+    background: #141916;
+    color: #F2EADC;
+    border-block-end: 1px solid #2B332E;
+    padding-block: 10px;
+    padding-inline: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+  }
+  .gallery-bar-top {
+    max-width: 1220px;
+    margin-inline: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .gallery-brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .gallery-brand strong {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-weight: 700;
+    color: #FFF5E8;
+  }
+  .gallery-brand span {
+    font-size: 14px;
+    color: #B5AA99;
+  }
+  .ctrl-groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ctrl-seg {
+    display: inline-flex;
+    border: 1.5px solid #3D4741;
+    border-radius: var(--r-ctrl);
+    overflow: hidden;
+    background: #1C231F;
+  }
+  .ctrl-seg button {
+    border: 0;
+    border-inline-end: 1px solid #2E3732;
+    background: transparent;
+    color: #D9D0C1;
+    padding-block: 6px;
+    padding-inline: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 36px;
+  }
+  .ctrl-seg button:last-child { border-inline-end: 0; }
+  .ctrl-seg button[aria-pressed="true"] {
+    background: #F2EADC;
+    color: #141916;
+  }
+  .screen-tabs {
+    max-width: 1220px;
+    margin-inline: auto;
+    margin-block-start: 10px;
+    padding-block-start: 10px;
+    border-block-start: 1px solid #262E29;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+  .screen-tabs button {
+    border: 1px solid #3D4741;
+    background: #1C231F;
+    color: #D9D0C1;
+    border-radius: var(--r-ctrl);
+    padding-block: 6px;
+    padding-inline: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 36px;
+  }
+  .screen-tabs button[aria-selected="true"] {
+    background: #F2EADC;
+    color: #141916;
+    border-color: #F2EADC;
+  }
+
+  /* =========================================================
+     4. STAGE & APP SHELL (PHONE 390 / DESKTOP 1180)
+     ========================================================= */
+  .stage {
+    padding-block: 24px 56px;
+    padding-inline: 12px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .app-frame {
+    background: var(--surface);
+    color: var(--ink);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-ctrl);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  html[data-device="phone"] .app-frame {
+    width: 390px;
+    max-width: 100%;
+    min-height: 812px;
+  }
+  html[data-device="phone"] .desktop-rail,
+  html[data-device="phone"] .desktop-map-pane {
+    display: none !important;
+  }
+
+  html[data-device="desktop"] .app-frame {
+    width: 1180px;
+    max-width: 100%;
+    min-height: 760px;
+    flex-direction: row;
+  }
+  html[data-device="desktop"] .phone-tabs,
+  html[data-device="desktop"] .phone-only-map {
+    display: none !important;
+  }
+
+  .screen { display: none; flex: 1; min-width: 0; }
+  html[data-screen="home"] .screen[data-id="home"],
+  html[data-screen="plan"] .screen[data-id="plan"],
+  html[data-screen="walk"] .screen[data-id="walk"],
+  html[data-screen="walks"] .screen[data-id="walks"],
+  html[data-screen="me"] .screen[data-id="me"],
+  html[data-screen="login"] .screen[data-id="login"] {
+    display: flex;
+    flex-direction: column;
+  }
+  html[data-device="desktop"][data-screen="home"] .screen[data-id="home"],
+  html[data-device="desktop"][data-screen="plan"] .screen[data-id="plan"],
+  html[data-device="desktop"][data-screen="walk"] .screen[data-id="walk"] {
+    flex-direction: row;
+  }
+  html[data-screen="login"] .phone-tabs,
+  html[data-screen="login"] .desktop-rail {
+    display: none !important;
+  }
+
+  /* =========================================================
+     5. PRIMITIVES: RING, NOW-RING, BRAND, PAPER TAG, TIME TAG
+     ========================================================= */
+  .ring {
+    width: 14px;
+    height: 14px;
+    border-radius: var(--r-round);
+    border: 2px solid var(--ink);
+    background: var(--surface);
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .ring.now::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: var(--r-round);
+    background: var(--leather);
+    display: block;
+  }
+  .ring.past {
+    width: 12px;
+    height: 12px;
+    border-color: var(--route-past);
+    background: var(--surface-2);
+  }
+  .ring.bullseye {
+    width: 16px;
+    height: 16px;
+  }
+  .ring.bullseye::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: var(--r-round);
+    background: var(--ink);
+    display: block;
+  }
+
+  /* Brand lockup: 26px trail-to-Now-Ring SVG + Frank Ruhl 700 24px */
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .brand-word {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: 24px;
+    line-height: 1;
+  }
+  .brand.on-art { color: var(--on-art); }
+  .brand.on-sheet { color: var(--ink); }
+  html[data-device="desktop"] .brand.hide-desktop {
+    display: none;
+  }
+
+  /* Paper Tag (Location Chip, Map Summary, Map Zoom) */
+  .paper-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding-inline: 10px 12px;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: var(--r-ctrl);
+    box-shadow: var(--sh-paper);
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  button.paper-tag {
+    cursor: pointer;
+  }
+  .loc-chip {
+    max-width: 64%;
+    overflow: hidden;
+  }
+  html[data-device="desktop"] .loc-chip {
+    max-width: 100%;
+    margin-inline-start: auto;
+  }
+  .loc-chip .chip-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .paper-zoom-group {
+    display: inline-flex;
+    gap: 6px;
+  }
+  .paper-zoom {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    font-size: var(--fs-lead);
+    font-weight: 700;
+  }
+
+  /* Time Tag (Leather, ONLY for current/next stop in row or map callout) */
+  .time-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+    padding-inline: 6px;
+    border-radius: var(--r-nest);
+    background: var(--leather);
+    color: var(--on-leather);
+    font-family: var(--font-sans);
+    font-size: var(--fs-meta);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    border: 0;
+  }
+
+  /* =========================================================
+     6. DESKTOP RAIL & PHONE BOTTOM TAB BAR
+     ========================================================= */
+  .desktop-rail {
+    width: 216px;
+    flex-shrink: 0;
+    background: var(--surface-2);
+    border-inline-end: 1px solid var(--line);
+    padding: 18px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .rail-brand-row {
+    padding-inline: 6px;
+    padding-block-end: 16px;
+    border-block-end: 1px solid var(--line);
+    margin-block-end: 12px;
+  }
+  .rail-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rail-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 46px;
+    padding-inline: 12px;
+    border-radius: var(--r-ctrl);
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    text-align: start;
+    cursor: pointer;
+  }
+  .rail-btn:hover { background: var(--surface); }
+  .rail-btn[aria-current="page"] {
+    background: var(--sel-fill);
+    color: var(--sel-ink);
+  }
+  .rail-footer {
+    border-block-start: 1px solid var(--line);
+    padding-block-start: 12px;
+  }
+
+  .phone-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    background: var(--surface);
+    border-block-start: 1.5px solid var(--ink);
+    padding: 4px;
+    gap: 4px;
+    margin-block-start: auto;
+  }
+  .tab-btn {
+    border: 0;
+    background: transparent;
+    border-radius: var(--r-ctrl);
+    height: 52px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .tab-btn[aria-current="page"] {
+    background: var(--sel-fill);
+    color: var(--sel-ink);
+  }
+
+  .tab-btn[aria-current="page"] .nav-ring-fill,
+  .rail-btn[aria-current="page"] .nav-ring-fill {
+    fill: var(--sel-fill);
+  }
+
+  /* =========================================================
+     7. ROUND 9 BESPOKE HEADER FAMILY (6 DISTINCT COMPOSITIONS)
+     ========================================================= */
+  .band {
+    position: relative;
+    background: var(--sky);
+    color: var(--on-art);
+    padding-block-start: 14px;
+    padding-inline: var(--gutter);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .band-topbar {
+    position: relative;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 36px;
+  }
+
+  .hero-stat {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .hero-num {
+    font-family: var(--font-serif);
+    font-size: var(--fs-hero);
+    font-weight: 700;
+    line-height: 0.86;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    color: var(--on-art);
+  }
+  .hero-unit {
+    font-family: var(--font-sans);
+    font-size: var(--fs-lead);
+    font-weight: 600;
+    line-height: 1;
+    color: var(--on-art);
+  }
+  .band-facts {
+    margin-block-start: 8px;
+    font-size: var(--fs-body);
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--on-art);
+  }
+  .band-title {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-size: var(--fs-title);
+    font-weight: 600;
+    line-height: 1.08;
+    color: var(--on-art);
+  }
+
+  /* ---------------------------------------------------------
+     COMPOSITION A · HOME ("The Ascending Golden-Hour Trail")
+     --------------------------------------------------------- */
+  .band-home {
+    height: 256px;
+    padding-block-end: 18px;
+  }
+  html[data-device="desktop"] .band-home {
+    height: 274px;
+  }
+  .home-hero-grid {
+    position: relative;
+    z-index: 3;
+    margin-block-start: 16px;
+    display: grid;
+    grid-template-columns: 1fr 142px;
+    align-items: start;
+    gap: 8px;
+    flex: 1;
+  }
+  .home-copy {
+    padding-block-start: 2px;
+  }
+  .home-trail-stage {
+    position: relative;
+    height: 168px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+  }
+  .home-trail-svg {
+    width: 142px;
+    height: 162px;
+    display: block;
+    overflow: visible;
+  }
+  .home-compass {
+    position: absolute;
+    bottom: 8px;
+    inset-inline-end: 2px;
+    width: 54px;
+    height: 54px;
+    object-fit: contain;
+    filter: var(--filter-acc);
+    pointer-events: none;
+  }
+
+  /* ---------------------------------------------------------
+     COMPOSITION B · PLAN ("Guide + Jaffa Harbour Arch Window")
+     --------------------------------------------------------- */
+  .band-plan {
+    height: 312px;
+    overflow: visible;
+  }
+  html[data-device="desktop"] .band-plan {
+    height: 320px;
+  }
+  .plan-header-row {
+    position: relative;
+    z-index: 3;
+    margin-block-start: 10px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .plan-title-wrap {
+    max-width: 60%;
+    padding-block-start: 2px;
+  }
+  .plan-sub {
+    margin: 6px 0 0;
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    color: var(--on-art-sub);
+    line-height: 1.3;
+  }
+
+  /* Crisp arched architectural window framing ONLY the clean St. Peter's tower & harbour crop */
+  .jaffa-window {
+    width: 112px;
+    height: 122px;
+    border-radius: 56px 56px var(--r-ctrl) var(--r-ctrl);
+    border: 2px solid var(--paper);
+    box-shadow: var(--sh-paper);
+    background-image: var(--hero-art);
+    background-repeat: no-repeat;
+    background-size: 310px auto;
+    background-position: 82% 72%;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  :root[data-theme="night"] .jaffa-window {
+    background-size: 295px auto;
+    background-position: 80% 58%;
+    border-color: var(--line);
+  }
+  html[dir="rtl"] .jaffa-window {
+    transform: scaleX(-1);
+  }
+
+  /* Guide Arch + Paper Speech Card overlapping cleanly into the sheet */
+  .guide-stage {
+    position: absolute;
+    inset-inline: var(--gutter);
+    bottom: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 128px 1fr;
+    align-items: end;
+    gap: 12px;
+  }
+  .guide-arch {
+    width: 128px;
+    height: 174px;
+    border-radius: 64px 64px var(--r-ctrl) var(--r-ctrl);
+    object-fit: cover;
+    object-position: 50% 0;
+    border: 2px solid var(--paper);
+    box-shadow: var(--sh-paper);
+    margin-block-end: -16px;
+    background: var(--surface);
+    pointer-events: none;
+  }
+  .speech-card {
+    position: relative;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: var(--r-ctrl);
+    box-shadow: var(--sh-paper);
+    padding: 11px 13px;
+    margin-block-end: 12px;
+  }
+  .speech-card::before {
+    content: "";
+    position: absolute;
+    bottom: 16px;
+    inset-inline-start: -7px;
+    width: 12px;
+    height: 12px;
+    background: var(--paper);
+    border-inline-start: 1px solid var(--line);
+    border-block-end: 1px solid var(--line);
+    transform: rotate(45deg);
+  }
+  html[dir="rtl"] .speech-card::before {
+    transform: rotate(-135deg);
+  }
+  .speech-title {
+    margin: 0 0 2px 0;
+    font-family: var(--font-serif);
+    font-size: var(--fs-lead);
+    font-weight: 600;
+    line-height: 1.18;
+    color: var(--ink);
+  }
+  .speech-body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    font-weight: 400;
+    line-height: 1.32;
+    color: var(--muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ---------------------------------------------------------
+     COMPOSITION C · LIVE WALK ("Map-First + Turn Instruction Deck")
+     --------------------------------------------------------- */
+  .walk-map-hero {
+    height: 228px;
+    min-height: 228px;
+    max-height: 228px;
+    flex: none;
+    border-block-end: 1.5px solid var(--ink);
+  }
+  .walk-turn-deck {
+    position: relative;
+    background: var(--turn-band-bg);
+    color: var(--on-art);
+    padding: 14px var(--gutter) 16px;
+    border-block-end: 1.5px solid var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  html[data-device="desktop"] .walk-turn-deck {
+    padding-block: 16px 18px;
+  }
+  .walk-turn-main {
+    display: grid;
+    grid-template-columns: 48px 1fr 48px;
+    align-items: center;
+    gap: 12px;
+  }
+  .turn-glyph-box {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--r-ctrl);
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    box-shadow: var(--sh-paper);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .walk-turn-num {
+    font-family: var(--font-serif);
+    font-size: 54px;
+    font-weight: 700;
+    line-height: 0.88;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    color: var(--on-art);
+  }
+  html[data-device="desktop"] .walk-turn-num {
+    font-size: 64px;
+  }
+  .walk-pin-acc {
+    width: 46px;
+    height: 46px;
+    object-fit: contain;
+    filter: var(--filter-acc);
+    justify-self: end;
+  }
+  .walk-street-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-block-start: 8px;
+    border-block-start: 1px solid rgba(255, 245, 232, 0.22);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    color: var(--on-art);
+  }
+
+  /* ---------------------------------------------------------
+     COMPOSITION D · MY WALKS ("The Personal Trail Ledger")
+     --------------------------------------------------------- */
+  .band-walks {
+    background: var(--sky-compact);
+    min-height: 196px;
+    padding-block-end: 16px;
+  }
+  html[data-device="desktop"] .band-walks {
+    min-height: 220px;
+    padding-inline: 24px;
+  }
+  .walks-ledger-row {
+    position: relative;
+    z-index: 3;
+    margin-block-start: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  html[data-device="desktop"] .walks-ledger-row {
+    max-width: 656px;
+  }
+  .walks-mileage-trail {
+    margin-block-start: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .walks-mileage-svg {
+    width: 112px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+  .walks-mileage-txt {
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    color: var(--on-art);
+    white-space: nowrap;
+  }
+  /* Paper stamp card holding the 3D hiking boot cleanly inside the header */
+  .boot-stamp {
+    width: 78px;
+    height: 78px;
+    border-radius: var(--r-ctrl);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    box-shadow: var(--sh-paper);
+    display: grid;
+    place-items: center;
+    padding: 6px;
+    flex-shrink: 0;
+  }
+  .boot-stamp img {
+    width: 62px;
+    height: 62px;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 5px rgba(27, 38, 32, 0.22));
+  }
+
+  /* ---------------------------------------------------------
+     COMPOSITION E · ME & SETTINGS ("Pure Sunset Calm" — Loved)
+     --------------------------------------------------------- */
+  .band-me {
+    background: var(--sky-compact);
+    min-height: 192px;
+    padding-block-end: 18px;
+  }
+  html[data-device="desktop"] .band-me {
+    min-height: 216px;
+    padding-inline: 24px;
+  }
+  .me-identity-row {
+    position: relative;
+    z-index: 3;
+    margin-block-start: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .me-monogram {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--r-round);
+    background: var(--paper);
+    color: var(--ink);
+    border: 2px solid var(--ink);
+    box-shadow: var(--sh-paper);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-weight: 700;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .me-monogram::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    inset-inline-end: -2px;
+    width: 14px;
+    height: 14px;
+    border-radius: var(--r-round);
+    background: var(--leather);
+    border: 2px solid var(--paper);
+  }
+
+  /* ---------------------------------------------------------
+     COMPOSITION F · LOGIN ("The Lit Lantern Welcome Gate")
+     --------------------------------------------------------- */
+  .band-login {
+    height: 294px;
+    padding-block-end: 16px;
+  }
+  .login-gate-stage {
+    position: relative;
+    z-index: 3;
+    margin-block-start: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+    justify-content: space-between;
+  }
+  .lantern-svg {
+    width: 168px;
+    height: 92px;
+    display: block;
+    overflow: visible;
+  }
+  .login-welcome-pill {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: var(--r-ctrl);
+    box-shadow: var(--sh-paper);
+    padding: 8px 12px;
+    text-align: start;
+  }
+  .login-guide-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: var(--r-round);
+    border: 2px solid var(--ink);
+    object-fit: cover;
+    object-position: 50% 8%;
+    flex-shrink: 0;
+  }
+
+  /* =========================================================
+     8. HARD-EDGED LIMESTONE SHEET & CONTROLS (ROUND 8 UNCHANGED)
+     ========================================================= */
+  .col-sheet {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  html[data-device="desktop"] .col-sheet.paired {
+    width: 440px;
+    flex-shrink: 0;
+    border-inline-end: 1.5px solid var(--ink);
+  }
+
+  .sheet {
+    position: relative;
+    z-index: 4;
+    background: var(--surface);
+    border-radius: var(--r-zero);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .sheet.after-guide {
+    padding-block-start: 20px;
+  }
+
+  .sec-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 40px;
+    padding-block: 8px;
+    padding-inline: var(--gutter);
+    background: var(--surface-2);
+    border-block-start: 1px solid var(--line);
+    border-block-end: 1px solid var(--line);
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .sec-note {
+    font-weight: 400;
+    color: var(--muted);
+  }
+  .link-inline {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    color: var(--ink);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .sheet-block {
+    padding-block: 12px;
+    padding-inline: var(--gutter);
+    border-block-end: 1px solid var(--line);
+  }
+  .block-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-block-end: 8px;
+  }
+  .block-label {
+    font-size: var(--fs-body);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .block-meta {
+    font-size: var(--fs-meta);
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  /* Vibe Photo Chips: h 44, r 6, 1.5px ink, 30px photo r 4, selected = Pine */
+  .vibe-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .vibe-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding-inline: 6px 12px;
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-ctrl);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .vibe-chip img {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r-nest);
+    object-fit: cover;
+    background: var(--surface-2);
+    flex-shrink: 0;
+  }
+  .vibe-chip[aria-pressed="true"] {
+    background: var(--sel-fill);
+    color: var(--sel-ink);
+    border-color: var(--sel-fill);
+  }
+
+  /* Inputs & Prompt Box */
+  .prompt-box {
+    width: 100%;
+    min-height: 74px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-ctrl);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--fs-body);
+    font-weight: 400;
+    line-height: 1.42;
+    resize: vertical;
+  }
+  .text-input {
+    width: 100%;
+    height: 46px;
+    padding-inline: 12px;
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-ctrl);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--fs-body);
+    font-weight: 600;
+  }
+  .prompt-box:focus,
+  .text-input:focus {
+    outline: 2px solid var(--ink);
+    outline-offset: 1px;
+  }
+
+  /* Segmented Control: 1.5px ink outer, r 6, 44px cells, 1px line dividers, selected = Pine */
+  .seg-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-ctrl);
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .seg-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .seg-row.cols-2 { grid-template-columns: repeat(2, minmax(74px, 1fr)); }
+  .seg-row button {
+    height: 44px;
+    border: 0;
+    border-inline-end: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    padding-inline: 10px;
+  }
+  .seg-row button:last-child { border-inline-end: 0; }
+  .seg-row button[aria-pressed="true"] {
+    background: var(--sel-fill);
+    color: var(--sel-ink);
+  }
+
+  /* Progressive Disclosure */
+  details.adv-disclosure {
+    border-block-end: 1px solid var(--line);
+  }
+  details.adv-disclosure summary {
+    list-style: none;
+    min-height: 44px;
+    padding-block: 10px;
+    padding-inline: var(--gutter);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    background: var(--surface-2);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  details.adv-disclosure summary::-webkit-details-marker { display: none; }
+  .adv-body {
+    padding: 12px var(--gutter);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    background: var(--surface);
+  }
+
+  /* Primary & Secondary Buttons */
+  .cta-wrap {
+    padding: 14px var(--gutter) 16px;
+  }
+  .btn-primary {
+    width: 100%;
+    height: 52px;
+    padding-inline: 18px;
+    background: var(--leather);
+    color: var(--on-leather);
+    border: 1.5px solid var(--btn-border);
+    border-radius: var(--r-ctrl);
+    box-shadow: var(--sh-btn);
+    font-family: var(--font-sans);
+    font-size: var(--fs-lead);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .btn-primary:active {
+    transform: translateY(2px);
+    box-shadow: var(--sh-btn-press);
+  }
+  .btn-secondary {
+    height: 44px;
+    padding-inline: 14px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-ctrl);
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .btn-secondary:hover { background: var(--surface-2); }
+
+  /* =========================================================
+     9. STOP ROWS (52px TIME | 22px RING + SPINE | 18/600 | 14)
+     ========================================================= */
+  .timeline-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .stop-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 52px 22px 1fr auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 52px;
+    padding-block: 8px;
+    padding-inline: var(--gutter);
+    border-block-end: 1px solid var(--line);
+    border-radius: var(--r-zero);
+  }
+  .stop-time-col {
+    width: 52px;
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+  }
+  .stop-node-col {
+    position: relative;
+    width: 22px;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .stop-node-col::before,
+  .stop-node-col::after {
+    content: "";
+    position: absolute;
+    left: calc(50% - 1px);
+    width: 2px;
+    background: var(--spine);
+    z-index: 0;
+  }
+  .stop-node-col::before {
+    top: -9px;
+    bottom: 50%;
+  }
+  .stop-node-col::after {
+    top: 50%;
+    bottom: -9px;
+  }
+  .stop-row:first-child .stop-node-col::before { display: none; }
+  .stop-row:last-child .stop-node-col::after { display: none; }
+  .stop-node-col .ring {
+    position: relative;
+    z-index: 1;
+  }
+
+  .stop-name {
+    font-size: var(--fs-lead);
+    font-weight: 600;
+    line-height: 1.22;
+    color: var(--ink);
+    min-width: 0;
+  }
+  .stop-tag {
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .stop-row.past .stop-name {
+    color: var(--muted);
+  }
+
+  .stop-row.current {
+    background: var(--sel-fill);
+    color: var(--sel-ink);
+    border-block-end-color: var(--sel-fill);
+  }
+  .stop-row.current .stop-name { color: var(--sel-ink); }
+  .stop-row.current .stop-tag { color: var(--sel-muted); }
+  .stop-row.current .ring {
+    border-color: var(--sel-ink);
+    background: var(--sel-fill);
+  }
+
+  /* =========================================================
+     10. WALK LIST ROWS (48px MINI-MAP TILE) & EMPTY STATE
+     ========================================================= */
+  .walk-row {
+    display: grid;
+    grid-template-columns: 48px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding-block: 10px;
+    padding-inline: var(--gutter);
+    border-block-end: 1px solid var(--line);
+    border-radius: var(--r-zero);
+  }
+  html[data-device="desktop"] .wide-sheet-max .walk-row,
+  html[data-device="desktop"] .wide-sheet-max .sheet-block,
+  html[data-device="desktop"] .wide-sheet-max .setting-row,
+  html[data-device="desktop"] .wide-sheet-max .sec-bar,
+  html[data-device="desktop"] .wide-sheet-max .cta-wrap {
+    padding-inline: 24px;
+  }
+  .mini-map-tile {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--r-nest);
+    background: var(--map-land);
+    border: 1px solid var(--line);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .mini-map-tile svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .walk-row-title {
+    font-size: var(--fs-lead);
+    font-weight: 600;
+    line-height: 1.22;
+    color: var(--ink);
+  }
+  .walk-row-sub {
+    margin-block-start: 2px;
+    font-size: var(--fs-meta);
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .empty-walks-box {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 28px 20px;
+    border-block-end: 1px solid var(--line);
+    gap: 12px;
+  }
+  .empty-walks-box.active { display: flex; }
+  .empty-walks-box img {
+    width: 108px;
+    height: 108px;
+    object-fit: contain;
+  }
+  .empty-walks-box p {
+    margin: 0;
+    font-size: var(--fs-body);
+    color: var(--muted);
+    max-width: 30ch;
+  }
+
+  /* =========================================================
+     11. PAPER VECTOR MAP (STAR ON DESKTOP & LIVE WALK)
+     ========================================================= */
+  .map-canvas {
+    position: relative;
+    flex: 1;
+    background: var(--map-land);
+    overflow: hidden;
+    min-height: 210px;
+  }
+  .map-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .map-label-txt {
+    font-family: 'Assistant', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    fill: var(--map-label);
+    paint-order: stroke;
+    stroke: var(--map-land);
+    stroke-width: 6px;
+    stroke-linejoin: round;
+  }
+  .map-hud-top {
+    position: absolute;
+    top: 12px;
+    inset-inline: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .map-hud-top > * { pointer-events: auto; }
+
+  .map-callout {
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding-inline: 10px 6px;
+    background: var(--sel-fill);
+    color: var(--sel-ink);
+    border-radius: var(--r-ctrl);
+    box-shadow: var(--sh-paper);
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .map-attr {
+    position: absolute;
+    bottom: 8px;
+    inset-inline-end: 10px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--r-nest);
+    padding: 2px 7px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* Settings & Login layout */
+  .field-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-block-end: 12px;
+  }
+  .field-stack label {
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 56px;
+    padding-block: 10px;
+    padding-inline: var(--gutter);
+    border-block-end: 1px solid var(--line);
+  }
+  .login-center {
+    width: 100%;
+    max-width: 440px;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  html[data-device="desktop"][data-screen="login"] .login-center {
+    border-inline: 1px solid var(--line);
+  }
+  html[data-device="desktop"] .wide-sheet-max {
+    max-width: 680px;
+  }
+
+  /* ROUND 12 BLEND: painted header art behind the R5 controls */
+  .band-art{position:absolute;inset:0;z-index:0;pointer-events:none}
+  .band-art svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .band-art .a-night{display:none}
+  :root[data-theme="night"] .band-art .a-day{display:none}
+  :root[data-theme="night"] .band-art .a-night{display:block}
+  .band-art::after{content:"";position:absolute;inset-inline:0;bottom:0;height:46%;background:linear-gradient(180deg,transparent,var(--surface) 96%)}
+  .band-has-art{background:var(--surface)!important}
+  .band-has-art>*:not(.band-art){position:relative;z-index:3}
+
+  .band-walks .band-art svg,.band-login .band-art svg{}
+  .band-walks .band-art svg{preserveAspectRatio:xMidYMax}
+  .band-home .home-trail-svg .day-only,.band-home .home-trail-svg .night-only,.band-home .home-trail-svg path[stroke*="rgba"]{display:none}
+  .band-home .home-copy{max-width:58%}
+
+  .band-home .band-art::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,rgba(96,28,6,.62) 0%,rgba(96,28,6,.28) 45%,transparent 70%)}
+  :root[data-theme="night"] .band-home .band-art::before{background:linear-gradient(90deg,rgba(10,8,14,.55),transparent 65%)}
+  .band-login .band-title{margin-block-start:56px;text-shadow:0 1px 12px rgba(50,16,4,.6)}
+  .band-login .lantern-svg{display:none}
+  .band-walks{min-height:232px!important}
+  .band-walks .band-title,.band-walks .walks-mileage-txt{text-shadow:0 1px 10px rgba(60,20,6,.55)}
+
+  /* ROUND 13: swapped headers, arch on walks, quieter location chip */
+  .band-art-photo{background:var(--hero-art) 94% 0%/auto 118% no-repeat}
+  .band-art-photo::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#7E2A0B 0%,#A63F12 45%,#C9622A 80%,#E3965B 100%);mix-blend-mode:multiply;opacity:.93}
+  .band-home-photo{height:340px}
+  .band-home-photo .plan-title-wrap{max-width:70%}
+  .band-home-photo .hero-num{font-size:84px}
+  .band-plan:not(.band-home-photo) .band-art::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(255,236,214,.30),rgba(255,236,214,.14) 60%,transparent)}
+  .band-walks .band-title{max-width:170px}
+  .jaffa-window.walks-arch{width:104px;height:128px;margin-inline-end:2px;border-radius:52px 52px var(--r-ctrl) var(--r-ctrl);border-width:3px;background-size:330px auto;background-position:92% 66%;box-shadow:0 5px 0 var(--ink)}
+  .loc-chip,button.loc-chip{background:rgba(255,247,236,.16)!important;color:var(--on-art)!important;border:1px solid rgba(255,247,236,.55)!important;box-shadow:none!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .loc-chip .ring{border-color:var(--on-art)!important}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- Subtle warm cotton-paper watercolor tooth -->
+    <filter id="gouache-paper" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="3" seed="11" result="noise"/>
+      <feColorMatrix type="matrix" values="
+        0 0 0 0 0.95
+        0 0 0 0 0.85
+        0 0 0 0 0.72
+        0 0 0 0.045 0" in="noise" result="warmGrain"/>
+      <feComposite in="warmGrain" in2="SourceGraphic" operator="atop"/>
+    </filter>
+
+    <!-- Soft warm glow for lanterns and windows -->
+    <radialGradient id="lantern-halo-day" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFF4CC" stop-opacity="0.75"/>
+      <stop offset="55%" stop-color="#F7A94B" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#E87A2E" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="lantern-halo-night" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFE9A6" stop-opacity="0.92"/>
+      <stop offset="40%" stop-color="#F59B3D" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#9E3F22" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Day Sky Gradient -->
+    <linearGradient id="sky-day" x1="0" y1="0" x2="0.15" y2="1">
+      <stop offset="0%" stop-color="#8A2B0E"/>
+      <stop offset="34%" stop-color="#BD451A"/>
+      <stop offset="65%" stop-color="#E5843C"/>
+      <stop offset="86%" stop-color="#F4C386"/>
+      <stop offset="100%" stop-color="#F3EFE6"/>
+    </linearGradient>
+
+    <!-- Night Sky Gradient (Mediterranean Indigo-Plum to Warm Amber Lantern Mist to Cream Sheet) -->
+    <linearGradient id="sky-night" x1="0" y1="0" x2="0.1" y2="1">
+      <stop offset="0%" stop-color="#19162B"/>
+      <stop offset="35%" stop-color="#33223D"/>
+      <stop offset="64%" stop-color="#75362E"/>
+      <stop offset="85%" stop-color="#C97F53"/>
+      <stop offset="100%" stop-color="#F3EFE6"/>
+    </linearGradient>
+
+    <!-- Bottom Cream Sheet Melt Overlay -->
+    <linearGradient id="cream-melt-day" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F3EFE6" stop-opacity="0"/>
+      <stop offset="48%" stop-color="#F3EFE6" stop-opacity="0.58"/>
+      <stop offset="82%" stop-color="#F3EFE6" stop-opacity="0.94"/>
+      <stop offset="100%" stop-color="#F3EFE6" stop-opacity="1"/>
+    </linearGradient>
+
+    <linearGradient id="cream-melt-night" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#D99B72" stop-opacity="0"/>
+      <stop offset="42%" stop-color="#E7C2A3" stop-opacity="0.55"/>
+      <stop offset="78%" stop-color="#F3EFE6" stop-opacity="0.93"/>
+      <stop offset="100%" stop-color="#F3EFE6" stop-opacity="1"/>
+    </linearGradient>
+
+    <!-- Top-left readability veil -->
+    <radialGradient id="text-guard-day" cx="18%" cy="22%" r="62%">
+      <stop offset="0%" stop-color="#6E1E07" stop-opacity="0.46"/>
+      <stop offset="65%" stop-color="#8F2E10" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#8F2E10" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="text-guard-night" cx="18%" cy="22%" r="62%">
+      <stop offset="0%" stop-color="#110E20" stop-opacity="0.58"/>
+      <stop offset="65%" stop-color="#1D1730" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#1D1730" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Hand-drawn organic Bougainvillea Bract Cluster (NOT circles) -->
+    <g id="bougainvillea-spray">
+      <path d="M0,0 C8,-6 18,-4 23,2 C17,8 9,9 0,0 Z" fill="#C92A49"/>
+      <path d="M12,-5 C21,-13 31,-9 35,-1 C26,5 17,4 12,-5 Z" fill="#E34B68"/>
+      <path d="M-9,4 C-2,-4 8,-2 12,6 C4,12 -5,11 -9,4 Z" fill="#A61C38"/>
+      <path d="M18,5 C26,0 36,3 39,11 C30,15 21,13 18,5 Z" fill="#C92A49"/>
+      <path d="M4,9 C12,5 21,8 24,16 C15,19 7,17 4,9 Z" fill="#EB657E"/>
+      <path d="M27,-4 C34,-10 43,-7 46,0 C39,5 31,3 27,-4 Z" fill="#F07D92"/>
+      <!-- Tiny cream paper-flower stamens -->
+      <path d="M14,2 L16,0 M28,6 L30,5 M8,11 L10,11" stroke="#FFF3D6" stroke-width="1.3" stroke-linecap="round"/>
+    </g>
+
+    <g id="bougainvillea-spray-night">
+      <path d="M0,0 C8,-6 18,-4 23,2 C17,8 9,9 0,0 Z" fill="#7D1D3B"/>
+      <path d="M12,-5 C21,-13 31,-9 35,-1 C26,5 17,4 12,-5 Z" fill="#9E2B4E"/>
+      <path d="M-9,4 C-2,-4 8,-2 12,6 C4,12 -5,11 -9,4 Z" fill="#59122A"/>
+      <path d="M18,5 C26,0 36,3 39,11 C30,15 21,13 18,5 Z" fill="#852040"/>
+      <path d="M4,9 C12,5 21,8 24,16 C15,19 7,17 4,9 Z" fill="#B84062"/>
+      <path d="M14,2 L16,0 M28,6 L30,5" stroke="#FFDFA6" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
+    </g>
+
+    <!-- Date Palm Crown -->
+    <g id="palm-crown-day">
+      <path d="M0,0 C-14,-12 -34,-14 -48,-4 C-32,-5 -15,-2 0,3 Z" fill="#3B4229"/>
+      <path d="M0,0 C-10,-19 -28,-27 -44,-23 C-27,-19 -12,-10 0,2 Z" fill="#4B5433"/>
+      <path d="M0,0 C-2,-22 -12,-36 -25,-40 C-12,-30 -4,-15 1,1 Z" fill="#5D663E"/>
+      <path d="M0,0 C10,-22 26,-33 43,-31 C27,-24 12,-12 0,2 Z" fill="#4E5735"/>
+      <path d="M0,0 C18,-15 39,-16 54,-5 C36,-7 18,-4 0,3 Z" fill="#363D25"/>
+      <path d="M0,0 C16,-4 33,3 42,15 C28,8 14,4 0,3 Z" fill="#2D331F"/>
+      <path d="M0,0 C-15,-2 -30,6 -38,18 C-25,10 -12,5 0,3 Z" fill="#2D331F"/>
+    </g>
+
+    <g id="palm-crown-night">
+      <path d="M0,0 C-14,-12 -34,-14 -48,-4 C-32,-5 -15,-2 0,3 Z" fill="#1D2026"/>
+      <path d="M0,0 C-10,-19 -28,-27 -44,-23 C-27,-19 -12,-10 0,2 Z" fill="#252930"/>
+      <path d="M0,0 C-2,-22 -12,-36 -25,-40 C-12,-30 -4,-15 1,1 Z" fill="#2F333B"/>
+      <path d="M0,0 C10,-22 26,-33 43,-31 C27,-24 12,-12 0,2 Z" fill="#252930"/>
+      <path d="M0,0 C18,-15 39,-16 54,-5 C36,-7 18,-4 0,3 Z" fill="#1A1C22"/>
+      <path d="M0,0 C16,-4 33,3 42,15 C28,8 14,4 0,3 Z" fill="#16181D"/>
+      <path d="M0,0 C-15,-2 -30,6 -38,18 C-25,10 -12,5 0,3 Z" fill="#16181D"/>
+    </g>
+
+    <!-- Swift / Mediterranean Bird -->
+    <path id="swift" d="M0,0 C4,-4 9,-4 12,0 C15,-4 20,-4 24,0 C19,-1 15,0 12,3 C9,0 5,-1 0,0 Z"/>
+  </defs>
+</svg>
+
+<!-- =========================================================
+     PRESENTER GALLERY CONTROLS
+     ========================================================= -->
+<header class="gallery-bar">
+  <div class="gallery-bar-top">
+    <div class="gallery-brand">
+      <strong>Traike</strong>
+      <span>Round 9 · Six Distinct Sky Compositions · One System</span>
+    </div>
+    <div class="ctrl-groups">
+      <div class="ctrl-seg" role="group" aria-label="Language">
+        <button type="button" id="btn-en" aria-pressed="true" onclick="setLang('en')">English (LTR)</button>
+        <button type="button" id="btn-he" aria-pressed="false" onclick="setLang('he')">עברית (RTL)</button>
+      </div>
+      <div class="ctrl-seg" role="group" aria-label="Theme">
+        <button type="button" id="btn-day" aria-pressed="true" onclick="setTheme('day')">Sunset Day</button>
+        <button type="button" id="btn-night" aria-pressed="false" onclick="setTheme('night')">Dusk Night</button>
+      </div>
+      <div class="ctrl-seg" role="group" aria-label="Device">
+        <button type="button" id="btn-phone" aria-pressed="true" onclick="setDevice('phone')">Phone (390)</button>
+        <button type="button" id="btn-desktop" aria-pressed="false" onclick="setDevice('desktop')">Desktop (1180)</button>
+      </div>
+    </div>
+  </div>
+  <nav class="screen-tabs" role="tablist" aria-label="App Screens">
+    <button type="button" role="tab" data-tab="home" aria-selected="true" onclick="setScreen('home')">A · Home</button>
+    <button type="button" role="tab" data-tab="plan" aria-selected="false" onclick="setScreen('plan')">B · Plan + Guide Chat</button>
+    <button type="button" role="tab" data-tab="walk" aria-selected="false" onclick="setScreen('walk')">C · Live Walk</button>
+    <button type="button" role="tab" data-tab="walks" aria-selected="false" onclick="setScreen('walks')">D · My Walks &amp; Social</button>
+    <button type="button" role="tab" data-tab="me" aria-selected="false" onclick="setScreen('me')">E · Me &amp; Settings</button>
+    <button type="button" role="tab" data-tab="login" aria-selected="false" onclick="setScreen('login')">F · Login</button>
+  </nav>
+</header>
+
+<!-- =========================================================
+     MAIN PRODUCT SHELL
+     ========================================================= -->
+<main class="stage">
+  <div class="app-frame">
+
+    <!-- DESKTOP INLINE-START RAIL -->
+    <aside class="desktop-rail" aria-label="Primary">
+      <div>
+        <div class="rail-brand-row">
+          <span class="brand on-sheet">
+            <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+              <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              <circle cx="19.5" cy="6.5" r="5" fill="var(--surface)" stroke="currentColor" stroke-width="2"/>
+              <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
+            </svg>
+            <span class="brand-word">Traike</span>
+          </span>
+        </div>
+        <nav class="rail-nav">
+          <button type="button" class="rail-btn" data-nav="home" aria-current="page" onclick="setScreen('home')">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3.5 10.5L12 3.5l8.5 7V20a1 1 0 0 1-1 1h-5v-6h-5v6h-5a1 1 0 0 1-1-1v-9.5z"/>
+            </svg>
+            <span data-en>Home</span><span data-he>בית</span>
+          </button>
+          <button type="button" class="rail-btn" data-nav="plan" onclick="setScreen('plan')">
+            <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 20c3-5.5 6-6.5 9.5-8 2.4-1 3.5-2.6 4.2-4.2"/>
+              <circle class="nav-ring-fill" cx="18" cy="6" r="4.2" fill="var(--surface)" stroke="currentColor" stroke-width="1.75"/>
+              <circle cx="18" cy="6" r="1.9" fill="var(--leather)" stroke="none"/>
+            </svg>
+            <span data-en>Plan</span><span data-he>תכנון</span>
+          </button>
+          <button type="button" class="rail-btn" data-nav="walk" onclick="setScreen('walk')">
+            <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12.5" cy="4.8" r="2.2"/>
+              <path d="M8.5 9.5c-1.8.4-2.5 2-2.2 4.2"/>
+              <path d="M12 8.2l-1.6 5.6L7.5 20M10.8 13.8l3.7 2.2 1.2 4M10.8 9.8l4.7 2.2M17.5 8.5L16 20.2"/>
+            </svg>
+            <span data-en>Live Walk</span><span data-he>הליכה חיה</span>
+          </button>
+          <button type="button" class="rail-btn" data-nav="walks" onclick="setScreen('walks')">
+            <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8.8 6.5h4.7a3.2 3.2 0 0 1 0 6.4h-3a3.2 3.2 0 0 0 0 6.4h4.7"/>
+              <circle class="nav-ring-fill" cx="6" cy="6.5" r="2.8" fill="var(--surface)"/>
+              <circle cx="18" cy="19.3" r="2.8" fill="var(--surface)"/>
+            </svg>
+            <span data-en>My Walks</span><span data-he>המסלולים שלי</span>
+          </button>
+          <button type="button" class="rail-btn" data-nav="me" onclick="setScreen('me')">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="3.8"/>
+              <path d="M4.5 20c1.6-3.8 4.4-5.6 7.5-5.6s5.9 1.8 7.5 5.6"/>
+            </svg>
+            <span data-en>Me</span><span data-he>פרופיל</span>
+          </button>
+        </nav>
+      </div>
+      <div class="rail-footer">
+        <button type="button" class="rail-btn" onclick="setScreen('login')">
+          <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/>
+            <path d="M9.5 16.5L14 12 9.5 7.5M14 12H4"/>
+          </svg>
+          <span data-en>Sign in</span><span data-he>התחברות</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- =======================================================
+         SCREEN A · HOME ("The Ascending Golden-Hour Trail")
+         ======================================================= -->
+    <section class="screen" data-id="home" aria-label="Home">
+      <div class="col-sheet paired">
+        <header class="band band-plan band-home-photo band-has-art"><div class="band-art band-art-photo" aria-hidden="true"></div>
+          <div class="band-topbar">
+            <span class="brand on-art hide-desktop">
+              <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
+                <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
+              </svg>
+              <span class="brand-word">Traike</span>
+            </span>
+            <button type="button" class="paper-tag loc-chip" onclick="setScreen('plan')">
+              <span class="ring now" aria-hidden="true"></span>
+              <span class="chip-text" data-en>Habima · Tel Aviv</span>
+              <span class="chip-text" data-he>הבימה · תל אביב</span>
+            </button>
+          </div>
+
+          <div class="plan-header-row">
+            <div class="plan-title-wrap">
+              <div class="hero-stat">
+                <span class="hero-num"><bdi>65</bdi></span>
+                <span class="hero-unit" data-en>min</span>
+                <span class="hero-unit" data-he>דק׳</span>
+              </div>
+              <div class="band-facts">
+                <span data-en>4.1 km · 4 stops<br/>Golden-hour walk to Jaffa Port</span>
+                <span data-he><bdi>4.1</bdi> ק״מ · <bdi>4</bdi> תחנות<br/>הליכת שקיעה לנמל יפו</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Guide Arch + Paper Speech Card -->
+          <div class="guide-stage">
+            <img class="guide-arch day-only" src="assets/guide.jpg" alt="Traike walking guide" />
+            <img class="guide-arch night-only" src="assets/guide-night.jpg" alt="Traike walking guide at night" />
+            <div class="speech-card">
+              <h2 class="speech-title" data-en>Chat with Traike</h2>
+              <h2 class="speech-title" data-he>שיחה עם טרייק</h2>
+              <p class="speech-body" data-en>Pick a vibe or name your stops — I'll thread a calm route.</p>
+              <p class="speech-body" data-he>בחרו אווירה או כתבו תחנות — אחבר לכם מסלול מדויק.</p>
+            </div>
+          </div>
+        </header>
+
+        <div class="sheet">
+          <div class="sec-bar">
+            <span data-en>Tonight's suggested route</span>
+            <span data-he>המסלול המוצע להערב</span>
+            <span class="sec-note" data-en>120 m away</span>
+            <span class="sec-note" data-he><bdi>120</bdi> מ׳ ממך</span>
+          </div>
+
+          <div class="timeline-list">
+            <div class="stop-row">
+              <span class="stop-time-col"><bdi>18:15</bdi></span>
+              <span class="stop-node-col"><span class="ring now" aria-hidden="true"></span></span>
+              <span class="stop-name" data-en>Habima Sunken Garden</span>
+              <span class="stop-name" data-he>גן יעקב והבימה</span>
+              <span class="stop-tag" data-en>Start</span>
+              <span class="stop-tag" data-he>התחלה</span>
+            </div>
+            <div class="stop-row">
+              <span class="stop-time-col"><bdi>18:32</bdi></span>
+              <span class="stop-node-col"><span class="ring" aria-hidden="true"></span></span>
+              <span class="stop-name" data-en>Carmel Market Alleys</span>
+              <span class="stop-name" data-he>סמטאות שוק הכרמל</span>
+              <span class="stop-tag" data-en>Tastings</span>
+              <span class="stop-tag" data-he>טעימות</span>
+            </div>
+            <div class="stop-row">
+              <span class="stop-time-col"><bdi>18:55</bdi></span>
+              <span class="stop-node-col"><span class="ring" aria-hidden="true"></span></span>
+              <span class="stop-name" data-en>Neve Tzedek Courtyards</span>
+              <span class="stop-name" data-he>חצרות נווה צדק</span>
+              <span class="stop-tag" data-en>Shade</span>
+              <span class="stop-tag" data-he>צל</span>
+            </div>
+            <div class="stop-row current">
+              <span class="stop-time-col"><span class="time-tag"><bdi>19:20</bdi></span></span>
+              <span class="stop-node-col"><span class="ring now" aria-hidden="true"></span></span>
+              <span class="stop-name" data-en>Old Jaffa Sea Overlook</span>
+              <span class="stop-name" data-he>תצפית הים ביפו העתיקה</span>
+              <span class="stop-tag" data-en>Sunset</span>
+              <span class="stop-tag" data-he>שקיעה</span>
+            </div>
+          </div>
+
+          <!-- ONE Primary Button -->
+          <div class="cta-wrap">
+            <button type="button" class="btn-primary" onclick="setScreen('plan')">
+              <span data-en>Plan my walk</span>
+              <span data-he>תכנן לי הליכה</span>
+              <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="sec-bar">
+            <span data-en>Saved &amp; recent walks</span>
+            <span data-he>מסלולים שמורים ואחרונים</span>
+            <button type="button" class="link-inline" onclick="setScreen('walks')">
+              <span data-en>All walks</span><span data-he>לכל המסלולים</span>
+            </button>
+          </div>
+
+          <div class="walk-row">
+            <div class="mini-map-tile" aria-hidden="true">
+              <svg viewBox="0 0 48 48">
+                <rect width="48" height="48" fill="var(--map-land)"/>
+                <rect x="26" y="4" width="18" height="16" rx="2" fill="var(--map-park)"/>
+                <path d="M0 26H48M22 0V48" stroke="var(--map-road)" stroke-width="3"/>
+                <path d="M10 38C14 28 19 26 24 22C29 18 32 14 37 11" fill="none" stroke="var(--route)" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="10" cy="38" r="4" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                <circle cx="10" cy="38" r="1.8" fill="var(--leather)"/>
+                <circle cx="37" cy="11" r="4.2" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                <circle cx="37" cy="11" r="1.8" fill="var(--route)"/>
+              </svg>
+            </div>
+            <div>
+              <div class="walk-row-title" data-en>Florentin Roasters &amp; Murals</div>
+              <div class="walk-row-title" data-he>בתי קלייה וציורי קיר בפלורנטין</div>
+              <div class="walk-row-sub" data-en>50 min · 3.2 km · Walked Tue</div>
+              <div class="walk-row-sub" data-he><bdi>50</bdi> דק׳ · <bdi>3.2</bdi> ק״מ · הושלם בשלישי</div>
+            </div>
+            <button type="button" class="btn-secondary" onclick="setScreen('walk')">
+              <span data-en>Walk</span><span data-he>צא</span>
+            </button>
+          </div>
+
+          <div class="walk-row">
+            <div class="mini-map-tile" aria-hidden="true">
+              <svg viewBox="0 0 48 48">
+                <rect width="48" height="48" fill="var(--map-land)"/>
+                <rect x="4" y="6" width="18" height="22" rx="2" fill="var(--map-park)"/>
+                <path d="M0 32H48M30 0V48" stroke="var(--map-road)" stroke-width="3"/>
+                <path d="M11 36L20 24L29 27L38 12" fill="none" stroke="var(--route)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="11" cy="36" r="4" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                <circle cx="11" cy="36" r="1.8" fill="var(--leather)"/>
+                <circle cx="38" cy="12" r="4.2" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                <circle cx="38" cy="12" r="1.8" fill="var(--route)"/>
+              </svg>
+            </div>
+            <div>
+              <div class="walk-row-title" data-en>Ein Kerem Spring Trail</div>
+              <div class="walk-row-title" data-he>שביל המעיין בעין כרם</div>
+              <div class="walk-row-sub" data-en>75 min · 4.6 km · Saved</div>
+              <div class="walk-row-sub" data-he><bdi>75</bdi> דק׳ · <bdi>4.6</bdi> ק״מ · שמור</div>
+            </div>
+            <button type="button" class="btn-secondary" onclick="setScreen('walk')">
+              <span data-en>Walk</span><span data-he>צא</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Map Preview on Home -->
+      <div class="map-canvas desktop-map-pane" aria-label="Suggested walk map">
+        <svg class="map-svg" viewBox="0 0 524 760" preserveAspectRatio="xMidYMid slice">
+          <rect width="524" height="760" fill="var(--map-land)"/>
+          <path d="M0 0H108C98 220 84 480 68 760H0Z" fill="var(--map-water)"/>
+          <rect x="132" y="64" width="160" height="148" rx="4" fill="var(--map-block)"/>
+          <rect x="314" y="64" width="176" height="148" rx="4" fill="var(--map-park)"/>
+          <rect x="132" y="234" width="160" height="176" rx="4" fill="var(--map-park)"/>
+          <rect x="314" y="234" width="176" height="176" rx="4" fill="var(--map-block)"/>
+          <rect x="120" y="432" width="172" height="184" rx="4" fill="var(--map-block)"/>
+          <rect x="314" y="432" width="176" height="184" rx="4" fill="var(--map-park)"/>
+
+          <path d="M116 223H524M104 421H524M92 628H524M303 0V760" stroke="var(--map-road-case)" stroke-width="12"/>
+          <path d="M212 64V628M402 64V628" stroke="var(--map-road-case)" stroke-width="8"/>
+          <path d="M116 223H524M104 421H524M92 628H524M303 0V760" stroke="var(--map-road)" stroke-width="10"/>
+          <path d="M212 64V628M402 64V628" stroke="var(--map-road)" stroke-width="6"/>
+
+          <text class="map-label-txt" x="348" y="218">Rothschild Blvd</text>
+          <text class="map-label-txt" x="348" y="416">Shabazi St</text>
+          <text class="map-label-txt" x="126" y="662">Jaffa Port</text>
+
+          <path d="M402 138H303V296H212V492H148V594" fill="none" stroke="var(--surface)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M402 138H303V296H212V492H148V594" fill="none" stroke="var(--route)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <circle cx="402" cy="138" r="7" fill="var(--surface)" stroke="var(--route)" stroke-width="2.5"/>
+          <circle cx="303" cy="296" r="7" fill="var(--surface)" stroke="var(--route)" stroke-width="2.5"/>
+          <circle cx="212" cy="492" r="7" fill="var(--surface)" stroke="var(--route)" stroke-width="2.5"/>
+          <circle cx="148" cy="594" r="10" fill="var(--surface)" stroke="var(--route)" stroke-width="2.5"/>
+          <circle cx="148" cy="594" r="4" fill="var(--route)"/>
+
+          <g transform="translate(402,138)">
+            <circle r="19" fill="var(--ink)"/>
+            <circle r="17.5" fill="var(--surface)"/>
+            <circle r="15" fill="var(--leather)"/>
+            <g transform="translate(-9,-9) scale(0.75)" fill="none" stroke="#F8F3EA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12.5" cy="4.8" r="2.2"/>
+              <path d="M8.5 9.5c-1.8.4-2.5 2-2.2 4.2"/>
+              <path d="M12 8.2l-1.6 5.6L7.5 20M10.8 13.8l3.7 2.2 1.2 4M10.8 9.8l4.7 2.2M17.5 8.5L16 20.2"/>
+            </g>
+          </g>
+
+          <g transform="translate(148,594)">
+            <path d="M0 0C-9 -11 -15 -18 -15 -25A15 15 0 1 1 15 -25C15 -18 9 -11 0 0Z" fill="#1B2620" stroke="var(--surface)" stroke-width="1.5"/>
+            <circle cx="0" cy="-25" r="5" fill="#F8F3EA"/>
+            <circle cx="0" cy="-25" r="2.6" fill="var(--leather)"/>
+          </g>
+        </svg>
+
+        <div class="map-callout" style="left:172px;top:554px;">
+          <span data-en>Old Jaffa Overlook</span>
+          <span data-he>תצפית יפו העתיקה</span>
+          <span class="time-tag"><bdi>19:20</bdi></span>
+        </div>
+
+        <div class="map-hud-top">
+          <span class="paper-tag">
+            <svg class="rtl-flip" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8.8 6.5h4.7a3.2 3.2 0 0 1 0 6.4h-3a3.2 3.2 0 0 0 0 6.4h4.7"/>
+              <circle cx="6" cy="6.5" r="2.8" fill="var(--surface)"/>
+              <circle cx="18" cy="19.3" r="2.8" fill="var(--surface)"/>
+            </svg>
+            <span data-en>4 stops · 4.1 km</span>
+            <span data-he><bdi>4</bdi> תחנות · <bdi>4.1</bdi> ק״מ</span>
+          </span>
+          <div class="paper-zoom-group">
+            <button type="button" class="paper-tag paper-zoom" aria-label="Zoom in">+</button>
+            <button type="button" class="paper-tag paper-zoom" aria-label="Zoom out">−</button>
+          </div>
+        </div>
+        <span class="map-attr">© OpenStreetMap · Traike</span>
+      </div>
+    </section>
+
+    <!-- =======================================================
+         SCREEN B · PLAN + GUIDE CHAT ("Guide & Old-Jaffa Archway")
+         ======================================================= -->
+    <section class="screen" data-id="plan" aria-label="Plan a walk">
+      <div class="col-sheet paired">
+        <header class="band band-plan band-has-art"><div class="band-art"><svg class="a-day" preserveAspectRatio="xMidYMin slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="390" height="300" fill="url(#sky-day)"/>
+
+          <!-- Soft brushed clouds -->
+          <path d="M40,148 C95,140 165,142 230,150 C185,156 95,156 40,148 Z" fill="#F7C98B" opacity="0.28"/>
+          <path d="M150,112 C210,104 285,106 340,114 C290,119 205,118 150,112 Z" fill="#F2A65A" opacity="0.24"/>
+
+          <!-- Setting Mediterranean Sun & Halo -->
+          <circle cx="132" cy="184" r="46" fill="#FFE6A3" opacity="0.26"/>
+          <circle cx="132" cy="186" r="23" fill="#FFF0BD" opacity="0.88"/>
+
+          <!-- Distant Mediterranean Sea -->
+          <path d="M0,192 L265,192 L265,258 L0,258 Z" fill="#D97B38" opacity="0.65"/>
+          <path d="M0,192 C75,190 155,191 245,193 L245,232 L0,232 Z" fill="#E89A54" opacity="0.55"/>
+
+          <!-- Sun Shimmer Paths on Water -->
+          <g fill="#FFF3C4" opacity="0.78">
+            <path d="M106,196 C124,195 144,195 158,196 C146,199 120,199 106,196 Z"/>
+            <path d="M113,203 C128,202 142,202 152,203 C140,206 123,206 113,203 Z"/>
+            <path d="M102,211 C122,210 146,210 163,212 C145,214 120,214 102,211 Z"/>
+            <path d="M118,220 C130,219 143,219 151,221 C141,223 127,223 118,220 Z"/>
+          </g>
+
+          <!-- Old Jaffa Breakwater Reef -->
+          <path d="M34,214 C62,211 92,212 114,215 L106,218 L30,217 Z" fill="#7A3319" opacity="0.7"/>
+
+          <!-- Small Lateen Sailboat off Jaffa Port -->
+          <g transform="translate(72, 203)">
+            <path d="M0,6 L22,6 L18,10 L4,10 Z" fill="#592312"/>
+            <path d="M11,6 L11,-11 L21,4 Z" fill="#FFF0CC" opacity="0.92"/>
+            <path d="M10,6 L10,-8 L2,5 Z" fill="#F2C185" opacity="0.82"/>
+          </g>
+
+          <!-- Old Jaffa Stepped Kurkar Hill & Architecture -->
+          <path d="M168,218 L184,188 L208,186 L216,168 L254,166 L278,144 L348,146 L390,160 L390,255 L155,255 Z" fill="#9E421E"/>
+
+          <!-- St. Peter's Church Bell Tower (Iconic Jaffa silhouette + sunlit limestone face) -->
+          <g transform="translate(268, 86)">
+            <!-- Sunlit west facade -->
+            <rect x="0" y="28" width="13" height="58" fill="#F5CA8C"/>
+            <!-- Shaded east facade -->
+            <rect x="13" y="28" width="11" height="58" fill="#8C3718"/>
+            <!-- Belfry cornice -->
+            <rect x="-2" y="26" width="28" height="3" fill="#FADBA8"/>
+            <rect x="-2" y="48" width="28" height="2.5" fill="#FADBA8"/>
+            <!-- Arched belfry windows -->
+            <path d="M4,33 A3,3 0 0,1 10,33 L10,44 L4,44 Z" fill="#59200E"/>
+            <path d="M16,33 A2.5,2.5 0 0,1 21,33 L21,44 L16,44 Z" fill="#47180A"/>
+            <!-- Pointed Baroque-Franciscan Spire -->
+            <path d="M0,26 L12,2 L13,26 Z" fill="#F7D59C"/>
+            <path d="M12,2 L24,26 L13,26 Z" fill="#782B11"/>
+            <path d="M12,-4 L12,3 M9.5,-1 L14.5,-1" stroke="#59200E" stroke-width="1.3" stroke-linecap="round"/>
+          </g>
+
+          <!-- Mahmoudiya Dome & Cascading Jaffa Limestone Houses -->
+          <path d="M233,166 C233,154 249,154 249,166 Z" fill="#F2BE7E"/>
+          <path d="M241,154 C246,154 249,159 249,166 L241,166 Z" fill="#8C3718"/>
+
+          <!-- Sunlit West Walls of Jaffa Houses -->
+          <g>
+            <!-- House block 1 -->
+            <rect x="212" y="168" width="18" height="24" fill="#F4C789"/>
+            <rect x="230" y="168" width="16" height="24" fill="#853316"/>
+            <!-- House block 2 -->
+            <rect x="248" y="160" width="22" height="28" fill="#F7D399"/>
+            <rect x="270" y="160" width="18" height="28" fill="#7D2E13"/>
+            <!-- Lower port warehouses -->
+            <rect x="182" y="188" width="26" height="22" fill="#EBB475"/>
+            <rect x="208" y="188" width="24" height="22" fill="#7A2D13"/>
+            <rect x="236" y="182" width="32" height="26" fill="#F2C385"/>
+            <rect x="268" y="182" width="26" height="26" fill="#6E260E"/>
+            <!-- Tiny arched windows -->
+            <path d="M254,167 A2.5,2.5 0 0,1 259,167 L259,174 L254,174 Z" fill="#5E210D"/>
+            <path d="M262,167 A2.5,2.5 0 0,1 267,167 L267,174 L262,174 Z" fill="#5E210D"/>
+            <path d="M190,195 A3,3 0 0,1 196,195 L196,204 L190,204 Z" fill="#5E210D"/>
+            <path d="M200,195 A3,3 0 0,1 206,195 L206,204 L200,204 Z" fill="#5E210D"/>
+            <path d="M245,190 A3,3 0 0,1 251,190 L251,199 L245,199 Z" fill="#5E210D"/>
+            <path d="M256,190 A3,3 0 0,1 262,190 L262,199 L256,199 Z" fill="#5E210D"/>
+          </g>
+
+          <!-- Harbor Sea Wall & Promenade Curve -->
+          <path d="M142,222 C195,216 260,212 340,214 L340,234 L135,230 Z" fill="#D99457"/>
+          <path d="M142,222 C195,216 260,212 340,214" stroke="#FFE3B0" stroke-width="1.4" fill="none" opacity="0.75"/>
+
+          <!-- Slender Cypresses & Date Palm on the Bluff -->
+          <path d="M302,178 C303,152 306,136 308,126 C310,136 313,152 314,178 Z" fill="#363F27"/>
+          <path d="M316,182 C317,160 319,147 321,139 C323,147 325,160 326,182 Z" fill="#2B331F"/>
+          <path d="M332,195 Q328,158 323,130" stroke="#4A2512" stroke-width="3.2" fill="none"/>
+          <use href="#palm-crown-day" transform="translate(323,130) scale(0.72)"/>
+
+          <!-- Foreground Right Kurkar Limestone Archway Framing the View -->
+          <path d="M286,0 L390,0 L390,290 L352,290 L352,126 C352,66 320,24 286,0 Z" fill="#63230E"/>
+          <!-- Sunlit inner archchamfer (warm limestone blocks) -->
+          <path d="M286,0 C320,24 352,66 352,126 L352,275 L361,275 L361,124 C361,60 328,18 296,0 Z" fill="#E8A968"/>
+          <!-- Individual stone voussoir joints on arch -->
+          <g stroke="#7A2E14" stroke-width="1" opacity="0.55">
+            <line x1="316" y1="24" x2="324" y2="18"/>
+            <line x1="333" y1="48" x2="342" y2="43"/>
+            <line x1="345" y1="76" x2="355" y2="73"/>
+            <line x1="351" y1="106" x2="361" y2="105"/>
+            <line x1="352" y1="138" x2="361" y2="138"/>
+            <line x1="352" y1="170" x2="361" y2="170"/>
+          </g>
+
+          <!-- Foreground Winding Promenade Parapet Leading Toward Jaffa -->
+          <path d="M0,256 C95,244 215,232 390,224 L390,300 L0,300 Z" fill="#C9854B"/>
+          <path d="M0,256 C95,244 215,232 360,225" stroke="#FCE2B6" stroke-width="2" fill="none" opacity="0.8"/>
+
+          <!-- Cascading Bougainvillea & Olive Twigs from Foreground Arch -->
+          <path d="M295,6 C310,26 328,34 348,42" stroke="#3D2616" stroke-width="2" fill="none"/>
+          <use href="#bougainvillea-spray" transform="translate(302, 12) rotate(18) scale(0.95)"/>
+          <use href="#bougainvillea-spray" transform="translate(334, 34) rotate(35) scale(0.85)"/>
+          <use href="#bougainvillea-spray" transform="translate(344, 68) rotate(65) scale(0.75)"/>
+
+          <!-- Two wheeling swifts -->
+          <use href="#swift" transform="translate(212, 92) scale(0.55) rotate(-8)" fill="#591E0B" opacity="0.75"/>
+          <use href="#swift" transform="translate(232, 82) scale(0.42) rotate(6)" fill="#591E0B" opacity="0.65"/>
+
+          <!-- Readability & Cream Sheet Melt -->
+          <rect width="390" height="220" fill="url(#text-guard-day)"/>
+          
+          
+        </svg><svg class="a-night" preserveAspectRatio="xMidYMin slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="390" height="300" fill="url(#sky-night)"/>
+
+          <!-- Crisp Stars & Crescent Moon -->
+          <g fill="#FFF2CC">
+            <circle cx="155" cy="52" r="1.1" opacity="0.8"/>
+            <circle cx="204" cy="38" r="1.3" opacity="0.9"/>
+            <circle cx="248" cy="64" r="1" opacity="0.65"/>
+            <circle cx="118" cy="84" r="0.9" opacity="0.55"/>
+            <circle cx="295" cy="46" r="1.1" opacity="0.75"/>
+          </g>
+          <!-- Crescent Moon -->
+          <path d="M194,76 A14,14 0 1,1 180,94 A11,11 0 1,0 194,76 Z" fill="#FFEBB8"/>
+
+          <!-- Night Mediterranean Sea -->
+          <path d="M0,192 L265,192 L265,258 L0,258 Z" fill="#2A2038" opacity="0.85"/>
+
+          <!-- Golden Harbor & Moon Reflections on Water -->
+          <g fill="#FFCF7D" opacity="0.68">
+            <path d="M174,197 C185,196 198,196 208,197 C198,199 183,199 174,197 Z"/>
+            <path d="M168,205 C188,204 214,204 232,206 C212,208 185,208 168,205 Z"/>
+            <path d="M182,213 C202,212 226,212 242,214 C224,216 198,216 182,213 Z"/>
+            <path d="M112,202 C124,201 136,201 144,202 C135,204 121,204 112,202 Z"/>
+          </g>
+
+          <!-- Fishing Boat with Warm Mast Lantern -->
+          <g transform="translate(92, 204)">
+            <path d="M0,6 L22,6 L18,10 L4,10 Z" fill="#181322"/>
+            <line x1="11" y1="6" x2="11" y2="-8" stroke="#2D2338" stroke-width="1.3"/>
+            <circle cx="11" cy="-6" r="5" fill="url(#lantern-halo-night)"/>
+            <circle cx="11" cy="-6" r="1.6" fill="#FFEAA6"/>
+          </g>
+
+          <!-- Old Jaffa Night Hill Silhouette -->
+          <path d="M168,218 L184,188 L208,186 L216,168 L254,166 L278,144 L348,146 L390,160 L390,255 L155,255 Z" fill="#261B2E"/>
+
+          <!-- Warm Uplight Glow on St. Peter's Spire -->
+          <circle cx="280" cy="138" r="48" fill="url(#lantern-halo-night)" opacity="0.55"/>
+          <g transform="translate(268, 86)">
+            <rect x="0" y="28" width="13" height="58" fill="#9E6242"/>
+            <rect x="13" y="28" width="11" height="58" fill="#2A1D33"/>
+            <rect x="-2" y="26" width="28" height="3" fill="#C48156"/>
+            <rect x="-2" y="48" width="28" height="2.5" fill="#C48156"/>
+            <!-- Lit belfry arch -->
+            <path d="M4,33 A3,3 0 0,1 10,33 L10,44 L4,44 Z" fill="#FFD984"/>
+            <path d="M16,33 A2.5,2.5 0 0,1 21,33 L21,44 L16,44 Z" fill="#C78A44"/>
+            <path d="M0,26 L12,2 L13,26 Z" fill="#B5734E"/>
+            <path d="M12,2 L24,26 L13,26 Z" fill="#24182B"/>
+            <path d="M12,-4 L12,3 M9.5,-1 L14.5,-1" stroke="#8C5940" stroke-width="1.3" stroke-linecap="round"/>
+          </g>
+
+          <!-- Ottoman Dome & Houses with Glowing Amber Windows -->
+          <path d="M233,166 C233,154 249,154 249,166 Z" fill="#6E443B"/>
+          <g>
+            <rect x="212" y="168" width="18" height="24" fill="#4A2E38"/>
+            <rect x="230" y="168" width="16" height="24" fill="#24182B"/>
+            <rect x="248" y="160" width="22" height="28" fill="#59363D"/>
+            <rect x="182" y="188" width="26" height="22" fill="#472D38"/>
+            <rect x="236" y="182" width="32" height="26" fill="#52333B"/>
+            <!-- Warm glowing Jaffa windows -->
+            <g fill="#FFE08C">
+              <rect x="218" y="174" width="4" height="6" rx="2"/>
+              <rect x="254" y="167" width="4.5" height="7" rx="2.2"/>
+              <rect x="262" y="167" width="4.5" height="7" rx="2.2"/>
+              <rect x="191" y="195" width="5" height="7" rx="2.5"/>
+              <rect x="246" y="190" width="5" height="8" rx="2.5"/>
+              <rect x="257" y="190" width="5" height="8" rx="2.5"/>
+            </g>
+          </g>
+
+          <!-- Harbor Quay Lanterns -->
+          <path d="M142,222 C195,216 260,212 340,214 L340,234 L135,230 Z" fill="#4A2F35"/>
+          <g fill="#FFE499">
+            <circle cx="176" cy="218" r="1.8"/>
+            <circle cx="204" cy="216" r="1.8"/>
+            <circle cx="234" cy="214" r="1.8"/>
+            <circle cx="266" cy="213" r="1.8"/>
+          </g>
+
+          <!-- Cypresses & Palm -->
+          <path d="M302,178 C303,152 306,136 308,126 C310,136 313,152 314,178 Z" fill="#181A24"/>
+          <path d="M332,195 Q328,158 323,130" stroke="#1A1521" stroke-width="3.2" fill="none"/>
+          <use href="#palm-crown-night" transform="translate(323,130) scale(0.72)"/>
+
+          <!-- Foreground Right Kurkar Archway Lit by Hanging Iron Lantern -->
+          <path d="M286,0 L390,0 L390,290 L352,290 L352,126 C352,66 320,24 286,0 Z" fill="#1D1524"/>
+          <path d="M286,0 C320,24 352,66 352,126 L352,275 L361,275 L361,124 C361,60 328,18 296,0 Z" fill="#8C533E"/>
+
+          <!-- Wrought-Iron Wall Lantern on Arch -->
+          <circle cx="332" cy="112" r="38" fill="url(#lantern-halo-night)"/>
+          <path d="M352,102 C344,102 336,100 332,104 L332,108" stroke="#1A1421" stroke-width="1.8" fill="none"/>
+          <path d="M327,108 L337,108 L335,120 L329,120 Z" fill="#FFEAA3" stroke="#1A1421" stroke-width="1.4"/>
+
+          <!-- Foreground Promenade -->
+          <path d="M0,256 C95,244 215,232 390,224 L390,300 L0,300 Z" fill="#7D5243"/>
+          <path d="M0,256 C95,244 215,232 360,225" stroke="#E8B482" stroke-width="1.5" fill="none" opacity="0.55"/>
+
+          <use href="#bougainvillea-spray-night" transform="translate(302, 12) rotate(18) scale(0.95)"/>
+          <use href="#bougainvillea-spray-night" transform="translate(334, 34) rotate(35) scale(0.85)"/>
+
+          <rect width="390" height="220" fill="url(#text-guard-night)"/>
+          
+          
+        </svg></div>
+          <div class="band-topbar">
+            <span class="brand on-art hide-desktop">
+              <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
+                <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
+              </svg>
+              <span class="brand-word">Traike</span>
+            </span>
+            <button type="button" class="paper-tag loc-chip">
+              <span class="ring now" aria-hidden="true"></span>
+              <span class="chip-text" data-en>Habima · Tel Aviv</span>
+              <span class="chip-text" data-he>הבימה · תל אביב</span>
+            </button>
+          </div>
+
+          <div class="plan-header-row">
+            <div class="plan-title-wrap">
+              <h1 class="band-title" data-en>Where shall we walk?</h1>
+              <h1 class="band-title" data-he>לאן נצא ללכת היום?</h1>
+              <p class="plan-sub" data-en>AI walking companion · Israel</p>
+              <p class="plan-sub" data-he>מלווה הליכה חכם בעיר</p>
+            </div>
+          </div>
+
+          <!-- Guide Arch + Paper Speech Card -->
+          <div class="guide-stage">
+            <img class="guide-arch day-only" src="assets/guide.jpg" alt="Traike walking guide" />
+            <img class="guide-arch night-only" src="assets/guide-night.jpg" alt="Traike walking guide at night" />
+            <div class="speech-card">
+              <h2 class="speech-title" data-en>Chat with Traike</h2>
+              <h2 class="speech-title" data-he>שיחה עם טרייק</h2>
+              <p class="speech-body" data-en>Pick a vibe or name your stops — I'll thread a calm route.</p>
+              <p class="speech-body" data-he>בחרו אווירה או כתבו תחנות — אחבר לכם מסלול מדויק.</p>
+            </div>
+          </div>
+        </header>
+
+        <div class="sheet after-guide">
+          <!-- 5 Photo Vibe Chips -->
+          <div class="sheet-block">
+            <div class="block-head">
+              <span class="block-label" data-en>Route vibe</span>
+              <span class="block-label" data-he>אווירת המסלול</span>
+              <span class="block-meta" data-en>Pick 1–3</span>
+              <span class="block-meta" data-he>בחרו <bdi>1–3</bdi></span>
+            </div>
+            <div class="vibe-grid" role="group" aria-label="Route vibe">
+              <button type="button" class="vibe-chip" aria-pressed="true" onclick="togglePress(this)">
+                <img src="assets/must-see.jpg" alt="" />
+                <span data-en>Must-see</span><span data-he>אתרי חובה</span>
+              </button>
+              <button type="button" class="vibe-chip" aria-pressed="true" onclick="togglePress(this)">
+                <img src="assets/food.jpg" alt="" />
+                <span data-en>Food &amp; markets</span><span data-he>אוכל ושווקים</span>
+              </button>
+              <button type="button" class="vibe-chip" aria-pressed="false" onclick="togglePress(this)">
+                <img src="assets/viewpoints.jpg" alt="" />
+                <span data-en>Viewpoints</span><span data-he>תצפיות ונוף</span>
+              </button>
+              <button type="button" class="vibe-chip" aria-pressed="false" onclick="togglePress(this)">
+                <img src="assets/nature.jpg" alt="" />
+                <span data-en>Nature &amp; parks</span><span data-he>טבע ופארקים</span>
+              </button>
+              <button type="button" class="vibe-chip" aria-pressed="false" onclick="togglePress(this)">
+                <img src="assets/hidden.jpg" alt="" />
+                <span data-en>Hidden gems</span><span data-he>פינות נסתרות</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Primary Request Box -->
+          <div class="sheet-block">
+            <div class="block-head">
+              <label class="block-label" for="plan-prompt" data-en>Stops or request</label>
+              <label class="block-label" for="plan-prompt-he" data-he>תחנות או בקשה חופשית</label>
+              <span class="block-meta" data-en>Start: Habima</span>
+              <span class="block-meta" data-he>התחלה: הבימה</span>
+            </div>
+            <textarea id="plan-prompt" class="prompt-box" data-en>I want to see Habima Square, the Jaffa port, and a good market</textarea>
+            <textarea id="plan-prompt-he" class="prompt-box" data-he>אני רוצה לעבור בכיכר הבימה, שוק טוב ולסיים בנמל יפו לקראת שקיעה</textarea>
+          </div>
+
+          <!-- Segmented Time Control -->
+          <div class="sheet-block">
+            <div class="block-head">
+              <span class="block-label" data-en>Time available</span>
+              <span class="block-label" data-he>זמן פנוי להליכה</span>
+            </div>
+            <div class="seg-row" role="group" aria-label="Time available">
+              <button type="button" aria-pressed="false" onclick="selectSeg(this)">
+                <span data-en>45m</span><span data-he><bdi>45</bdi> דק׳</span>
+              </button>
+              <button type="button" aria-pressed="false" onclick="selectSeg(this)">
+                <span data-en>60m</span><span data-he><bdi>60</bdi> דק׳</span>
+              </button>
+              <button type="button" aria-pressed="true" onclick="selectSeg(this)">
+                <span data-en>90m</span><span data-he><bdi>90</bdi> דק׳</span>
+              </button>
+              <button type="button" aria-pressed="false" onclick="selectSeg(this)">
+                <span data-en>Open</span><span data-he>פתוח</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Progressive Disclosure -->
+          <details class="adv-disclosure">
+            <summary>
+              <span data-en>More options (pace, loop, custom start)</span>
+              <span data-he>אפשרויות נוספות (קצב, מסלול מעגלי, התחלה)</span>
+              <span aria-hidden="true">+</span>
+            </summary>
+            <div class="adv-body">
+              <div>
+                <label class="block-meta" data-en>Walking pace</label>
+                <label class="block-meta" data-he>קצב הליכה</label>
+                <select class="text-input" style="margin-block-start:4px;">
+                  <option>Normal (15 min/km)</option>
+                  <option>Easy (20 min/km)</option>
+                  <option>Brisk (12 min/km)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block-meta" data-en>Route shape</label>
+                <label class="block-meta" data-he>צורת מסלול</label>
+                <select class="text-input" style="margin-block-start:4px;">
+                  <option>Point-to-point</option>
+                  <option>Loop back to start</option>
+                </select>
+              </div>
+            </div>
+          </details>
+
+          <!-- ONE Primary Button -->
+          <div class="cta-wrap">
+            <button type="button" class="btn-primary" onclick="setScreen('walk')">
+              <span data-en>Build walking route</span>
+              <span data-he>בנה מסלול הליכה</span>
+              <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DESKTOP STAR MAP PANE -->
+      <div class="map-canvas desktop-map-pane" aria-label="Interactive route map">
+        <svg class="map-svg" viewBox="0 0 524 780" preserveAspectRatio="xMidYMid slice">
+          <rect width="524" height="780" fill="var(--map-land)"/>
+          <path d="M0 0H74C66 250 56 510 44 780H0Z" fill="var(--map-water)"/>
+
+          <rect x="96" y="70" width="166" height="156" rx="4" fill="var(--map-block)"/>
+          <rect x="284" y="70" width="204" height="156" rx="4" fill="var(--map-park)"/>
+          <rect x="96" y="248" width="166" height="190" rx="4" fill="var(--map-block)"/>
+          <rect x="284" y="248" width="204" height="190" rx="4" fill="var(--map-block)"/>
+          <rect x="96" y="460" width="166" height="206" rx="4" fill="var(--map-block)"/>
+          <rect x="284" y="460" width="204" height="206" rx="4" fill="var(--map-park)"/>
+
+          <path d="M72 237H524M62 449H524M52 677H524M273 0V780" stroke="var(--map-road-case)" stroke-width="12"/>
+          <path d="M180 70V677M386 70V677" stroke="var(--map-road-case)" stroke-width="8"/>
+          <path d="M72 237H524M62 449H524M52 677H524M273 0V780" stroke="var(--map-road)" stroke-width="10"/>
+          <path d="M180 70V677M386 70V677" stroke="var(--map-road)" stroke-width="6"/>
+
+          <text class="map-label-txt" x="314" y="232">Shenkin St</text>
+          <text class="map-label-txt" x="314" y="444">Jaffa Rd</text>
+          <text class="map-label-txt" x="96" y="712">Jaffa Port</text>
+          <text class="map-label-txt" x="396" y="346" transform="rotate(-90 396 346)">Allenby St</text>
+
+          <path d="M454 150H386V237H180V449H273V624H122" fill="none" stroke="var(--surface)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M454 150H386V237H330" fill="none" stroke="var(--route-past)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M330 237H180V449H273V624H122" fill="none" stroke="var(--route)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <circle cx="454" cy="150" r="6" fill="var(--surface)" stroke="var(--route-past)" stroke-width="2"/>
+          <circle cx="180" cy="356" r="7" fill="var(--surface)" stroke="var(--route)" stroke-width="2.5"/>
+          <circle cx="273" cy="542" r="7" fill="var(--surface)" stroke="var(--route)" stroke-width="2.5"/>
+
+          <circle cx="122" cy="624" r="10" fill="var(--surface)" stroke="var(--route)" stroke-width="2.5"/>
+          <circle cx="122" cy="624" r="4" fill="var(--route)"/>
+
+          <g transform="translate(180,237)">
+            <path d="M0 0C-9 -11 -15 -18 -15 -25A15 15 0 1 1 15 -25C15 -18 9 -11 0 0Z" fill="#1B2620" stroke="var(--surface)" stroke-width="1.5"/>
+            <circle cx="0" cy="-25" r="5" fill="#F8F3EA"/>
+            <circle cx="0" cy="-25" r="2.6" fill="var(--leather)"/>
+          </g>
+
+          <g transform="translate(330,237)">
+            <circle r="19" fill="var(--ink)"/>
+            <circle r="17.5" fill="var(--surface)"/>
+            <circle r="15" fill="var(--leather)"/>
+            <g transform="translate(-9,-9) scale(0.75)" fill="none" stroke="#F8F3EA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12.5" cy="4.8" r="2.2"/>
+              <path d="M8.5 9.5c-1.8.4-2.5 2-2.2 4.2"/>
+              <path d="M12 8.2l-1.6 5.6L7.5 20M10.8 13.8l3.7 2.2 1.2 4M10.8 9.8l4.7 2.2M17.5 8.5L16 20.2"/>
+            </g>
+          </g>
+        </svg>
+
+        <div class="map-callout" style="left:64px;top:152px;">
+          <span data-en>Carmel Market</span>
+          <span data-he>שוק הכרמל</span>
+          <span class="time-tag"><bdi>18:36</bdi></span>
+        </div>
+
+        <div class="map-hud-top">
+          <span class="paper-tag">
+            <svg class="rtl-flip" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8.8 6.5h4.7a3.2 3.2 0 0 1 0 6.4h-3a3.2 3.2 0 0 0 0 6.4h4.7"/>
+              <circle cx="6" cy="6.5" r="2.8" fill="var(--surface)"/>
+              <circle cx="18" cy="19.3" r="2.8" fill="var(--surface)"/>
+            </svg>
+            <span data-en>4 stops · 4.1 km</span>
+            <span data-he><bdi>4</bdi> תחנות · <bdi>4.1</bdi> ק״מ</span>
+          </span>
+          <div class="paper-zoom-group">
+            <button type="button" class="paper-tag paper-zoom" aria-label="Zoom in">+</button>
+            <button type="button" class="paper-tag paper-zoom" aria-label="Zoom out">−</button>
+          </div>
+        </div>
+        <span class="map-attr">© OpenStreetMap · Traike</span>
+      </div>
+    </section>
+
+    <!-- =======================================================
+         SCREEN C · LIVE WALK ("Map-First Busbo Navigation + Turn Deck")
+         ======================================================= -->
+    <section class="screen" data-id="walk" aria-label="Live Walk">
+      <div class="col-sheet paired">
+
+        <!-- PHONE TOP: MAP-FIRST HERO WITH FLOATING PAPER HUD (Distinct from every other screen) -->
+        <div class="map-canvas phone-only-map walk-map-hero" aria-label="Live route map">
+          <svg class="map-svg" viewBox="0 0 390 228" preserveAspectRatio="xMidYMid slice">
+            <rect width="390" height="228" fill="var(--map-land)"/>
+            <rect x="16" y="54" width="136" height="78" rx="4" fill="var(--map-block)"/>
+            <rect x="172" y="54" width="202" height="78" rx="4" fill="var(--map-park)"/>
+            <rect x="16" y="152" width="136" height="64" rx="4" fill="var(--map-block)"/>
+            <rect x="172" y="152" width="202" height="64" rx="4" fill="var(--map-block)"/>
+
+            <!-- Cased Streets -->
+            <path d="M0 142H390M162 44V228" stroke="var(--map-road-case)" stroke-width="10"/>
+            <path d="M0 142H390M162 44V228" stroke="var(--map-road)" stroke-width="8"/>
+
+            <text class="map-label-txt" x="188" y="176">Nahalat Binyamin</text>
+
+            <!-- Route 6px phone + 2px surface casing -->
+            <path d="M32 142H304V86" fill="none" stroke="var(--surface)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M32 142H162" fill="none" stroke="var(--route-past)" stroke-width="6" stroke-linecap="round"/>
+            <path d="M162 142H304V86" fill="none" stroke="var(--route)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <circle cx="32" cy="142" r="5.5" fill="var(--surface)" stroke="var(--route-past)" stroke-width="2"/>
+
+            <!-- Next Stop Pin at (304,86) -->
+            <g transform="translate(304,86)">
+              <path d="M0 0C-8 -10 -13 -16 -13 -22A13 13 0 1 1 13 -22C13 -16 8 -10 0 0Z" fill="#1B2620" stroke="var(--surface)" stroke-width="1.5"/>
+              <circle cx="0" cy="-22" r="4.5" fill="#F8F3EA"/>
+              <circle cx="0" cy="-22" r="2.3" fill="var(--leather)"/>
+            </g>
+
+            <!-- Walker Marker at (162,142) -->
+            <g transform="translate(162,142)">
+              <circle r="17" fill="var(--ink)"/>
+              <circle r="15.5" fill="var(--surface)"/>
+              <circle r="13.2" fill="var(--leather)"/>
+              <g transform="translate(-8,-8) scale(0.68)" fill="none" stroke="#F8F3EA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12.5" cy="4.8" r="2.2"/>
+                <path d="M8.5 9.5c-1.8.4-2.5 2-2.2 4.2"/>
+                <path d="M12 8.2l-1.6 5.6L7.5 20M10.8 13.8l3.7 2.2 1.2 4M10.8 9.8l4.7 2.2M17.5 8.5L16 20.2"/>
+              </g>
+            </g>
+          </svg>
+
+          <!-- Floating Paper HUD on top of live phone map -->
+          <div class="map-hud-top">
+            <span class="paper-tag" style="padding-inline:8px 10px;">
+              <svg class="rtl-flip" width="20" height="20" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <circle cx="19.5" cy="6.5" r="5" fill="var(--surface)" stroke="currentColor" stroke-width="2"/>
+                <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
+              </svg>
+              <strong style="font-family:var(--font-serif);font-size:18px;">Traike</strong>
+            </span>
+            <span class="paper-tag loc-chip">
+              <span class="ring now" aria-hidden="true"></span>
+              <span class="chip-text" data-en>Stop 2 of 4 · 19:20</span>
+              <span class="chip-text" data-he>תחנה <bdi>2</bdi> מתוך <bdi>4</bdi> · <bdi>19:20</bdi></span>
+            </span>
+          </div>
+        </div>
+
+        <!-- COMPACT SUNSET TURN INSTRUCTION DECK (Shared on Phone under map & Desktop top of column) -->
+        <header class="walk-turn-deck">
+          <div class="walk-turn-main">
+            <div class="turn-glyph-box" aria-hidden="true">
+              <svg class="rtl-flip" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 19V10a3 3 0 0 0-3-3H6"/>
+                <path d="M10 3L6 7l4 4"/>
+              </svg>
+            </div>
+            <div>
+              <div class="hero-stat">
+                <span class="walk-turn-num"><bdi>4</bdi></span>
+                <span class="hero-unit" data-en>min · 310 m</span>
+                <span class="hero-unit" data-he>דק׳ · <bdi>310</bdi> מ׳</span>
+              </div>
+            </div>
+            <img class="walk-pin-acc" src="assets/pin.png" alt="" onerror="this.style.display='none'" />
+          </div>
+
+          <div class="walk-street-bar">
+            <span data-en>Turn left onto Nahalat Binyamin</span>
+            <span data-he>פנו שמאלה אל נחלת בנימין</span>
+            <span class="time-tag"><bdi>18:36</bdi></span>
+          </div>
+        </header>
+
+        <div class="sheet">
+          <div class="sec-bar" style="border-block-start:0;">
+            <span data-en>Walk stops</span>
+            <span data-he>תחנות ההליכה</span>
+            <span class="sec-note" data-en>2.8 km left</span>
+            <span class="sec-note" data-he>נותרו <bdi>2.8</bdi> ק״מ</span>
+          </div>
+
+          <div class="timeline-list">
+            <div class="stop-row past">
+              <span class="stop-time-col"><bdi>18:15</bdi></span>
+              <span class="stop-node-col"><span class="ring past" aria-hidden="true"></span></span>
+              <span class="stop-name" data-en>Habima Sunken Garden</span>
+              <span class="stop-name" data-he>גן יעקב והבימה</span>
+              <span class="stop-tag" data-en>Passed</span>
+              <span class="stop-tag" data-he>עברנו</span>
+            </div>
+            <div class="stop-row current">
+              <span class="stop-time-col"><span class="time-tag"><bdi>18:36</bdi></span></span>
+              <span class="stop-node-col"><span class="ring now" aria-hidden="true"></span></span>
+              <span class="stop-name" data-en>Carmel Market Alleys</span>
+              <span class="stop-name" data-he>סמטאות שוק הכרמל</span>
+              <span class="stop-tag" data-en>Next · 4m</span>
+              <span class="stop-tag" data-he>הבא · <bdi>4</bdi> דק׳</span>
+            </div>
+            <div class="stop-row">
+              <span class="stop-time-col"><bdi>18:58</bdi></span>
+              <span class="stop-node-col"><span class="ring" aria-hidden="true"></span></span>
+              <span class="stop-name" data-en>Neve Tzedek Courtyards</span>
+              <span class="stop-name" data-he>חצרות נווה צדק</span>
+              <span class="stop-tag" data-en>22 min</span>
+              <span class="stop-tag" data-he><bdi>22</bdi> דק׳</span>
+            </div>
+            <div class="stop-row">
+              <span class="stop-time-col"><bdi>19:20</bdi></span>
+              <span class="stop-node-col"><span class="ring bullseye" aria-hidden="true"></span></span>
+              <span class="stop-name" data-en>Old Jaffa Sea Overlook</span>
+              <span class="stop-name" data-he>תצפית הים ביפו העתיקה</span>
+              <span class="stop-tag" data-en>Finish</span>
+              <span class="stop-tag" data-he>סיום</span>
+            </div>
+          </div>
+
+          <div class="cta-wrap" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
+            <button type="button" class="btn-primary" onclick="setScreen('walks')">
+              <span data-en>Arrived · Next stop</span>
+              <span data-he>הגעתי · לתחנה הבאה</span>
+            </button>
+            <button type="button" class="btn-secondary" style="height:52px;" onclick="setScreen('plan')">
+              <span data-en>Reroute</span><span data-he>חשב מחדש</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Live Navigation Map -->
+      <div class="map-canvas desktop-map-pane" aria-label="Live navigation map">
+        <svg class="map-svg" viewBox="0 0 524 760" preserveAspectRatio="xMidYMid slice">
+          <rect width="524" height="760" fill="var(--map-land)"/>
+          <rect x="44" y="68" width="186" height="196" rx="4" fill="var(--map-block)"/>
+          <rect x="254" y="68" width="230" height="196" rx="4" fill="var(--map-park)"/>
+          <rect x="44" y="288" width="186" height="220" rx="4" fill="var(--map-block)"/>
+          <rect x="254" y="288" width="230" height="220" rx="4" fill="var(--map-block)"/>
+          <rect x="44" y="532" width="186" height="176" rx="4" fill="var(--map-park)"/>
+          <rect x="254" y="532" width="230" height="176" rx="4" fill="var(--map-block)"/>
+
+          <path d="M0 276H524M0 520H524M242 0V760" stroke="var(--map-road-case)" stroke-width="12"/>
+          <path d="M138 68V708M368 68V708" stroke="var(--map-road-case)" stroke-width="8"/>
+          <path d="M0 276H524M0 520H524M242 0V760" stroke="var(--map-road)" stroke-width="10"/>
+          <path d="M138 68V708M368 68V708" stroke="var(--map-road)" stroke-width="6"/>
+
+          <text class="map-label-txt" x="278" y="308">Nahalat Binyamin St</text>
+          <text class="map-label-txt" x="70" y="514">Gruzenberg St</text>
+
+          <path d="M64 276H242V156H396V520H138V634" fill="none" stroke="var(--surface)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M64 276H242" fill="none" stroke="var(--route-past)" stroke-width="7" stroke-linecap="round"/>
+          <path d="M242 276V156H396V520H138V634" fill="none" stroke="var(--route)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <circle cx="64" cy="276" r="6" fill="var(--surface)" stroke="var(--route-past)" stroke-width="2"/>
+          <circle cx="396" cy="520" r="7" fill="var(--surface)" stroke="var(--route)" stroke-width="2.5"/>
+          <circle cx="138" cy="634" r="10" fill="var(--surface)" stroke="var(--route)" stroke-width="2.5"/>
+          <circle cx="138" cy="634" r="4" fill="var(--route)"/>
+
+          <g transform="translate(396,156)">
+            <path d="M0 0C-9 -11 -15 -18 -15 -25A15 15 0 1 1 15 -25C15 -18 9 -11 0 0Z" fill="#1B2620" stroke="var(--surface)" stroke-width="1.5"/>
+            <circle cx="0" cy="-25" r="5" fill="#F8F3EA"/>
+            <circle cx="0" cy="-25" r="2.6" fill="var(--leather)"/>
+          </g>
+
+          <g transform="translate(242,276)">
+            <circle r="19" fill="var(--ink)"/>
+            <circle r="17.5" fill="var(--surface)"/>
+            <circle r="15" fill="var(--leather)"/>
+            <g transform="translate(-9,-9) scale(0.75)" fill="none" stroke="#F8F3EA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12.5" cy="4.8" r="2.2"/>
+              <path d="M8.5 9.5c-1.8.4-2.5 2-2.2 4.2"/>
+              <path d="M12 8.2l-1.6 5.6L7.5 20M10.8 13.8l3.7 2.2 1.2 4M10.8 9.8l4.7 2.2M17.5 8.5L16 20.2"/>
+            </g>
+          </g>
+        </svg>
+
+        <div class="map-callout" style="left:286px;top:76px;">
+          <span data-en>Carmel Market</span>
+          <span data-he>שוק הכרמל</span>
+          <span class="time-tag"><bdi>18:36</bdi></span>
+        </div>
+
+        <div class="map-hud-top">
+          <span class="paper-tag">
+            <span class="ring now" aria-hidden="true"></span>
+            <span data-en>Stop 2 of 4 · 2.8 km left</span>
+            <span data-he>תחנה <bdi>2</bdi> מתוך <bdi>4</bdi> · נותרו <bdi>2.8</bdi> ק״מ</span>
+          </span>
+          <div class="paper-zoom-group">
+            <button type="button" class="paper-tag paper-zoom" aria-label="Zoom in">+</button>
+            <button type="button" class="paper-tag paper-zoom" aria-label="Zoom out">−</button>
+          </div>
+        </div>
+        <span class="map-attr">© OpenStreetMap · Traike</span>
+      </div>
+    </section>
+
+    <!-- =======================================================
+         SCREEN D · MY WALKS & SOCIAL ("The Personal Trail Ledger")
+         ======================================================= -->
+    <section class="screen" data-id="walks" aria-label="My walks and friends">
+      <header class="band band-walks band-has-art"><div class="band-art"><svg class="a-day" preserveAspectRatio="xMidYMax slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="390" height="300" fill="url(#sky-day)"/>
+
+          <!-- Distant Carmel / Galilee-to-Jaffa Sweeping Horizon Clouds -->
+          <path d="M180,136 C245,126 325,128 385,138 C330,143 235,142 180,136 Z" fill="#F9CF93" opacity="0.34"/>
+
+          <!-- Distant Sunlit Headland Ridge (Jaffa / Bat Yam curve) -->
+          <path d="M0,184 C65,182 115,175 158,176 C182,176 198,184 215,186 L0,188 Z" fill="#9E3F1C" opacity="0.78"/>
+
+          <!-- Mediterranean Sea & Gentle Rolling Surf -->
+          <path d="M0,185 L390,185 L390,256 L0,256 Z" fill="#CC6E33" opacity="0.68"/>
+          <!-- Cream-gold foam lines curving into the bay -->
+          <path d="M24,204 C92,202 165,208 238,222" stroke="#FFE9BD" stroke-width="1.6" stroke-linecap="round" fill="none" opacity="0.78"/>
+          <path d="M58,216 C118,214 182,220 252,234" stroke="#FFE9BD" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.62"/>
+
+          <!-- Sandy Shoreline Curve -->
+          <path d="M85,238 C165,228 245,216 390,198 L390,275 L85,275 Z" fill="#E5A265"/>
+
+          <!-- Sweeping Tel Aviv Coastal Park Hill & Tayelet Promenade -->
+          <path d="M140,262 C208,228 286,192 390,178 L390,285 L120,285 Z" fill="#4A5936"/>
+          <path d="M155,264 C222,232 294,200 390,188 L390,285 L145,285 Z" fill="#D99255"/>
+
+          <!-- Classic Sunlit Limestone Balustrade Along the Promenade -->
+          <path d="M168,256 C230,224 298,196 390,184 L390,194 C298,206 230,234 168,264 Z" fill="#FADAB0"/>
+          <path d="M168,256 C230,224 298,196 390,184" stroke="#FFF4DC" stroke-width="1.6" fill="none"/>
+
+          <!-- Palm Trees Swaying in the Sea Breeze on Charles Clore Bluff -->
+          <g>
+            <path d="M336,192 Q330,152 322,122" stroke="#592611" stroke-width="3.2" fill="none"/>
+            <use href="#palm-crown-day" transform="translate(322,122) scale(0.76) rotate(-6)"/>
+
+            <path d="M366,188 Q364,142 358,106" stroke="#4D200E" stroke-width="3.6" fill="none"/>
+            <use href="#palm-crown-day" transform="translate(358,106) scale(0.88) rotate(5)"/>
+
+            <!-- Tamarisk / Coastal Pine Cushion -->
+            <path d="M304,198 C312,184 332,182 344,192 C354,182 374,182 386,192 L304,198 Z" fill="#364227"/>
+          </g>
+
+          <!-- Two Expressive Walkers (Friends) Strolling Together on the Promenade -->
+          <g transform="translate(264, 185)">
+            <!-- Long golden-hour cast shadows -->
+            <ellipse cx="12" cy="24" rx="10" ry="2" fill="#8C3D19" opacity="0.45"/>
+            <ellipse cx="26" cy="22" rx="10" ry="2" fill="#8C3D19" opacity="0.45"/>
+            <!-- Friend 1 (left, mid-stride with daypack) -->
+            <circle cx="6" cy="4" r="2.7" fill="#4A1A0A"/>
+            <path d="M5,7 L8,7 L9,15 L4,15 Z" fill="#FFF0D4"/>
+            <path d="M8,8 C11,8 11,13 8,14 Z" fill="#C94A29"/>
+            <path d="M5,15 L3,23 M8,15 L10,23" stroke="#4A1A0A" stroke-width="1.8" stroke-linecap="round"/>
+            <!-- Friend 2 (right, sunhat & flowing jacket) -->
+            <circle cx="19" cy="3" r="2.6" fill="#4A1A0A"/>
+            <ellipse cx="19" cy="2.2" rx="4.8" ry="1.3" fill="#FAD79B"/>
+            <path d="M17,6 L21,6 L23,15 L16,15 Z" fill="#E0533C"/>
+            <path d="M18,15 L16,22 M20,15 L23,22" stroke="#4A1A0A" stroke-width="1.8" stroke-linecap="round"/>
+          </g>
+
+          <!-- Distant Sailboat & Sea Swifts -->
+          <g transform="translate(128, 181)">
+            <path d="M0,5 L14,5 L12,7.5 L2,7.5 Z" fill="#59220E"/>
+            <path d="M7,5 L7,-6 L13,4 Z" fill="#FFF2D2"/>
+          </g>
+          <use href="#swift" transform="translate(242, 98) scale(0.52) rotate(-10)" fill="#591E0B" opacity="0.72"/>
+          <use href="#swift" transform="translate(262, 88) scale(0.4) rotate(4)" fill="#591E0B" opacity="0.6"/>
+
+          <rect width="390" height="210" fill="url(#text-guard-day)"/>
+          
+          
+        </svg><svg class="a-night" preserveAspectRatio="xMidYMax slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="390" height="300" fill="url(#sky-night)"/>
+
+          <!-- Evening Stars -->
+          <g fill="#FFF2CC">
+            <circle cx="210" cy="48" r="1.2" opacity="0.85"/>
+            <circle cx="268" cy="36" r="1" opacity="0.7"/>
+            <circle cx="312" cy="58" r="1.3" opacity="0.85"/>
+            <circle cx="164" cy="70" r="0.9" opacity="0.55"/>
+          </g>
+
+          <!-- Distant Headland with Necklace of Harbor Lights -->
+          <path d="M0,184 C65,182 115,175 158,176 C182,176 198,184 215,186 L0,188 Z" fill="#23192E"/>
+          <g fill="#FFE08C" opacity="0.85">
+            <circle cx="88" cy="182" r="1.1"/>
+            <circle cx="104" cy="180" r="1.2"/>
+            <circle cx="122" cy="179" r="1.3"/>
+            <circle cx="138" cy="178" r="1.1"/>
+            <circle cx="154" cy="178" r="1.4"/>
+            <circle cx="172" cy="180" r="1.1"/>
+          </g>
+
+          <!-- Night Sea & Shimmering Reflections -->
+          <path d="M0,185 L390,185 L390,256 L0,256 Z" fill="#292038" opacity="0.88"/>
+          <path d="M24,204 C92,202 165,208 238,222" stroke="#F7C98B" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.45"/>
+          <path d="M98,192 L176,192" stroke="#FFD984" stroke-width="1" stroke-dasharray="3 6" opacity="0.55"/>
+
+          <!-- Night Beach & Promenade -->
+          <path d="M85,238 C165,228 245,216 390,198 L390,275 L85,275 Z" fill="#593B42"/>
+          <path d="M140,262 C208,228 286,192 390,178 L390,285 L120,285 Z" fill="#1F2429"/>
+          <path d="M155,264 C222,232 294,200 390,188 L390,285 L145,285 Z" fill="#6E4A47"/>
+
+          <!-- Promenade Balustrade & Warm Globe Lamps -->
+          <path d="M168,256 C230,224 298,196 390,184 L390,194 C298,206 230,234 168,264 Z" fill="#9E6E62"/>
+          <!-- Glowing Promenade Lamps -->
+          <g>
+            <circle cx="235" cy="212" r="22" fill="url(#lantern-halo-night)"/>
+            <line x1="235" y1="212" x2="235" y2="226" stroke="#1A1524" stroke-width="1.6"/>
+            <circle cx="235" cy="211" r="2.6" fill="#FFF0B8"/>
+
+            <circle cx="298" cy="188" r="26" fill="url(#lantern-halo-night)"/>
+            <line x1="298" y1="188" x2="298" y2="203" stroke="#1A1524" stroke-width="1.8"/>
+            <circle cx="298" cy="187" r="2.8" fill="#FFF0B8"/>
+          </g>
+
+          <!-- Night Palms -->
+          <path d="M336,192 Q330,152 322,122" stroke="#1A1521" stroke-width="3.2" fill="none"/>
+          <use href="#palm-crown-night" transform="translate(322,122) scale(0.76) rotate(-6)"/>
+          <path d="M366,188 Q364,142 358,106" stroke="#1A1521" stroke-width="3.6" fill="none"/>
+          <use href="#palm-crown-night" transform="translate(358,106) scale(0.88) rotate(5)"/>
+
+          <!-- Two Evening Walkers Under Lantern Glow -->
+          <g transform="translate(264, 185)">
+            <circle cx="6" cy="4" r="2.7" fill="#181221"/>
+            <path d="M5,7 L8,7 L9,15 L4,15 Z" fill="#FFD996"/>
+            <path d="M5,15 L3,23 M8,15 L10,23" stroke="#181221" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="19" cy="3" r="2.6" fill="#181221"/>
+            <path d="M17,6 L21,6 L23,15 L16,15 Z" fill="#C95249"/>
+            <path d="M18,15 L16,22 M20,15 L23,22" stroke="#181221" stroke-width="1.8" stroke-linecap="round"/>
+          </g>
+
+          <rect width="390" height="210" fill="url(#text-guard-night)"/>
+          
+          
+        </svg></div>
+        <div class="band-topbar">
+          <span class="brand on-art hide-desktop">
+            <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+              <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
+              <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
+            </svg>
+            <span class="brand-word">Traike</span>
+          </span>
+          <span class="paper-tag loc-chip">
+            <span class="ring now" aria-hidden="true"></span>
+            <span class="chip-text" data-en>Tel Aviv · Jerusalem · Haifa</span>
+            <span class="chip-text" data-he>ת״א · ירושלים · חיפה</span>
+          </span>
+        </div>
+
+        <div class="walks-ledger-row">
+          <div>
+            <h1 class="band-title" data-en>My walks &amp; friends</h1>
+            <h1 class="band-title" data-he>המסלולים שלי וחברים</h1>
+            <div class="walks-mileage-trail">
+              <svg class="walks-mileage-svg rtl-flip" viewBox="0 0 112 18" fill="none" aria-hidden="true">
+                <path d="M9 9H103" stroke="var(--on-art)" stroke-width="2.4" stroke-linecap="round"/>
+                <circle cx="9" cy="9" r="5.5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
+                <circle cx="40" cy="9" r="5.5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
+                <circle cx="71" cy="9" r="5.5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
+                <circle cx="103" cy="9" r="6.5" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
+                <circle cx="103" cy="9" r="2.8" fill="var(--leather)"/>
+              </svg>
+              <span class="walks-mileage-txt" data-en>12 walks · 48.4 km</span>
+              <span class="walks-mileage-txt" data-he><bdi>12</bdi> הליכות · <bdi>48.4</bdi> ק״מ</span>
+            </div>
+          </div>
+
+          <div class="jaffa-window walks-arch" aria-hidden="true"></div>
+        </div>
+      </header>
+
+      <div class="sheet">
+        <div class="wide-sheet-max">
+          <div class="sheet-block">
+            <div class="seg-row cols-3" role="group" aria-label="Filter walks">
+              <button type="button" aria-pressed="true" onclick="filterWalks(this, 'saved')">
+                <span data-en>Saved (3)</span><span data-he>שמורים (<bdi>3</bdi>)</span>
+              </button>
+              <button type="button" aria-pressed="false" onclick="filterWalks(this, 'walked')">
+                <span data-en>Walked (8)</span><span data-he>הושלמו (<bdi>8</bdi>)</span>
+              </button>
+              <button type="button" aria-pressed="false" onclick="filterWalks(this, 'friends')">
+                <span data-en>Friends (0)</span><span data-he>חברים (<bdi>0</bdi>)</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="walks-populated">
+            <div class="walk-row">
+              <div class="mini-map-tile" aria-hidden="true">
+                <svg viewBox="0 0 48 48">
+                  <rect width="48" height="48" fill="var(--map-land)"/>
+                  <path d="M0 0H12L9 48H0Z" fill="var(--map-water)"/>
+                  <path d="M0 24H48M28 0V48" stroke="var(--map-road)" stroke-width="3"/>
+                  <path d="M38 11H28V26H16V38" fill="none" stroke="var(--route)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="38" cy="11" r="4" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                  <circle cx="38" cy="11" r="1.8" fill="var(--leather)"/>
+                  <circle cx="16" cy="38" r="4.2" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                  <circle cx="16" cy="38" r="1.8" fill="var(--route)"/>
+                </svg>
+              </div>
+              <div>
+                <div class="walk-row-title" data-en>Jaffa Ridge &amp; Flea Market</div>
+                <div class="walk-row-title" data-he>רכס יפו ושוק הפשפשים</div>
+                <div class="walk-row-sub" data-en>65 min · 4.1 km · 4 stops</div>
+                <div class="walk-row-sub" data-he><bdi>65</bdi> דק׳ · <bdi>4.1</bdi> ק״מ · <bdi>4</bdi> תחנות</div>
+              </div>
+              <button type="button" class="btn-secondary" onclick="setScreen('walk')">
+                <span data-en>Walk</span><span data-he>צא</span>
+              </button>
+            </div>
+
+            <div class="walk-row">
+              <div class="mini-map-tile" aria-hidden="true">
+                <svg viewBox="0 0 48 48">
+                  <rect width="48" height="48" fill="var(--map-land)"/>
+                  <rect x="22" y="6" width="20" height="18" rx="2" fill="var(--map-park)"/>
+                  <path d="M0 30H48M18 0V48" stroke="var(--map-road)" stroke-width="3"/>
+                  <path d="M10 38C15 28 22 28 26 21C30 14 35 14 39 10" fill="none" stroke="var(--route)" stroke-width="2.5" stroke-linecap="round"/>
+                  <circle cx="10" cy="38" r="4" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                  <circle cx="10" cy="38" r="1.8" fill="var(--leather)"/>
+                  <circle cx="39" cy="10" r="4.2" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                  <circle cx="39" cy="10" r="1.8" fill="var(--route)"/>
+                </svg>
+              </div>
+              <div>
+                <div class="walk-row-title" data-en>Jerusalem Nachlaot Courtyards</div>
+                <div class="walk-row-title" data-he>בוסתנים וחצרות בנחלאות</div>
+                <div class="walk-row-sub" data-en>80 min · 4.9 km · 5 stops</div>
+                <div class="walk-row-sub" data-he><bdi>80</bdi> דק׳ · <bdi>4.9</bdi> ק״מ · <bdi>5</bdi> תחנות</div>
+              </div>
+              <button type="button" class="btn-secondary" onclick="setScreen('walk')">
+                <span data-en>Walk</span><span data-he>צא</span>
+              </button>
+            </div>
+
+            <div class="walk-row">
+              <div class="mini-map-tile" aria-hidden="true">
+                <svg viewBox="0 0 48 48">
+                  <rect width="48" height="48" fill="var(--map-land)"/>
+                  <rect x="8" y="8" width="32" height="32" rx="3" fill="var(--map-park)"/>
+                  <path d="M13 34V14H35V34H22" fill="none" stroke="var(--route)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="13" cy="34" r="4" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                  <circle cx="13" cy="34" r="1.8" fill="var(--leather)"/>
+                  <circle cx="22" cy="34" r="4.2" fill="var(--surface)" stroke="var(--route)" stroke-width="1.6"/>
+                  <circle cx="22" cy="34" r="1.8" fill="var(--route)"/>
+                </svg>
+              </div>
+              <div>
+                <div class="walk-row-title" data-en>Haifa Louis Promenade Loop</div>
+                <div class="walk-row-title" data-he>טיילת לואי ומצפה הבהאים</div>
+                <div class="walk-row-sub" data-en>45 min · 2.9 km · Viewpoints</div>
+                <div class="walk-row-sub" data-he><bdi>45</bdi> דק׳ · <bdi>2.9</bdi> ק״מ · תצפיות</span>
+              </div>
+              <button type="button" class="btn-secondary" onclick="setScreen('walk')">
+                <span data-en>Walk</span><span data-he>צא</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div id="walks-empty" class="empty-walks-box">
+            <img src="assets/empty-walks.png" alt="" onerror="this.style.display='none'" />
+            <p data-en>Share a route link with friends to walk each other's favourite stops.</p>
+            <p data-he>שתפו קישור למסלול עם חברים כדי לטייל בתחנות האהובות עליהם.</p>
+            <button type="button" class="btn-secondary" onclick="setScreen('plan')">
+              <span data-en>Plan a walk to share</span>
+              <span data-he>תכנן מסלול לשיתוף</span>
+            </button>
+          </div>
+
+          <div class="cta-wrap">
+            <button type="button" class="btn-primary" onclick="setScreen('plan')">
+              <span data-en>Create new route</span>
+              <span data-he>צור מסלול חדש</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =======================================================
+         SCREEN E · ME & SETTINGS ("Pure Sunset Calm" — Loved)
+         ======================================================= -->
+    <section class="screen" data-id="me" aria-label="Account and settings">
+      <header class="band band-me">
+        <div class="band-topbar">
+          <span class="brand on-art hide-desktop">
+            <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+              <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
+              <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
+            </svg>
+            <span class="brand-word">Traike</span>
+          </span>
+          <span class="paper-tag loc-chip">
+            <span class="ring now" aria-hidden="true"></span>
+            <span class="chip-text" data-en>Habima · Tel Aviv</span>
+            <span class="chip-text" data-he>הבימה · תל אביב</span>
+          </span>
+        </div>
+
+        <div class="me-identity-row">
+          <div class="me-monogram" aria-hidden="true">
+            <span data-en>YM</span><span data-he>ימ</span>
+          </div>
+          <div>
+            <h1 class="band-title" data-en>Yael Mizrahi</h1>
+            <h1 class="band-title" data-he>יעל מזרחי</h1>
+            <div class="band-facts" style="margin-block-start:4px;">
+              <span data-en>yael@traike.app · 12 walks</span>
+              <span data-he><bdi>yael@traike.app</bdi> · <bdi>12</bdi> הליכות</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="sheet">
+        <div class="wide-sheet-max">
+          <div class="sec-bar">
+            <span data-en>Walking preferences</span>
+            <span data-he>העדפות הליכה ותצוגה</span>
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <div class="block-label" data-en>Language</div>
+              <div class="block-label" data-he>שפת ממשק</div>
+            </div>
+            <div class="seg-row cols-2" role="group" aria-label="Interface language">
+              <button type="button" id="me-lang-en" aria-pressed="true" onclick="setLang('en')">EN</button>
+              <button type="button" id="me-lang-he" aria-pressed="false" onclick="setLang('he')">עברית</button>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <div class="block-label" data-en>Appearance</div>
+              <div class="block-label" data-he>מצב תצוגה</div>
+            </div>
+            <div class="seg-row cols-2" role="group" aria-label="Appearance">
+              <button type="button" id="me-theme-day" aria-pressed="true" onclick="setTheme('day')">
+                <span data-en>Day</span><span data-he>יום</span>
+              </button>
+              <button type="button" id="me-theme-night" aria-pressed="false" onclick="setTheme('night')">
+                <span data-en>Night</span><span data-he>לילה</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <div class="block-label" data-en>Default pace</div>
+              <div class="block-label" data-he>קצב הליכה קבוע</div>
+              <div class="block-meta" data-en>Normal · Prefer shaded streets</div>
+              <div class="block-meta" data-he>רגיל · עדיפות לרחובות מוצלים</div>
+            </div>
+            <span class="block-label" data-en>4.0 km/h</span>
+            <span class="block-label" data-he><bdi>4.0</bdi> קמ״ש</span>
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <div class="block-label" data-en>Distance units</div>
+              <div class="block-label" data-he>יחידות מרחק</div>
+            </div>
+            <span class="block-label" data-en>km / m</span>
+            <span class="block-label" data-he>ק״מ / מ׳</span>
+          </div>
+
+          <div class="cta-wrap" style="display:flex;flex-direction:column;gap:10px;">
+            <button type="button" class="btn-primary">
+              <span data-en>Save preferences</span>
+              <span data-he>שמור העדפות</span>
+            </button>
+            <button type="button" class="btn-secondary" style="width:100%;" onclick="setScreen('login')">
+              <span data-en>Sign out</span>
+              <span data-he>התנתקות</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =======================================================
+         SCREEN F · LOGIN ("The Lit Lantern Welcome Gate")
+         ======================================================= -->
+    <section class="screen" data-id="login" aria-label="Sign in">
+      <div class="login-center">
+        <header class="band band-login band-has-art"><div class="band-art"><svg class="a-day" preserveAspectRatio="xMidYMin slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="390" height="300" fill="url(#sky-day)"/>
+
+          <!-- Soft Warm Glow Behind Center Lantern & Headline -->
+          <circle cx="195" cy="138" r="95" fill="#7D2409" opacity="0.32"/>
+          <circle cx="195" cy="222" r="78" fill="#FFE6A8" opacity="0.38"/>
+
+          <!-- Low Distant Horizon Glimpse of Jaffa Roofs & Sea -->
+          <path d="M40,228 L350,228 L350,265 L40,265 Z" fill="#E3934F" opacity="0.55"/>
+          <path d="M52,230 L92,216 L128,218 L142,208 L166,222 L238,224 L262,210 L295,214 L338,228 Z" fill="#9E3F1C" opacity="0.72"/>
+          <!-- Tiny distant spire & palm -->
+          <path d="M268,212 L272,194 L276,212 Z" fill="#853114"/>
+          <path d="M114,220 Q112,204 109,194" stroke="#6E2810" stroke-width="1.8" fill="none"/>
+          <use href="#palm-crown-day" transform="translate(109,194) scale(0.38)"/>
+
+          <!-- Framing Kurkar Limestone Archway (Left & Right Piers + Overhead Vault) -->
+          <!-- Outer shaded stonework -->
+          <path d="M0,0 L390,0 L390,285 L344,285 L344,136 C344,58 282,18 195,18 C108,18 46,58 46,136 L46,285 L0,285 Z" fill="#6B250E"/>
+          <!-- Inner sunlit bevel of the stone arch -->
+          <path d="M195,18 C282,18 344,58 344,136 L344,275 L353,275 L353,134 C353,50 288,9 195,9 C102,9 37,50 37,134 L37,275 L46,275 L46,136 C46,58 108,18 195,18 Z" fill="#EEA968"/>
+
+          <!-- Hand-cut Keystone & Voussoir Masonry Lines -->
+          <g stroke="#7A2D13" stroke-width="1" opacity="0.55">
+            <line x1="186" y1="9" x2="188" y2="19"/>
+            <line x1="204" y1="9" x2="202" y2="19"/>
+            <line x1="142" y1="16" x2="146" y2="25"/>
+            <line x1="248" y1="16" x2="244" y2="25"/>
+            <line x1="98" y1="34" x2="105" y2="42"/>
+            <line x1="292" y1="34" x2="285" y2="42"/>
+            <line x1="62" y1="68" x2="71" y2="73"/>
+            <line x1="328" y1="68" x2="319" y2="73"/>
+          </g>
+
+          <!-- Artisanal Wrought-Iron Jaffa Courtyard Lantern Suspended at Top Center -->
+          <g transform="translate(195, 18)">
+            <circle cx="0" cy="76" r="42" fill="url(#lantern-halo-day)"/>
+            <!-- Iron chain & scrollwork bracket -->
+            <line x1="0" y1="0" x2="0" y2="46" stroke="#3B1609" stroke-width="2"/>
+            <path d="M-12,42 C-6,36 6,36 12,42" stroke="#3B1609" stroke-width="1.6" fill="none"/>
+            <!-- Domed copper-iron cap -->
+            <path d="M-15,54 C-12,44 12,44 15,54 Z" fill="#471B0B"/>
+            <rect x="-17" y="54" width="34" height="3" rx="1.5" fill="#5E2410"/>
+            <!-- Hexagonal warm glass lantern body -->
+            <polygon points="-13,57 13,57 9,85 -9,85" fill="#FFF1C2" stroke="#471B0B" stroke-width="1.8"/>
+            <line x1="-5" y1="57" x2="-3.5" y2="85" stroke="#471B0B" stroke-width="1.3"/>
+            <line x1="5" y1="57" x2="3.5" y2="85" stroke="#471B0B" stroke-width="1.3"/>
+            <!-- Warm inner flame -->
+            <path d="M0,66 C3,71 3,77 0,79 C-3,77 -3,71 0,66 Z" fill="#FF9E2C"/>
+            <!-- Finial base -->
+            <path d="M-9,85 L9,85 L0,94 Z" fill="#471B0B"/>
+          </g>
+
+          <!-- Graceful Bougainvillea & Olive Branches Framing Upper Corners -->
+          <use href="#bougainvillea-spray" transform="translate(42, 54) rotate(28) scale(0.92)"/>
+          <use href="#bougainvillea-spray" transform="translate(28, 92) rotate(58) scale(0.76)"/>
+          <use href="#bougainvillea-spray" transform="translate(314, 48) rotate(138) scale(0.92)"/>
+          <use href="#bougainvillea-spray" transform="translate(342, 88) rotate(115) scale(0.76)"/>
+
+          
+          
+        </svg><svg class="a-night" preserveAspectRatio="xMidYMin slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="390" height="300" fill="url(#sky-night)"/>
+
+          <!-- Night Stars Framed Inside the Arch -->
+          <g fill="#FFF2CC">
+            <circle cx="118" cy="78" r="1.1" opacity="0.8"/>
+            <circle cx="276" cy="72" r="1.2" opacity="0.85"/>
+            <circle cx="144" cy="112" r="0.9" opacity="0.6"/>
+            <circle cx="252" cy="118" r="1" opacity="0.65"/>
+          </g>
+
+          <!-- Distant Night Roofs & Warm Windows -->
+          <path d="M52,230 L92,216 L128,218 L142,208 L166,222 L238,224 L262,210 L295,214 L338,228 Z" fill="#2A1C30"/>
+          <rect x="98" y="220" width="4" height="5" fill="#FFE08C" opacity="0.8"/>
+          <rect x="278" y="218" width="4" height="5" fill="#FFE08C" opacity="0.8"/>
+
+          <!-- Framing Archway Lit from Within by the Suspended Lantern -->
+          <path d="M0,0 L390,0 L390,285 L344,285 L344,136 C344,58 282,18 195,18 C108,18 46,58 46,136 L46,285 L0,285 Z" fill="#1C1526"/>
+          <path d="M195,18 C282,18 344,58 344,136 L344,275 L353,275 L353,134 C353,50 288,9 195,9 C102,9 37,50 37,134 L37,275 L46,275 L46,136 C46,58 108,18 195,18 Z" fill="#8C5642"/>
+
+          <!-- Radiant Night Lantern Glow -->
+          <g transform="translate(195, 18)">
+            <circle cx="0" cy="76" r="68" fill="url(#lantern-halo-night)"/>
+            <line x1="0" y1="0" x2="0" y2="46" stroke="#140F1C" stroke-width="2"/>
+            <path d="M-12,42 C-6,36 6,36 12,42" stroke="#140F1C" stroke-width="1.6" fill="none"/>
+            <path d="M-15,54 C-12,44 12,44 15,54 Z" fill="#1E1629"/>
+            <rect x="-17" y="54" width="34" height="3" rx="1.5" fill="#2B1F38"/>
+            <polygon points="-13,57 13,57 9,85 -9,85" fill="#FFF3BD" stroke="#1E1629" stroke-width="1.8"/>
+            <line x1="-5" y1="57" x2="-3.5" y2="85" stroke="#1E1629" stroke-width="1.3"/>
+            <line x1="5" y1="57" x2="3.5" y2="85" stroke="#1E1629" stroke-width="1.3"/>
+            <path d="M0,65 C3.5,71 3.5,77 0,80 C-3.5,77 -3.5,71 0,65 Z" fill="#FFB038"/>
+            <path d="M-9,85 L9,85 L0,94 Z" fill="#1E1629"/>
+          </g>
+
+          <use href="#bougainvillea-spray-night" transform="translate(42, 54) rotate(28) scale(0.92)"/>
+          <use href="#bougainvillea-spray-night" transform="translate(314, 48) rotate(138) scale(0.92)"/>
+
+          
+          
+        </svg></div>
+          <div class="band-topbar">
+            <span class="brand on-art">
+              <svg class="rtl-flip" width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <circle cx="19.5" cy="6.5" r="5" fill="var(--paper)" stroke="currentColor" stroke-width="2"/>
+                <circle cx="19.5" cy="6.5" r="2.3" fill="var(--leather)"/>
+              </svg>
+              <span class="brand-word">Traike</span>
+            </span>
+            <button type="button" class="paper-tag loc-chip" onclick="setScreen('plan')">
+              <span class="ring now" aria-hidden="true"></span>
+              <span class="chip-text" data-en>Skip · Try first</span>
+              <span class="chip-text" data-he>דלג · נסה קודם</span>
+            </button>
+          </div>
+
+          <div class="login-gate-stage">
+            <!-- Crafted Old-City Limestone Arch & Wrought-Iron Lantern Silhouette -->
+            <div>
+              <svg class="lantern-svg" viewBox="0 0 168 86" fill="none" aria-hidden="true">
+                <!-- Archway Keystone Curve -->
+                <path d="M18 82V52C18 22 48 6 84 6C120 6 150 22 150 52V82" stroke="var(--sky-arch-stroke)" stroke-width="2" stroke-linecap="round"/>
+                <!-- Wrought-iron bracket & warm glowing lantern -->
+                <path d="M84 6V22M74 22H94" stroke="var(--on-art)" stroke-width="2" stroke-linecap="round"/>
+                <path d="M75 22L71 32H97L93 22H75Z" fill="#1B2620"/>
+                <path d="M73 32L77 54H91L95 32H73Z" fill="var(--sun-disc)" stroke="#1B2620" stroke-width="1.8" stroke-linejoin="round"/>
+                <path d="M80 54H88L84 60L80 54Z" fill="#1B2620"/>
+                <!-- Trail rising into threshold -->
+                <path d="M52 80C66 74 74 72 84 68" stroke="var(--on-art)" stroke-width="2.2" stroke-linecap="round"/>
+                <circle cx="84" cy="68" r="4.8" fill="var(--paper)" stroke="#1B2620" stroke-width="1.8"/>
+                <circle cx="84" cy="68" r="2.1" fill="var(--leather)"/>
+              </svg>
+              <h1 class="band-title" data-en>Sign in to Traike</h1>
+              <h1 class="band-title" data-he>התחברות לטרייק</h1>
+            </div>
+
+            <!-- Compact Paper Welcome Strip with Guide Portrait -->
+            <div class="login-welcome-pill">
+              <img class="login-guide-avatar day-only" src="assets/guide.jpg" alt="" />
+              <img class="login-guide-avatar night-only" src="assets/guide-night.jpg" alt="" />
+              <div>
+                <div class="block-label" data-en>Walks built around you</div>
+                <div class="block-label" data-he>מסלולים שנבנים סביבך</div>
+                <div class="block-meta" data-en>Save routes, sync live walks &amp; share stops.</div>
+                <div class="block-meta" data-he>שמרו מסלולים, סנכרנו הליכות ושתפו תחנות.</div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div class="sheet">
+          <div class="sheet-block">
+            <div class="field-stack">
+              <label for="login-email" data-en>Email address</label>
+              <label for="login-email" data-he>כתובת אימייל</label>
+              <input id="login-email" type="email" class="text-input" dir="ltr" value="yael@traike.app" />
+            </div>
+            <div class="field-stack" style="margin-block-end:0;">
+              <label for="login-pass" data-en>Password</label>
+              <label for="login-pass" data-he>סיסמה</label>
+              <input id="login-pass" type="password" class="text-input" dir="ltr" value="••••••••••" />
+            </div>
+          </div>
+
+          <div class="cta-wrap" style="display:flex;flex-direction:column;gap:10px;">
+            <button type="button" class="btn-primary" onclick="setScreen('home')">
+              <span data-en>Continue</span>
+              <span data-he>המשך</span>
+              <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>
+            </button>
+            <button type="button" class="btn-secondary" style="width:100%;" onclick="setScreen('plan')">
+              <span data-en>Continue with Google</span>
+              <span data-he>המשך עם Google</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =======================================================
+         PHONE BOTTOM TAB BAR (1.5px Ink Top Rule, 52px Tabs, Custom Icons)
+         ======================================================= -->
+    <nav class="phone-tabs" aria-label="Bottom Navigation">
+      <button type="button" class="tab-btn" data-bnav="home" aria-current="page" onclick="setScreen('home')">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 10.5L12 3.5l8.5 7V20a1 1 0 0 1-1 1h-5v-6h-5v6h-5a1 1 0 0 1-1-1v-9.5z"/>
+        </svg>
+        <span data-en>Home</span><span data-he>בית</span>
+      </button>
+      <button type="button" class="tab-btn" data-bnav="plan" onclick="setScreen('plan')">
+        <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 20c3-5.5 6-6.5 9.5-8 2.4-1 3.5-2.6 4.2-4.2"/>
+          <circle class="nav-ring-fill" cx="18" cy="6" r="4.2" fill="var(--surface)" stroke="currentColor" stroke-width="1.75"/>
+          <circle cx="18" cy="6" r="1.9" fill="var(--leather)" stroke="none"/>
+        </svg>
+        <span data-en>Plan</span><span data-he>תכנון</span>
+      </button>
+      <button type="button" class="tab-btn" data-bnav="walk" onclick="setScreen('walk')">
+        <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12.5" cy="4.8" r="2.2"/>
+          <path d="M8.5 9.5c-1.8.4-2.5 2-2.2 4.2"/>
+          <path d="M12 8.2l-1.6 5.6L7.5 20M10.8 13.8l3.7 2.2 1.2 4M10.8 9.8l4.7 2.2M17.5 8.5L16 20.2"/>
+        </svg>
+        <span data-en>Walk</span><span data-he>הליכה</span>
+      </button>
+      <button type="button" class="tab-btn" data-bnav="walks" onclick="setScreen('walks')">
+        <svg class="rtl-flip" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8.8 6.5h4.7a3.2 3.2 0 0 1 0 6.4h-3a3.2 3.2 0 0 0 0 6.4h4.7"/>
+          <circle class="nav-ring-fill" cx="6" cy="6.5" r="2.8" fill="var(--surface)"/>
+          <circle cx="18" cy="19.3" r="2.8" fill="var(--surface)"/>
+        </svg>
+        <span data-en>Walks</span><span data-he>מסלולים</span>
+      </button>
+      <button type="button" class="tab-btn" data-bnav="me" onclick="setScreen('me')">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="3.8"/>
+          <path d="M4.5 20c1.6-3.8 4.4-5.6 7.5-5.6s5.9 1.8 7.5 5.6"/>
+        </svg>
+        <span data-en>Me</span><span data-he>פרופיל</span>
+      </button>
+    </nav>
+
+  </div>
+</main>
+
+<script>
+  function setLang(lang) {
+    const root = document.documentElement;
+    root.lang = lang;
+    root.dir = lang === 'he' ? 'rtl' : 'ltr';
+    document.getElementById('btn-en').setAttribute('aria-pressed', String(lang === 'en'));
+    document.getElementById('btn-he').setAttribute('aria-pressed', String(lang === 'he'));
+    const meEn = document.getElementById('me-lang-en');
+    const meHe = document.getElementById('me-lang-he');
+    if (meEn && meHe) {
+      meEn.setAttribute('aria-pressed', String(lang === 'en'));
+      meHe.setAttribute('aria-pressed', String(lang === 'he'));
+    }
+  }
+
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('btn-day').setAttribute('aria-pressed', String(theme === 'day'));
+    document.getElementById('btn-night').setAttribute('aria-pressed', String(theme === 'night'));
+    const meDay = document.getElementById('me-theme-day');
+    const meNight = document.getElementById('me-theme-night');
+    if (meDay && meNight) {
+      meDay.setAttribute('aria-pressed', String(theme === 'day'));
+      meNight.setAttribute('aria-pressed', String(theme === 'night'));
+    }
+  }
+
+  function setDevice(device) {
+    document.documentElement.setAttribute('data-device', device);
+    document.getElementById('btn-phone').setAttribute('aria-pressed', String(device === 'phone'));
+    document.getElementById('btn-desktop').setAttribute('aria-pressed', String(device === 'desktop'));
+  }
+
+  function setScreen(screen) {
+    document.documentElement.setAttribute('data-screen', screen);
+    document.querySelectorAll('[data-tab]').forEach(btn => {
+      btn.setAttribute('aria-selected', String(btn.getAttribute('data-tab') === screen));
+    });
+    document.querySelectorAll('[data-nav]').forEach(btn => {
+      if (btn.getAttribute('data-nav') === screen) btn.setAttribute('aria-current', 'page');
+      else btn.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('[data-bnav]').forEach(btn => {
+      if (btn.getAttribute('data-bnav') === screen) btn.setAttribute('aria-current', 'page');
+      else btn.removeAttribute('aria-current');
+    });
+  }
+
+  function togglePress(el) {
+    const next = el.getAttribute('aria-pressed') !== 'true';
+    el.setAttribute('aria-pressed', String(next));
+  }
+
+  function selectSeg(el) {
+    const parent = el.parentElement;
+    parent.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    el.setAttribute('aria-pressed', 'true');
+  }
+
+  function filterWalks(el, tab) {
+    selectSeg(el);
+    const list = document.getElementById('walks-populated');
+    const empty = document.getElementById('walks-empty');
+    if (tab === 'friends') {
+      list.style.display = 'none';
+      empty.classList.add('active');
+    } else {
+      list.style.display = 'block';
+      empty.classList.remove('active');
+    }
+  }
+</script>
+</body>
+</html>
