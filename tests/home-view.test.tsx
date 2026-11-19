@@ -17,7 +17,7 @@ function setup(over: { greetingName?: string | null; lang?: "he" | "en" } = {}) 
 describe("Home", () => {
   it("offers two big choices that navigate to plan and walks", () => {
     const onNavigate = setup();
-    fireEvent.click(screen.getByRole("button", { name: /New route/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Plan my walk/ }));
     expect(onNavigate).toHaveBeenLastCalledWith("plan");
     fireEvent.click(screen.getByRole("button", { name: /My walks/ }));
     expect(onNavigate).toHaveBeenLastCalledWith("walks");
