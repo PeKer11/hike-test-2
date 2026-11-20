@@ -158,7 +158,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
       <button type="button" aria-label={`Open ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-start">
         <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-14 w-14 shrink-0 !rounded-[8px]" />
         <span className="block min-w-0 flex-1 space-y-0.5">
-          <span className="block font-app-sans text-[17px] font-semibold leading-snug text-tk-ink">{w.title}</span>
+          <span dir="auto" className="block font-app-sans text-[17px] font-semibold leading-snug text-tk-ink">{w.title}</span>
           <span className="flex flex-wrap items-center gap-x-2 text-[14px] text-tk-sage">
             <span className={`shrink-0 rounded-full px-2 ${CHIP[w.status]}`}>{isDraft ? "draft" : w.status}</span>
             <span>
@@ -167,7 +167,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
               {w.distanceM !== null && ` · ${(w.distanceM / 1000).toFixed(1)} km`}
             </span>
           </span>
-          {w.stops.length > 0 && <span className="flex items-center gap-1.5 text-[14px] text-tk-body"><Accessory name="footprints" className="w-4 shrink-0" /><span className="min-w-0 truncate">{w.stops.map((s) => s.name).join(" → ")}</span></span>}
+          {w.stops.length > 0 && <span className="flex items-center gap-1.5 text-[14px] text-tk-body"><Accessory name="footprints" className="w-4 shrink-0" /><span dir="auto" className="min-w-0 truncate">{w.stops.map((s) => s.name).join(" → ")}</span></span>}
         </span>
       </button>
       <div className="shrink-0">{primaryButton(w, runs, runCount, true)}</div>

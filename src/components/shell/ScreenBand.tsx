@@ -19,11 +19,14 @@ export function ScreenBand({ art, children }: { art: "walks" | "sky"; children: 
       )}
       <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[32%] bg-gradient-to-b from-transparent to-cream" />
       <div className="relative mx-auto max-w-[560px] px-4 pb-11 pt-[max(18px,env(safe-area-inset-top))]">
-        <span dir="ltr" className={`flex w-fit items-center gap-2.5 ${ON_ART}`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/traike-icon.png" alt="" width={30} height={30} className="h-[30px] w-[30px] rounded-lg" />
-          <span className="font-app-serif text-[24px] font-bold leading-none tracking-tight">Traike</span>
-        </span>
+        {/* The mark stays on the left in Hebrew too. */}
+        <div dir="ltr">
+          <span className={`flex w-fit items-center gap-2.5 ${ON_ART}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/traike-icon.png" alt="" width={30} height={30} className="h-[30px] w-[30px] rounded-lg" />
+            <span className="font-app-serif text-[24px] font-bold leading-none tracking-tight">Traike</span>
+          </span>
+        </div>
         {children}
       </div>
     </header>
