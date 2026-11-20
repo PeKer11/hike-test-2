@@ -24,32 +24,77 @@ import { BTN_ALT_SM, SEG_WRAP, segCell } from "@/components/ui/panel-style";
 
 // The two directions read as one setting with two halves, so they render as a
 // pair rather than as two unrelated rows scattered through the panel.
-const PACE_SETTINGS: { key: "slowPaceMode" | "fastPaceMode"; label: string }[] = [
-  { key: "slowPaceMode", label: "When I fall behind" },
-  { key: "fastPaceMode", label: "When I'm ahead" },
+const PACE_SETTINGS: { key: "slowPaceMode" | "fastPaceMode"; label: string; he: string }[] = [
+  { key: "slowPaceMode", label: "When I fall behind", he: "כשאני מאחר" },
+  { key: "fastPaceMode", label: "When I'm ahead", he: "כשאני מקדים" },
 ];
 
-const PACE_MODE_LABELS: { value: PaceResponseMode; text: string }[] = [
-  { value: "auto", text: "Reshape the walk" },
-  { value: "ask", text: "Ask me first" },
-  { value: "off", text: "Leave it alone" },
+const PACE_MODE_LABELS: { value: PaceResponseMode; text: string; he: string }[] = [
+  { value: "auto", text: "Reshape the walk", he: "לעצב מחדש את המסלול" },
+  { value: "ask", text: "Ask me first", he: "לשאול אותי קודם" },
+  { value: "off", text: "Leave it alone", he: "להשאיר כמו שזה" },
 ];
 
 // Same three answers as the pace rows, worded for the situation they answer:
 // off route, "reshape the walk" would read as an offer to change the plan when
 // what is actually on offer is redrawing the same plan to reach the walker.
-const DEVIATION_MODE_LABELS: { value: DeviationResponseMode; text: string }[] = [
-  { value: "auto", text: "Redraw from here" },
-  { value: "ask", text: "Ask me first" },
-  { value: "off", text: "Leave it alone" },
+const DEVIATION_MODE_LABELS: { value: DeviationResponseMode; text: string; he: string }[] = [
+  { value: "auto", text: "Redraw from here", he: "לצייר מחדש מכאן" },
+  { value: "ask", text: "Ask me first", he: "לשאול אותי קודם" },
+  { value: "off", text: "Leave it alone", he: "להשאיר כמו שזה" },
 ];
 
+/** Hebrew for the panel's own words; English stays inline (tests and the live-walk sheet read it). */
+const HE = {
+  title: "הגדרות הליכה",
+  paceTitle: "אם הקצב שלי משתנה",
+  behind: "כשאני מאחר",
+  ahead: "כשאני מקדים",
+  auto: "לעצב מחדש את המסלול",
+  ask: "לשאול אותי קודם",
+  off: "להשאיר כמו שזה",
+  redraw: "לצייר מחדש מכאן",
+  interval: "כל כמה זמן לבדוק את הקצב (שניות)",
+  offTitle: "אם אני סוטה מהמסלול",
+  offDistance: "לשאול אותי כשאני רחוק כל כך מהמסלול (מטרים)",
+  howRespond: "איך להגיב",
+  silenceLabel: "אם אני לא עונה אבל ממשיך ללכת לכיוון אחד",
+  silenceOn: "פעיל — אם אחזיק כיוון אחד כל הזמן שלא עניתי, צייר מחדש את המסלול סביב המקום שאליו אני הולך.",
+  silenceOff: "כבוי — שתיקה משאירה את המסלול הישן כמו שהוא.",
+  addStop: "כשאני מוסיף תחנה",
+  assistantShould: "העוזר צריך",
+  propose: "להציע מקום ואז לשאול אם מתאים",
+  askKind: "לשאול קודם איזה סוג מקום",
+  reshape: "כשמעצבים מחדש את ההליכה",
+  startNew: "להתחיל את המסלול החדש בשבילי",
+  startNewOn: "פעיל — אחרי שנעצב מחדש את ההליכה, המעקב ממשיך ישר על המסלול החדש.",
+  startNewOff: "כבוי — נציג את ההליכה המעוצבת מחדש ונחכה שתלחצו על התחל הליכה.",
+  language: "שפה",
+  remember: "מה אנחנו זוכרים בין הליכות",
+  rememberPrefs: "לזכור את ההעדפות שלי",
+  rememberOn: "פעיל — מה שאתם אומרים שאתם אוהבים ואיך שאתם מדרגים הליכות מעצב את ההליכות הבאות.",
+  rememberOff: "כבוי — Traike לא ילמד את ההעדפות שלכם, ולכן הליכות עתידיות עשויות להרגיש פחות אישיות.",
+  keepRequests: "לשמור את הבקשות האחרונות שלי",
+  keepOn: "פעיל — מה שהקלדתם לאחרונה יישאר ברשימת הבקשות האחרונות בפעם הבאה. אפשר למחוק מהרשימה בכל רגע.",
+  keepOff: "כבוי — הבקשות נשכחות כשסוגרים את הלשונית.",
+  community: "קהילה",
+  communityLabel: "לתרום באנונימיות להמלצות הקהילה",
+  communityOn: "פעיל — ההצבעות שלכם על מקומות יכולות להיספר ב\"מומלץ על ידי הולכים\" אצל אחרים, רק כשלפחות 5 הולכים מסכימים ואחרי השהיה של יומיים. שמות ומיקומים לא משותפים לעולם, ואתם רואים את הרמזים האלה גם.",
+  communityOff: "כבוי — ההצבעות נשארות שלכם, ולא תראו רמזי קהילה.",
+  data: "הנתונים שלכם",
+  forget: "לשכוח את כל מה ש-Traike למד עליי",
+  done: "בוצע. הנתונים שנלמדו נמחקו.",
+  failed: "לא הצלחנו למחוק הכול. נסו שוב.",
+  newRoute: "מסלול חדש מכאן",
+  auto2: "אוטומטי",
+} as const;
+
 const SELECT_CLASS =
-  "min-h-10 rounded-[10px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-2 text-[15px] text-[var(--tk-ctl)] outline-none focus:outline-2 focus:outline-offset-1 focus:outline-[var(--tk-ctl)]";
+  "min-h-10 rounded-[6px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-2 text-[15px] text-[var(--tk-ctl)] outline-none focus:outline-2 focus:outline-offset-1 focus:outline-[var(--tk-ctl)]";
 const ROW_CLASS =
   "flex items-center justify-between gap-3 text-[15px] text-tk-ink";
 const NUMBER_CLASS =
-  "w-full rounded-[10px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 py-2 text-[16px] text-tk-ink outline-none focus:outline-2 focus:outline-offset-1 focus:outline-[var(--tk-ctl)]";
+  "w-full rounded-[6px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 py-2 text-[16px] text-tk-ink outline-none focus:outline-2 focus:outline-offset-1 focus:outline-[var(--tk-ctl)]";
 
 /**
  * One named group of settings.
@@ -103,6 +148,8 @@ export function WalkSettingsPanel({
    */
   const [isOpen, setIsOpen] = useState(false);
   const [forgetState, setForgetState] = useState<"idle" | "working" | "done" | "failed">("idle");
+  const he = lang === "he";
+  const tx = (en: string, hebrew: string) => (he ? hebrew : en);
   const intervalSeconds = Math.round(settings.paceCheckIntervalMs / 1000);
 
   const handleIntervalChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -121,9 +168,9 @@ export function WalkSettingsPanel({
         type="button"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className="flex min-h-11 w-full cursor-pointer items-center justify-between border-y border-tk-hair bg-tk-bar px-4 text-[15px] font-semibold text-tk-ink"
+        className="tk-bar w-full cursor-pointer"
       >
-        <span>Walk settings</span>
+        <span>{tx("Walk settings", HE.title)}</span>
         <span aria-hidden="true">{isOpen ? "▲" : "▼"}</span>
       </button>
 
@@ -132,10 +179,10 @@ export function WalkSettingsPanel({
           {/* Ordering inside every group: what decides whether we act at all
               comes first, then what shapes how we act, then the tuning that
               only matters once something is switched on. */}
-          <SettingsSection title="If my pace drifts">
-            {PACE_SETTINGS.map(({ key, label }) => (
+          <SettingsSection title={tx("If my pace drifts", HE.paceTitle)}>
+            {PACE_SETTINGS.map(({ key, label, he: labelHe }) => (
               <label key={key} className={ROW_CLASS}>
-                <span>{label}</span>
+                <span>{tx(label, labelHe)}</span>
                 <select
                   value={settings[key]}
                   onChange={(event) =>
@@ -143,9 +190,9 @@ export function WalkSettingsPanel({
                   }
                   className={SELECT_CLASS}
                 >
-                  {PACE_MODE_LABELS.map(({ value, text }) => (
+                  {PACE_MODE_LABELS.map(({ value, text, he: textHe }) => (
                     <option key={value} value={value}>
-                      {text}
+                      {tx(text, textHe)}
                     </option>
                   ))}
                 </select>
@@ -156,7 +203,7 @@ export function WalkSettingsPanel({
                 off-route group directly above it. It has only ever been about
                 pace. */}
             <label className="space-y-1 text-[15px] text-tk-ink">
-              <span className="block">How often we check your pace (seconds)</span>
+              <span className="block">{tx("How often we check your pace (seconds)", HE.interval)}</span>
               <input
                 type="number"
                 min={30}
@@ -167,9 +214,9 @@ export function WalkSettingsPanel({
             </label>
           </SettingsSection>
 
-          <SettingsSection title="If I go off route">
+          <SettingsSection title={tx("If I go off route", HE.offTitle)}>
             <label className="space-y-1 text-[15px] text-tk-ink">
-              <span className="block">Ask me when I am this far from the route (metres)</span>
+              <span className="block">{tx("Ask me when I am this far from the route (metres)", HE.offDistance)}</span>
               <input
                 type="number"
                 min={MIN_DEVIATION_DISTANCE_M}
@@ -185,7 +232,7 @@ export function WalkSettingsPanel({
               />
             </label>
             <label className={ROW_CLASS}>
-              <span>How to respond</span>
+              <span>{tx("How to respond", HE.howRespond)}</span>
               <select
                 value={settings.deviationMode}
                 onChange={(event) =>
@@ -195,9 +242,9 @@ export function WalkSettingsPanel({
                 }
                 className={SELECT_CLASS}
               >
-                {DEVIATION_MODE_LABELS.map(({ value, text }) => (
+                {DEVIATION_MODE_LABELS.map(({ value, text, he: textHe }) => (
                   <option key={value} value={value}>
-                    {text}
+                    {tx(text, textHe)}
                   </option>
                 ))}
               </select>
@@ -211,20 +258,20 @@ export function WalkSettingsPanel({
                   onChange={(next) =>
                     onChange({ continueHeadingOnSilence: next })
                   }
-                  label="If I don't answer but keep walking one way"
+                  label={tx("If I don't answer but keep walking one way", HE.silenceLabel)}
                 />
                 <p className="text-[13px] text-charcoal/70">
                   {settings.continueHeadingOnSilence
-                    ? "On — if I hold one direction the whole time you don't answer, redraw the walk around where I'm actually going."
-                    : "Off — silence leaves the old route alone, same as always."}
+                    ? tx("On — if I hold one direction the whole time you don't answer, redraw the walk around where I'm actually going.", HE.silenceOn)
+                    : tx("Off — silence leaves the old route alone, same as always.", HE.silenceOff)}
                 </p>
               </div>
             )}
           </SettingsSection>
 
-          <SettingsSection title={walkCopy.discovery.en["level.title"]}>
+          <SettingsSection title={walkCopy.discovery[lang]["level.title"]}>
             <label className={ROW_CLASS}>
-              <span>{walkCopy.discovery.en["level.label"]}</span>
+              <span>{walkCopy.discovery[lang]["level.label"]}</span>
               <select
                 value={settings.calloutLevel}
                 onChange={(event) =>
@@ -234,7 +281,7 @@ export function WalkSettingsPanel({
               >
                 {CALLOUT_LEVELS.map((level) => (
                   <option key={level} value={level}>
-                    {walkCopy.discovery.en[`level.${level}`]}
+                    {walkCopy.discovery[lang][`level.${level}`]}
                   </option>
                 ))}
               </select>
@@ -256,9 +303,9 @@ export function WalkSettingsPanel({
             </label>
           </SettingsSection>
 
-          <SettingsSection title="When I add a stop">
+          <SettingsSection title={tx("When I add a stop", HE.addStop)}>
             <label className={ROW_CLASS}>
-              <span>Assistant should</span>
+              <span>{tx("Assistant should", HE.assistantShould)}</span>
               <select
                 value={settings.stopSuggestionMode}
                 onChange={(event) =>
@@ -266,8 +313,8 @@ export function WalkSettingsPanel({
                 }
                 className={SELECT_CLASS}
               >
-                <option value="propose">Suggest a place, then ask if it fits</option>
-                <option value="ask">Ask what kind of place first</option>
+                <option value="propose">{tx("Suggest a place, then ask if it fits", HE.propose)}</option>
+                <option value="ask">{tx("Ask what kind of place first", HE.askKind)}</option>
               </select>
             </label>
           </SettingsSection>
@@ -278,16 +325,16 @@ export function WalkSettingsPanel({
               shared `buildMidWalkRebuildRequest`, so it answers what happens
               after *any* mid-walk rebuild — filing it under pace told the
               walker it only applied to one of the two ways of getting one. */}
-          <SettingsSection title="When we reshape your walk">
+          <SettingsSection title={tx("When we reshape your walk", HE.reshape)}>
             <Toggle
               checked={settings.autoResumeAfterRebuild}
               onChange={(next) => onChange({ autoResumeAfterRebuild: next })}
-              label="Start the new walk for me"
+              label={tx("Start the new walk for me", HE.startNew)}
             />
             <p className="text-[13px] text-charcoal/70">
               {settings.autoResumeAfterRebuild
-                ? "On — once we reshape your walk, tracking picks straight up on the new route."
-                : "Off — we'll show you the reshaped walk and wait for you to press Start Walk."}
+                ? tx("On — once we reshape your walk, tracking picks straight up on the new route.", HE.startNewOn)
+                : tx("Off — we'll show you the reshaped walk and wait for you to press Start Walk.", HE.startNewOff)}
             </p>
           </SettingsSection>
 
@@ -295,7 +342,7 @@ export function WalkSettingsPanel({
               because it is the one that quietly changes what gets built;
               keeping the requests only shows the walker their own words back. */}
           <SettingsSection title="Language / שפה">
-            <div role="group" aria-label="Language" className={SEG_WRAP}>
+            <div role="group" aria-label={tx("Language", HE.language)} className={SEG_WRAP}>
               {(["auto", "he", "en"] as const).map((code) => (
                 <button
                   key={code}
@@ -304,13 +351,13 @@ export function WalkSettingsPanel({
                   onClick={() => onChange({ uiLanguage: code })}
                   className={segCell(settings.uiLanguage === code)}
                 >
-                  {code === "auto" ? "Auto" : code === "he" ? "עברית" : "English"}
+                  {code === "auto" ? tx("Auto", HE.auto2) : code === "he" ? "עברית" : "English"}
                 </button>
               ))}
             </div>
           </SettingsSection>
 
-          <SettingsSection title="What we remember between walks">
+          <SettingsSection title={tx("What we remember between walks", HE.remember)}>
             <div className="space-y-1">
               <Toggle
                 checked={settings.preferenceLearningEnabled}
@@ -320,12 +367,12 @@ export function WalkSettingsPanel({
                     learningConsent: next ? "granted" : "declined",
                   })
                 }
-                label="Remember my preferences"
+                label={tx("Remember my preferences", HE.rememberPrefs)}
               />
               <p className="text-[13px] text-charcoal/70">
                 {settings.preferenceLearningEnabled
-                  ? "On — what you say you like and how you rate your walks shapes the walks we build for you next."
-                  : "Off — Traike won't learn your preferences, so future walks may feel less personalized."}
+                  ? tx("On — what you say you like and how you rate your walks shapes the walks we build for you next.", HE.rememberOn)
+                  : tx("Off — Traike won't learn your preferences, so future walks may feel less personalized.", HE.rememberOff)}
               </p>
             </div>
 
@@ -335,12 +382,12 @@ export function WalkSettingsPanel({
                 onChange={(next) =>
                   onChange({ historyPersistenceEnabled: next })
                 }
-                label="Keep my recent requests"
+                label={tx("Keep my recent requests", HE.keepRequests)}
               />
               <p className="text-[13px] text-charcoal/70">
                 {settings.historyPersistenceEnabled
-                  ? "On — the last few things you typed stay in the Recent requests list next time you open Traike. Clear them any time from that list."
-                  : "Off — your requests are forgotten when you close the tab."}
+                  ? tx("On — the last few things you typed stay in the Recent requests list next time you open Traike. Clear them any time from that list.", HE.keepOn)
+                  : tx("Off — your requests are forgotten when you close the tab.", HE.keepOff)}
               </p>
             </div>
 
@@ -350,7 +397,7 @@ export function WalkSettingsPanel({
               different purpose from "Remember my preferences". Absent unless
               NEXT_PUBLIC_SOCIAL=1. */}
           {socialEnabled() ? (
-            <SettingsSection title="Community">
+            <SettingsSection title={tx("Community", HE.community)}>
               <div className="space-y-1">
                 <Toggle
                   checked={settings.socialSharingEnabled}
@@ -359,18 +406,18 @@ export function WalkSettingsPanel({
                     // The only place the opt-in is written to the server: an explicit toggle.
                     void syncOptIn(next);
                   }}
-                  label="Contribute anonymously to community recommendations"
+                  label={tx("Contribute anonymously to community recommendations", HE.communityLabel)}
                 />
                 <p className="text-[13px] text-charcoal/70">
                   {settings.socialSharingEnabled
-                    ? "On — your place upvotes can count toward \"Recommended by walkers\" for others, only once at least 5 walkers agree and after a 2-day delay. No names or locations are ever shared, and you see these hints too."
-                    : "Off — your upvotes stay yours, and you won't see community hints."}
+                    ? tx("On — your place upvotes can count toward \"Recommended by walkers\" for others, only once at least 5 walkers agree and after a 2-day delay. No names or locations are ever shared, and you see these hints too.", HE.communityOn)
+                    : tx("Off — your upvotes stay yours, and you won't see community hints.", HE.communityOff)}
                 </p>
               </div>
             </SettingsSection>
           ) : null}
 
-          <SettingsSection title="Your data">
+          <SettingsSection title={tx("Your data", HE.data)}>
             <div className="space-y-1">
               <button
                 type="button"
@@ -391,13 +438,13 @@ export function WalkSettingsPanel({
                 }}
                 className={`${BTN_ALT_SM} whitespace-normal`}
               >
-                Forget everything Traike learned about me
+                {tx("Forget everything Traike learned about me", HE.forget)}
               </button>
               {forgetState === "done" ? (
-                <p className="text-[13px] text-charcoal/70">Done. Your learned data is deleted.</p>
+                <p className="text-[13px] text-charcoal/70">{tx("Done. Your learned data is deleted.", HE.done)}</p>
               ) : null}
               {forgetState === "failed" ? (
-                <p className="text-[13px] text-charcoal/70">Couldn&apos;t clear everything. Try again.</p>
+                <p className="text-[13px] text-charcoal/70">{tx("Couldn't clear everything. Try again.", HE.failed)}</p>
               ) : null}
             </div>
           </SettingsSection>

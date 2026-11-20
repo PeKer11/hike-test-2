@@ -10,12 +10,12 @@
   --tk-terra: #c15f3c;
   --tk-forest: #1e3d2f;
   --tk-skysoft: #8fb8c9;
-  --tk-cream: #fbf8f4;
+  --tk-cream: #f8f3ea;
   --tk-charcoal: #231f1c;
-  --tk-paper: #ffffff;
+  --tk-paper: #f8f3ea;
   --tk-on-accent: #ffffff;
   --tk-tk-card: #fcf7f0;
-  --tk-tk-ink: #072a1f;
+  --tk-tk-ink: #1b2620;
   --tk-tk-wordmark: #b5512b;
   --tk-tk-body: #2e3040;
   --tk-tk-lede: #1a120b;
@@ -25,7 +25,7 @@
   --tk-tk-well: #faf4ed;
   --tk-tk-line: #efe7dc;
   --tk-tk-field: #d9d2cb;
-  --tk-tk-sage: #5f6f5d;
+  --tk-tk-sage: #5e584d;
   --tk-shadow-card: 0 3px 12px rgba(50, 32, 16, 0.28), 0 1px 2px rgba(50, 32, 16, 0.1);
   --tk-shadow-soft: 0 2px 8px rgba(50, 32, 16, 0.16);
   /* Walk: route line, walked trail, weak-GPS / pace warning, one sparing accent. */
@@ -34,14 +34,17 @@
   --tk-warn: #d99a1e;
   --tk-sun: #f6b81c;
   /* Round 13 sheet language: hard lip under primary buttons, tinted section bars, warm hairlines, sunset sky. */
-  --tk-lip: #1f2a24;
-  --tk-bar: #f2eadd;
+  --tk-lip: #1b2620;
+  --tk-bar: #f0e8da;
   --tk-hair: #ddd2c0;
   --tk-sky: linear-gradient(180deg, #842e0d 0%, #9e3d12 34%, #bc551e 60%, #df8f53 80%, #f2caa3 92%, var(--tk-cream) 100%);
   /* Control system (mockup r13 "Pine"): one edge/ink colour and one selected fill for every tab, segment, chip and secondary button. */
   --tk-ctl: #1b2620;
   --tk-sel: #1b2620;
   --tk-on-sel: #f8f3ea;
+  /* Round 13 "leather": the one action colour. Dark ink on it, a hard lip under it. */
+  --tk-leather: #d2602f;
+  --tk-on-leather: #111915;
 }
 
 /* Dark: warm forest night. Brand tokens swap as pairs, so text and fills that
@@ -53,12 +56,12 @@
   --tk-terra: #e2805a;
   --tk-forest: #9fcbb0;
   --tk-skysoft: #8fb8c9;
-  --tk-cream: #171a16;
+  --tk-cream: #1a1613;
   --tk-charcoal: #f2ebe1;
-  --tk-paper: #1f1d19;
+  --tk-paper: #29221c;
   --tk-on-accent: #1a1410;
   --tk-tk-card: #1c1a17;
-  --tk-tk-ink: #e9f0e8;
+  --tk-tk-ink: #f2eadc;
   --tk-tk-wordmark: #e2805a;
   --tk-tk-body: #d9d4cc;
   --tk-tk-lede: #f5efe6;
@@ -68,19 +71,21 @@
   --tk-tk-well: #2a2620;
   --tk-tk-line: #3a342c;
   --tk-tk-field: #6e655a;
-  --tk-tk-sage: #a5b3a1;
+  --tk-tk-sage: #b5aa99;
   --tk-shadow-card: 0 0 0 1px rgba(242, 235, 225, 0.06), 0 8px 24px rgba(0, 0, 0, 0.45);
   --tk-shadow-soft: 0 0 0 1px rgba(242, 235, 225, 0.05), 0 2px 10px rgba(0, 0, 0, 0.35);
   --tk-route: #7fc4a0;
   --tk-walked: #6e655a;
   --tk-warn: #f0c36a;
   --tk-lip: #6e2a0f;
-  --tk-bar: #26221c;
-  --tk-hair: #3a342c;
+  --tk-bar: #231e19;
+  --tk-hair: #3a322a;
   --tk-sky: linear-gradient(180deg, #110e0d 0%, #1e1510 38%, #331e12 66%, #261913 85%, var(--tk-cream) 100%);
-  --tk-ctl: #e9dfcf;
+  --tk-ctl: #f2eadc;
   --tk-sel: #ede3d3;
   --tk-on-sel: #1a1613;
+  --tk-leather: #e06a38;
+  --tk-on-leather: #111915;
 
   /* Status shades used as text/tints on light cards. */
   --color-rose-50: #3a1f22;
@@ -134,12 +139,12 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 48px;
-    padding-inline: 24px;
-    border-radius: 9999px;
-    border: 0;
-    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
-    font-size: 16px;
+    min-height: 52px;
+    padding-inline: 18px;
+    border-radius: 6px;
+    border: 1.5px solid transparent;
+    font-family: var(--font-app-sans);
+    font-size: 18px;
     font-weight: 700;
     line-height: 1.15;
     text-align: center;
@@ -150,34 +155,39 @@
     transition: transform 80ms ease, box-shadow 80ms ease, background-color 150ms ease;
   }
   .tk-btn:disabled { cursor: not-allowed; opacity: 0.5; }
-  .tk-btn-sm { min-height: 44px; padding-inline: 18px; font-size: 15px; --tk-lip-h: 3px; }
+  .tk-btn-sm { min-height: 44px; padding-inline: 14px; font-size: 16px; --tk-lip-h: 3px; }
   .tk-btn-primary {
-    background: var(--tk-terra);
-    color: var(--tk-on-accent);
-    box-shadow: 0 var(--tk-lip-h) 0 var(--tk-lip), 0 10px 18px rgba(0, 0, 0, 0.22);
+    background: var(--tk-leather);
+    color: var(--tk-on-leather);
+    border-color: var(--tk-lip);
+    box-shadow: 0 var(--tk-lip-h) 0 var(--tk-lip);
   }
   .tk-btn-primary:hover:not(:disabled) { filter: brightness(1.04); }
   .tk-btn-primary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 calc(var(--tk-lip-h) - 2px) 0 var(--tk-lip); }
   .tk-btn-secondary {
+    min-height: 44px;
+    padding-inline: 14px;
+    font-size: 16px;
     background: var(--tk-cream);
     color: var(--tk-ctl);
-    border: 1.5px solid var(--tk-ctl);
+    border-color: var(--tk-ctl);
   }
   .tk-btn-secondary:hover:not(:disabled) { background: var(--tk-bar); }
   .tk-btn-secondary:active:not(:disabled) { transform: translateY(1px); }
 
-  .tk-seg { display: flex; overflow: hidden; border-radius: 10px; border: 1.5px solid var(--tk-ctl); background: var(--tk-cream); }
+  .tk-seg { display: flex; overflow: hidden; border-radius: 6px; border: 1.5px solid var(--tk-ctl); background: var(--tk-cream); }
   .tk-seg-cell {
     flex: 1 1 0;
     min-height: 44px;
-    padding-inline: 12px;
+    padding-inline: 10px;
     border: 0;
     border-inline-end: 1px solid var(--tk-hair);
     background: transparent;
     color: var(--tk-ctl);
-    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
-    font-size: 15px;
+    font-family: var(--font-app-sans);
+    font-size: 16px;
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
     cursor: pointer;
     transition: background-color 150ms ease, color 150ms ease;
   }
@@ -189,34 +199,34 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 8px;
     min-height: 44px;
-    padding-inline: 14px;
-    border-radius: 10px;
+    padding-inline: 12px;
+    border-radius: 6px;
     border: 1.5px solid var(--tk-ctl);
     background: var(--tk-cream);
     color: var(--tk-ctl);
-    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
-    font-size: 14px;
+    font-family: var(--font-app-sans);
+    font-size: 16px;
     font-weight: 600;
     cursor: pointer;
     transition: background-color 150ms ease, color 150ms ease;
   }
   .tk-chip:hover { background: var(--tk-bar); }
-  .tk-chip.is-on, .tk-chip.is-on:hover { background: var(--tk-sel); color: var(--tk-on-sel); }
+  .tk-chip.is-on, .tk-chip.is-on:hover { background: var(--tk-sel); color: var(--tk-on-sel); border-color: var(--tk-sel); }
 
   .tk-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 44px;
+    min-height: 40px;
     padding: 8px 16px;
     border-block: 1px solid var(--tk-hair);
     background: var(--tk-bar);
     color: var(--tk-tk-ink);
-    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
-    font-size: 15px;
+    font-family: var(--font-app-sans);
+    font-size: 14px;
     font-weight: 600;
   }
 
@@ -224,8 +234,8 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    min-height: 56px;
-    padding: 10px 16px;
+    min-height: 52px;
+    padding: 8px 16px;
     border-bottom: 1px solid var(--tk-hair);
     color: var(--tk-tk-ink);
     font-size: 16px;
@@ -239,18 +249,22 @@
     justify-content: center;
     gap: 2px;
     min-height: 52px;
-    border-radius: 10px;
+    border-radius: 6px;
     border: 0;
     background: transparent;
     color: var(--tk-ctl);
-    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
-    font-size: 13px;
+    font-family: var(--font-app-sans);
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: background-color 150ms ease, color 150ms ease;
   }
   .tk-tab:hover { background: var(--tk-bar); }
   .tk-tab[aria-current="page"], .tk-tab[aria-current="page"]:hover { background: var(--tk-sel); color: var(--tk-on-sel); }
+
+  /* The Plan / Walks glyph rings are filled with the bar colour; on the selected (pine) tab they take the pine. */
+  .tk-navfill { --tk-nav-fill: var(--tk-cream); }
+  .tk-navfill .tk-tab[aria-current="page"] { --tk-nav-fill: var(--tk-sel); }
 
   .tk-fab {
     display: flex;
@@ -261,8 +275,8 @@
     height: 56px;
     border-radius: 9999px;
     border: 0;
-    background: var(--tk-terra);
-    color: var(--tk-on-accent);
+    background: var(--tk-leather);
+    color: var(--tk-on-leather);
     box-shadow: 0 4px 0 var(--tk-lip);
     cursor: pointer;
     transition: transform 80ms ease, box-shadow 80ms ease;
@@ -302,8 +316,8 @@
   --font-brand: var(--font-heebo);
   --font-display: var(--font-secular), var(--font-heebo), sans-serif;
   /* Round 13 app type: Fraunces headlines, Manrope text; Hebrew falls through to Heebo. */
-  --font-app-serif: var(--font-fraunces), var(--font-heebo), serif;
-  --font-app-sans: var(--font-manrope), var(--font-heebo), sans-serif;
+  --font-app-serif: var(--font-fraunces), var(--font-frank), var(--font-heebo), serif;
+  --font-app-sans: var(--font-manrope), var(--font-assistant), var(--font-heebo), sans-serif;
   --color-paper: var(--tk-paper);
   --color-on-accent: var(--tk-on-accent);
   --color-terra: var(--tk-terra);

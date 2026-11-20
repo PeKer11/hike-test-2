@@ -38,7 +38,7 @@ export function resolveTheme(choice: ThemeChoice, pathname: string, prefersDark:
 
 // Browser chrome follows the app's own theme (the sheet colour), not only the OS setting.
 function syncThemeColor(resolved: ResolvedTheme): void {
-  const color = resolved === "dark" ? "#1f1d19" : "#fbf8f4";
+  const color = resolved === "dark" ? "#1a1613" : "#f8f3ea";
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
     m.setAttribute("content", color);
     m.removeAttribute("media");

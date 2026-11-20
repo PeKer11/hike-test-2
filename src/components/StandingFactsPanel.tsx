@@ -24,11 +24,20 @@ interface StandingFactsPanelProps {
    * stored still shows, because that is exactly when a walker wants to look.
    */
   learnPreferences?: boolean;
+  lang?: "he" | "en";
 }
 
 /** How long ago a fact was last heard, in words rather than a timestamp. */
-function lastHeard(timestamp: number, now: number): string {
+function lastHeard(timestamp: number, now: number, lang: "he" | "en" = "en"): string {
   const days = Math.floor((now - timestamp) / (24 * 60 * 60 * 1000));
+
+  if (lang === "he") {
+    if (days <= 0) return "נשמע היום";
+    if (days === 1) return "נשמע אתמול";
+    if (days < 30) return `נשמע לפני ${days} ימים`;
+    const m = Math.floor(days / 30);
+    return m === 1 ? "נשמע לפני חודש" : `נשמע לפני ${m} חודשים`;
+  }
 
   if (days <= 0) return "heard today";
   if (days === 1) return "heard yesterday";
@@ -41,7 +50,9 @@ function lastHeard(timestamp: number, now: number): string {
 export function StandingFactsPanel({
   isSignedIn = false,
   learnPreferences = false,
+  lang = "en",
 }: StandingFactsPanelProps) {
+  const he = lang === "he";
   const [facts, setFacts] = useState<StoredFact[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   // Read once, when the facts land, rather than on every render: "heard 3 days
@@ -117,8 +128,12 @@ export function StandingFactsPanel({
       }
       setForgetError(
         removed
-          ? `Couldn't forget "${removed.text}" — it's still on your account. Try again.`
-          : "Couldn't forget that one. Try again.",
+          ? he
+            ? `לא הצלחנו לשכוח את "${removed.text}" — זה עדיין בחשבון שלך. נסו שוב.`
+            : `Couldn't forget "${removed.text}" — it's still on your account. Try again.`
+          : he
+            ? "לא הצלחנו לשכוח את זה. נסו שוב."
+            : "Couldn't forget that one. Try again.",
       );
     })();
   };
@@ -133,15 +148,15 @@ export function StandingFactsPanel({
         type="button"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className="flex min-h-11 w-full cursor-pointer items-center justify-between border-y border-tk-hair bg-tk-bar px-4 text-[15px] font-semibold text-tk-ink"
+        className="tk-bar w-full cursor-pointer"
       >
-        <span>Things I remember about you ({facts.length})</span>
+        <span>{he ? "מה שאני זוכר עליכם" : "Things I remember about you"} ({facts.length})</span>
         <span aria-hidden="true">{isOpen ? "▲" : "▼"}</span>
       </button>
 
       {isOpen && (
         <div className="space-y-2 px-4 py-3">
-          <ul aria-label="Things I remember about you" className="space-y-1">
+          <ul aria-label={he ? "מה שאני זוכר עליכם" : "Things I remember about you"} className="space-y-1">
             {facts.map((fact) => (
               <li
                 key={fact.id}
@@ -149,14 +164,14 @@ export function StandingFactsPanel({
               >
                 <span className="text-charcoal/80">
                   {fact.text}
-                  <span className="ml-2 text-charcoal/40">
-                    {lastHeard(fact.lastSeenAt, loadedAt)}
+                  <span className="ms-2 text-charcoal/40">
+                    {lastHeard(fact.lastSeenAt, loadedAt, lang)}
                   </span>
                 </span>
                 <button
                   type="button"
                   onClick={() => forget(fact.id)}
-                  aria-label={`Forget "${fact.text}"`}
+                  aria-label={he ? `לשכוח את "${fact.text}"` : `Forget "${fact.text}"`}
                   className="shrink-0 cursor-pointer text-charcoal/40 hover:text-terra"
                 >
                   ✕
@@ -174,8 +189,12 @@ export function StandingFactsPanel({
           )}
           <p className="text-[13px] text-charcoal/60">
             {learnPreferences
-              ? "These shape how we read what you ask for. Delete anything that isn't true."
-              : "Preference learning is off, so nothing new is being added — but these are still used."}
+              ? he
+                ? "אלה משפיעים על האופן שבו אנחנו מבינים את הבקשות שלכם. מחקו כל דבר שאינו נכון."
+                : "These shape how we read what you ask for. Delete anything that isn't true."
+              : he
+                ? "למידת ההעדפות כבויה, ולכן לא נוסף דבר חדש — אבל אלה עדיין בשימוש."
+                : "Preference learning is off, so nothing new is being added — but these are still used."}
           </p>
         </div>
       )}

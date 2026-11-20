@@ -8,8 +8,6 @@ import { MeView } from "@/components/shell/MeView";
 import { SocialView } from "@/components/social/SocialView";
 import { Rail } from "@/components/shell/Rail";
 import { TabBar } from "@/components/shell/TabBar";
-import { BackIcon } from "@/components/shell/icons";
-import { HUB_VIEWS } from "@/components/shell/nav";
 import { shellLang } from "@/components/shell/useShellLang";
 import { PlannerFrame } from "@/components/planner/PlannerFrame";
 import { PlannerBridge, parseView, parseWalksTab, type AppView } from "@/lib/shell/planner-bridge";
@@ -25,7 +23,7 @@ interface AppShellProps {
  * The app's one page. The planner stays mounted for as long as the page lives (its GPS watch, chat and
  * timers keep running); screens are switched with `?view=` and the History API, so Back works and nothing
  * unmounts. Home, Social and Me are drawn over it; Walks is the planner's own side panel shown
- * full-size; Plan and Live walk are the planner as it was.
+ * full-size; Plan and Live walk are the planner as it was. The five-destination bar is on every screen.
  */
 function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellProps) {
   const params = useSearchParams();
@@ -68,11 +66,10 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
     }
   }, [view, live.walkLive, live.settings, bridge]);
 
-  const hub = HUB_VIEWS.includes(view);
   const plannerShown = view === "plan" || view === "walk" || view === "walks";
 
   return (
-    <div data-view={view} className="font-brand text-charcoal">
+    <div data-view={view} className="font-app-sans text-charcoal">
       <PlannerFrame
         suggestedPace={suggestedPace}
         suggestedCategories={suggestedCategories}
@@ -81,7 +78,7 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
         bridge={bridge}
         onNavigate={navigate}
         active={plannerShown}
-        bottomBar={view === "walks"}
+        bottomBar
       />
       {view === "home" ? (
         <HomeView greetingName={greetingName} lang={lang} bridge={bridge} walkLive={live.walkLive} signedIn={live.signedIn} requests={live.walkRequests} onNavigate={navigate} />
@@ -91,19 +88,8 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
       ) : null}
       {view === "me" ? <MeView lang={lang} settings={live.settings} bridge={bridge} signedIn={live.signedIn} walkLive={live.walkLive} /> : null}
 
-      {view === "plan" ? (
-        <button
-          type="button"
-          onClick={() => navigate("home")}
-          aria-label={lang === "he" ? "חזרה" : "Back"}
-          className="fixed start-3 top-3 z-[1000] flex h-11 w-11 items-center justify-center rounded-full bg-paper text-forest shadow-tk-card lg:hidden"
-        >
-          <BackIcon />
-        </button>
-      ) : null}
-
-      {hub ? <TabBar view={view} lang={lang} friendBadge={live.friendRequests} onNavigate={navigate} /> : null}
-      <Rail view={view} lang={lang} friendBadge={live.friendRequests} onNavigate={navigate} />
+      <TabBar view={view} lang={lang} friendBadge={live.friendRequests} walkLive={live.walkLive} onNavigate={navigate} />
+      <Rail view={view} lang={lang} friendBadge={live.friendRequests} walkLive={live.walkLive} onNavigate={navigate} />
     </div>
   );
 }

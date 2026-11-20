@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Heebo, Manrope, Secular_One } from "next/font/google";
+import { Assistant, Fraunces, Frank_Ruhl_Libre, Heebo, Manrope, Secular_One } from "next/font/google";
 import { ThemeSync } from "@/components/theme/ThemeSync";
 import { THEME_INIT_SCRIPT } from "@/lib/theme/theme";
 import "./globals.css";
@@ -19,6 +19,9 @@ const secular = Secular_One({
 
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap" });
 const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
+// Round 13 Hebrew pairing: Assistant under Manrope, Frank Ruhl Libre under Fraunces.
+const assistant = Assistant({ subsets: ["hebrew", "latin"], variable: "--font-assistant", display: "swap" });
+const frank = Frank_Ruhl_Libre({ subsets: ["hebrew", "latin"], variable: "--font-frank", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Traike — Your Personal Hiking Companion",
@@ -34,8 +37,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   colorScheme: "only light",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbf8f4" },
-    { media: "(prefers-color-scheme: dark)", color: "#1f1d19" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f3ea" },
+    { media: "(prefers-color-scheme: dark)", color: "#1a1613" },
   ],
 };
 
@@ -50,7 +53,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body
-        className={`${heebo.variable} ${secular.variable} ${fraunces.variable} ${manrope.variable} antialiased`}
+        className={`${heebo.variable} ${secular.variable} ${fraunces.variable} ${manrope.variable} ${assistant.variable} ${frank.variable} antialiased`}
       >
         <ThemeSync />
         {children}

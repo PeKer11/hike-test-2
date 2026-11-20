@@ -2,11 +2,12 @@
 
 import { geolocationSupported, locate } from "@/lib/geo/locate";
 import { loadSavedStart } from "@/lib/start-location";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button, LoadingSpinner } from "@/components/ui";
+import { PLAN_COPY, VIBES, PACE_LABELS, CATEGORY_LABELS_PLAN, type PlanLang } from "@/components/route/plan-copy";
 import { SegRow } from "@/components/ui/SegRow";
-import { CTRL_BOX, SEC_BAR, chipCell } from "@/components/ui/panel-style";
+import { BTN, CTRL_BOX, chipCell } from "@/components/ui/panel-style";
 import { StandingFactsPanel } from "@/components/StandingFactsPanel";
 import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
@@ -77,6 +78,14 @@ interface WalkCompanionPanelProps {
   /** Signed-in walkers build through the chat: hide the form fields and Build button. */
   chatOnly?: boolean;
   isWalking?: boolean;
+  /** Language of the form's words. */
+  lang?: PlanLang;
+  /** The "Stops or request" box, drawn between the vibe row and the time row. */
+  promptSlot?: ReactNode;
+  /** Bumped by the header's location chip: opens "More options" so the start can be changed. */
+  openMoreTick?: number;
+  /** Extra rows at the end of "More options" (map display switches). */
+  moreSlot?: ReactNode;
 }
 
 const PACE_OPTIONS = [
@@ -135,7 +144,12 @@ export function WalkCompanionPanel({
   walkPlanReady = false,
   chatOnly = false,
   isWalking = false,
+  lang = "en",
+  promptSlot,
+  openMoreTick = 0,
+  moreSlot,
 }: WalkCompanionPanelProps) {
+  const t = PLAN_COPY[lang];
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [availableMinutes, setAvailableMinutes] = useState("90");
@@ -147,6 +161,10 @@ export function WalkCompanionPanel({
   // dropping stops from walks nobody constrained.
   const [endDistanceKm, setEndDistanceKm] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<AttractionCategory[]>([]);
+  // The mockup's five route vibes. Each asks the planner for a few stop categories; they add to the interest chips.
+  const [vibes, setVibes] = useState<string[]>([]);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDetailsElement>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -164,6 +182,14 @@ export function WalkCompanionPanel({
    */
   const hasDetectedGpsRef = useRef(false);
   const locateRef = useRef<{ stop(): void } | null>(null);
+
+  useEffect(() => {
+    if (openMoreTick > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMoreOpen(true);
+      moreRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [openMoreTick]);
 
   useEffect(() => {
     if (!mapClickedCoords) {
@@ -270,13 +296,11 @@ export function WalkCompanionPanel({
       window.location.hostname !== "localhost" &&
       window.location.hostname !== "127.0.0.1"
     ) {
-      return fail(
-        "Current location on mobile usually requires HTTPS (or localhost in development). Open the app over HTTPS to use GPS.",
-      );
+      return fail(t.errHttps);
     }
 
     if (!geolocationSupported()) {
-      return fail("Geolocation not supported on this device.");
+      return fail(t.errNoGeo);
     }
     setIsDetecting(true);
     return new Promise((resolve) => {
@@ -318,7 +342,7 @@ export function WalkCompanionPanel({
         },
         onState: (state) => {
           if (state === "denied" || state === "unavailable" || state === "timeout") {
-            if (!auto) setLocationError("Could not detect location. Enter coordinates manually.");
+            if (!auto) setLocationError(t.errNoFix);
             answer(null);
           }
         },
@@ -355,7 +379,7 @@ export function WalkCompanionPanel({
         latText = detected.lat.toFixed(6);
         lngText = detected.lng.toFixed(6);
       } else {
-        setFormError("We need a starting point — allow location access, or tap the map.");
+        setFormError(t.errStart);
         return;
       }
     }
@@ -367,19 +391,19 @@ export function WalkCompanionPanel({
     const parsedRadiusKm = radiusKm.trim() === "" ? 10 : parseFloat(radiusKm);
 
     if (!Number.isFinite(parsedLat) || parsedLat < -90 || parsedLat > 90) {
-      setFormError("Enter a valid latitude (-90 to 90).");
+      setFormError(t.errLat);
       return;
     }
     if (!Number.isFinite(parsedLng) || parsedLng < -180 || parsedLng > 180) {
-      setFormError("Enter a valid longitude (-180 to 180).");
+      setFormError(t.errLng);
       return;
     }
     if (!Number.isFinite(parsedMinutes) || parsedMinutes <= 0) {
-      setFormError("Enter a valid duration (minutes > 0).");
+      setFormError(t.errMinutes);
       return;
     }
     if (!Number.isFinite(parsedRadiusKm) || parsedRadiusKm <= 0) {
-      setFormError("Enter a valid search radius (km > 0).");
+      setFormError(t.errRadius);
       return;
     }
 
@@ -390,10 +414,11 @@ export function WalkCompanionPanel({
       parsedEndDistanceKm !== null &&
       (!Number.isFinite(parsedEndDistanceKm) || parsedEndDistanceKm < 0)
     ) {
-      setFormError("Enter a valid finish distance (km ≥ 0), or leave it blank.");
+      setFormError(t.errEnd);
       return;
     }
 
+    const preferred = Array.from(new Set([...selectedCategories, ...VIBES.filter((v) => vibes.includes(v.id)).flatMap((v) => v.categories)]));
     onBuildWalk({
       origin: { lat: parsedLat, lng: parsedLng },
       availableMinutes: parsedMinutes,
@@ -401,246 +426,208 @@ export function WalkCompanionPanel({
       radiusMeters: parsedRadiusKm * 1000,
       maxEndDistanceFromOriginMeters:
         parsedEndDistanceKm === null ? undefined : parsedEndDistanceKm * 1000,
-      preferredCategories:
-        selectedCategories.length > 0 ? selectedCategories : undefined,
+      preferredCategories: preferred.length > 0 ? preferred : undefined,
     });
   };
 
   // The time presets mirror the number box: a preset lights up only while the box holds exactly its value.
   const timePreset = availableMinutes === "" ? "open" : ["45", "60", "90"].includes(availableMinutes) ? availableMinutes : null;
+  const toggleVibe = (id: string) => setVibes((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
 
-  // The sheet block: a section bar, then fields with a 16px gutter. The settings bars below run edge to edge.
+  const BLOCK = "border-b border-tk-hair px-4 py-3";
+  const LABEL = "block text-[16px] font-semibold leading-[1.42] text-tk-ink";
+  const META = "block text-[14px] font-normal text-tk-sage";
+
+  // The sheet (mockup r13): vibe row, the request box, time, a quiet "More options" bar, then the one primary button.
   return (
-    <section className="-mx-4 border-b border-tk-hair bg-cream font-app-sans">
-      <h2 className={SEC_BAR}>City Walk Companion</h2>
-
+    <section className="-mx-4 bg-cream font-app-sans">
       {!chatOnly && (
-      <div className="space-y-4 px-4 py-3">
-      {/* Location */}
-      <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => void detectLocation()}
-          disabled={isDetecting || isLoading}
-          className="tk-champagne inline-flex min-h-11 items-center gap-2 px-4 text-[15px] disabled:opacity-60"
-        >
-          <span aria-hidden className="tk-champagne-ring" />
-          {isDetecting ? "Detecting…" : "Use my current location"}
-        </button>
-        {locationError && (
-          <p className="text-[13px] text-rose-700">{locationError}</p>
-        )}
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="text"
-            value={lat}
-            onChange={(e) => setLat(e.target.value)}
-            placeholder="Latitude"
-            className={CTRL_BOX}
-          />
-          <input
-            type="text"
-            value={lng}
-            onChange={(e) => setLng(e.target.value)}
-            placeholder="Longitude"
-            className={CTRL_BOX}
-          />
-        </div>
-      </div>
+        <>
+          <div className={BLOCK}>
+            <span className={`${LABEL} mb-2`}>{t.vibeLabel}</span>
+            <div role="group" aria-label={t.vibeLabel} className="flex flex-wrap gap-[7px]">
+              {VIBES.map((v) => {
+                const on = vibes.includes(v.id);
+                return (
+                  <button key={v.id} type="button" aria-pressed={on} onClick={() => toggleVibe(v.id)} className={`tk-chip !justify-start !pe-3 !ps-[6px] ${on ? "is-on" : ""}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={v.image} alt="" width={30} height={30} className="h-[30px] w-[30px] flex-none rounded-[4px] bg-tk-bar object-cover" />
+                    <span>{v[lang]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-      {/* Time */}
-      <div className="space-y-2">
-        <label className="block text-[15px] font-semibold text-tk-ink">
-          Time available (minutes)
-        </label>
-        <SegRow
-          label="Time available"
-          value={timePreset}
-          onChange={(id) => setAvailableMinutes(id === "open" ? "" : id)}
-          items={[
-            { id: "45", label: "45m" },
-            { id: "60", label: "60m" },
-            { id: "90", label: "90m" },
-            { id: "open", label: "Open" },
-          ]}
-        />
-        <input
-          type="number"
-          min={15}
-          max={480}
-          placeholder="No limit"
-          value={availableMinutes}
-          onChange={(e) => setAvailableMinutes(e.target.value)}
-          className={CTRL_BOX}
-        />
-      </div>
+          {promptSlot}
 
-      {/* Search radius */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <label className="text-[15px] font-semibold text-tk-ink">
-            Search radius (km)
-          </label>
-          <button
-            type="button"
-            onClick={() => setRadiusKm(radiusKm === "" ? "2" : "")}
-            className={chipCell(radiusKm === "")}
-          >
-            No radius limit
+          <div className={BLOCK}>
+            <span className={`${LABEL} mb-2`}>{t.timeLabel}</span>
+            <SegRow
+              label={t.timeLabel}
+              value={timePreset}
+              onChange={(id) => setAvailableMinutes(id === "open" ? "" : id)}
+              items={[
+                { id: "45", label: t.time45 },
+                { id: "60", label: t.time60 },
+                { id: "90", label: t.time90 },
+                { id: "open", label: t.timeOpen },
+              ]}
+            />
+          </div>
+
+          <details ref={moreRef} open={moreOpen} onToggle={(e) => setMoreOpen(e.currentTarget.open)} className="border-b border-tk-hair [&>summary::-webkit-details-marker]:hidden">
+            <summary className="tk-bar !border-0 cursor-pointer list-none !text-[14px]">
+              <span>{t.moreOptions}</span>
+              <span aria-hidden>{moreOpen ? "−" : "+"}</span>
+            </summary>
+            <div className="space-y-4 px-4 py-3">
+              {/* Location */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => void detectLocation()}
+                  disabled={isDetecting || isLoading}
+                  className="tk-champagne inline-flex min-h-11 items-center gap-2 px-4 text-[15px] disabled:opacity-60"
+                >
+                  <span aria-hidden className="tk-champagne-ring" />
+                  {isDetecting ? t.detecting : t.useLocation}
+                </button>
+                {locationError && <p className="text-[13px] text-rose-700">{locationError}</p>}
+                <div dir="ltr" className="grid grid-cols-2 gap-2">
+                  <input type="text" value={lat} onChange={(e) => setLat(e.target.value)} placeholder={t.latitude} className={CTRL_BOX} />
+                  <input type="text" value={lng} onChange={(e) => setLng(e.target.value)} placeholder={t.longitude} className={CTRL_BOX} />
+                </div>
+              </div>
+
+              {/* Time, exact */}
+              <div className="space-y-2">
+                <label className={LABEL}>{t.minutesLabel}</label>
+                <input type="number" min={15} max={480} placeholder={t.noLimit} value={availableMinutes} onChange={(e) => setAvailableMinutes(e.target.value)} className={CTRL_BOX} />
+              </div>
+
+              {/* Search radius */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className={LABEL}>{t.radiusLabel}</label>
+                  <button type="button" onClick={() => setRadiusKm(radiusKm === "" ? "2" : "")} className={chipCell(radiusKm === "")}>
+                    {t.noRadius}
+                  </button>
+                </div>
+                <input type="number" min={0.5} max={10} step={0.5} placeholder={t.noLimit} value={radiusKm} onChange={(e) => setRadiusKm(e.target.value)} className={CTRL_BOX} />
+              </div>
+
+              {/* Finish distance from the start */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className={LABEL}>{t.endLabel}</label>
+                  <button type="button" onClick={() => setEndDistanceKm(endDistanceKm === "" ? "2" : "")} className={chipCell(endDistanceKm === "")}>
+                    {t.noLimit}
+                  </button>
+                </div>
+                <input type="number" min={0} max={50} step={0.5} placeholder={t.endAny} value={endDistanceKm} onChange={(e) => setEndDistanceKm(e.target.value)} className={CTRL_BOX} />
+                <p className={META}>{t.endHint}</p>
+              </div>
+
+              {/* Walking pace */}
+              <div className="space-y-2">
+                <label className={LABEL}>{t.paceLabel}</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {PACE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        setPace(opt.value);
+                        setCustomPace("");
+                      }}
+                      className={`min-h-11 ${chipCell(pace === opt.value)}`}
+                    >
+                      {lang === "en" ? opt.label : PACE_LABELS[lang][opt.value]}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  min={4}
+                  max={40}
+                  step={0.5}
+                  placeholder={t.customPace}
+                  value={customPace}
+                  onChange={(e) => {
+                    setCustomPace(e.target.value);
+                    const n = parseFloat(e.target.value);
+                    if (Number.isFinite(n) && n >= 4 && n <= 40) setPace(n);
+                  }}
+                  className={CTRL_BOX}
+                />
+              </div>
+
+              {/* Categories */}
+              <div className="space-y-2">
+                <label className={LABEL}>
+                  {t.interests} <span className="font-normal text-tk-sage">{t.optional}</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <button key={opt.value} onClick={() => toggleCategory(opt.value)} className={`min-h-11 ${chipCell(selectedCategories.includes(opt.value))}`}>
+                      {lang === "en" ? opt.label : CATEGORY_LABELS_PLAN[lang][opt.value]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Walk settings, and what the app has picked up about the walker with how to take it back. */}
+            <WalkSettingsPanel settings={walkSettings} onChange={onWalkSettingsChange} lang={lang} />
+            <StandingFactsPanel isSignedIn={isSignedIn} learnPreferences={walkSettings.preferenceLearningEnabled} lang={lang} />
+            {moreSlot}
+          </details>
+        </>
+      )}
+
+      {chatOnly && (
+        <>
+          {/* Signed in: the chat above builds the walk; the settings stay here. */}
+          <WalkSettingsPanel settings={walkSettings} onChange={onWalkSettingsChange} lang={lang} />
+          <StandingFactsPanel isSignedIn={isSignedIn} learnPreferences={walkSettings.preferenceLearningEnabled} lang={lang} />
+          {moreSlot}
+        </>
+      )}
+
+      <div className="space-y-3 px-4 pb-4 pt-[14px] empty:hidden">
+        {formError && <p className="rounded-[6px] bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{formError}</p>}
+
+        {!chatOnly && (
+          <button type="button" onClick={submit} disabled={isLoading} className={`${BTN} w-full`}>
+            {isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <LoadingSpinner size="sm" />
+                {t.building}
+              </span>
+            ) : (
+              <>
+                {t.build}
+                <svg aria-hidden width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </>
+            )}
           </button>
-        </div>
-        <input
-          type="number"
-          min={0.5}
-          max={10}
-          step={0.5}
-          placeholder="No limit"
-          value={radiusKm}
-          onChange={(e) => setRadiusKm(e.target.value)}
-          className={CTRL_BOX}
-        />
-      </div>
-
-      {/* Finish distance from the start */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <label className="text-[15px] font-semibold text-tk-ink">
-            Max distance from start at end (km)
-          </label>
-          <button
-            type="button"
-            onClick={() => setEndDistanceKm(endDistanceKm === "" ? "2" : "")}
-            className={chipCell(endDistanceKm === "")}
-          >
-            No limit
-          </button>
-        </div>
-        <input
-          type="number"
-          min={0}
-          max={50}
-          step={0.5}
-          placeholder="Any"
-          value={endDistanceKm}
-          onChange={(e) => setEndDistanceKm(e.target.value)}
-          className={CTRL_BOX}
-        />
-        <p className="text-[13px] text-charcoal/70">
-          Leave blank to finish anywhere. 0 = come back to where you started.
-        </p>
-      </div>
-
-      {/* Walking pace */}
-      <div className="space-y-2">
-        <label className="block text-[15px] font-semibold text-tk-ink">Walking pace</label>
-        <div className="grid grid-cols-2 gap-2">
-          {PACE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => {
-                setPace(opt.value);
-                setCustomPace("");
-              }}
-              className={`min-h-11 ${chipCell(pace === opt.value)}`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <input
-          type="number"
-          min={4}
-          max={40}
-          step={0.5}
-          placeholder="Custom pace (min/km)"
-          value={customPace}
-          onChange={(e) => {
-            setCustomPace(e.target.value);
-            const n = parseFloat(e.target.value);
-            if (Number.isFinite(n) && n >= 4 && n <= 40) setPace(n);
-          }}
-          className={CTRL_BOX}
-        />
-      </div>
-
-      {/* Categories */}
-      <div className="space-y-2">
-        <label className="block text-[15px] font-semibold text-tk-ink">
-          Interests{" "}
-          <span className="font-normal text-charcoal/60">(optional)</span>
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORY_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => toggleCategory(opt.value)}
-              className={`min-h-11 ${chipCell(selectedCategories.includes(opt.value))}`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      </div>
-      )}
-
-      {/* Walk settings */}
-      <WalkSettingsPanel settings={walkSettings} onChange={onWalkSettingsChange} />
-
-      {/* What the app has picked up about the walker, and how to take it back.
-          Sits with the settings because that is where someone goes to ask
-          "what does this thing know about me?". */}
-      <StandingFactsPanel
-        isSignedIn={isSignedIn}
-        learnPreferences={walkSettings.preferenceLearningEnabled}
-      />
-
-      <div className="space-y-3 px-4 py-3 empty:hidden">
-      {formError && (
-        <p className="rounded-[10px] bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
-          {formError}
-        </p>
-      )}
-
-      {!chatOnly && (
-      <Button onClick={submit} disabled={isLoading} fullWidth>
-        {isLoading ? (
-          <span className="inline-flex items-center gap-2">
-            <LoadingSpinner size="sm" />
-            Building walk…
-          </span>
-        ) : (
-          "Build My Walk"
         )}
-      </Button>
-      )}
-      {canRevertPlan && (
-        <Button
-          onClick={() => onRevertPlan?.()}
-          variant="secondary"
-          fullWidth
-        >
-          ↩ Back to previous route
-        </Button>
-      )}
-      {isWalking ? (
-        <Button
-          onClick={() => onStopWalk?.()}
-          variant="danger"
-          fullWidth
-        >
-          End Walk
-        </Button>
-      ) : walkPlanReady ? (
-        <Button
-          onClick={() => onStartWalk?.()}
-          disabled={isLoading}
-          fullWidth
-        >
-          Start Walk
-        </Button>
-      ) : null}
+        {canRevertPlan && (
+          <Button onClick={() => onRevertPlan?.()} variant="secondary" fullWidth>
+            {t.backToPrevious}
+          </Button>
+        )}
+        {isWalking ? (
+          <Button onClick={() => onStopWalk?.()} variant="danger" fullWidth>
+            {t.endWalk}
+          </Button>
+        ) : walkPlanReady ? (
+          <Button onClick={() => onStartWalk?.()} disabled={isLoading} fullWidth>
+            {t.startWalk}
+          </Button>
+        ) : null}
       </div>
     </section>
   );

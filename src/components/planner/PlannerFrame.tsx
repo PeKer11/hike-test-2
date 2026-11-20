@@ -135,7 +135,7 @@ export function PlannerFrame({
         isExpanded
           ? // z-[900] keeps it under the account indicator (z-[1000]) so logout
             // stays clickable while expanded.
-            `fixed inset-0 z-[900] overflow-hidden bg-cream ${inShell ? "lg:start-[72px]" : ""} ${inShell && !active ? "hidden" : ""} ${bottomBar ? "pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0" : ""}`
+            `fixed inset-0 z-[900] overflow-hidden bg-cream ${inShell ? "lg:start-[72px]" : ""} ${inShell && !active ? "hidden" : ""} ${bottomBar ? "pb-[calc(62px+env(safe-area-inset-bottom))] lg:pb-0" : ""}`
           : "relative h-[min(72vh,620px)] w-full overflow-hidden rounded-xl border border-charcoal/10 bg-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)]"
       }
     >

@@ -41,6 +41,8 @@ import { Button, Card } from "@/components/ui";
 import { SideTabs, type SideTab } from "@/components/planner/SideTabs";
 import { FriendsPanel } from "@/components/walks/FriendsPanel";
 import { MyWalksPanel } from "@/components/walks/MyWalksPanel";
+import { LocationChip } from "@/components/shell/LocationChip";
+import { PLAN_COPY } from "@/components/route/plan-copy";
 import { ScreenHeader } from "@/components/shell/ScreenHeader";
 import { WalksBand } from "@/components/shell/WalksBand";
 import { Segmented } from "@/components/shell/Segmented";
@@ -350,6 +352,10 @@ export function WalkPlannerApp({
   // "Advanced planning" escape hatch below.
   const [plannerMode, setPlannerMode] = useState<PlannerMode>("walk-companion");
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  // The Plan form's request box: what is typed (unsent), a way to send it, and the header chip's "change the start" tap.
+  const [promptText, setPromptText] = useState("");
+  const findPromptRef = useRef<(() => Promise<void>) | null>(null);
+  const [openMoreTick, setOpenMoreTick] = useState(0);
   const [hikeSearchOriginInput, setHikeSearchOriginInput] = useState({
     lat: "31.7683",
     lng: "35.2137",
@@ -3754,6 +3760,19 @@ export function WalkPlannerApp({
     if (walkAlert && optionsOffer === null && shortcut.offer && walkAlert.id === shortcut.offer.id) shortcut.markShown();
     companionQuestionUpRef.current = companion.card !== null;
   });
+  // On a phone the idle Plan is the form alone (round 13); the map shows once there is a route or places to see, or when opened.
+  const planMapHidden = !walkMode && !mapFull && !isAdvancedOpen && !walkPlan && !walkPreview && previewPlaces.length === 0 && !route?.geometry?.length && waypoints.length === 0;
+  const mapOptionsCard = (
+    <MapOptionsCard
+      mapType={mapType}
+      onMapType={setMapType}
+      showMapType={usesGoogleMap}
+      topRated={usesGoogleMap ? topRated : undefined}
+      onTopRated={usesGoogleMap ? setTopRated : undefined}
+      topRatedNote={topRatedNote}
+      signedIn={isSignedIn}
+    />
+  );
   const directionSheet = optionsOffer ? (
     <DirectionOptionsSheet
       options={optionsOffer.options.map((o) => ({
@@ -3823,19 +3842,26 @@ export function WalkPlannerApp({
           {/* Round 13 header: the terracotta-washed Jaffa photo, the mark, one title line, the guide and his chat card; it melts into the cream sheet. */}
           <div aria-hidden className="tk-art-city absolute inset-0 -z-10" />
           <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[34%] bg-gradient-to-b from-transparent to-cream" />
-          <div className="relative mx-auto max-w-[440px] px-4 pt-[max(16px,env(safe-area-inset-top))]">
+          <div className="relative mx-auto max-w-[440px] px-4 pt-[max(14px,env(safe-area-inset-top))]">
             {!compact && (
-              /* The mark stays on the left in Hebrew too. On a phone the Back button owns the start corner, so in English the mark steps right of it. */
-              <div dir="ltr">
-                <Link href="/" className="flex w-fit items-center gap-2.5 text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)] ltr:max-lg:ms-[52px]">
+              /* The mark stays on the left in Hebrew too; the start chip is the other end of the row. */
+              <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
+                <Link href="/" className="flex w-fit items-center gap-2 text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/traike-icon.png" alt="" className="h-[30px] w-[30px] rounded-lg" />
-                  <span className="font-app-serif text-[24px] font-bold leading-none tracking-tight">Traike</span>
+                  <span className="font-app-serif text-[24px] font-bold leading-none">Traike</span>
                 </Link>
+                <LocationChip
+                  lang={uiLang === "he" ? "he" : "en"}
+                  onClick={() => {
+                    setIsAdvancedOpen(false);
+                    setOpenMoreTick((n) => n + 1);
+                  }}
+                />
               </div>
             )}
             <h1 dir="auto" className="mt-3 text-start font-display text-[26px] font-normal leading-[1.12] text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
-              {isAdvancedOpen ? (uiLang === "he" ? "תכנון מתקדם" : "Advanced planning") : uiLang === "he" ? "לאן נצא ללכת היום?" : "Where shall we walk?"}
+              {isAdvancedOpen ? PLAN_COPY[uiLang === "he" ? "he" : "en"].advanced : PLAN_COPY[uiLang === "he" ? "he" : "en"].where}
             </h1>
             {!isAdvancedOpen && !compact ? (
               <div dir="ltr" className="mt-1 flex items-end gap-[10px]">
@@ -3845,14 +3871,12 @@ export function WalkPlannerApp({
                   alt="Traike walking guide"
                   className="pointer-events-none -mb-[6px] h-[204px] w-[136px] flex-none object-cover object-bottom [filter:drop-shadow(0_6px_10px_rgba(60,20,5,.35))] [mask-image:linear-gradient(180deg,#000_82%,transparent_100%)]"
                 />
-                <div dir={uiLang === "he" ? "rtl" : "ltr"} className="relative mb-[12px] flex-1 rounded-[14px] border border-tk-hair bg-cream px-[13px] py-[11px] shadow-[0_2px_0_var(--tk-lip)]">
-                  <h2 className="font-app-serif text-[17px] font-semibold leading-[1.18] text-tk-ink">
-                    {uiLang === "he" ? "שיחה עם טרייק" : "Chat with Traike"}
+                <div dir={uiLang === "he" ? "rtl" : "ltr"} className="relative mb-[12px] flex-1 rounded-[6px] border border-tk-hair bg-cream px-[13px] py-[11px] shadow-[0_2px_0_var(--tk-lip)]">
+                  <h2 className="font-app-serif text-[18px] font-semibold leading-[1.18] text-tk-ink">
+                    {PLAN_COPY[uiLang === "he" ? "he" : "en"].chatTitle}
                   </h2>
-                  <p className="mt-[2px] font-app-sans text-[14px] leading-[1.32] text-tk-body">
-                    {uiLang === "he"
-                      ? "בחרו אווירה או כתבו תחנות — אחבר לכם מסלול מדויק."
-                      : "Pick a vibe or name your stops — I'll build your route."}
+                  <p className="mt-[2px] font-app-sans text-[16px] leading-[1.32] text-tk-sage">
+                    {PLAN_COPY[uiLang === "he" ? "he" : "en"].chatBody}
                   </p>
                 </div>
               </div>
@@ -3879,16 +3903,16 @@ export function WalkPlannerApp({
         )}
         {/* Round 13: outside a walk, everything below the header sits on one cream sheet that the header art melts into. */}
         <div className={walkMode ? "contents" : `relative z-10 bg-cream ${bandScreen ? "" : "-mx-[14px] -mb-[26px] before:pointer-events-none before:absolute before:inset-x-0 before:-top-10 before:h-10 before:bg-gradient-to-b before:from-transparent before:to-cream @4xl:-mx-[12px] @4xl:-mb-[20px] @6xl:-mx-[14px] @6xl:-mb-[26px]"}`}>
-        {!walkMode && !hubTab ? (
+        {!walkMode && !hubTab && isAdvancedOpen ? (
           <button
             type="button"
-            onClick={() => (isAdvancedOpen ? closeAdvanced() : setIsAdvancedOpen(true))}
-            aria-pressed={isAdvancedOpen}
-            title={isAdvancedOpen ? "Back to the simple walk builder" : "Open the full planner: your own stops, route rules and hike search"}
-            className="tk-row relative z-10 w-full cursor-pointer justify-between !min-h-12 text-start text-[15px] font-semibold"
+            onClick={() => closeAdvanced()}
+            aria-pressed
+            title="Back to the simple walk builder"
+            className="tk-bar relative z-10 w-full cursor-pointer text-start"
           >
-            <span>{isAdvancedOpen ? (uiLang === "he" ? "תצוגה פשוטה" : "Simple view") : uiLang === "he" ? "תכנון מתקדם" : "Advanced planning"}</span>
-            {isAdvancedOpen ? <IconCollapse className="h-4 w-4" /> : <IconExpand className="h-4 w-4" />}
+            <span>{PLAN_COPY[uiLang === "he" ? "he" : "en"].simple}</span>
+            <IconCollapse className="h-4 w-4" />
           </button>
         ) : null}
         <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : `space-y-[15px] px-4 pb-6 ${walksScreen ? "pt-1" : bandScreen ? "pt-3" : ""}`}`}>
@@ -4130,29 +4154,6 @@ export function WalkPlannerApp({
                 </WalkSlot>
               )}
               {isSignedIn && !walkMode && <SavedPlacePicker addedIds={wishlist.map((w) => w.id)} inWalkIds={(walkPlan?.orderedAttractions ?? []).map((a) => a.id)} onAdd={addSavedPlacesToWalk} />}
-              {!walkMode && !isSignedIn && (
-                <PlacePromptPanel
-                  nearLocation={currentPosition ?? mapClickedCoords}
-                  acceptedAttractions={promptAttractions}
-                  onAcceptAttractions={setPromptAttractions}
-                  onPreview={(coordinates) => focusOn(coordinates, 16)}
-                  onFoundPlacesChange={setPreviewPlaces}
-                  onDurationDetected={setPromptDurationMinutes}
-                  onMaxEndDistanceDetected={setPromptMaxEndDistanceKm}
-                  onSearchRadiusDetected={setPromptSearchRadiusKm}
-                  onStopCountDetected={setPromptStopCount}
-                  onNotableOnlyDetected={setPromptNotableOnly}
-                  onOriginDetected={setPromptOrigin}
-                  learnPreferences={walkSettings.preferenceLearningEnabled}
-                  persistHistory={
-                    walkSettings.historyPersistenceEnabled &&
-                    walkSettings.learningConsent === "granted"
-                  }
-                  isSignedIn={isSignedIn}
-                  fillRemainingTime={fillPromptWalk}
-                  onFillRemainingTimeChange={setFillPromptWalk}
-                />
-              )}
               {feedbackAttractions && (
                 <WalkFeedbackCard
                   attractions={feedbackAttractions}
@@ -4226,15 +4227,59 @@ export function WalkPlannerApp({
               {(!isSignedIn || walkPhase !== "idle") && (
               <div className={walkMode ? "hidden" : "contents"}>
               <WalkCompanionPanel
+                promptSlot={
+                  !walkMode && !isSignedIn ? (
+                    <PlacePromptPanel
+                      lang={uiLang === "he" ? "he" : "en"}
+                      findRef={findPromptRef}
+                      onTextChange={setPromptText}
+                      nearLocation={currentPosition ?? mapClickedCoords}
+                      acceptedAttractions={promptAttractions}
+                      onAcceptAttractions={setPromptAttractions}
+                      onPreview={(coordinates) => focusOn(coordinates, 16)}
+                      onFoundPlacesChange={setPreviewPlaces}
+                      onDurationDetected={setPromptDurationMinutes}
+                      onMaxEndDistanceDetected={setPromptMaxEndDistanceKm}
+                      onSearchRadiusDetected={setPromptSearchRadiusKm}
+                      onStopCountDetected={setPromptStopCount}
+                      onNotableOnlyDetected={setPromptNotableOnly}
+                      onOriginDetected={setPromptOrigin}
+                      learnPreferences={walkSettings.preferenceLearningEnabled}
+                      persistHistory={
+                        walkSettings.historyPersistenceEnabled &&
+                        walkSettings.learningConsent === "granted"
+                      }
+                      isSignedIn={isSignedIn}
+                      fillRemainingTime={fillPromptWalk}
+                      onFillRemainingTimeChange={setFillPromptWalk}
+                    />
+                  ) : null
+                }
+                lang={uiLang === "he" ? "he" : "en"}
+                openMoreTick={openMoreTick}
+                moreSlot={mapOptionsCard}
                 chatOnly={isSignedIn}
                 isSignedIn={isSignedIn}
                 isLoading={isWalkPlanLoading}
                 onBuildWalk={(input) => {
+                  // One button builds. Words typed in the request box and not yet sent are sent first (the walker then
+                  // sees what was found and presses Build again); places already found are used as they are.
+                  let accepted = promptAttractions;
+                  if (!isSignedIn && !accepted) {
+                    if (promptText.trim()) {
+                      void findPromptRef.current?.();
+                      return;
+                    }
+                    if (previewPlaces.length > 0) {
+                      accepted = previewPlaces;
+                      setPromptAttractions(previewPlaces);
+                    }
+                  }
                   void handleBuildWalk(
                     input,
                     // Only when the walker ticked the box. Leftover time on its
                     // own is not a reason to insert more stops.
-                    promptWalkBuildOptions(promptAttractions, fillPromptWalk),
+                    promptWalkBuildOptions(accepted, fillPromptWalk),
                   );
                 }}
                 walkSettings={walkSettings}
@@ -4424,7 +4469,7 @@ export function WalkPlannerApp({
                   lang={uiLang}
                 />
               </div>
-              {walkPhase !== "walking" && (
+              {walkPhase !== "walking" && (walkPlan || isSimulating) && (
                 <label className="@container relative flex h-[36px] cursor-pointer items-center gap-[9px] overflow-hidden rounded-[10px] border border-dashed border-[#dccdb9] bg-tk-card ps-[14px] pe-[12px] text-[13px] leading-none text-[#1d1712] shadow-tk-card">
                   <input
                     type="checkbox"
@@ -4665,17 +4710,36 @@ export function WalkPlannerApp({
               </Button>
             </Card>
           ) : (
-            <button
-              type="button"
-              onClick={handleClearAll}
-              className={`${walkMode || walksScreen ? "hidden " : ""}mx-auto flex items-center gap-[8px] py-2 text-[12.75px] font-semibold leading-[20px] text-tk-body`}
-            >
-              <svg aria-hidden viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 12a8 8 0 1 1-2.5-5.8" />
-                <path d="M20 4v5h-5" />
-              </svg>
-              Start over
-            </button>
+            <>
+              {/* Only when there is something to clear. */}
+              {!walkMode && !walksScreen && (walkPlan || previewPlaces.length > 0 || promptAttractions) ? (
+                <button type="button" onClick={handleClearAll} className="mx-auto flex min-h-11 items-center gap-[8px] text-[14px] font-semibold text-tk-body">
+                  <svg aria-hidden viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 12a8 8 0 1 1-2.5-5.8" />
+                    <path d="M20 4v5h-5" />
+                  </svg>
+                  {PLAN_COPY[uiLang === "he" ? "he" : "en"].startOver}
+                </button>
+              ) : null}
+              {!walkMode && !hubTab ? (
+                <div className="-mx-4 border-t border-tk-hair">
+                  {/* On a phone the map is a screen of its own: it is not squeezed in under the form. */}
+                  <button type="button" onClick={() => setMapFull(true)} className="tk-bar w-full cursor-pointer !border-0 @4xl:hidden">
+                    <span>{PLAN_COPY[uiLang === "he" ? "he" : "en"].fullMap}</span>
+                    <IconExpand className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAdvancedOpen(true)}
+                    title="Open the full planner: your own stops, route rules and hike search"
+                    className="tk-bar w-full cursor-pointer !border-0"
+                  >
+                    <span>{PLAN_COPY[uiLang === "he" ? "he" : "en"].advanced}</span>
+                    <IconExpand className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : null}
+            </>
           )}
 
           {isAdvancedOpen ? (
@@ -4691,15 +4755,7 @@ export function WalkPlannerApp({
             </>
           ) : null}
         </div>
-        {!walkMode && !hubTab && <MapOptionsCard
-          mapType={mapType}
-          onMapType={setMapType}
-          showMapType={usesGoogleMap}
-          topRated={usesGoogleMap ? topRated : undefined}
-          onTopRated={usesGoogleMap ? setTopRated : undefined}
-          topRatedNote={topRatedNote}
-          signedIn={isSignedIn}
-        />}
+        {!walkMode && !hubTab && ((isSignedIn && walkPhase === "idle") || (isAdvancedOpen && plannerMode !== "walk-companion")) && mapOptionsCard}
         </div>
       </aside>
 
@@ -4723,7 +4779,7 @@ export function WalkPlannerApp({
           walkMode || mapFull
             ? "order-1 h-full min-h-0 flex-1"
             : "order-2 h-[26%] min-h-[170px] shrink-0 border-t-[1.5px] border-[var(--tk-ctl)] @4xl:border-t-0"
-        } ${hubTab ? "hidden" : ""}`}
+        } ${hubTab ? "hidden" : ""} ${planMapHidden ? "hidden @4xl:block" : ""}`}
       >
         {walkMode && isOffRoute && routeOrderAsk ? (
           <div

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 
 import { Button, LoadingSpinner } from "@/components/ui";
-import { CTRL_BOX, SEC_BAR, chipCell } from "@/components/ui/panel-style";
+import { PLAN_COPY, type PlanLang } from "@/components/route/plan-copy";
+import { BTN_ALT_SM, CTRL_BOX, chipCell } from "@/components/ui/panel-style";
 import {
   MAX_SCROLLBACK,
   type ExchangeTurn,
@@ -228,8 +229,8 @@ function describeFollowUp(known: KnownSoFar, stopCount: number): string {
   }
   const got = parts.length > 0 ? `Got it: ${parts.join(", ")}.` : "Got it.";
   return stopCount > 0
-    ? `${got} Press Build My Walk below.`
-    : `${got} Press Build My Walk below and it will pick the places.`;
+    ? `${got} Press Build walking route below.`
+    : `${got} Press Build walking route below and it will pick the places.`;
 }
 
 interface PlacePromptPanelProps {
@@ -312,6 +313,12 @@ interface PlacePromptPanelProps {
    */
   fillRemainingTime?: boolean;
   onFillRemainingTimeChange?: (fill: boolean) => void;
+  /** Language of the box's own words (the form around it passes the planner's language). */
+  lang?: PlanLang;
+  /** The planner's Build button calls this to send what is typed before building. */
+  findRef?: MutableRefObject<(() => Promise<void>) | null>;
+  /** The text in the box, as it changes ("" once it has been sent). */
+  onTextChange?: (text: string) => void;
 }
 
 export function PlacePromptPanel({
@@ -331,8 +338,17 @@ export function PlacePromptPanel({
   isSignedIn = false,
   fillRemainingTime = false,
   onFillRemainingTimeChange,
+  lang = "en",
+  findRef,
+  onTextChange,
 }: PlacePromptPanelProps) {
-  const [prompt, setPrompt] = useState("");
+  const t = PLAN_COPY[lang];
+  const he = lang === "he";
+  const [prompt, setPromptState] = useState("");
+  const setPrompt = (text: string) => {
+    setPromptState(text);
+    onTextChange?.(text);
+  };
   const [attractions, setAttractions] = useState<Attraction[]>([]);
   // Set when the prompt named a place and stated no intent at all. Cleared as
   // soon as one is picked — the question has been answered, and leaving the
@@ -592,7 +608,7 @@ export function PlacePromptPanel({
   const extract = async (categoryNeeds?: AttractionCategory[]) => {
     const trimmed = prompt.trim() || (categoryNeeds ? lastPromptRef.current : "");
     if (!trimmed) {
-      setError("Describe the places you want to see.");
+      setError(he ? "תארו את המקומות שתרצו לראות." : "Describe the places you want to see.");
       return;
     }
 
@@ -838,10 +854,20 @@ export function PlacePromptPanel({
     }
   };
 
+  useEffect(() => {
+    if (!findRef) return;
+    findRef.current = () => extract();
+    return () => {
+      findRef.current = null;
+    };
+  });
+
   return (
-    <section className="-mx-4 border-b border-tk-hair bg-cream font-app-sans">
-      <h2 className={SEC_BAR}>Name your own stops</h2>
-      <div className="space-y-3 px-4 py-3">
+    <section className="-mx-4 border-b border-tk-hair bg-cream px-4 py-3 font-app-sans">
+      <label htmlFor="plan-request" className="mb-2 block text-[16px] font-semibold leading-[1.42] text-tk-ink">
+        {t.requestLabel}
+      </label>
+      <div className="space-y-3">
 
       {/* A standing fact this prompt reversed. Deliberately an inline note
           rather than a modal: the app has already acted on what the walker just
@@ -850,7 +876,7 @@ export function PlacePromptPanel({
       {contradiction && (
         <div className="space-y-1 rounded-md border border-terra/30 bg-terra/5 px-2 py-1.5 text-[13px]">
           <p className="text-charcoal/80">
-            Updated what I remember: &ldquo;{contradiction.supersededText}
+            {he ? "עדכנתי את מה שאני זוכר" : "Updated what I remember"}: &ldquo;{contradiction.supersededText}
             &rdquo; → &ldquo;{contradiction.newText}&rdquo;
           </p>
           <div className="flex gap-3">
@@ -859,14 +885,14 @@ export function PlacePromptPanel({
               onClick={undoContradiction}
               className="cursor-pointer underline text-charcoal/60 hover:text-terra"
             >
-              Undo
+              {he ? "ביטול" : "Undo"}
             </button>
             <button
               type="button"
               onClick={() => setContradiction(null)}
               className="cursor-pointer text-charcoal/40 hover:text-forest"
             >
-              Got it
+              {he ? "הבנתי" : "Got it"}
             </button>
           </div>
         </div>
@@ -896,12 +922,12 @@ export function PlacePromptPanel({
             onClick={() => setIsScrollbackOpen((open) => !open)}
             className="flex w-full cursor-pointer items-center justify-between px-2 py-1.5 text-[13px] text-charcoal/70 hover:text-forest"
           >
-            <span>Recent requests ({scrollback.length})</span>
+            <span>{he ? "בקשות אחרונות" : "Recent requests"} ({scrollback.length})</span>
             <span aria-hidden="true">{isScrollbackOpen ? "▲" : "▼"}</span>
           </button>
           {isScrollbackOpen && (
             <ul
-              aria-label="Recent requests"
+              aria-label={he ? "בקשות אחרונות" : "Recent requests"}
               className="max-h-32 space-y-1 overflow-y-auto px-2 pb-2"
             >
               {scrollback.map((entry) => (
@@ -927,7 +953,7 @@ export function PlacePromptPanel({
                 onClick={clearHistory}
                 className="cursor-pointer text-[13px] text-charcoal/50 underline hover:text-terra"
               >
-                Clear history
+                {he ? "ניקוי היסטוריה" : "Clear history"}
               </button>
             </div>
           )}
@@ -942,7 +968,7 @@ export function PlacePromptPanel({
               onClick={startNewChat}
               className="cursor-pointer text-[13px] text-charcoal/60 underline hover:text-terra"
             >
-              New chat
+              {he ? "שיחה חדשה" : "New chat"}
             </button>
           </div>
           <ul
@@ -971,26 +997,30 @@ export function PlacePromptPanel({
       )}
 
       <textarea
+        id="plan-request"
         value={prompt}
         onChange={(event) => {
           setPrompt(event.target.value);
           setFollowUpReply(null);
         }}
         rows={3}
-        placeholder="I want to see Habima Square, the Jaffa port, and a good market"
-        className={`${CTRL_BOX} min-h-[88px]`}
+        placeholder={t.requestPlaceholder}
+        className={`${CTRL_BOX} min-h-[74px] resize-y`}
       />
 
-      <Button onClick={() => void extract()} disabled={isLoading} fullWidth>
-        {isLoading ? (
-          <span className="inline-flex items-center gap-2">
-            <LoadingSpinner size="sm" />
-            Finding places…
-          </span>
-        ) : (
-          "Find these places"
-        )}
-      </Button>
+      {/* Only once something is typed: the one primary button below also sends it, so this is the quiet way to look first. */}
+      {prompt.trim() || isLoading ? (
+        <button type="button" onClick={() => void extract()} disabled={isLoading} className={`${BTN_ALT_SM} w-full`}>
+          {isLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <LoadingSpinner size="sm" />
+              {t.finding}
+            </span>
+          ) : (
+            t.findPlaces
+          )}
+        </button>
+      ) : null}
 
       {error && (
         <p className="rounded-md bg-rose-50 p-2 text-[13px] text-rose-700">{error}</p>
@@ -1081,7 +1111,7 @@ export function PlacePromptPanel({
       {hasResult && selectedAttractions.length > 0 && (
         <div className="space-y-1">
           <p className="text-[13px] font-medium text-charcoal/80">
-            Found — tap a place to see it on the map
+            {he ? "נמצאו — הקישו על מקום כדי לראות אותו במפה" : "Found — tap a place to see it on the map"}
           </p>
           <ul className="space-y-1">
             {selectedAttractions.map((attraction) => (
@@ -1100,7 +1130,7 @@ export function PlacePromptPanel({
                 </button>
                 <button
                   type="button"
-                  aria-label={`Remove ${attraction.name}`}
+                  aria-label={he ? `הסרת ${attraction.name}` : `Remove ${attraction.name}`}
                   onClick={() => {
                     const next = [...removedIds, attraction.id];
                     setRemovedIds(next);
@@ -1120,14 +1150,13 @@ export function PlacePromptPanel({
 
       {hasResult && unresolvedNames.length > 0 && (
         <div className="rounded-md bg-amber-50 p-2 text-[13px] text-amber-800">
-          Couldn&apos;t locate: {unresolvedNames.join(", ")}. Try a more specific
-          name.
+          {he ? "לא הצלחנו לאתר" : "Couldn't locate"}: {unresolvedNames.join(", ")}. {he ? "נסו שם מדויק יותר." : "Try a more specific name."}
         </div>
       )}
 
       {hasResult && attractions.length === 0 && unresolvedNames.length === 0 && (
         <p className="text-[13px] text-charcoal/60">
-          No places found in that text — mention them by name.
+          {he ? "לא נמצאו מקומות בטקסט הזה — ציינו אותם בשם." : "No places found in that text — mention them by name."}
         </p>
       )}
 
@@ -1135,9 +1164,9 @@ export function PlacePromptPanel({
         (acceptedAttractions ? (
           <div className="space-y-2">
             <p className="rounded-md bg-terra/10 p-2 text-[13px] text-forest">
-              {acceptedAttractions.length} stop
-              {acceptedAttractions.length === 1 ? "" : "s"} will be used for the
-              next walk you build.
+              {he
+                ? `${acceptedAttractions.length} תחנות ישמשו להליכה הבאה שתבנו.`
+                : `${acceptedAttractions.length} stop${acceptedAttractions.length === 1 ? "" : "s"} will be used for the next walk you build.`}
             </p>
             {/* Asked here rather than in settings because this is the only
                 moment the question exists — the walker has just named stops and
@@ -1152,11 +1181,15 @@ export function PlacePromptPanel({
                 className="mt-0.5 h-4 w-4 rounded border-charcoal/15 text-terra focus:ring-terra"
               />
               <span>
-                Add more stops to fill my time
+                {he ? "להוסיף תחנות כדי למלא את הזמן" : "Add more stops to fill my time"}
                 <span className="block text-charcoal/50">
                   {fillRemainingTime
-                    ? "We'll find extra places to use up whatever time is left over."
-                    : "Off — you'll get a walk through exactly these stops, even if time is left over."}
+                    ? he
+                      ? "נמצא מקומות נוספים כדי לנצל את הזמן שנשאר."
+                      : "We'll find extra places to use up whatever time is left over."
+                    : he
+                      ? "כבוי — תקבלו הליכה בדיוק דרך התחנות האלה, גם אם יישאר זמן."
+                      : "Off — you'll get a walk through exactly these stops, even if time is left over."}
                 </span>
               </span>
             </label>
@@ -1165,7 +1198,7 @@ export function PlacePromptPanel({
               fullWidth
               onClick={() => onAcceptAttractions(null)}
             >
-              Clear these stops
+              {he ? "ניקוי התחנות" : "Clear these stops"}
             </Button>
           </div>
         ) : selectedAttractions.length > 0 ? (
@@ -1174,11 +1207,11 @@ export function PlacePromptPanel({
             fullWidth
             onClick={() => onAcceptAttractions(selectedAttractions)}
           >
-            Use these stops in my walk
+            {he ? "להשתמש בתחנות האלה בהליכה" : "Use these stops in my walk"}
           </Button>
         ) : (
           <p className="text-[13px] text-charcoal/60">
-            You removed every place — search again to start over.
+            {he ? "הסרתם את כל המקומות — חפשו שוב כדי להתחיל מחדש." : "You removed every place — search again to start over."}
           </p>
         ))}
       </div>

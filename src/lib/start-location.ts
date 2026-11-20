@@ -1,6 +1,8 @@
 import type { Coordinates } from "@/lib/types";
 
 export const START_LOCATION_KEY = "traike.startLocation.v1";
+/** Fired on `window` after a start is saved, so the header chip can follow. */
+export const START_LOCATION_EVENT = "traike-start-change";
 
 export interface SavedStart {
   coordinates: Coordinates;
@@ -26,6 +28,7 @@ export function loadSavedStart(): SavedStart | null {
 export function saveStart(coordinates: Coordinates, label: string): void {
   try {
     window.localStorage.setItem(START_LOCATION_KEY, JSON.stringify({ coordinates, label }));
+    window.dispatchEvent(new Event(START_LOCATION_EVENT));
   } catch {
     // blocked storage: the start just is not remembered
   }

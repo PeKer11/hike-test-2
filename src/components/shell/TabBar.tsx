@@ -1,67 +1,46 @@
 "use client";
 
-import { HomeIcon, PeopleIcon, PersonIcon, PlusIcon, WalksIcon } from "@/components/shell/icons";
-import { HUB_ITEMS, NEW_ROUTE } from "@/components/shell/nav";
+import { HomeIcon, PersonIcon, PlanIcon, WalkIcon, WalksIcon } from "@/components/shell/icons";
+import { NAV_ITEMS, navFor, navTarget } from "@/components/shell/nav";
 import type { AppView } from "@/lib/shell/planner-bridge";
 
-const ICONS: Record<string, (p: { className?: string }) => React.ReactNode> = {
-  home: HomeIcon,
-  walks: WalksIcon,
-  social: PeopleIcon,
-  me: PersonIcon,
-};
+export const NAV_ICONS = { home: HomeIcon, plan: PlanIcon, walk: WalkIcon, walks: WalksIcon, me: PersonIcon } as const;
 
-/** Phone bottom bar: four hubs and a raised "+" for a new route. Only on hub screens. */
+/** Phone bottom bar (round 13): Home, Plan, Walk, Walks, Me. The tab for the screen you are on is filled pine. */
 export function TabBar({
   view,
   lang,
   friendBadge,
+  walkLive = false,
   onNavigate,
 }: {
   view: AppView;
   lang: "he" | "en";
   friendBadge: number;
+  walkLive?: boolean;
   onNavigate: (view: AppView) => void;
 }) {
-  const item = (i: (typeof HUB_ITEMS)[number]) => {
-    const Icon = ICONS[i.view];
-    const on = view === i.view;
-    return (
-      <button
-        key={i.view}
-        type="button"
-        onClick={() => onNavigate(i.view)}
-        aria-current={on ? "page" : undefined}
-        className="tk-tab flex-1"
-      >
-        <Icon className="h-6 w-6" />
-        {i[lang]}
-        {i.view === "social" && friendBadge > 0 ? (
-          <span className="absolute end-[22%] top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-terra px-1 text-[13px] font-semibold leading-none text-on-accent">
-            {friendBadge}
-          </span>
-        ) : null}
-      </button>
-    );
-  };
-  const [home, walks, social, me] = HUB_ITEMS;
+  const current = navFor(view);
   return (
     <nav
       aria-label="App"
-      className="fixed inset-x-0 bottom-0 z-[1000] flex items-center gap-1 border-t-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 pt-2 pb-[max(8px,env(safe-area-inset-bottom))] lg:hidden"
+      className="tk-navfill fixed inset-x-0 bottom-0 z-[1000] grid grid-cols-5 gap-1 border-t-[1.5px] border-[var(--tk-ctl)] bg-cream p-1 pb-[max(4px,env(safe-area-inset-bottom))] lg:hidden"
     >
-      {item(home)}
-      {item(walks)}
-      <button
-        type="button"
-        onClick={() => onNavigate("plan")}
-        aria-label={NEW_ROUTE[lang]}
-        className="tk-fab -mt-7"
-      >
-        <PlusIcon className="h-7 w-7" />
-      </button>
-      {item(social)}
-      {item(me)}
+      {NAV_ITEMS.map((i) => {
+        const Icon = NAV_ICONS[i.id];
+        const on = current === i.id;
+        return (
+          <button key={i.id} type="button" onClick={() => onNavigate(navTarget(i.id, walkLive))} aria-current={on ? "page" : undefined} className="tk-tab">
+            <Icon />
+            {i[lang]}
+            {i.id === "walks" && friendBadge > 0 ? (
+              <span className="absolute end-[22%] top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-terra px-1 text-[13px] font-semibold leading-none text-on-accent">
+                {friendBadge}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
     </nav>
   );
 }
