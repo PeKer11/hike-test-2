@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { GROUPS } from "@/components/map/top-rated-groups";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { SEG_WRAP, segCell } from "@/components/ui/panel-style";
+import { SEG_WRAP, chipCell, segCell } from "@/components/ui/panel-style";
 
 const CARD = "mx-auto w-full max-w-[440px] space-y-3 border-b border-tk-hair bg-cream px-4 py-3 font-app-sans";
 
@@ -55,7 +55,7 @@ export function PlacesSection({ topRated, onTopRated, topRatedNote }: { topRated
         role="switch"
         aria-checked={Boolean(topRated)}
         onClick={() => onTopRated(!topRated)}
-        className={`flex min-h-11 w-full items-center justify-between rounded-[10px] border-[1.5px] px-4 text-[15px] font-semibold ${topRated ? "border-terra bg-terra/15 text-tk-check" : "border-forest bg-cream text-forest"}`}
+        className={`${chipCell(Boolean(topRated))} w-full justify-between`}
       >
         <span>Top rated</span>
         <span aria-hidden>{topRated ? "On" : "Off"}</span>

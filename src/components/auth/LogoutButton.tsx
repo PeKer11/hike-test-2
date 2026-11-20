@@ -9,10 +9,13 @@ import { createClient } from "@/lib/supabase/client";
 
 interface LogoutButtonProps {
   className?: string;
+  /** Words for the button and its busy state (the Me screen speaks Hebrew too). */
+  labels?: { idle: string; busy: string };
 }
 
 export function LogoutButton({
   className = "font-semibold text-emerald-700 hover:text-emerald-600 disabled:text-slate-400",
+  labels = { idle: "Log out", busy: "Logging out…" },
 }: LogoutButtonProps) {
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -35,7 +38,7 @@ export function LogoutButton({
 
   return (
     <button type="button" onClick={handleClick} disabled={isSigningOut} className={className}>
-      {isSigningOut ? "Logging out…" : "Log out"}
+      {isSigningOut ? labels.busy : labels.idle}
     </button>
   );
 }

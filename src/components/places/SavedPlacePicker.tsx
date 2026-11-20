@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { BTN_SM } from "@/components/ui/panel-style";
 import { fetchPlaces, type SavedPlace } from "@/lib/places/saved-places";
 import type { Attraction, AttractionCategory } from "@/lib/types/walk-plan";
 
@@ -97,7 +98,7 @@ export function SavedPlacePicker({ addedIds, inWalkIds = [], onAdd }: SavedPlace
           </ul>
           {error && <p role="alert" className="text-[13px] text-terra">{error}</p>}
           {picked.size > 0 && (
-            <button type="button" onClick={() => void add()} className="min-h-11 cursor-pointer rounded-full bg-terra px-5 text-[14px] font-semibold text-on-accent shadow-[0_2px_0_var(--tk-lip)]">
+            <button type="button" onClick={() => void add()} className={BTN_SM}>
               Add {picked.size} to walk
             </button>
           )}

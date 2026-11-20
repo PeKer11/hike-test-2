@@ -20,6 +20,7 @@ import type {
   PaceResponseMode,
   WalkSettings,
 } from "@/lib/types/walk-settings";
+import { BTN_ALT_SM, SEG_WRAP, segCell } from "@/components/ui/panel-style";
 
 // The two directions read as one setting with two halves, so they render as a
 // pair rather than as two unrelated rows scattered through the panel.
@@ -44,11 +45,11 @@ const DEVIATION_MODE_LABELS: { value: DeviationResponseMode; text: string }[] = 
 ];
 
 const SELECT_CLASS =
-  "min-h-10 rounded-[10px] border-[1.5px] border-forest bg-cream px-2 text-[15px] text-forest outline-none focus:outline-2 focus:outline-offset-1 focus:outline-forest";
+  "min-h-10 rounded-[10px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-2 text-[15px] text-[var(--tk-ctl)] outline-none focus:outline-2 focus:outline-offset-1 focus:outline-[var(--tk-ctl)]";
 const ROW_CLASS =
   "flex items-center justify-between gap-3 text-[15px] text-tk-ink";
 const NUMBER_CLASS =
-  "w-full rounded-[10px] border-[1.5px] border-forest bg-cream px-3 py-2 text-[16px] text-tk-ink outline-none focus:outline-2 focus:outline-offset-1 focus:outline-forest";
+  "w-full rounded-[10px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 py-2 text-[16px] text-tk-ink outline-none focus:outline-2 focus:outline-offset-1 focus:outline-[var(--tk-ctl)]";
 
 /**
  * One named group of settings.
@@ -294,18 +295,14 @@ export function WalkSettingsPanel({
               because it is the one that quietly changes what gets built;
               keeping the requests only shows the walker their own words back. */}
           <SettingsSection title="Language / שפה">
-            <div role="group" aria-label="Language" className="flex gap-2 text-[15px]">
+            <div role="group" aria-label="Language" className={SEG_WRAP}>
               {(["auto", "he", "en"] as const).map((code) => (
                 <button
                   key={code}
                   type="button"
                   aria-pressed={settings.uiLanguage === code}
                   onClick={() => onChange({ uiLanguage: code })}
-                  className={`min-h-10 rounded-full px-4 font-semibold ${
-                    settings.uiLanguage === code
-                      ? "bg-forest text-cream"
-                      : "border-[1.5px] border-forest bg-cream text-forest"
-                  }`}
+                  className={segCell(settings.uiLanguage === code)}
                 >
                   {code === "auto" ? "Auto" : code === "he" ? "עברית" : "English"}
                 </button>
@@ -392,7 +389,7 @@ export function WalkSettingsPanel({
                     })
                     .catch(() => setForgetState("failed"));
                 }}
-                className="min-h-11 rounded-full border-[1.5px] border-forest bg-cream px-4 text-[15px] font-semibold text-forest"
+                className={`${BTN_ALT_SM} whitespace-normal`}
               >
                 Forget everything Traike learned about me
               </button>

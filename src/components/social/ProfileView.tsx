@@ -18,6 +18,7 @@ import { getCardByToken } from "@/lib/social/profiles";
 import { mapProviderNow, type MeetChoice } from "@/lib/social/walk-requests";
 import { resolvePlaces } from "@/lib/walks/friend-plan";
 import type { SavedStop } from "@/lib/walks/saved-walks";
+import { BTN } from "@/components/ui/panel-style";
 
 const CARD = "rounded-tk-card bg-paper p-4 shadow-tk-card";
 
@@ -215,20 +216,20 @@ export function ProfileView({
 
       <div className="flex flex-wrap gap-2">
         {isMe ? (
-          <button type="button" onClick={() => setSheet("edit")} className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft">
+          <button type="button" onClick={() => setSheet("edit")} className={BTN}>
             {t.edit}
           </button>
         ) : card.friendState === "none" ? (
           <>
           {nearbyToken && canWalkTogether ? (
-            <button type="button" onClick={() => setTogether(bridge.actions?.meetingChoices() ?? [])} className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft">
+            <button type="button" onClick={() => setTogether(bridge.actions?.meetingChoices() ?? [])} className={BTN}>
               {t.walkTogether}
             </button>
           ) : null}
           <button
             type="button"
             onClick={() => void requestFriendById(session.client, target).then((ok) => { setNote(ok ? t.sent : t.notSent); setVersion((v) => v + 1); })}
-            className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft"
+            className={BTN}
           >
             {t.addFriend}
           </button>
@@ -239,7 +240,7 @@ export function ProfileView({
           <>
             <span className="min-h-12 content-center text-[16px] font-medium text-forest">{t.friendsNow}</span>
             {canWalkTogether ? (
-              <button type="button" onClick={() => setTogether(bridge.actions?.meetingChoices() ?? [])} className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft">
+              <button type="button" onClick={() => setTogether(bridge.actions?.meetingChoices() ?? [])} className={BTN}>
                 {t.walkTogether}
               </button>
             ) : null}
@@ -281,7 +282,7 @@ export function ProfileView({
                     </ol>
                     {extra > 0 ? <p className="text-[15px] text-charcoal/70">{t.stopsMore(extra)}</p> : null}
                     {!isMe ? (
-                      <button type="button" onClick={() => void planWalk(w)} className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft">
+                      <button type="button" onClick={() => void planWalk(w)} className={BTN}>
                         {t.walkThis}
                       </button>
                     ) : null}

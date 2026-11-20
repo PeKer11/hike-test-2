@@ -25,13 +25,13 @@ export function Rail({
 }) {
   const planOn = view === "plan" || view === "walk";
   return (
-    <nav aria-label="App" className="fixed inset-y-0 start-0 z-[1000] hidden w-[72px] flex-col items-center gap-2 border-e-[1.5px] border-forest bg-cream py-4 lg:flex">
+    <nav aria-label="App" className="fixed inset-y-0 start-0 z-[1000] hidden w-[72px] flex-col items-center gap-2 border-e-[1.5px] border-[var(--tk-ctl)] bg-cream py-4 lg:flex">
       <button
         type="button"
         onClick={() => onNavigate("plan")}
         aria-label={NEW_ROUTE[lang]}
         aria-current={planOn ? "page" : undefined}
-        className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-terra text-on-accent shadow-[0_3px_0_var(--tk-lip)]"
+        className="tk-fab mb-2"
       >
         <PlusIcon className="h-6 w-6" />
       </button>
@@ -44,7 +44,7 @@ export function Rail({
             type="button"
             onClick={() => onNavigate(i.view)}
             aria-current={on ? "page" : undefined}
-            className={`relative flex min-h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[13px] font-semibold transition-colors ${on ? "bg-forest text-cream" : "text-forest hover:bg-tk-bar"}`}
+            className="tk-tab min-h-14 w-14"
           >
             <Icon className="h-6 w-6" />
             {i[lang]}

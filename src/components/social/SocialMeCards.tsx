@@ -9,6 +9,7 @@ import { useSocialClient } from "@/lib/hooks/useSocialClient";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
 import { presenceEnabled, socialProfilesEnabled } from "@/lib/social/flag";
 import { getMyProfile, listMyBlocks, unblockUser, type BlockedUser, type MyProfile } from "@/lib/social/profiles";
+import { BTN, BTN_ALT_SM } from "@/components/ui/panel-style";
 
 const CARD = "space-y-3 border-b border-tk-hair bg-cream px-4 py-3";
 
@@ -50,14 +51,14 @@ export function SocialMeCards({ lang, signedIn }: { lang: SocialLang; signedIn: 
                 </span>
               ) : null}
             </div>
-            <button type="button" onClick={() => setEdit(true)} className="min-h-11 rounded-full bg-charcoal/5 px-4 text-[15px] font-semibold">
+            <button type="button" onClick={() => setEdit(true)} className={BTN_ALT_SM}>
               {t.edit}
             </button>
           </div>
         ) : (
           <>
             <p className="text-[16px] text-tk-ink">{t.meNoProfile}</p>
-            <button type="button" onClick={() => setEdit(true)} className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-[0_3px_0_var(--tk-lip)]">
+            <button type="button" onClick={() => setEdit(true)} className={BTN}>
               {t.createCta}
             </button>
           </>
@@ -75,7 +76,7 @@ export function SocialMeCards({ lang, signedIn }: { lang: SocialLang; signedIn: 
               <li key={b.userId} className="flex min-h-12 items-center gap-3">
                 <Avatar id={b.avatar} size={40} seed={b.userId} />
                 <span dir="auto" className="min-w-0 flex-1 truncate text-[16px]">{b.displayName ?? "…"}</span>
-                <button type="button" onClick={() => void unblockUser(session.client, session.userId, b.userId).then(refresh)} className="min-h-11 rounded-full bg-charcoal/5 px-4 text-[15px] font-semibold">
+                <button type="button" onClick={() => void unblockUser(session.client, session.userId, b.userId).then(refresh)} className={BTN_ALT_SM}>
                   {t.unblock}
                 </button>
               </li>

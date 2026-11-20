@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ModalSheet } from "@/components/ui/ModalSheet";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
 import { sendNearbyRequest, sendRequest, visibleChoices, type MeetChoice } from "@/lib/social/walk-requests";
+import { BTN, chipCell } from "@/components/ui/panel-style";
 
 const TIMES = [
   { min: 0, key: "timeNow" },
@@ -76,7 +77,7 @@ export function WalkTogetherSheet({
                   role="radio"
                   aria-checked={picked === i}
                   onClick={() => setPicked(i)}
-                  className={`min-h-12 rounded-2xl px-4 text-start text-[16px] font-medium ${picked === i ? "bg-terra/15 text-terra shadow-tk-soft" : "bg-charcoal/5"}`}
+                  className={`${chipCell(picked === i)} !justify-start text-start text-[16px]`}
                 >
                   <span dir="auto">{c.label}</span>
                 </button>
@@ -94,7 +95,7 @@ export function WalkTogetherSheet({
                 role="radio"
                 aria-checked={minutes === x.min}
                 onClick={() => setMinutes(x.min)}
-                className={`min-h-12 flex-1 rounded-full text-[16px] font-medium ${minutes === x.min ? "bg-terra/15 text-terra shadow-tk-soft" : "bg-charcoal/5"}`}
+                className={`${chipCell(minutes === x.min)} flex-1 text-[16px]`}
               >
                 {t[x.key]}
               </button>
@@ -107,7 +108,7 @@ export function WalkTogetherSheet({
             {t.requestNotSent}
           </p>
         ) : null}
-        <button type="button" disabled={busy || shown.length === 0} onClick={() => void send()} className="min-h-14 w-full rounded-full bg-terra text-[17px] font-semibold text-on-accent shadow-tk-soft disabled:opacity-60">
+        <button type="button" disabled={busy || shown.length === 0} onClick={() => void send()} className={`${BTN} w-full`}>
           {t.sendRequest}
         </button>
       </div>

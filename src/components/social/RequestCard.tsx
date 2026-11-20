@@ -3,10 +3,11 @@
 import { Avatar } from "@/components/social/Avatar";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
 import { NOTE_CODES, type NoteCode, type WalkRequest } from "@/lib/social/walk-requests";
+import { BTN_ALT_SM, BTN_SM, chipCell } from "@/components/ui/panel-style";
 
-const CARD = "space-y-2 rounded-tk-card bg-paper p-4 shadow-tk-card";
-const PRIMARY = "min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft";
-const SOFT = "min-h-11 rounded-full bg-charcoal/5 px-4 text-[15px] font-semibold text-charcoal";
+const CARD = "space-y-2 border-b border-tk-hair bg-cream px-4 py-3";
+const PRIMARY = BTN_SM;
+const SOFT = BTN_ALT_SM;
 
 const clock = (iso: string, lang: SocialLang) => new Date(iso).toLocaleTimeString(lang === "he" ? "he-IL" : "en", { hour: "2-digit", minute: "2-digit" });
 
@@ -104,7 +105,7 @@ export function MeetCard({
             type="button"
             aria-pressed={request.myNote === c}
             onClick={() => onNote(c)}
-            className={`min-h-11 rounded-full px-4 text-[15px] font-medium ${request.myNote === c ? "bg-terra/15 text-terra shadow-tk-soft" : "bg-charcoal/5"}`}
+            className={chipCell(request.myNote === c)}
           >
             {t.notes[c]}
           </button>

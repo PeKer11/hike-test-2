@@ -44,6 +44,7 @@ import { MyWalksPanel } from "@/components/walks/MyWalksPanel";
 import { ScreenHeader } from "@/components/shell/ScreenHeader";
 import { WalksBand } from "@/components/shell/WalksBand";
 import { Segmented } from "@/components/shell/Segmented";
+import { BTN, BTN_ALT, BTN_SM } from "@/components/ui/panel-style";
 import { classifyPoint } from "@/lib/places/safety-zones";
 import { presenceEnabled } from "@/lib/social/flag";
 import { PresencePublisher } from "@/lib/social/presence-publisher";
@@ -1231,6 +1232,8 @@ export function WalkPlannerApp({
   const hubTab = view === "walks" || view === "social";
   // Walks is a sheet under a sunset band (round 13), not the sand-wall sidebar.
   const walksScreen = view === "walks";
+  // Plan and Walks sit under a painted band on one cream sheet (the live walk and the legacy hub tabs keep the old column).
+  const bandScreen = walksScreen || (!walkMode && !hubTab);
   // Walk again, from wherever the walker is: find them, decide what to offer, and either just start or ask once.
   const [againFlow, setAgainFlow] = useState<{ walk: SavedWalk; here: Coordinates | null; decision: WalkAgainDecision } | null>(null);
   const [chatPrefill, setChatPrefill] = useState<{ text: string; tick: number } | null>(null);
@@ -3790,17 +3793,17 @@ export function WalkPlannerApp({
           from @4xl up it is simply the sidebar it always was. */}
       <aside
         ref={asideRef}
-        className={`isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 @4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
+        className={`isolate ${walkMode || mapFull ? "order-2" : "order-1"} min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 @4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
           walkMode && !isDetailsOpen ? "hidden @4xl:block" : ""
         } ${mapFull && !walkMode ? "hidden @4xl:block" : ""} ${
           walkMode && isDetailsOpen
             ? "absolute inset-x-0 bottom-0 z-[700] max-h-[70%] flex-none rounded-t-2xl shadow-[0_-4px_20px_rgba(30,61,47,0.18)] @4xl:static @4xl:max-h-none @4xl:flex-1 @4xl:rounded-none @4xl:shadow-none"
             : "relative"
-        } planner-sidebar ${walksScreen ? "p-0 pb-6" : "p-[14px] pb-[26px] @4xl:p-[12px] @4xl:pb-[20px] @6xl:p-[14px] @6xl:pb-[26px]"}`}
+        } planner-sidebar ${bandScreen ? "tk-band-screen p-0 pb-6" : "p-[14px] pb-[26px] @4xl:p-[12px] @4xl:pb-[20px] @6xl:p-[14px] @6xl:pb-[26px]"}`}
         style={{
           width: hubTab ? "100%" : undefined,
-          backgroundColor: walksScreen ? "var(--tk-cream)" : "var(--tk-sidebar-bg)",
-          backgroundImage: walksScreen ? "none" : "var(--tk-sidebar-img)",
+          backgroundColor: bandScreen ? "var(--tk-cream)" : "var(--tk-sidebar-bg)",
+          backgroundImage: bandScreen ? "none" : "var(--tk-sidebar-img)",
           backgroundRepeat: "no-repeat",
           backgroundSize: "max(100%, 460px) auto",
           backgroundPosition: "right top",
@@ -3816,57 +3819,47 @@ export function WalkPlannerApp({
             {walkCopy.hud.closeDetails}
           </button>
         )}
-        <div className={`${walkMode || hubTab ? "hidden " : ""}relative z-10 mx-auto mb-[17px] max-w-[440px] ps-[7px] pt-[7px] @4xl:mb-[14px] @4xl:pt-[5px] @6xl:mb-[17px] @6xl:pt-[7px]`}>
-          {!compact && (
-            <>
-          <Link href="/" className="relative flex w-fit items-center gap-2 text-tk-wordmark">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/traike-icon.png" alt="" className="h-8 w-8 rounded-[8px]" />
-            <span className="font-app-serif text-[26px] font-semibold leading-none tracking-[0.005em]">Traike</span>
-          </Link>
-            </>
-          )}
-          <h1 className="relative mt-[16px] whitespace-nowrap font-display text-[30px] font-normal leading-[1.1] text-tk-ink @4xl:mt-[12px] @4xl:text-[24px] @6xl:mt-[16px] @6xl:text-[28.6px]">
-            {isAdvancedOpen ? "Advanced planning" : "Where shall we walk?"}
-          </h1>
-          {!isAdvancedOpen && !compact && (
-            <div className="relative mt-[10px] flex items-end gap-[10px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/images/traike/guide-cut.png"
-                alt="Traike walking guide"
-                className="pointer-events-none -mb-[6px] h-[204px] w-[136px] flex-none object-cover object-bottom [filter:drop-shadow(0_6px_10px_rgba(60,20,5,.35))] [mask-image:linear-gradient(180deg,#000_82%,transparent_100%)]"
-              />
-              <div className="relative mb-[12px] flex-1 rounded-[14px] border border-charcoal/10 bg-paper px-[13px] py-[11px] shadow-tk-card">
-                <h2 className="font-app-serif text-[17px] font-semibold leading-[1.18] text-tk-ink">
-                  {uiLang === "he" ? "שיחה עם טרייק" : "Chat with Traike"}
-                </h2>
-                <p className="mt-[2px] font-app-sans text-[13px] leading-[1.32] text-tk-ink/70">
-                  {uiLang === "he"
-                    ? "בחרו אווירה או כתבו תחנות — אחבר לכם מסלול מדויק."
-                    : "Pick a vibe or name your stops — I'll build your route."}
-                </p>
+        <div className={`${walkMode || hubTab ? "hidden " : ""}relative isolate overflow-hidden bg-cream`}>
+          {/* Round 13 header: the terracotta-washed Jaffa photo, the mark, one title line, the guide and his chat card; it melts into the cream sheet. */}
+          <div aria-hidden className="tk-art-city absolute inset-0 -z-10" />
+          <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[34%] bg-gradient-to-b from-transparent to-cream" />
+          <div className="relative mx-auto max-w-[440px] px-4 pt-[max(16px,env(safe-area-inset-top))]">
+            {!compact && (
+              /* The mark stays on the left in Hebrew too. On a phone the Back button owns the start corner, so in English the mark steps right of it. */
+              <div dir="ltr">
+                <Link href="/" className="flex w-fit items-center gap-2.5 text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)] ltr:max-lg:ms-[52px]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/traike-icon.png" alt="" className="h-[30px] w-[30px] rounded-lg" />
+                  <span className="font-app-serif text-[24px] font-bold leading-none tracking-tight">Traike</span>
+                </Link>
               </div>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => (isAdvancedOpen ? closeAdvanced() : setIsAdvancedOpen(true))}
-            aria-pressed={isAdvancedOpen}
-            title={
-              isAdvancedOpen
-                ? "Back to the simple walk builder"
-                : "Open the full planner: your own stops, route rules and hike search"
-            }
-            className="absolute -top-[10px] end-0 inline-flex h-[31px] items-center gap-[9px] rounded-full bg-paper/60 ps-[12px] pe-[13px] font-app-sans text-[12.75px] font-semibold leading-none text-tk-ink backdrop-blur-sm transition-colors hover:bg-paper @4xl:h-[28px] @4xl:gap-[7px] @4xl:ps-[11px] @4xl:pe-[12px] @4xl:text-[11.5px] @6xl:h-[31px] @6xl:gap-[9px] @6xl:ps-[14px] @6xl:pe-[15px] @6xl:text-[12.75px]"
-          >
-            {isAdvancedOpen ? (
-              <IconCollapse className="h-[14px] w-[14px]" />
-            ) : (
-              <IconExpand className="h-[14px] w-[14px]" />
             )}
-            {isAdvancedOpen ? "Simple view" : "Advanced"}
-          </button>
+            <h1 dir="auto" className="mt-3 text-start font-display text-[26px] font-normal leading-[1.12] text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
+              {isAdvancedOpen ? (uiLang === "he" ? "תכנון מתקדם" : "Advanced planning") : uiLang === "he" ? "לאן נצא ללכת היום?" : "Where shall we walk?"}
+            </h1>
+            {!isAdvancedOpen && !compact ? (
+              <div dir="ltr" className="mt-1 flex items-end gap-[10px]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/traike/guide-cut.png"
+                  alt="Traike walking guide"
+                  className="pointer-events-none -mb-[6px] h-[204px] w-[136px] flex-none object-cover object-bottom [filter:drop-shadow(0_6px_10px_rgba(60,20,5,.35))] [mask-image:linear-gradient(180deg,#000_82%,transparent_100%)]"
+                />
+                <div dir={uiLang === "he" ? "rtl" : "ltr"} className="relative mb-[12px] flex-1 rounded-[14px] border border-tk-hair bg-cream px-[13px] py-[11px] shadow-[0_2px_0_var(--tk-lip)]">
+                  <h2 className="font-app-serif text-[17px] font-semibold leading-[1.18] text-tk-ink">
+                    {uiLang === "he" ? "שיחה עם טרייק" : "Chat with Traike"}
+                  </h2>
+                  <p className="mt-[2px] font-app-sans text-[14px] leading-[1.32] text-tk-body">
+                    {uiLang === "he"
+                      ? "בחרו אווירה או כתבו תחנות — אחבר לכם מסלול מדויק."
+                      : "Pick a vibe or name your stops — I'll build your route."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="h-5" />
+            )}
+          </div>
         </div>
 
         {walksScreen && <WalksBand lang={uiLang === "he" ? "he" : "en"} signedIn={isSignedIn} />}
@@ -3879,14 +3872,26 @@ export function WalkPlannerApp({
         {hubTab && !isSignedIn && (
           <div className="relative z-10 mx-auto max-w-[440px] space-y-3 px-4 py-6 text-center">
             <EmptyState image="signed-out.png" title={uiLang === "he" ? (view === "walks" ? "התחברו כדי לראות את ההליכות שלכם" : "התחברו כדי לראות את החברים שלכם") : view === "walks" ? "Log in to see your walks" : "Log in to see your friends"} />
-            <Link href="/login" className="inline-flex min-h-12 items-center rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-[0_3px_0_var(--tk-lip)]">
+            <Link href="/login" className={BTN}>
               {uiLang === "he" ? "התחברות" : "Log in"}
             </Link>
           </div>
         )}
         {/* Round 13: outside a walk, everything below the header sits on one cream sheet that the header art melts into. */}
-        <div className={walkMode ? "contents" : `relative z-10 bg-cream ${walksScreen ? "" : "-mx-[14px] -mb-[26px] before:pointer-events-none before:absolute before:inset-x-0 before:-top-10 before:h-10 before:bg-gradient-to-b before:from-transparent before:to-cream @4xl:-mx-[12px] @4xl:-mb-[20px] @6xl:-mx-[14px] @6xl:-mb-[26px]"}`}>
-        <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : `space-y-[15px] px-4 pb-6 ${walksScreen ? "pt-1" : ""}`}`}>
+        <div className={walkMode ? "contents" : `relative z-10 bg-cream ${bandScreen ? "" : "-mx-[14px] -mb-[26px] before:pointer-events-none before:absolute before:inset-x-0 before:-top-10 before:h-10 before:bg-gradient-to-b before:from-transparent before:to-cream @4xl:-mx-[12px] @4xl:-mb-[20px] @6xl:-mx-[14px] @6xl:-mb-[26px]"}`}>
+        {!walkMode && !hubTab ? (
+          <button
+            type="button"
+            onClick={() => (isAdvancedOpen ? closeAdvanced() : setIsAdvancedOpen(true))}
+            aria-pressed={isAdvancedOpen}
+            title={isAdvancedOpen ? "Back to the simple walk builder" : "Open the full planner: your own stops, route rules and hike search"}
+            className="tk-row relative z-10 w-full cursor-pointer justify-between !min-h-12 text-start text-[15px] font-semibold"
+          >
+            <span>{isAdvancedOpen ? (uiLang === "he" ? "תצוגה פשוטה" : "Simple view") : uiLang === "he" ? "תכנון מתקדם" : "Advanced planning"}</span>
+            {isAdvancedOpen ? <IconCollapse className="h-4 w-4" /> : <IconExpand className="h-4 w-4" />}
+          </button>
+        ) : null}
+        <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : `space-y-[15px] px-4 pb-6 ${walksScreen ? "pt-1" : bandScreen ? "pt-3" : ""}`}`}>
           {isAdvancedOpen && (
             <Card className="space-y-2">
               <div className="text-sm font-semibold text-forest">Planning mode</div>
@@ -4714,10 +4719,10 @@ export function WalkPlannerApp({
           share of the frame it is in — a 45vh map inside a 560px frame would
           leave the sidebar nothing. */}
       <section
-        className={`relative order-1 overflow-hidden @4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1 ${
+        className={`relative overflow-hidden @4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1 ${
           walkMode || mapFull
-            ? "h-full min-h-0 flex-1"
-            : "h-[45%] min-h-[180px] shrink-0"
+            ? "order-1 h-full min-h-0 flex-1"
+            : "order-2 h-[26%] min-h-[170px] shrink-0 border-t-[1.5px] border-[var(--tk-ctl)] @4xl:border-t-0"
         } ${hubTab ? "hidden" : ""}`}
       >
         {walkMode && isOffRoute && routeOrderAsk ? (
@@ -4736,7 +4741,7 @@ export function WalkPlannerApp({
                   setRouteOrderAsk(false);
                   runDeviationTriggeredRebuild(order);
                 }}
-                className={`min-h-12 rounded-full px-4 text-[16px] font-semibold ${order === "keep" ? "bg-terra text-on-accent" : "bg-forest/10 text-forest"}`}
+                className={order === "keep" ? BTN : BTN_ALT}
               >
                 {walkCopy.routeOrder[uiLang === "he" ? "he" : "en"][order]}
               </button>
@@ -4830,7 +4835,7 @@ export function WalkPlannerApp({
         {walkPreview && (
           <div className="pointer-events-none absolute inset-x-0 bottom-10 z-[800] flex justify-center gap-2 px-4">
             {walkPreview.walk && (
-              <button type="button" onClick={() => { const w = walkPreview.walk; setWalkPreview(null); if (w) walkAgainFromSaved(w); }} className="pointer-events-auto cursor-pointer rounded-full bg-terra px-4 py-1.5 text-sm font-semibold text-on-accent shadow-lg">
+              <button type="button" onClick={() => { const w = walkPreview.walk; setWalkPreview(null); if (w) walkAgainFromSaved(w); }} className={`${BTN_SM} pointer-events-auto`}>
                 {uiLang === "he" ? "צא להליכה" : "Walk"}
               </button>
             )}

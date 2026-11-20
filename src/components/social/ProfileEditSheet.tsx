@@ -11,6 +11,7 @@ import { AVATARS, type AvatarId } from "@/lib/social/avatars";
 import { profileErrorCopy, socialCopy, type SocialLang } from "@/lib/social/copy";
 import { nearbyEnabled, presenceEnabled } from "@/lib/social/flag";
 import { deleteMyProfile, saveProfile, type PresenceAudience, type SocialProfile, type Visibility } from "@/lib/social/profiles";
+import { BTN } from "@/components/ui/panel-style";
 
 const FIELD = "min-h-12 w-full rounded-2xl bg-charcoal/5 px-4 text-[16px] text-charcoal outline-none focus:bg-charcoal/10";
 
@@ -128,7 +129,7 @@ export function ProfileEditSheet({
             {error}
           </p>
         ) : null}
-        <button type="button" disabled={busy} onClick={() => void save()} className="min-h-14 w-full rounded-full bg-terra text-[17px] font-semibold text-on-accent shadow-tk-soft disabled:opacity-60">
+        <button type="button" disabled={busy} onClick={() => void save()} className={`${BTN} w-full`}>
           {t.save}
         </button>
         {initial ? (

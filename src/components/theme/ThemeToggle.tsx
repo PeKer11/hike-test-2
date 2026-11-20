@@ -1,5 +1,6 @@
 "use client";
 
+import { SEG_WRAP, segCell } from "@/components/ui/panel-style";
 import { setChoice } from "@/lib/theme/theme";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 
@@ -21,7 +22,7 @@ const OPTIONS: { value: "light" | "dark"; label: string; icon: React.ReactNode }
   },
 ];
 
-export function ThemeToggle({ floating = false }: { floating?: boolean }) {
+export function ThemeToggle({ floating = false, labels }: { floating?: boolean; /** Words instead of icons (the Me screen): the segmented control reads Day / Night. */ labels?: { light: string; dark: string } }) {
   // Device-following stays the default until the first click; the pill shows what is on screen.
   const choice = useResolvedTheme();
 
@@ -32,7 +33,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
       className={
         floating
           ? "fixed right-3 top-3 z-[1000] flex items-center gap-0.5 rounded-full border border-charcoal/10 bg-paper/90 p-1 shadow-tk-soft backdrop-blur"
-          : "flex items-center overflow-hidden rounded-[10px] border-[1.5px] border-forest bg-cream"
+          : `${SEG_WRAP} ${labels ? "w-40" : ""}`
       }
     >
       {OPTIONS.map((o) => (
@@ -44,23 +45,29 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
           aria-label={o.label}
           title={o.label}
           onClick={() => setChoice(o.value)}
-          className={`flex items-center justify-center transition-colors ${floating ? "h-9 w-9 rounded-full" : "h-11 w-14 first:border-e first:border-tk-hair"} ${
-            choice === o.value ? (floating ? "bg-terra text-on-accent" : "bg-forest text-cream") : "text-charcoal/60 hover:text-charcoal"
-          }`}
+          className={
+            floating
+              ? `flex h-9 w-9 items-center justify-center rounded-full transition-colors ${choice === o.value ? "bg-terra text-on-accent" : "text-charcoal/60 hover:text-charcoal"}`
+              : `${segCell(choice === o.value)} flex items-center justify-center ${labels ? "" : "w-14 flex-none"}`
+          }
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="18"
-            height="18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            {o.icon}
-          </svg>
+          {labels && !floating ? (
+            labels[o.value]
+          ) : (
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              {o.icon}
+            </svg>
+          )}
         </button>
       ))}
     </div>

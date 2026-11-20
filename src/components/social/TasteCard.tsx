@@ -7,9 +7,10 @@ import { tasteEnabled } from "@/lib/social/flag";
 import { saveProfile, type SocialProfile } from "@/lib/social/profiles";
 import { deleteTaste, fetchTaste, generateTaste, type TasteStatus, type TasteView } from "@/lib/social/taste";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { BTN, BTN_ALT_SM } from "@/components/ui/panel-style";
 
 const CARD = "space-y-3 rounded-tk-card bg-paper p-4 shadow-tk-card";
-const PRIMARY = "min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft disabled:opacity-60";
+const PRIMARY = BTN;
 
 /** Me: "My taste" (opt-in, off by default). The prose stays private; only the fixed tags can reach the profile, and only on request. */
 export function TasteCard({ lang, profile, client, onProfileChanged }: { lang: SocialLang; profile: SocialProfile; client: SupabaseClient; onProfileChanged: () => void }) {
@@ -89,7 +90,7 @@ export function TasteCard({ lang, profile, client, onProfileChanged }: { lang: S
         {taste ? (
           <button
             type="button"
-            className="min-h-11 rounded-full bg-charcoal/5 px-4 text-[15px] font-semibold"
+            className={BTN_ALT_SM}
             onClick={() => void deleteTaste().then((ok) => { if (ok) { setState({ available: true, taste: null }); if (profile.showTaste) void toggleShow(); } })}
           >
             {t.tasteDelete}

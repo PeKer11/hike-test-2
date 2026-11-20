@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -11,7 +10,9 @@ import { MeetCard, RequestCard } from "@/components/social/RequestCard";
 import { WalkTogetherSheet } from "@/components/social/WalkTogetherSheet";
 import { ProfileEditSheet } from "@/components/social/ProfileEditSheet";
 import { ProfileView } from "@/components/social/ProfileView";
-import { ScreenHeader } from "@/components/shell/ScreenHeader";
+import { BandStat, BandTitle, ScreenBand } from "@/components/shell/ScreenBand";
+import { SheetSection } from "@/components/ui/SheetSection";
+import { BTN, BTN_ALT_SM, BTN_SM, FIELD, chipCell } from "@/components/ui/panel-style";
 import { meetLabel, useMeetNames } from "@/lib/hooks/useMeetNames";
 import { useSocialClient } from "@/lib/hooks/useSocialClient";
 import type { PlannerBridge } from "@/lib/shell/planner-bridge";
@@ -25,9 +26,9 @@ import {
   type FriendRow as Friend, type FriendWalk,
 } from "@/lib/walks/friends";
 
-const CARD = "rounded-tk-card bg-paper p-4 shadow-tk-card";
-const PRIMARY = "min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft";
-const SOFT = "min-h-11 rounded-full bg-charcoal/5 px-4 text-[15px] font-semibold text-charcoal";
+const PRIMARY = BTN_SM;
+const SOFT = BTN_ALT_SM;
+const MUTED = "text-[14px] leading-5 text-tk-sage";
 
 const go = (search: string) => window.history.pushState(null, "", `/app?view=social${search}`);
 
@@ -126,20 +127,20 @@ export function SocialView({
 
   if (!signedIn) {
     return (
-      <Shell lang={lang} title={t.title}>
-        <section className={`${CARD} space-y-3 text-center`}>
+      <Shell lang={lang} band={<ScreenBand art="friends"><BandTitle className="mt-5">{t.title}</BandTitle></ScreenBand>}>
+        <SheetSection className="text-center">
           <p className="text-[18px] font-semibold text-tk-ink">{t.needSignIn}</p>
-          <Link href="/login" className={`${PRIMARY} inline-flex items-center`}>
+          <Link href="/login" className={BTN}>
             {t.logIn}
           </Link>
-        </section>
+        </SheetSection>
       </Shell>
     );
   }
 
   if (nearbyToken && nearbyEnabled() && session) {
     return (
-      <Shell lang={lang} title={null}>
+      <Shell lang={lang} band={null}>
         <ProfileView userId={null} nearbyToken={nearbyToken} lang={lang} bridge={bridge} canWalkTogether={requestsAvailable} onBack={() => { go(""); void refresh(); }} />
       </Shell>
     );
@@ -147,7 +148,7 @@ export function SocialView({
 
   if (profileId && session) {
     return (
-      <Shell lang={lang} title={null}>
+      <Shell lang={lang} band={null}>
         <ProfileView userId={profileId} lang={lang} bridge={bridge} canWalkTogether={requestsAvailable} onBack={() => { go(""); void refresh(); }} />
       </Shell>
     );
@@ -190,18 +191,24 @@ export function SocialView({
           <Avatar id={mine.profile.avatar} size={40} seed={session?.userId} />
         </button>
       ) : null}
-      <button type="button" aria-label={t.invite} onClick={() => void invite()} className="flex h-11 w-11 items-center justify-center rounded-full bg-paper text-[22px] text-forest shadow-tk-soft">
+      <button type="button" aria-label={t.invite} onClick={() => void invite()} className={`${BTN_ALT_SM} !px-0 w-11 text-[22px] leading-none`}>
         +
       </button>
     </>
   );
 
+  const band = (
+    <ScreenBand art="friends" actions={headerActions}>
+      <BandTitle className="mt-5">{t.title}</BandTitle>
+      {ready && accepted.length > 0 ? <BandStat value={accepted.length} label={t.friendsStat} /> : null}
+    </ScreenBand>
+  );
+
   return (
-    <Shell lang={lang} title={t.title} actions={headerActions}>
+    <Shell lang={lang} band={band}>
       {addCode ? (
-        <section className={`${CARD} space-y-2`} aria-label={t.addFriendTitle}>
-          <h2 className="text-[20px] font-semibold text-tk-ink">{t.addFriendTitle}</h2>
-          <p className="text-[16px] text-charcoal/70">{t.addFriendLine}</p>
+        <SheetSection title={t.addFriendTitle}>
+          <p className="text-[16px]">{t.addFriendLine}</p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -214,43 +221,44 @@ export function SocialView({
               {t.cancel}
             </button>
           </div>
-        </section>
+        </SheetSection>
       ) : null}
 
       {profilesOn && mine.status === "none" ? (
-        <section className={`${CARD} relative space-y-3 pe-24`}>
-          <Image src="/images/traike/accessories/backpack.png" alt="" width={96} height={96} aria-hidden className="pointer-events-none absolute -top-4 end-3 h-20 w-auto drop-shadow-xl" />
+        <SheetSection>
           <p className="text-[18px] font-semibold leading-6 text-tk-ink">{t.createTitle}</p>
-          <button type="button" className={PRIMARY} onClick={() => setEdit(true)}>
+          <button type="button" className={BTN} onClick={() => setEdit(true)}>
             {t.createCta}
           </button>
-        </section>
+        </SheetSection>
       ) : null}
 
       {showPresence && now?.available ? (
-        <section className={`${CARD} space-y-2`} aria-label={t.walkingNow}>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[20px] font-semibold text-tk-ink">{t.walkingNow}</h2>
-            <button type="button" aria-pressed={myAudience !== "off"} onClick={() => void toggleAudience()} className={`min-h-11 rounded-full px-4 text-[15px] font-semibold ${myAudience === "off" ? "bg-charcoal/5 text-charcoal" : "bg-forest/10 text-forest"}`}>
+        <SheetSection
+          flush
+          title={t.walkingNow}
+          aside={
+            <button type="button" aria-pressed={myAudience !== "off"} onClick={() => void toggleAudience()} className={`${chipCell(myAudience !== "off")} !min-h-9 !py-0`}>
               {myAudience === "off" ? t.shareOff : myAudience === "friends" ? t.shareFriends : t.shareNearby}
             </button>
-          </div>
+          }
+        >
           {myAudience === "off" ? (
-            <p className="text-[16px] text-charcoal/70">{t.turnOnToSee}</p>
+            <p className="tk-row text-[16px]">{t.turnOnToSee}</p>
           ) : now.rows.length === 0 ? (
-            <p className="text-[16px] text-charcoal/70">{t.nobodyWalking}</p>
+            <p className="tk-row text-[16px]">{t.nobodyWalking}</p>
           ) : (
             <ul>
               {now.rows.map((r) => (
-                <li key={r.token} className="flex min-h-14 items-center gap-3">
+                <li key={r.token} className="tk-row">
                   <button type="button" disabled={!r.profileVisible} onClick={() => (r.friendId ? openProfile(r.friendId) : go(`&w=${r.token}`))} className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-start">
                     <Avatar id={r.avatar} size={40} seed={r.friendId ?? r.token} />
                     <span className="min-w-0">
-                      <span dir="auto" className="block truncate text-[17px] font-medium text-tk-ink">
+                      <span dir="auto" className="block truncate text-[17px] font-semibold text-tk-ink">
                         {r.displayName}
-                        {r.relation === "nearby" ? <span className="ms-2 rounded-full bg-skysoft/30 px-2 py-0.5 text-[13px] font-medium text-forest">{t.nearby}</span> : null}
+                        {r.relation === "nearby" ? <span className="ms-2 rounded-full bg-skysoft/30 px-2 py-0.5 text-[13px] font-medium text-tk-ink">{t.nearby}</span> : null}
                       </span>
-                      <span dir="auto" className="block truncate text-[15px] text-charcoal/70">
+                      <span dir="auto" className={`block truncate ${MUTED}`}>
                         {[r.areaLabel, r.distance && r.distance !== "far" ? distanceCopy[lang][r.distance] : null, sinceCopy[lang][r.since]].filter(Boolean).join(" · ")}
                       </span>
                     </span>
@@ -269,13 +277,12 @@ export function SocialView({
               ))}
             </ul>
           )}
-          <p className="text-[15px] text-charcoal/70">{myAudience === "public" ? t.nearbyLine1 : t.shareLine}</p>
-        </section>
+          <p className={`px-4 py-2 ${MUTED}`}>{myAudience === "public" ? t.nearbyLine1 : t.shareLine}</p>
+        </SheetSection>
       ) : null}
 
       {openRequests.length > 0 ? (
-        <section className="space-y-3" aria-label={t.walkRequests}>
-          <h2 className="text-[20px] font-semibold text-tk-ink">{t.walkRequests}</h2>
+        <SheetSection flush title={t.walkRequests}>
           {openRequests.map((r) =>
             r.status === "accepted" ? (
               <MeetCard
@@ -301,56 +308,56 @@ export function SocialView({
               />
             ),
           )}
-        </section>
+        </SheetSection>
       ) : null}
 
       {incoming.length > 0 ? (
-        <section className={`${CARD} space-y-1`} aria-label={t.requests}>
-          <h2 className="text-[20px] font-semibold text-tk-ink">{t.requests}</h2>
+        <SheetSection flush title={t.requests}>
           <ul>
             {incoming.map((f) => (
-              <li key={f.friendshipId}>
-              <FriendRow
-                friend={f}
-                stacked
-                trailing={
-                  <span className="flex gap-2">
-                    <button type="button" className={PRIMARY} onClick={() => void act(() => acceptFriend(session!.client, f.friendshipId), t.notSent)}>
-                      {t.accept}
-                    </button>
-                    <button type="button" className={SOFT} onClick={() => void act(() => removeFriendship(session!.client, f.friendshipId), t.notSent)}>
-                      {t.decline}
-                    </button>
-                  </span>
-                }
-              />
+              <li key={f.friendshipId} className="tk-row !items-start">
+                <FriendRow
+                  friend={f}
+                  stacked
+                  trailing={
+                    <span className="flex gap-2">
+                      <button type="button" className={PRIMARY} onClick={() => void act(() => acceptFriend(session!.client, f.friendshipId), t.notSent)}>
+                        {t.accept}
+                      </button>
+                      <button type="button" className={SOFT} onClick={() => void act(() => removeFriendship(session!.client, f.friendshipId), t.notSent)}>
+                        {t.decline}
+                      </button>
+                    </span>
+                  }
+                />
               </li>
             ))}
           </ul>
-        </section>
+        </SheetSection>
       ) : null}
 
-      <section className={`${CARD} space-y-2`} aria-label={t.friends}>
-        <h2 className="text-[20px] font-semibold text-tk-ink">{t.friends}</h2>
+      <SheetSection flush title={t.friends} aside={sent.length > 0 ? <span className="text-[14px] font-medium text-tk-sage">{t.waiting}: {sent.length}</span> : undefined}>
         {!ready ? (
-          <div aria-busy className="h-14 rounded-2xl bg-forest/5 motion-safe:animate-pulse" />
+          <div aria-busy className="tk-row"><div className="h-10 w-full rounded-[10px] bg-tk-bar motion-safe:animate-pulse" /></div>
         ) : accepted.length === 0 ? (
-          <p className="text-[16px] text-charcoal/70">{t.noFriends}</p>
+          <p className="tk-row text-[16px] text-tk-body">{t.noFriends}</p>
         ) : (
           <ul>
             {accepted.map((f) => (
-              <li key={f.friendshipId}>
-                <FriendRow
-                  friend={f}
-                  onOpen={profilesOn && f.displayName ? () => openProfile(f.friendId) : undefined}
-                  trailing={
-                    <button type="button" aria-label={t.more} aria-expanded={menuFor === f.friendshipId} onClick={() => setMenuFor(menuFor === f.friendshipId ? null : f.friendshipId)} className="flex h-11 w-11 items-center justify-center text-[20px] text-charcoal/70">
-                      ⋯
-                    </button>
-                  }
-                />
+              <li key={f.friendshipId} className="border-b border-tk-hair">
+                <div className="flex min-h-14 items-center gap-3 px-4">
+                  <FriendRow
+                    friend={f}
+                    onOpen={profilesOn && f.displayName ? () => openProfile(f.friendId) : undefined}
+                    trailing={
+                      <button type="button" aria-label={t.more} aria-expanded={menuFor === f.friendshipId} onClick={() => setMenuFor(menuFor === f.friendshipId ? null : f.friendshipId)} className="flex h-11 w-11 items-center justify-center text-[20px] text-tk-sage">
+                        ⋯
+                      </button>
+                    }
+                  />
+                </div>
                 {menuFor === f.friendshipId ? (
-                  <div role="menu" className="mb-2 flex flex-wrap gap-2 ps-12">
+                  <div role="menu" className="flex flex-wrap gap-2 px-4 pb-3">
                     <button role="menuitem" type="button" className={SOFT} onClick={() => { setMenuFor(null); void act(() => removeFriendship(session!.client, f.friendshipId), t.notSent); }}>
                       {lang === "he" ? "הסרה" : "Remove"}
                     </button>
@@ -370,31 +377,31 @@ export function SocialView({
             ))}
           </ul>
         )}
-        {sent.length > 0 ? <p className="text-[15px] text-charcoal/70">{t.waiting}: {sent.length}</p> : null}
-      </section>
+      </SheetSection>
 
       {walks.length > 0 ? (
-        <section className="space-y-3" aria-label={t.feed}>
-          <h2 className="text-[20px] font-semibold text-tk-ink">{t.feed}</h2>
+        <SheetSection flush title={t.feed}>
           {walks.map((w) => (
-            <article key={w.id} className={`${CARD} space-y-1`}>
-              <p dir="auto" className="text-[15px] text-charcoal/70">{w.ownerLabel}</p>
-              <h3 dir="auto" className="text-[18px] font-semibold leading-6 text-tk-ink">{w.title}</h3>
-              <p className="text-[15px] text-charcoal/70">
-                {w.totalMin !== null ? `${Math.round(w.totalMin)} ${lang === "he" ? "דק׳" : "min"}` : ""}
-                {w.distanceM !== null ? ` · ${(w.distanceM / 1000).toFixed(1)} ${t.kmStat}` : ""}
-              </p>
-              <button type="button" className={`${PRIMARY} mt-2`} onClick={() => bridge.actions?.planSharedWalk({ title: w.title, stops: w.stops })}>
+            <article key={w.id} className="tk-row">
+              <div className="min-w-0 flex-1">
+                <p dir="auto" className={`truncate ${MUTED}`}>{w.ownerLabel}</p>
+                <h3 dir="auto" className="text-[17px] font-semibold leading-6 text-tk-ink">{w.title}</h3>
+                <p className={MUTED}>
+                  {w.totalMin !== null ? `${Math.round(w.totalMin)} ${lang === "he" ? "דק׳" : "min"}` : ""}
+                  {w.distanceM !== null ? ` · ${(w.distanceM / 1000).toFixed(1)} ${t.kmStat}` : ""}
+                </p>
+              </div>
+              <button type="button" className={PRIMARY} onClick={() => bridge.actions?.planSharedWalk({ title: w.title, stops: w.stops })}>
                 {t.walkThis}
               </button>
             </article>
           ))}
-        </section>
+        </SheetSection>
       ) : null}
 
-      <section className={`${CARD} space-y-3`} aria-label={t.addByCode}>
+      <SheetSection title={t.addByCode}>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[16px] text-charcoal/80">
+          <span className="text-[16px] text-tk-body">
             {t.myCode}: <strong dir="ltr" className="font-mono tracking-wider text-tk-ink">{code ?? "…"}</strong>
           </span>
           {code ? (
@@ -412,16 +419,16 @@ export function SocialView({
             void act(() => requestFriend(session!.client, v).then((ok) => { if (ok) setNote(t.sent); return ok; }), t.notSent);
           }}
         >
-          <input value={codeInput} onChange={(e) => setCodeInput(e.target.value)} placeholder={t.codePlaceholder} dir="ltr" maxLength={12} className="min-h-12 min-w-0 flex-1 rounded-2xl bg-charcoal/5 px-4 text-[16px] outline-none focus:bg-charcoal/10" />
+          <input value={codeInput} onChange={(e) => setCodeInput(e.target.value)} placeholder={t.codePlaceholder} dir="ltr" maxLength={12} className={`${FIELD} min-h-11`} />
           <button type="submit" className={PRIMARY} disabled={codeInput.trim().length < 6}>
             {t.send}
           </button>
         </form>
-        <button type="button" className={`${PRIMARY} w-full`} onClick={() => void invite()}>
+        <button type="button" className={`${BTN} w-full`} onClick={() => void invite()}>
           {t.invite}
         </button>
-        {note ? <p role="status" className="text-[15px] text-forest">{note}</p> : null}
-      </section>
+        {note ? <p role="status" className="text-[15px] font-semibold text-tk-check">{note}</p> : null}
+      </SheetSection>
 
       {edit && session ? (
         <ProfileEditSheet open onClose={() => setEdit(false)} lang={lang} client={session.client} userId={session.userId} initial={null} onSaved={() => void refresh()} onDeleted={() => void refresh()} />
@@ -467,16 +474,11 @@ export function SocialView({
   );
 }
 
-function Shell({ lang, title, actions, children }: { lang: SocialLang; title: string | null; actions?: React.ReactNode; children: React.ReactNode }) {
+function Shell({ lang, band, children }: { lang: SocialLang; /** The painted band; null for a person's profile, which has its own header. */ band: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div dir={lang === "he" ? "rtl" : "ltr"} className="fixed inset-0 z-[900] overflow-y-auto bg-cream font-brand text-charcoal lg:start-[72px]">
-      <Image src="/images/meadow-hikers.jpg" alt="" fill priority sizes="100vw" aria-hidden className="scale-105 object-cover object-center blur-lg dark:hidden" />
-      <Image src="/images/hub-night.jpg" alt="" fill sizes="100vw" aria-hidden className="hidden scale-105 object-cover object-center blur-lg dark:block" />
-      <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-cream/85 via-cream/75 to-cream/90 dark:from-cream/80 dark:via-cream/85 dark:to-cream/95" />
-      <div className="relative mx-auto flex w-full max-w-[560px] flex-col gap-4 px-4 pb-[calc(96px+env(safe-area-inset-bottom))] lg:max-w-[720px] lg:pb-12">
-        {title ? <ScreenHeader title={title} actions={actions} /> : null}
-        {children}
-      </div>
+    <div dir={lang === "he" ? "rtl" : "ltr"} className="fixed inset-0 z-[900] overflow-y-auto bg-cream font-app-sans text-charcoal lg:start-[72px]">
+      {band}
+      <div className={`mx-auto flex w-full max-w-[560px] flex-col pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12 ${band ? "" : "gap-4 px-4"}`}>{children}</div>
     </div>
   );
 }

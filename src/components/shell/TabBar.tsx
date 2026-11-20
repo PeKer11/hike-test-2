@@ -32,7 +32,7 @@ export function TabBar({
         type="button"
         onClick={() => onNavigate(i.view)}
         aria-current={on ? "page" : undefined}
-        className={`relative flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[13px] font-semibold transition-colors ${on ? "bg-forest text-cream" : "text-forest"}`}
+        className="tk-tab flex-1"
       >
         <Icon className="h-6 w-6" />
         {i[lang]}
@@ -48,7 +48,7 @@ export function TabBar({
   return (
     <nav
       aria-label="App"
-      className="fixed inset-x-0 bottom-0 z-[1000] flex items-center gap-1 border-t-[1.5px] border-forest bg-cream px-3 pt-2 pb-[max(8px,env(safe-area-inset-bottom))] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-[1000] flex items-center gap-1 border-t-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 pt-2 pb-[max(8px,env(safe-area-inset-bottom))] lg:hidden"
     >
       {item(home)}
       {item(walks)}
@@ -56,7 +56,7 @@ export function TabBar({
         type="button"
         onClick={() => onNavigate("plan")}
         aria-label={NEW_ROUTE[lang]}
-        className="-mt-7 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-terra text-on-accent shadow-[0_3px_0_var(--tk-lip)] transition-transform active:translate-y-[2px] active:shadow-[0_1px_0_var(--tk-lip)]"
+        className="tk-fab -mt-7"
       >
         <PlusIcon className="h-7 w-7" />
       </button>

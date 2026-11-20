@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { ModalSheet } from "@/components/ui/ModalSheet";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
+import { BTN } from "@/components/ui/panel-style";
 
 /**
  * Its own consent for sharing with strangers nearby (phase 8): three plain lines, an unticked box, one button that
@@ -29,7 +30,7 @@ export function NearbyConsentSheet({ open, onClose, onConfirm, lang }: { open: b
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="h-5 w-5 accent-[var(--tk-terra)]" />
           {t.nearbyAgree}
         </label>
-        <button type="button" disabled={!agreed} onClick={onConfirm} className="min-h-14 w-full rounded-full bg-terra text-[17px] font-semibold text-on-accent shadow-tk-soft disabled:opacity-50">
+        <button type="button" disabled={!agreed} onClick={onConfirm} className={`${BTN} w-full`}>
           {t.nearbyOn}
         </button>
       </div>

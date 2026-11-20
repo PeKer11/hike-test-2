@@ -5,12 +5,12 @@ import { useEffect, useState } from "react";
 
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { PersonIcon, RefreshIcon } from "@/components/shell/icons";
-import { BandStat, BandTitle, ScreenBand } from "@/components/shell/ScreenBand";
+import { BandTitle, ScreenBand } from "@/components/shell/ScreenBand";
 import { SocialMeCards } from "@/components/social/SocialMeCards";
 import { StandingFactsPanel } from "@/components/StandingFactsPanel";
 import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { SEC_BAR } from "@/components/ui/panel-style";
+import { BTN, BTN_ALT, SEC_BAR } from "@/components/ui/panel-style";
 import type { PlannerBridge } from "@/lib/shell/planner-bridge";
 import { withWalkClient } from "@/lib/walks/walk-history";
 import type { WalkSettings } from "@/lib/types/walk-settings";
@@ -22,7 +22,8 @@ const COPY = {
     account: "Account",
     changePassword: "Change password",
     display: "Display",
-    dayNight: "Day / night",
+    dayNight: "Appearance",
+    themeLabels: { light: "Day", dark: "Night" },
     remembers: "What Traike remembers",
     refresh: "Refresh the app",
     refreshLive: "A walk is live. Refresh anyway?",
@@ -30,6 +31,7 @@ const COPY = {
     cancel: "Keep walking",
     credits: "Credits",
     logIn: "Log in",
+    logout: { idle: "Log out", busy: "Logging out…" },
   },
   he: {
     title: "אני",
@@ -37,7 +39,8 @@ const COPY = {
     account: "חשבון",
     changePassword: "החלפת סיסמה",
     display: "תצוגה",
-    dayNight: "יום / לילה",
+    dayNight: "מצב תצוגה",
+    themeLabels: { light: "יום", dark: "לילה" },
     remembers: "מה Traike זוכר",
     refresh: "רענון האפליקציה",
     refreshLive: "יש הליכה פעילה. לרענן בכל זאת?",
@@ -45,11 +48,12 @@ const COPY = {
     cancel: "ממשיכים ללכת",
     credits: "קרדיטים",
     logIn: "התחברות",
+    logout: { idle: "יציאה", busy: "יוצאים…" },
   },
 } as const;
 
 const ROW = "flex min-h-14 items-center justify-between gap-3 border-b border-tk-hair px-4 py-2 text-[16px] text-tk-ink";
-const PRIMARY = "inline-flex min-h-12 items-center rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-[0_3px_0_var(--tk-lip)] active:translate-y-[2px] active:shadow-[0_1px_0_var(--tk-lip)]";
+const PRIMARY = BTN;
 
 /** Me: account, display, walk settings, what Traike remembers, refresh, credits. */
 export function MeView({
@@ -107,18 +111,23 @@ export function MeView({
 
   return (
     <div className="fixed inset-0 z-[900] overflow-y-auto bg-cream font-app-sans text-charcoal lg:start-[72px]">
-      <ScreenBand art="sky">
+      <ScreenBand art="me">
         <div className="mt-5 flex items-center gap-3.5">
-          <span aria-hidden className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full border-2 border-forest bg-paper font-app-serif text-[24px] font-bold text-tk-ink shadow-[0_2px_0_var(--tk-lip)]">
+          <span aria-hidden className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full border-2 border-[var(--tk-ctl)] bg-paper font-app-serif text-[24px] font-bold text-tk-ink shadow-[0_2px_0_var(--tk-lip)]">
             {email ? email.charAt(0).toUpperCase() : <PersonIcon className="h-6 w-6" />}
             <span className="absolute -bottom-0.5 -end-0.5 h-3.5 w-3.5 rounded-full border-2 border-paper bg-terra" />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <BandTitle>{t.title}</BandTitle>
             {email ? <p dir="ltr" className="mt-0.5 truncate text-[15px] font-semibold text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">{email}</p> : null}
           </div>
+          {walkCount !== null ? (
+            <p className="shrink-0 text-center text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
+              <bdi className="block font-app-serif text-[40px] font-semibold leading-none [font-variation-settings:'SOFT'_100,'WONK'_1]">{walkCount}</bdi>
+              <span className="mt-1 block max-w-[92px] text-[13px] font-semibold leading-[1.15]">{t.walks}</span>
+            </p>
+          ) : null}
         </div>
-        {walkCount !== null ? <BandStat value={walkCount} label={t.walks} /> : null}
       </ScreenBand>
 
       <div className="mx-auto flex w-full max-w-[560px] flex-col pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12">
@@ -131,7 +140,7 @@ export function MeView({
                 <span aria-hidden className="text-charcoal/50 rtl:-scale-x-100">›</span>
               </Link>
               <div className={ROW}>
-                <LogoutButton className="min-h-11 font-semibold text-terra disabled:opacity-50" />
+                <LogoutButton className="min-h-11 font-semibold text-terra disabled:opacity-50" labels={t.logout} />
               </div>
             </>
           ) : (
@@ -149,7 +158,7 @@ export function MeView({
           <h2 className={SEC_BAR}>{t.display}</h2>
           <div className={ROW}>
             <span>{t.dayNight}</span>
-            <ThemeToggle />
+            <ThemeToggle labels={t.themeLabels} />
           </div>
         </section>
 
@@ -167,7 +176,7 @@ export function MeView({
                 <button type="button" onClick={refresh} className={PRIMARY}>
                   {t.refreshConfirm}
                 </button>
-                <button type="button" onClick={() => setConfirming(false)} className="min-h-12 rounded-full border-[1.5px] border-forest bg-cream px-5 text-[15px] font-semibold text-forest">
+                <button type="button" onClick={() => setConfirming(false)} className={BTN_ALT}>
                   {t.cancel}
                 </button>
               </div>

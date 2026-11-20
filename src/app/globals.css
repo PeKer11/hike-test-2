@@ -38,6 +38,10 @@
   --tk-bar: #f2eadd;
   --tk-hair: #ddd2c0;
   --tk-sky: linear-gradient(180deg, #842e0d 0%, #9e3d12 34%, #bc551e 60%, #df8f53 80%, #f2caa3 92%, var(--tk-cream) 100%);
+  /* Control system (mockup r13 "Pine"): one edge/ink colour and one selected fill for every tab, segment, chip and secondary button. */
+  --tk-ctl: #1b2620;
+  --tk-sel: #1b2620;
+  --tk-on-sel: #f8f3ea;
 }
 
 /* Dark: warm forest night. Brand tokens swap as pairs, so text and fills that
@@ -74,6 +78,9 @@
   --tk-bar: #26221c;
   --tk-hair: #3a342c;
   --tk-sky: linear-gradient(180deg, #110e0d 0%, #1e1510 38%, #331e12 66%, #261913 85%, var(--tk-cream) 100%);
+  --tk-ctl: #e9dfcf;
+  --tk-sel: #ede3d3;
+  --tk-on-sel: #1a1613;
 
   /* Status shades used as text/tints on light cards. */
   --color-rose-50: #3a1f22;
@@ -96,6 +103,171 @@
   --color-red-700: #f4a098;
   --color-emerald-600: #5fcf9a;
   --color-emerald-700: #7fdcae;
+}
+
+/* ============================================================================
+   Round 13 control system. ONE definition of every control; every screen (Home,
+   Plan, Walks, Friends, Me, the tab bar, sheets) uses these classes through
+   src/components/ui/panel-style.ts and ui/Button.tsx. No screen defines its own.
+     .tk-btn + .tk-btn-primary    terracotta pill with the hard dark lip (Home "Plan my walk")
+     .tk-btn + .tk-btn-secondary  cream pill with the control edge
+     .tk-btn-sm                   same buttons, 44px, for a row action
+     .tk-seg / .tk-seg-cell       one exclusive choice, selected = pine fill
+     .tk-chip                     one of several toggles, selected = pine fill
+     .tk-bar                      full-width tinted section bar
+     .tk-row                      list row with a hairline
+     .tk-tab / .tk-fab            bottom bar + rail destination, and the raised "+"
+   ============================================================================ */
+@layer components {
+  /* The Plan header art: the Jaffa photo under the terracotta wash (mockup r13). */
+  .tk-art-city {
+    background-image: linear-gradient(180deg, rgba(142, 58, 24, 0.8) 0%, rgba(176, 86, 42, 0.8) 45%, rgba(206, 122, 70, 0.8) 80%, rgba(232, 168, 120, 0.8) 100%), var(--tk-city-img);
+    background-blend-mode: multiply, normal;
+    background-size: 100% 100%, auto 150%;
+    background-position: 0 0, 100% 100%;
+    background-repeat: no-repeat;
+    background-color: var(--tk-cream);
+  }
+
+  .tk-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 48px;
+    padding-inline: 24px;
+    border-radius: 9999px;
+    border: 0;
+    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    --tk-lip-h: 4px;
+    transition: transform 80ms ease, box-shadow 80ms ease, background-color 150ms ease;
+  }
+  .tk-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+  .tk-btn-sm { min-height: 44px; padding-inline: 18px; font-size: 15px; --tk-lip-h: 3px; }
+  .tk-btn-primary {
+    background: var(--tk-terra);
+    color: var(--tk-on-accent);
+    box-shadow: 0 var(--tk-lip-h) 0 var(--tk-lip), 0 10px 18px rgba(0, 0, 0, 0.22);
+  }
+  .tk-btn-primary:hover:not(:disabled) { filter: brightness(1.04); }
+  .tk-btn-primary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 calc(var(--tk-lip-h) - 2px) 0 var(--tk-lip); }
+  .tk-btn-secondary {
+    background: var(--tk-cream);
+    color: var(--tk-ctl);
+    border: 1.5px solid var(--tk-ctl);
+  }
+  .tk-btn-secondary:hover:not(:disabled) { background: var(--tk-bar); }
+  .tk-btn-secondary:active:not(:disabled) { transform: translateY(1px); }
+
+  .tk-seg { display: flex; overflow: hidden; border-radius: 10px; border: 1.5px solid var(--tk-ctl); background: var(--tk-cream); }
+  .tk-seg-cell {
+    flex: 1 1 0;
+    min-height: 44px;
+    padding-inline: 12px;
+    border: 0;
+    border-inline-end: 1px solid var(--tk-hair);
+    background: transparent;
+    color: var(--tk-ctl);
+    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .tk-seg-cell:last-child { border-inline-end: 0; }
+  .tk-seg-cell:hover { background: var(--tk-bar); }
+  .tk-seg-cell.is-on, .tk-seg-cell.is-on:hover { background: var(--tk-sel); color: var(--tk-on-sel); }
+
+  .tk-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding-inline: 14px;
+    border-radius: 10px;
+    border: 1.5px solid var(--tk-ctl);
+    background: var(--tk-cream);
+    color: var(--tk-ctl);
+    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .tk-chip:hover { background: var(--tk-bar); }
+  .tk-chip.is-on, .tk-chip.is-on:hover { background: var(--tk-sel); color: var(--tk-on-sel); }
+
+  .tk-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 16px;
+    border-block: 1px solid var(--tk-hair);
+    background: var(--tk-bar);
+    color: var(--tk-tk-ink);
+    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .tk-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--tk-hair);
+    color: var(--tk-tk-ink);
+    font-size: 16px;
+  }
+
+  .tk-tab {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 52px;
+    border-radius: 10px;
+    border: 0;
+    background: transparent;
+    color: var(--tk-ctl);
+    font-family: var(--font-manrope), var(--font-heebo), system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .tk-tab:hover { background: var(--tk-bar); }
+  .tk-tab[aria-current="page"], .tk-tab[aria-current="page"]:hover { background: var(--tk-sel); color: var(--tk-on-sel); }
+
+  .tk-fab {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 9999px;
+    border: 0;
+    background: var(--tk-terra);
+    color: var(--tk-on-accent);
+    box-shadow: 0 4px 0 var(--tk-lip);
+    cursor: pointer;
+    transition: transform 80ms ease, box-shadow 80ms ease;
+  }
+  .tk-fab:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--tk-lip); }
 }
 
 /* Night map: invert only the tiles, never markers or routes. */
@@ -208,13 +380,15 @@ body {
 
 
 /* Dark: a real night scene for the sidebar, not a dimmed day photo. */
-:root { --tk-sidebar-bg: #d9b98a; --tk-sidebar-img: url(/images/traike/sidebar-bg.jpg); }
-:root[data-theme="dark"] { --tk-sidebar-bg: #08121f; --tk-sidebar-img: url(/images/traike/sidebar-bg-night.jpg); }
+:root { --tk-sidebar-bg: #d9b98a; --tk-sidebar-img: url(/images/traike/sidebar-bg.jpg); --tk-city-img: url(/images/traike/home-city.jpg); }
+:root[data-theme="dark"] { --tk-sidebar-bg: #08121f; --tk-sidebar-img: url(/images/traike/sidebar-bg-night.jpg); --tk-city-img: url(/images/traike/home-city-night.jpg); }
 
 /* Keep the header readable over the lantern in the night sidebar scene. */
 :root[data-theme="dark"] .planner-sidebar {
   text-shadow: 0 1px 10px rgba(8, 18, 31, 0.95), 0 0 2px rgba(8, 18, 31, 0.8);
 }
+/* The Plan and Walks sheets sit on plain cream, not the night scene: no glow behind their text. */
+:root[data-theme="dark"] .planner-sidebar.tk-band-screen { text-shadow: none; }
 /* Anything with its own background (bubbles, buttons, cards) is already readable; the glow only smears its text. */
 :root[data-theme="dark"] .planner-sidebar [class*="bg-"] {
   text-shadow: none;

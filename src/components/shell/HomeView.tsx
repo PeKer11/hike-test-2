@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { ChoiceTile } from "@/components/shell/ChoiceTile";
+import { BTN } from "@/components/ui/panel-style";
 import type { PlannerBridge, AppView } from "@/lib/shell/planner-bridge";
 import { loadActiveWalk, type ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
 import { socialProfilesEnabled } from "@/lib/social/flag";
@@ -69,7 +70,7 @@ function greetingKey(hour: number): "morning" | "afternoon" | "evening" {
 }
 
 const CARD = "relative rounded-tk-card bg-paper p-5 shadow-tk-card";
-const PRIMARY = "min-h-12 rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-tk-soft transition-colors hover:bg-terra/90";
+const PRIMARY = BTN;
 
 /** Home: at most four blocks: greeting, a walk to continue, the two big choices, one context card (last walk, else invite). */
 export function HomeView({
@@ -169,7 +170,7 @@ export function HomeView({
             <button
               type="button"
               onClick={() => onNavigate("plan")}
-              className="min-h-12 rounded-full bg-terra px-8 text-[16px] font-bold text-on-accent shadow-[0_4px_0_#1f2a24,0_10px_18px_rgba(0,0,0,.3)] transition-transform active:translate-y-[2px] active:shadow-[0_2px_0_#1f2a24]"
+              className={BTN}
             >
               {t.planMyWalk}
             </button>

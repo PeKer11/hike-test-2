@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ModalSheet } from "@/components/ui/ModalSheet";
 import { socialCopy, type SocialLang } from "@/lib/social/copy";
 import { blockUser, reportUser, type ReportContext, type ReportReason } from "@/lib/social/profiles";
+import { BTN, chipCell } from "@/components/ui/panel-style";
 
 const REASONS: ReportReason[] = ["harassment", "spam", "fake", "unsafe", "minor", "other"];
 
@@ -71,7 +72,7 @@ export function BlockReportSheet({
                   role="radio"
                   aria-checked={reason === r}
                   onClick={() => setReason(r)}
-                  className={`min-h-11 rounded-full px-4 text-[15px] font-medium ${reason === r ? "bg-terra/15 text-terra shadow-tk-soft" : "bg-charcoal/5"}`}
+                  className={chipCell(reason === r)}
                 >
                   {t.reasons[r]}
                 </button>
@@ -96,7 +97,7 @@ export function BlockReportSheet({
             {lang === "he" ? "לא הצלחנו. אפשר לנסות שוב." : "That didn't go through. Try again."}
           </p>
         ) : null}
-        <button type="button" disabled={busy} onClick={() => void submit(mode)} className="min-h-14 w-full rounded-full bg-terra text-[17px] font-semibold text-on-accent shadow-tk-soft disabled:opacity-60">
+        <button type="button" disabled={busy} onClick={() => void submit(mode)} className={`${BTN} w-full`}>
           {mode === "block" ? t.block : t.submit}
         </button>
         {mode === "report" ? (

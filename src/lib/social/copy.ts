@@ -30,6 +30,7 @@ export const profileErrorCopy: Record<SocialLang, Record<Exclude<SaveProfileCode
 export const socialCopy = {
   en: {
     title: "Friends",
+    friendsStat: "friends",
     needSignIn: "Log in to see your friends",
     logIn: "Log in",
     createTitle: "Make a profile, then see who walks",
@@ -175,6 +176,7 @@ export const socialCopy = {
   },
   he: {
     title: "חברים",
+    friendsStat: "חברים",
     needSignIn: "התחברו כדי לראות את החברים שלכם",
     logIn: "התחברות",
     createTitle: "יוצרים פרופיל, ואז רואים מי הולך",

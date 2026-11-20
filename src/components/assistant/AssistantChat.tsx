@@ -23,6 +23,7 @@ import { AssistantSettings, PACE_PRESETS, useAssistantDefaults } from "./Assista
 import { StartLocationPicker } from "./StartLocationPicker";
 import type { Attraction, Coordinates } from "@/lib/types";
 import { ACCESS_PROFILES } from "@/lib/walk/access";
+import { BTN_ALT, BTN_ALT_SM, chipCell } from "@/components/ui/panel-style";
 
 interface Message {
   role: "user" | "assistant";
@@ -209,9 +210,7 @@ function LimitsBox({
                 key={o}
                 type="button"
                 onClick={() => setLimits((l) => ({ ...l, [row.key]: o }))}
-                className={`rounded-full border px-2 py-1 text-xs ${
-                  limits[row.key] === o ? "border-terra bg-terra text-on-accent" : "border-charcoal/15"
-                }`}
+                className={chipCell(limits[row.key] === o)}
               >
                 {o === 0 ? "Back to start" : `${o} ${row.unit}`}
               </button>
@@ -219,9 +218,7 @@ function LimitsBox({
             <button
               type="button"
               onClick={() => setLimits((l) => ({ ...l, [row.key]: null }))}
-              className={`rounded-full border px-2 py-1 text-xs ${
-                limits[row.key] === null ? "border-terra bg-terra text-on-accent" : "border-charcoal/15"
-              }`}
+              className={chipCell(limits[row.key] === null)}
             >
               No limit
             </button>
@@ -250,9 +247,7 @@ function LimitsBox({
                 key={p.value}
                 type="button"
                 onClick={() => setLimits((l) => ({ ...l, paceMinPerKm: p.value }))}
-                className={`rounded-full border px-2 py-1 text-xs ${
-                  limits.paceMinPerKm === p.value ? "border-terra bg-terra text-on-accent" : "border-charcoal/15"
-                }`}
+                className={chipCell(limits.paceMinPerKm === p.value)}
               >
                 {p.label}
               </button>
@@ -689,7 +684,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
             rows={2}
             disabled={!hydrated}
             placeholder="I want to see Habima Square, the Jaffa port, and a good market"
-            className="block min-h-[76px] w-full resize-y rounded-[10px] border-[1.5px] border-forest bg-cream px-3 py-2 text-[16px] leading-[1.5] text-tk-ink placeholder:text-charcoal/50 focus:outline-2 focus:outline-offset-1 focus:outline-forest"
+            className="block min-h-[76px] w-full resize-y rounded-[10px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 py-2 text-[16px] leading-[1.5] text-tk-ink placeholder:text-charcoal/50 focus:outline-2 focus:outline-offset-1 focus:outline-forest"
           />
           <div className="flex flex-wrap items-center gap-[7px]">
             <input
@@ -707,7 +702,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               type="button"
               disabled={images.length >= MAX_IMAGES}
               onClick={() => fileInputRef.current?.click()}
-              className="min-h-11 rounded-full border-[1.5px] border-forest bg-cream px-4 text-[14px] font-semibold text-forest hover:bg-tk-bar disabled:cursor-not-allowed disabled:opacity-50"
+              className={BTN_ALT_SM}
             >
               📎 Add image
             </button>
@@ -762,7 +757,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                   type="button"
                   aria-pressed={themes.includes(t.label)}
                   onClick={() => setThemes((cur) => (cur.includes(t.label) ? cur.filter((l) => l !== t.label) : [...cur, t.label]))}
-                  className={`flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[10px] border-[1.5px] pe-3 ps-1.5 font-app-sans text-[15px] font-semibold text-tk-ink transition-colors ${themes.includes(t.label) ? "border-terra bg-terra/15" : "border-forest bg-cream hover:bg-tk-bar"}`}>
+                  className={`${chipCell(themes.includes(t.label))} shrink-0 gap-2 whitespace-nowrap pe-3 ps-1.5 text-[15px]`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={t.image} alt="" aria-hidden className="h-[30px] w-[30px] rounded-[6px] object-cover" />
                   {t.label}
@@ -771,7 +766,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               <button
                 type="button"
                 onClick={() => inputRef.current?.focus()}
-                className="flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[10px] border-[1.5px] border-dashed border-forest/60 bg-transparent pe-3 ps-3 font-app-sans text-[15px] font-semibold text-forest transition-colors hover:bg-tk-bar"
+                className={`${chipCell(false)} shrink-0 gap-2 whitespace-nowrap !border-dashed bg-transparent text-[15px]`}
               >
                 <span aria-hidden>📍</span>Custom Walk
               </button>
@@ -789,7 +784,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 aria-label={mic.listening ? "Stop dictation" : "Dictate"}
                 aria-pressed={mic.listening}
                 title={mic.listening ? "Stop dictation" : "Dictate"}
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-[1.5px] border-forest text-[16px] ${mic.listening ? "animate-pulse bg-terra text-on-accent" : "bg-cream text-forest"}`}
+                className={`${BTN_ALT} w-12 shrink-0 !px-0 ${mic.listening ? "animate-pulse !border-terra !bg-terra !text-on-accent" : ""}`}
               >
                 🎤
               </button>
@@ -801,7 +796,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 onClick={() => setMicLang(shownMicLang === "he" ? "en" : "he")}
                 aria-label={shownMicLang === "he" ? "Dictation language: Hebrew. Tap for English" : "Dictation language: English. Tap for Hebrew"}
                 title={shownMicLang === "he" ? "Dictation language: Hebrew (tap for English)" : "Dictation language: English (tap for Hebrew)"}
-                className="flex h-12 shrink-0 items-center justify-center rounded-full border-[1.5px] border-forest bg-cream px-3 text-[14px] font-semibold text-forest disabled:opacity-50"
+                className={`${BTN_ALT} shrink-0 !px-3 !text-[14px]`}
               >
                 {shownMicLang === "he" ? "עב" : "EN"}
               </button>

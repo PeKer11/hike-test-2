@@ -95,9 +95,9 @@ describe("WalkCompanionPanel — saved profile pre-fills the form", () => {
     );
   }
 
-  // The selected pace and interest chips are the ones painted terra.
+  // The selected pace and interest chips are the ones the shared chip marks `is-on` (filled pine).
   function isSelected(label: string) {
-    return screen.getByText(label).className.includes("border-terra");
+    return screen.getByText(label).classList.contains("is-on");
   }
 
   it("selects the saved pace and ticks the saved interests", () => {

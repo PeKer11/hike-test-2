@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { AssistantDefaults, TasteLevel } from "@/lib/assistant/defaults";
+import { chipCell } from "@/components/ui/panel-style";
 
 const STORAGE_KEY = "traike.assistantDefaults.v1";
 
@@ -64,9 +65,7 @@ const NUMBER_ROWS: Array<{ key: NumericKey; label: string; unit: string }> = [
 ];
 
 function chip(active: boolean): string {
-  return `rounded-full border px-2 py-1 text-xs ${
-    active ? "border-terra bg-terra text-on-accent" : "border-charcoal/15"
-  }`;
+  return chipCell(active);
 }
 
 export function AssistantSettings({

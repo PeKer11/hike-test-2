@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 
 import { Accessory } from "@/components/ui/Accessory";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { BTN_SOFT, LINK, PANEL, PANEL_TITLE, ROW } from "@/components/ui/panel-style";
+import { BTN, BTN_ALT_SM, BTN_SOFT, LINK, PANEL, PANEL_TITLE, ROW, chipCell } from "@/components/ui/panel-style";
 import { socialProfilesEnabled } from "@/lib/social/flag";
 import { listMyWalksOrThrow, type SavedWalk } from "@/lib/walks/saved-walks";
 import { deleteWalk, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
@@ -137,7 +137,12 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   // A variant nests under its parent only when the parent is in this list too; otherwise it stands alone.
   const baseIds = new Set(base.map((i) => i.walk.id));
   const shown = base.filter((i) => (segment !== undefined ? !(i.walk.parentWalkId && baseIds.has(i.walk.parentWalkId)) : !isNested(i) || filter === "drafts"));
-  const fmt = (iso: string) => new Date(iso).toLocaleDateString("en", { month: "short", day: "numeric" });
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString(lang === "he" ? "he-IL" : "en", { month: "short", day: "numeric" });
+  // The list rows speak the walker's language; the detail page below is still English.
+  const L =
+    lang === "he"
+      ? { again: "הולכים שוב", cont: "המשך", start: "מתחילים", draft: "טיוטה", status: { planned: "מתוכנן", saved: "שמור", completed: "הושלם" }, min: "דק׳", km: 'ק"מ', last: "הליכה אחרונה", open: "פתיחה" }
+      : { again: "Walk again", cont: "Continue", start: "Start walk", draft: "draft", status: { planned: "planned", saved: "saved", completed: "completed" }, min: "min", km: "km", last: "Last walked", open: "Open" };
 
   // The main button says what it will do: continue an interrupted walk, start one never walked, or walk a finished one again.
   // All three go through onWalkAgain, whose chooser already offers "continue from the last stop" when a run ended early.
@@ -146,26 +151,24 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
     <button
       type="button"
       onClick={() => onWalkAgain(w)}
-      className={`min-h-11 cursor-pointer whitespace-nowrap rounded-full px-5 text-[15px] font-semibold ${quiet ? "border-[1.5px] border-forest bg-cream text-forest hover:bg-tk-bar" : "bg-terra text-on-accent shadow-[0_3px_0_var(--tk-lip)] hover:bg-terra/90 active:translate-y-[2px]"}`}
+      className={quiet ? BTN_ALT_SM : BTN}
     >
-      {w.status === "completed" ? "Walk again" : runs[0]?.lastStopIndex != null ? "Continue" : runCount > 0 ? "Walk again" : "Start walk"}
+      {w.status === "completed" ? L.again : runs[0]?.lastStopIndex != null ? L.cont : runCount > 0 ? L.again : L.start}
     </button>
   );
 
   // The list row: what it is, at a glance. Tap it to go inside; only the main button lives here.
   const card = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => (
-    <li key={w.id} className={`${ROW} flex items-center gap-3`}>
-      <button type="button" aria-label={`Open ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-start">
-        <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-14 w-14 shrink-0 !rounded-[8px]" />
+    <li key={w.id} className={ROW}>
+      <button type="button" aria-label={`${L.open} ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-start">
+        <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-12 w-12 shrink-0 !rounded-[8px]" />
         <span className="block min-w-0 flex-1 space-y-0.5">
           <span dir="auto" className="block font-app-sans text-[17px] font-semibold leading-snug text-tk-ink">{w.title}</span>
           <span className="flex flex-wrap items-center gap-x-2 text-[14px] text-tk-sage">
-            <span className={`shrink-0 rounded-full px-2 ${CHIP[w.status]}`}>{isDraft ? "draft" : w.status}</span>
-            <span>
-              {runCount > 0 ? `Last walked ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}
-              {w.totalMin !== null && ` · ${w.totalMin} min`}
-              {w.distanceM !== null && ` · ${(w.distanceM / 1000).toFixed(1)} km`}
-            </span>
+            <span className={`shrink-0 rounded-full px-2 ${CHIP[w.status]}`}>{isDraft ? L.draft : L.status[w.status]}</span>
+            <span className="whitespace-nowrap">{runCount > 0 ? `${L.last} ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}</span>
+            {w.totalMin !== null && <span className="whitespace-nowrap">· {w.totalMin} {L.min}</span>}
+            {w.distanceM !== null && <span className="whitespace-nowrap">· {(w.distanceM / 1000).toFixed(1)} {L.km}</span>}
           </span>
           {w.stops.length > 0 && <span className="flex items-center gap-1.5 text-[14px] text-tk-body"><Accessory name="footprints" className="w-4 shrink-0" /><span dir="auto" className="min-w-0 truncate">{w.stops.map((s) => s.name).join(" → ")}</span></span>}
         </span>
@@ -299,7 +302,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
       )}
       <div role="group" aria-label="Filter walks" className={segment !== undefined ? "hidden" : "flex gap-2 text-[13px]"}>
         {(["all", "drafts"] as const).map((f) => (
-          <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`min-h-11 cursor-pointer rounded-[10px] border-[1.5px] px-4 font-semibold ${filter === f ? "border-terra bg-terra/15 text-tk-check" : "border-forest bg-cream text-forest"}`}>
+          <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={chipCell(filter === f)}>
             {f === "all" ? "All" : "Drafts"}
           </button>
         ))}
@@ -319,14 +322,14 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
               />
               {segment && onNewRoute ? (
                 <div className="flex justify-center pb-2">
-                  <button type="button" onClick={onNewRoute} className="min-h-12 rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-[0_3px_0_var(--tk-lip)] active:translate-y-[2px]">
+                  <button type="button" onClick={onNewRoute} className={BTN}>
                     {lang === "he" ? "מסלול חדש" : "New route"}
                   </button>
                 </div>
               ) : null}
             </>
           )}
-          <ul aria-label="My walks" className="space-y-2.5">
+          <ul aria-label="My walks" className="-mx-4">
             {shown.map((item) => card(item))}
           </ul>
         </>

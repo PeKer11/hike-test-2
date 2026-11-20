@@ -157,7 +157,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Start from: city or address"
-          className="block min-h-11 min-w-0 flex-1 rounded-[10px] border-[1.5px] border-forest bg-cream px-3 py-2 text-[16px] text-tk-ink placeholder:text-charcoal/50 focus:outline-2 focus:outline-offset-1 focus:outline-forest"
+          className="block min-h-11 min-w-0 flex-1 rounded-[10px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 py-2 text-[16px] text-tk-ink placeholder:text-charcoal/50 focus:outline-2 focus:outline-offset-1 focus:outline-forest"
         />
         <button
           type="button"
@@ -170,7 +170,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
       </div>
       {denied ? <LocationDeniedCard onSearch={() => inputRef.current?.focus()} /> : null}
       {results.length > 0 && (
-        <ul className="absolute inset-x-[17px] top-full z-20 mt-[2px] max-h-44 overflow-auto rounded-[10px] border-[1.5px] border-forest bg-cream shadow-tk-soft">
+        <ul className="absolute inset-x-[17px] top-full z-20 mt-[2px] max-h-44 overflow-auto rounded-[10px] border-[1.5px] border-[var(--tk-ctl)] bg-cream shadow-tk-soft">
           {results.map((r) => (
             <li key={r.id}>
               <button
