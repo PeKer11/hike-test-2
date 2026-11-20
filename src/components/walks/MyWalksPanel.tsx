@@ -141,31 +141,36 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
 
   // The main button says what it will do: continue an interrupted walk, start one never walked, or walk a finished one again.
   // All three go through onWalkAgain, whose chooser already offers "continue from the last stop" when a run ended early.
-  const primaryButton = (w: SavedWalk, runs: WalkWithRuns["runs"], runCount: number) => (
-    <button type="button" onClick={() => onWalkAgain(w)} className="min-h-11 cursor-pointer rounded-full bg-terra px-5 text-[15px] font-semibold text-on-accent hover:bg-terra/90">
+  // In a list row the button is quiet (forest edge); on the detail page it is the one terracotta action.
+  const primaryButton = (w: SavedWalk, runs: WalkWithRuns["runs"], runCount: number, quiet = false) => (
+    <button
+      type="button"
+      onClick={() => onWalkAgain(w)}
+      className={`min-h-11 cursor-pointer whitespace-nowrap rounded-full px-5 text-[15px] font-semibold ${quiet ? "border-[1.5px] border-forest bg-cream text-forest hover:bg-tk-bar" : "bg-terra text-on-accent shadow-[0_3px_0_var(--tk-lip)] hover:bg-terra/90 active:translate-y-[2px]"}`}
+    >
       {w.status === "completed" ? "Walk again" : runs[0]?.lastStopIndex != null ? "Continue" : runCount > 0 ? "Walk again" : "Start walk"}
     </button>
   );
 
   // The list row: what it is, at a glance. Tap it to go inside; only the main button lives here.
   const card = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => (
-    <li key={w.id} className={ROW}>
-      <button type="button" aria-label={`Open ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="flex w-full cursor-pointer items-start gap-3 text-left">
-        <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-16 w-16 shrink-0" />
-        <span className="block min-w-0 flex-1 space-y-1">
-          <span className="flex items-center justify-between gap-2">
-            <span className="font-display text-[15px] leading-snug text-tk-ink">{w.title}</span>
-            <span className={`shrink-0 rounded-full px-2 py-0.5 ${CHIP[w.status]}`}>{isDraft ? "draft" : w.status}</span>
+    <li key={w.id} className={`${ROW} flex items-center gap-3`}>
+      <button type="button" aria-label={`Open ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-start">
+        <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-14 w-14 shrink-0 !rounded-[8px]" />
+        <span className="block min-w-0 flex-1 space-y-0.5">
+          <span className="block font-app-sans text-[17px] font-semibold leading-snug text-tk-ink">{w.title}</span>
+          <span className="flex flex-wrap items-center gap-x-2 text-[14px] text-tk-sage">
+            <span className={`shrink-0 rounded-full px-2 ${CHIP[w.status]}`}>{isDraft ? "draft" : w.status}</span>
+            <span>
+              {runCount > 0 ? `Last walked ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}
+              {w.totalMin !== null && ` · ${w.totalMin} min`}
+              {w.distanceM !== null && ` · ${(w.distanceM / 1000).toFixed(1)} km`}
+            </span>
           </span>
-          <span className="block text-[13px] text-tk-sage">
-            {runCount > 0 ? `Last walked ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}
-            {w.totalMin !== null && ` · ${w.totalMin} min`}
-            {w.distanceM !== null && ` · ${(w.distanceM / 1000).toFixed(1)} km`}
-          </span>
-          {w.stops.length > 0 && <span className="flex items-start gap-1.5 text-tk-body"><Accessory name="footprints" className="mt-0.5 w-4 shrink-0" /><span>{w.stops.map((s) => s.name).join(" → ")}</span></span>}
+          {w.stops.length > 0 && <span className="flex items-center gap-1.5 text-[14px] text-tk-body"><Accessory name="footprints" className="w-4 shrink-0" /><span className="min-w-0 truncate">{w.stops.map((s) => s.name).join(" → ")}</span></span>}
         </span>
       </button>
-      <div className="pt-2">{primaryButton(w, runs, runCount)}</div>
+      <div className="shrink-0">{primaryButton(w, runs, runCount, true)}</div>
     </li>
   );
 
@@ -287,15 +292,14 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
 
   return (
     <section className={`${PANEL} space-y-3`}>
-      <Accessory name="boot" className="absolute -right-1 top-1 w-[68px] -rotate-6" />
       {segment ? null : (
-      <div className="pr-16">
+      <div>
         <h2 className={PANEL_TITLE}>My walks{loading ? "" : ` (${items.length})`}</h2>
       </div>
       )}
       <div role="group" aria-label="Filter walks" className={segment !== undefined ? "hidden" : "flex gap-2 text-[13px]"}>
         {(["all", "drafts"] as const).map((f) => (
-          <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`min-h-11 cursor-pointer rounded-full px-4 font-medium shadow-tk-soft ${filter === f ? "bg-terra/10 text-terra" : "bg-tk-well text-tk-sage"}`}>
+          <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`min-h-11 cursor-pointer rounded-[10px] border-[1.5px] px-4 font-semibold ${filter === f ? "border-terra bg-terra/15 text-tk-check" : "border-forest bg-cream text-forest"}`}>
             {f === "all" ? "All" : "Drafts"}
           </button>
         ))}
@@ -315,7 +319,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
               />
               {segment && onNewRoute ? (
                 <div className="flex justify-center pb-2">
-                  <button type="button" onClick={onNewRoute} className="min-h-12 rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-tk-soft">
+                  <button type="button" onClick={onNewRoute} className="min-h-12 rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-[0_3px_0_var(--tk-lip)] active:translate-y-[2px]">
                     {lang === "he" ? "מסלול חדש" : "New route"}
                   </button>
                 </div>

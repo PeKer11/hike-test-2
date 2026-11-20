@@ -128,24 +128,24 @@ export function StandingFactsPanel({
   }
 
   return (
-    <section className="space-y-2 rounded-[10px] border border-charcoal/10 bg-cream/60 p-3">
+    <section className="bg-cream font-app-sans">
       <button
         type="button"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className="flex w-full cursor-pointer items-center justify-between text-sm font-medium text-charcoal/80 hover:text-forest"
+        className="flex min-h-11 w-full cursor-pointer items-center justify-between border-y border-tk-hair bg-tk-bar px-4 text-[15px] font-semibold text-tk-ink"
       >
         <span>Things I remember about you ({facts.length})</span>
         <span aria-hidden="true">{isOpen ? "▲" : "▼"}</span>
       </button>
 
       {isOpen && (
-        <>
+        <div className="space-y-2 px-4 py-3">
           <ul aria-label="Things I remember about you" className="space-y-1">
             {facts.map((fact) => (
               <li
                 key={fact.id}
-                className="flex items-center justify-between gap-2 rounded-md bg-paper/70 px-2 py-1.5 text-xs"
+                className="flex items-center justify-between gap-2 rounded-md bg-paper/70 px-2 py-1.5 text-[13px]"
               >
                 <span className="text-charcoal/80">
                   {fact.text}
@@ -167,17 +167,17 @@ export function StandingFactsPanel({
           {forgetError && (
             <p
               role="alert"
-              className="rounded-md bg-rose-50 px-2 py-1.5 text-xs text-rose-700"
+              className="rounded-md bg-rose-50 px-2 py-1.5 text-[13px] text-rose-700"
             >
               {forgetError}
             </p>
           )}
-          <p className="text-xs text-charcoal/60">
+          <p className="text-[13px] text-charcoal/60">
             {learnPreferences
               ? "These shape how we read what you ask for. Delete anything that isn't true."
               : "Preference learning is off, so nothing new is being added — but these are still used."}
           </p>
-        </>
+        </div>
       )}
     </section>
   );

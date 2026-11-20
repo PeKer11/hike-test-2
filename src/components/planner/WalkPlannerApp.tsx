@@ -42,6 +42,7 @@ import { SideTabs, type SideTab } from "@/components/planner/SideTabs";
 import { FriendsPanel } from "@/components/walks/FriendsPanel";
 import { MyWalksPanel } from "@/components/walks/MyWalksPanel";
 import { ScreenHeader } from "@/components/shell/ScreenHeader";
+import { WalksBand } from "@/components/shell/WalksBand";
 import { Segmented } from "@/components/shell/Segmented";
 import { classifyPoint } from "@/lib/places/safety-zones";
 import { presenceEnabled } from "@/lib/social/flag";
@@ -1228,6 +1229,8 @@ export function WalkPlannerApp({
     window.history.replaceState(null, "", `/app?view=walks&tab=${tab}`);
   };
   const hubTab = view === "walks" || view === "social";
+  // Walks is a sheet under a sunset band (round 13), not the sand-wall sidebar.
+  const walksScreen = view === "walks";
   // Walk again, from wherever the walker is: find them, decide what to offer, and either just start or ask once.
   const [againFlow, setAgainFlow] = useState<{ walk: SavedWalk; here: Coordinates | null; decision: WalkAgainDecision } | null>(null);
   const [chatPrefill, setChatPrefill] = useState<{ text: string; tick: number } | null>(null);
@@ -3793,11 +3796,11 @@ export function WalkPlannerApp({
           walkMode && isDetailsOpen
             ? "absolute inset-x-0 bottom-0 z-[700] max-h-[70%] flex-none rounded-t-2xl shadow-[0_-4px_20px_rgba(30,61,47,0.18)] @4xl:static @4xl:max-h-none @4xl:flex-1 @4xl:rounded-none @4xl:shadow-none"
             : "relative"
-        } planner-sidebar p-[14px] pb-[26px] @4xl:p-[12px] @4xl:pb-[20px] @6xl:p-[14px] @6xl:pb-[26px]`}
+        } planner-sidebar ${walksScreen ? "p-0 pb-6" : "p-[14px] pb-[26px] @4xl:p-[12px] @4xl:pb-[20px] @6xl:p-[14px] @6xl:pb-[26px]"}`}
         style={{
           width: hubTab ? "100%" : undefined,
-          backgroundColor: "var(--tk-sidebar-bg)",
-          backgroundImage: "var(--tk-sidebar-img)",
+          backgroundColor: walksScreen ? "var(--tk-cream)" : "var(--tk-sidebar-bg)",
+          backgroundImage: walksScreen ? "none" : "var(--tk-sidebar-img)",
           backgroundRepeat: "no-repeat",
           backgroundSize: "max(100%, 460px) auto",
           backgroundPosition: "right top",
@@ -3866,21 +3869,24 @@ export function WalkPlannerApp({
           </button>
         </div>
 
-        {hubTab && (
+        {walksScreen && <WalksBand lang={uiLang === "he" ? "he" : "en"} signedIn={isSignedIn} />}
+        {hubTab && !walksScreen && (
           <div className="relative z-10 mx-auto mb-3 max-w-[440px]">
             <div aria-hidden className="pointer-events-none absolute -inset-x-4 top-0 -z-10 h-44 bg-[url('/images/traike/folded-map.svg')] bg-cover bg-center opacity-20" />
-            <ScreenHeader title={uiLang === "he" ? (view === "walks" ? "הליכות" : "חברים") : view === "walks" ? "Walks" : "Friends"} />
+            <ScreenHeader title={uiLang === "he" ? "חברים" : "Friends"} />
           </div>
         )}
         {hubTab && !isSignedIn && (
-          <div className="relative z-10 mx-auto max-w-[440px] space-y-3 rounded-tk-card bg-paper p-4 text-center shadow-tk-card">
+          <div className="relative z-10 mx-auto max-w-[440px] space-y-3 px-4 py-6 text-center">
             <EmptyState image="signed-out.png" title={uiLang === "he" ? (view === "walks" ? "התחברו כדי לראות את ההליכות שלכם" : "התחברו כדי לראות את החברים שלכם") : view === "walks" ? "Log in to see your walks" : "Log in to see your friends"} />
-            <Link href="/login" className="inline-flex min-h-12 items-center rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-tk-soft">
+            <Link href="/login" className="inline-flex min-h-12 items-center rounded-full bg-terra px-6 text-[15px] font-semibold text-on-accent shadow-[0_3px_0_var(--tk-lip)]">
               {uiLang === "he" ? "התחברות" : "Log in"}
             </Link>
           </div>
         )}
-        <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : "space-y-[15px]"}`}>
+        {/* Round 13: outside a walk, everything below the header sits on one cream sheet that the header art melts into. */}
+        <div className={walkMode ? "contents" : `relative z-10 bg-cream ${walksScreen ? "" : "-mx-[14px] -mb-[26px] before:pointer-events-none before:absolute before:inset-x-0 before:-top-10 before:h-10 before:bg-gradient-to-b before:from-transparent before:to-cream @4xl:-mx-[12px] @4xl:-mb-[20px] @6xl:-mx-[14px] @6xl:-mb-[26px]"}`}>
+        <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : `space-y-[15px] px-4 pb-6 ${walksScreen ? "pt-1" : ""}`}`}>
           {isAdvancedOpen && (
             <Card className="space-y-2">
               <div className="text-sm font-semibold text-forest">Planning mode</div>
@@ -4657,7 +4663,7 @@ export function WalkPlannerApp({
             <button
               type="button"
               onClick={handleClearAll}
-              className={`${walkMode ? "hidden " : ""}mx-auto flex items-center gap-[8px] py-2 text-[12.75px] font-semibold leading-[20px] text-tk-body`}
+              className={`${walkMode || walksScreen ? "hidden " : ""}mx-auto flex items-center gap-[8px] py-2 text-[12.75px] font-semibold leading-[20px] text-tk-body`}
             >
               <svg aria-hidden viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 12a8 8 0 1 1-2.5-5.8" />
@@ -4689,6 +4695,7 @@ export function WalkPlannerApp({
           topRatedNote={topRatedNote}
           signedIn={isSignedIn}
         />}
+        </div>
       </aside>
 
       {againFlow && (

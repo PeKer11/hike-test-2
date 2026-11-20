@@ -4,7 +4,9 @@ import { geolocationSupported, locate } from "@/lib/geo/locate";
 import { loadSavedStart } from "@/lib/start-location";
 import { useEffect, useRef, useState } from "react";
 
-import { Button, Card, LoadingSpinner } from "@/components/ui";
+import { Button, LoadingSpinner } from "@/components/ui";
+import { SegRow } from "@/components/ui/SegRow";
+import { CTRL_BOX, SEC_BAR, chipCell } from "@/components/ui/panel-style";
 import { StandingFactsPanel } from "@/components/StandingFactsPanel";
 import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
@@ -404,29 +406,29 @@ export function WalkCompanionPanel({
     });
   };
 
+  // The time presets mirror the number box: a preset lights up only while the box holds exactly its value.
+  const timePreset = availableMinutes === "" ? "open" : ["45", "60", "90"].includes(availableMinutes) ? availableMinutes : null;
+
+  // The sheet block: a section bar, then fields with a 16px gutter. The settings bars below run edge to edge.
   return (
-    <Card className="space-y-3">
-      <div>
-        <h2 className="font-display text-base font-bold text-forest">City Walk Companion</h2>
-        <p className="text-xs text-charcoal/60">
-          Tell us where you are and how long you have — we&apos;ll build a smart walk.
-        </p>
-      </div>
+    <section className="-mx-4 border-b border-tk-hair bg-cream font-app-sans">
+      <h2 className={SEC_BAR}>City Walk Companion</h2>
 
       {!chatOnly && (
-      <>
+      <div className="space-y-4 px-4 py-3">
       {/* Location */}
       <div className="space-y-2">
-        <Button
-          variant="secondary"
-          fullWidth
+        <button
+          type="button"
           onClick={() => void detectLocation()}
           disabled={isDetecting || isLoading}
+          className="tk-champagne inline-flex min-h-11 items-center gap-2 px-4 text-[15px] disabled:opacity-60"
         >
+          <span aria-hidden className="tk-champagne-ring" />
           {isDetecting ? "Detecting…" : "Use my current location"}
-        </Button>
+        </button>
         {locationError && (
-          <p className="text-xs text-rose-700">{locationError}</p>
+          <p className="text-[13px] text-rose-700">{locationError}</p>
         )}
         <div className="grid grid-cols-2 gap-2">
           <input
@@ -434,36 +436,34 @@ export function WalkCompanionPanel({
             value={lat}
             onChange={(e) => setLat(e.target.value)}
             placeholder="Latitude"
-            className="rounded-md border border-charcoal/15 px-2 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
+            className={CTRL_BOX}
           />
           <input
             type="text"
             value={lng}
             onChange={(e) => setLng(e.target.value)}
             placeholder="Longitude"
-            className="rounded-md border border-charcoal/15 px-2 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
+            className={CTRL_BOX}
           />
         </div>
       </div>
 
       {/* Time */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-charcoal/80">
-            Time available (minutes)
-          </label>
-          <button
-            type="button"
-            onClick={() => setAvailableMinutes(availableMinutes === "" ? "90" : "")}
-            className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
-              availableMinutes === ""
-                ? "border-terra bg-terra/10 text-terra"
-                : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
-            }`}
-          >
-            No time limit
-          </button>
-        </div>
+      <div className="space-y-2">
+        <label className="block text-[15px] font-semibold text-tk-ink">
+          Time available (minutes)
+        </label>
+        <SegRow
+          label="Time available"
+          value={timePreset}
+          onChange={(id) => setAvailableMinutes(id === "open" ? "" : id)}
+          items={[
+            { id: "45", label: "45m" },
+            { id: "60", label: "60m" },
+            { id: "90", label: "90m" },
+            { id: "open", label: "Open" },
+          ]}
+        />
         <input
           type="number"
           min={15}
@@ -471,24 +471,20 @@ export function WalkCompanionPanel({
           placeholder="No limit"
           value={availableMinutes}
           onChange={(e) => setAvailableMinutes(e.target.value)}
-          className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
+          className={CTRL_BOX}
         />
       </div>
 
       {/* Search radius */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-charcoal/80">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-[15px] font-semibold text-tk-ink">
             Search radius (km)
           </label>
           <button
             type="button"
             onClick={() => setRadiusKm(radiusKm === "" ? "2" : "")}
-            className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
-              radiusKm === ""
-                ? "border-terra bg-terra/10 text-terra"
-                : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
-            }`}
+            className={chipCell(radiusKm === "")}
           >
             No radius limit
           </button>
@@ -501,24 +497,20 @@ export function WalkCompanionPanel({
           placeholder="No limit"
           value={radiusKm}
           onChange={(e) => setRadiusKm(e.target.value)}
-          className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
+          className={CTRL_BOX}
         />
       </div>
 
       {/* Finish distance from the start */}
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-charcoal/80">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-[15px] font-semibold text-tk-ink">
             Max distance from start at end (km)
           </label>
           <button
             type="button"
             onClick={() => setEndDistanceKm(endDistanceKm === "" ? "2" : "")}
-            className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
-              endDistanceKm === ""
-                ? "border-terra bg-terra/10 text-terra"
-                : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
-            }`}
+            className={chipCell(endDistanceKm === "")}
           >
             No limit
           </button>
@@ -531,17 +523,17 @@ export function WalkCompanionPanel({
           placeholder="Any"
           value={endDistanceKm}
           onChange={(e) => setEndDistanceKm(e.target.value)}
-          className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
+          className={CTRL_BOX}
         />
-        <p className="text-[11px] text-charcoal/50">
+        <p className="text-[13px] text-charcoal/70">
           Leave blank to finish anywhere. 0 = come back to where you started.
         </p>
       </div>
 
       {/* Walking pace */}
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-charcoal/80">Walking pace</label>
-        <div className="grid grid-cols-3 gap-1">
+      <div className="space-y-2">
+        <label className="block text-[15px] font-semibold text-tk-ink">Walking pace</label>
+        <div className="grid grid-cols-2 gap-2">
           {PACE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -549,11 +541,7 @@ export function WalkCompanionPanel({
                 setPace(opt.value);
                 setCustomPace("");
               }}
-              className={`rounded-md border px-2 py-3 text-xs font-medium transition sm:py-1.5 ${
-                pace === opt.value
-                  ? "border-terra bg-terra/10 text-terra"
-                  : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
-              }`}
+              className={`min-h-11 ${chipCell(pace === opt.value)}`}
             >
               {opt.label}
             </button>
@@ -571,26 +559,22 @@ export function WalkCompanionPanel({
             const n = parseFloat(e.target.value);
             if (Number.isFinite(n) && n >= 4 && n <= 40) setPace(n);
           }}
-          className="w-full rounded-md border border-charcoal/15 px-2 py-2 text-sm focus:border-terra focus:outline-none"
+          className={CTRL_BOX}
         />
       </div>
 
       {/* Categories */}
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-charcoal/80">
+      <div className="space-y-2">
+        <label className="block text-[15px] font-semibold text-tk-ink">
           Interests{" "}
-          <span className="font-normal text-charcoal/40">(optional)</span>
+          <span className="font-normal text-charcoal/60">(optional)</span>
         </label>
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-2">
           {CATEGORY_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => toggleCategory(opt.value)}
-              className={`rounded-full border px-3 py-2 text-xs transition sm:px-2 sm:py-1 ${
-                selectedCategories.includes(opt.value)
-                  ? "border-terra bg-terra/10 text-terra"
-                  : "border-charcoal/15 bg-paper text-charcoal/70 hover:bg-cream/70"
-              }`}
+              className={`min-h-11 ${chipCell(selectedCategories.includes(opt.value))}`}
             >
               {opt.label}
             </button>
@@ -598,7 +582,7 @@ export function WalkCompanionPanel({
         </div>
       </div>
 
-      </>
+      </div>
       )}
 
       {/* Walk settings */}
@@ -612,8 +596,9 @@ export function WalkCompanionPanel({
         learnPreferences={walkSettings.preferenceLearningEnabled}
       />
 
+      <div className="space-y-3 px-4 py-3 empty:hidden">
       {formError && (
-        <p className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">
+        <p className="rounded-[10px] bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
           {formError}
         </p>
       )}
@@ -656,6 +641,7 @@ export function WalkCompanionPanel({
           Start Walk
         </Button>
       ) : null}
-    </Card>
+      </div>
+    </section>
   );
 }

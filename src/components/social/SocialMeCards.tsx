@@ -10,7 +10,7 @@ import { socialCopy, type SocialLang } from "@/lib/social/copy";
 import { presenceEnabled, socialProfilesEnabled } from "@/lib/social/flag";
 import { getMyProfile, listMyBlocks, unblockUser, type BlockedUser, type MyProfile } from "@/lib/social/profiles";
 
-const CARD = "space-y-3 rounded-tk-card bg-paper p-4 shadow-tk-card";
+const CARD = "space-y-3 border-b border-tk-hair bg-cream px-4 py-3";
 
 /** Me: the social profile card and the privacy card (visibility, blocked people). Renders nothing until profiles are on and applied. */
 export function SocialMeCards({ lang, signedIn }: { lang: SocialLang; signedIn: boolean }) {
@@ -57,7 +57,7 @@ export function SocialMeCards({ lang, signedIn }: { lang: SocialLang; signedIn: 
         ) : (
           <>
             <p className="text-[16px] text-tk-ink">{t.meNoProfile}</p>
-            <button type="button" onClick={() => setEdit(true)} className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-tk-soft">
+            <button type="button" onClick={() => setEdit(true)} className="min-h-12 rounded-full bg-terra px-6 text-[16px] font-semibold text-on-accent shadow-[0_3px_0_var(--tk-lip)]">
               {t.createCta}
             </button>
           </>

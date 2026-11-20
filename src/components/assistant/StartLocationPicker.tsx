@@ -157,19 +157,20 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Start from: city or address"
-          className="block min-w-0 flex-1 rounded-[6px] border border-tk-field bg-paper px-[10px] py-[4px] text-[12.5px] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
+          className="block min-h-11 min-w-0 flex-1 rounded-[10px] border-[1.5px] border-forest bg-cream px-3 py-2 text-[16px] text-tk-ink placeholder:text-charcoal/50 focus:outline-2 focus:outline-offset-1 focus:outline-forest"
         />
         <button
           type="button"
           onClick={() => startLocating(false)}
-          className="shrink-0 whitespace-nowrap rounded-full border border-tk-send/60 bg-transparent px-[10px] py-[4px] font-brand text-[12px] font-semibold text-tk-wordmark transition-colors hover:bg-paper"
+          className="tk-champagne inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap px-4 font-app-sans text-[15px]"
         >
+          <span aria-hidden className="tk-champagne-ring" />
           My location
         </button>
       </div>
       {denied ? <LocationDeniedCard onSearch={() => inputRef.current?.focus()} /> : null}
       {results.length > 0 && (
-        <ul className="absolute inset-x-[17px] top-full z-20 mt-[2px] max-h-44 overflow-auto rounded-[6px] border border-tk-field bg-paper shadow-tk-soft">
+        <ul className="absolute inset-x-[17px] top-full z-20 mt-[2px] max-h-44 overflow-auto rounded-[10px] border-[1.5px] border-forest bg-cream shadow-tk-soft">
           {results.map((r) => (
             <li key={r.id}>
               <button
@@ -182,7 +183,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
                   saveStart(r.coordinates, r.name);
                   onPick(r.coordinates);
                 }}
-                className="block w-full px-[10px] py-[6px] text-start text-[12px] text-tk-body hover:bg-tk-well"
+                className="block min-h-11 w-full px-3 py-2 text-start text-[15px] text-tk-ink hover:bg-tk-bar"
               >
                 {r.name}
               </button>
@@ -191,9 +192,9 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
         </ul>
       )}
       {status ? (
-        <p dir="auto" className="mt-[4px] text-start text-[11.5px] text-charcoal/60">{status}</p>
+        <p dir="auto" className="mt-[4px] text-start text-[13px] text-charcoal/70">{status}</p>
       ) : label ? (
-        <p dir="auto" className="mt-[4px] truncate text-[11.5px] text-tk-sage">
+        <p dir="auto" className="mt-[4px] truncate text-[13px] text-tk-sage">
           Starting from: {label}
         </p>
       ) : null}

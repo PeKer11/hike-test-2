@@ -44,9 +44,11 @@ const DEVIATION_MODE_LABELS: { value: DeviationResponseMode; text: string }[] = 
 ];
 
 const SELECT_CLASS =
-  "rounded-md border border-charcoal/15 bg-paper px-2 py-1 text-sm text-forest outline-none ring-terra transition focus:ring-2";
+  "min-h-10 rounded-[10px] border-[1.5px] border-forest bg-cream px-2 text-[15px] text-forest outline-none focus:outline-2 focus:outline-offset-1 focus:outline-forest";
 const ROW_CLASS =
-  "flex items-center justify-between gap-3 text-sm text-charcoal/80";
+  "flex items-center justify-between gap-3 text-[15px] text-tk-ink";
+const NUMBER_CLASS =
+  "w-full rounded-[10px] border-[1.5px] border-forest bg-cream px-3 py-2 text-[16px] text-tk-ink outline-none focus:outline-2 focus:outline-offset-1 focus:outline-forest";
 
 /**
  * One named group of settings.
@@ -69,9 +71,9 @@ function SettingsSection({
   return (
     <section
       aria-labelledby={headingId}
-      className="space-y-2 border-t border-charcoal/10 pt-3 first:border-t-0 first:pt-0"
+      className="space-y-2 border-t border-tk-hair pt-3 first:border-t-0 first:pt-0"
     >
-      <h3 id={headingId} className="text-sm font-medium text-charcoal/80">
+      <h3 id={headingId} className="text-[15px] font-semibold text-tk-ink">
         {title}
       </h3>
       {children}
@@ -113,19 +115,19 @@ export function WalkSettingsPanel({
   };
 
   return (
-    <section className="space-y-4 rounded-[10px] border border-charcoal/10 bg-cream/60 p-3">
+    <section className="bg-cream font-app-sans">
       <button
         type="button"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className="flex w-full cursor-pointer items-center justify-between text-sm font-medium text-charcoal/80 hover:text-forest"
+        className="flex min-h-11 w-full cursor-pointer items-center justify-between border-y border-tk-hair bg-tk-bar px-4 text-[15px] font-semibold text-tk-ink"
       >
         <span>Walk settings</span>
         <span aria-hidden="true">{isOpen ? "▲" : "▼"}</span>
       </button>
 
       {isOpen && (
-        <div className="space-y-4">
+        <div className="space-y-4 px-4 py-3">
           {/* Ordering inside every group: what decides whether we act at all
               comes first, then what shapes how we act, then the tuning that
               only matters once something is switched on. */}
@@ -152,20 +154,20 @@ export function WalkSettingsPanel({
                 no heading at all and read as though it belonged to the
                 off-route group directly above it. It has only ever been about
                 pace. */}
-            <label className="space-y-1 text-sm text-charcoal/80">
+            <label className="space-y-1 text-[15px] text-tk-ink">
               <span className="block">How often we check your pace (seconds)</span>
               <input
                 type="number"
                 min={30}
                 value={intervalSeconds}
                 onChange={handleIntervalChange}
-                className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base text-forest outline-none ring-terra transition focus:ring-2 sm:text-sm"
+                className={NUMBER_CLASS}
               />
             </label>
           </SettingsSection>
 
           <SettingsSection title="If I go off route">
-            <label className="space-y-1 text-sm text-charcoal/80">
+            <label className="space-y-1 text-[15px] text-tk-ink">
               <span className="block">Ask me when I am this far from the route (metres)</span>
               <input
                 type="number"
@@ -178,7 +180,7 @@ export function WalkSettingsPanel({
                   event.target.value = String(m);
                   onChange({ deviationDistanceM: m });
                 }}
-                className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base text-forest outline-none ring-terra transition focus:ring-2 sm:text-sm"
+                className={NUMBER_CLASS}
               />
             </label>
             <label className={ROW_CLASS}>
@@ -210,7 +212,7 @@ export function WalkSettingsPanel({
                   }
                   label="If I don't answer but keep walking one way"
                 />
-                <p className="text-xs text-charcoal/60">
+                <p className="text-[13px] text-charcoal/70">
                   {settings.continueHeadingOnSilence
                     ? "On — if I hold one direction the whole time you don't answer, redraw the walk around where I'm actually going."
                     : "Off — silence leaves the old route alone, same as always."}
@@ -281,7 +283,7 @@ export function WalkSettingsPanel({
               onChange={(next) => onChange({ autoResumeAfterRebuild: next })}
               label="Start the new walk for me"
             />
-            <p className="text-xs text-charcoal/60">
+            <p className="text-[13px] text-charcoal/70">
               {settings.autoResumeAfterRebuild
                 ? "On — once we reshape your walk, tracking picks straight up on the new route."
                 : "Off — we'll show you the reshaped walk and wait for you to press Start Walk."}
@@ -292,17 +294,17 @@ export function WalkSettingsPanel({
               because it is the one that quietly changes what gets built;
               keeping the requests only shows the walker their own words back. */}
           <SettingsSection title="Language / שפה">
-            <div role="group" aria-label="Language" className="flex gap-2 text-sm">
+            <div role="group" aria-label="Language" className="flex gap-2 text-[15px]">
               {(["auto", "he", "en"] as const).map((code) => (
                 <button
                   key={code}
                   type="button"
                   aria-pressed={settings.uiLanguage === code}
                   onClick={() => onChange({ uiLanguage: code })}
-                  className={`rounded-full px-3 py-1 ${
+                  className={`min-h-10 rounded-full px-4 font-semibold ${
                     settings.uiLanguage === code
                       ? "bg-forest text-cream"
-                      : "bg-charcoal/10"
+                      : "border-[1.5px] border-forest bg-cream text-forest"
                   }`}
                 >
                   {code === "auto" ? "Auto" : code === "he" ? "עברית" : "English"}
@@ -323,7 +325,7 @@ export function WalkSettingsPanel({
                 }
                 label="Remember my preferences"
               />
-              <p className="text-xs text-charcoal/60">
+              <p className="text-[13px] text-charcoal/70">
                 {settings.preferenceLearningEnabled
                   ? "On — what you say you like and how you rate your walks shapes the walks we build for you next."
                   : "Off — Traike won't learn your preferences, so future walks may feel less personalized."}
@@ -338,7 +340,7 @@ export function WalkSettingsPanel({
                 }
                 label="Keep my recent requests"
               />
-              <p className="text-xs text-charcoal/60">
+              <p className="text-[13px] text-charcoal/70">
                 {settings.historyPersistenceEnabled
                   ? "On — the last few things you typed stay in the Recent requests list next time you open Traike. Clear them any time from that list."
                   : "Off — your requests are forgotten when you close the tab."}
@@ -362,7 +364,7 @@ export function WalkSettingsPanel({
                   }}
                   label="Contribute anonymously to community recommendations"
                 />
-                <p className="text-xs text-charcoal/60">
+                <p className="text-[13px] text-charcoal/70">
                   {settings.socialSharingEnabled
                     ? "On — your place upvotes can count toward \"Recommended by walkers\" for others, only once at least 5 walkers agree and after a 2-day delay. No names or locations are ever shared, and you see these hints too."
                     : "Off — your upvotes stay yours, and you won't see community hints."}
@@ -390,15 +392,15 @@ export function WalkSettingsPanel({
                     })
                     .catch(() => setForgetState("failed"));
                 }}
-                className="rounded-lg bg-charcoal/10 px-3 py-2 text-sm"
+                className="min-h-11 rounded-full border-[1.5px] border-forest bg-cream px-4 text-[15px] font-semibold text-forest"
               >
                 Forget everything Traike learned about me
               </button>
               {forgetState === "done" ? (
-                <p className="text-xs text-charcoal/60">Done. Your learned data is deleted.</p>
+                <p className="text-[13px] text-charcoal/70">Done. Your learned data is deleted.</p>
               ) : null}
               {forgetState === "failed" ? (
-                <p className="text-xs text-charcoal/60">Couldn&apos;t clear everything. Try again.</p>
+                <p className="text-[13px] text-charcoal/70">Couldn&apos;t clear everything. Try again.</p>
               ) : null}
             </div>
           </SettingsSection>

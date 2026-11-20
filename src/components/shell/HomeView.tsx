@@ -184,7 +184,7 @@ export function HomeView({
               <div className="mt-3 flex items-end gap-5">
                 <div className="flex flex-col gap-1">
                   <span className="font-app-serif text-[34px] font-semibold leading-none text-tk-ink [font-variation-settings:'SOFT'_100,'WONK'_1]"><bdi>{done}</bdi><span className="text-charcoal/40"> / </span><bdi>{total}</bdi></span>
-                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-charcoal/60">{t.stopsLabel}</span>
+                  <span className="text-[13px] font-semibold text-charcoal/60">{t.stopsLabel}</span>
                 </div>
               </div>
             ) : null}

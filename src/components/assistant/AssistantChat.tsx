@@ -16,7 +16,6 @@ import {
 } from "@/lib/assistant/state";
 import { dwellMinutes, legPace } from "@/lib/walk/timing";
 import { createClient } from "@/lib/supabase/client";
-import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import { useHydrated } from "@/lib/hooks/useHydrated";
 import type { AssistantDefaults } from "@/lib/assistant/defaults";
 import type { CurrentWalk } from "@/lib/assistant/current-walk";
@@ -271,29 +270,6 @@ function LimitsBox({
 const BUSY_RETRIES = 75;
 const BUSY_RETRY_MS = 2000;
 
-function GuideFigure() {
-  const [fallback, setFallback] = useState(false);
-  const night = useResolvedTheme() === "dark";
-  // guide.png is dropped in later; until then the old crop shows, softly faded.
-  // The ref callback also catches a load error that fired before hydration.
-  const check = (el: HTMLImageElement | null) => {
-    if (el?.complete && el.naturalWidth === 0) setFallback(true);
-  };
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      ref={check}
-      data-mock="guide"
-      alt=""
-      aria-hidden
-      onError={() => setFallback(true)}
-      src={night ? "/images/assistant/guide-night.jpg" : fallback ? "/images/assistant/guide.jpg" : "/images/assistant/guide.png"}
-      data-fallback={(!night && fallback) || undefined}
-      className={`${night ? "[mask-image:linear-gradient(90deg,transparent_0%,#000_10%,#000_80%,transparent_100%)] " : ""}pointer-events-none absolute bottom-0 left-0 z-10 h-[149px] w-[54%] object-contain object-left-bottom data-[fallback]:w-[100px] data-[fallback]:object-cover data-[fallback]:object-top data-[fallback]:[mask-image:radial-gradient(ellipse_70%_75%_at_50%_42%,#000_62%,transparent_100%)]`}
-    />
-  );
-}
-
 const THEMES = [
   { label: "Must-see Places", message: "Show me the must-see places", image: "/images/assistant/must-see.jpg" },
   { label: "Food & Markets", message: "I want good food and markets", image: "/images/assistant/food.jpg" },
@@ -546,12 +522,12 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
   };
 
   return (
-    <div className="@container relative overflow-hidden rounded-tk-card bg-tk-card font-brand shadow-tk-card">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pl-[20px] pr-[14px] pt-[13px] @max-[340px]:pl-[14px] @max-[340px]:pr-[10px]">
-        <span className="whitespace-nowrap font-display text-[22.2px] font-[650] leading-[1.1] tracking-[-0.01em] text-tk-ink @max-[340px]:text-[19px]">
+    <div className={`@container relative overflow-hidden bg-cream font-app-sans ${walking ? "rounded-[14px] shadow-tk-soft" : "-mx-4 border-b border-tk-hair"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-y border-tk-hair bg-tk-bar px-4 py-2">
+        <span className="whitespace-nowrap text-[15px] font-semibold text-tk-ink">
           Plan with Traike
         </span>
-        <div className="flex grow items-center gap-[12px] whitespace-nowrap text-[12.5px] leading-none text-tk-body @max-[340px]:gap-[9px] @max-[340px]:text-[11.5px]">
+        <div className="flex grow items-center gap-[12px] whitespace-nowrap text-[14px] leading-none text-tk-body">
           <button type="button" className="underline decoration-1 underline-offset-[2px] hover:text-tk-ink" onClick={() => setShowChats((v) => !v)}>
             Chats ({chats.length})
           </button>
@@ -606,33 +582,6 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               </li>
             ))}
           </ul>
-        )}
-
-        {messages.length === 0 && (
-          <>
-            <div data-mock="scene" className="relative mt-[2px] min-h-[152px] pb-[57px] pt-[22px] dark:rounded-[12px] dark:bg-[#0b1a2b]">
-              <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(247,236,220,0)_0%,#f7ecdc_45%,#f3e2c9_100%)] dark:bg-[linear-gradient(180deg,rgba(8,18,31,0)_0%,#0b1a2b_55%,#08121f_100%)]" />
-              {/* eslint-disable @next/next/no-img-element */}
-              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute -left-[4px] top-[7px] z-0 w-[56px] dark:opacity-40 dark:brightness-75" />
-              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute left-[25%] top-[78px] z-0 w-[46px] -scale-x-100 opacity-90 dark:opacity-40 dark:brightness-75" />
-              <GuideFigure />
-              <svg aria-hidden viewBox="0 0 67 50" className="pointer-events-none absolute left-[27.6%] top-[55px] z-10 h-[22px] w-[30px] text-[#c9653a] dark:text-[#f3d98b]" fill="none" stroke="currentColor" strokeWidth={6} strokeLinecap="round">
-                <path d="M5 20 13 42M36 4 29 41M63 28 44 49" />
-              </svg>
-              <img src="/images/traike/route-trail.svg" alt="" aria-hidden className="pointer-events-none absolute right-[22px] top-[106px] z-10 w-[116px] dark:opacity-60 dark:brightness-150" />
-              <div data-mock="bubble" className="relative z-20 ml-[36.8%] mr-[3.4%] drop-shadow-[0_2px_5px_rgba(110,80,50,0.16)]">
-                <svg aria-hidden viewBox="0 0 54 41" className="absolute -left-[13px] bottom-0 h-[18px] w-[24px]">
-                  <path d="M29 3C29 15 22 22 10 27 24 31 38 37 54 41H29Z" className="fill-tk-bubble" />
-                </svg>
-                <p className="relative rounded-[13px] bg-tk-bubble pb-[11px] pl-[16px] pr-[8px] pt-[10px] text-[14px] leading-[1.55] text-tk-body">
-                  Tell me where you are and what you feel like — places, food, nature. I will find them and plan the
-                  walk with you.
-                </p>
-              </div>
-              <img src="/images/traike/olive-leaves.svg" alt="" aria-hidden className="pointer-events-none absolute -right-[2px] top-[119px] z-20 w-[34px] -scale-x-100 rotate-[25deg] dark:opacity-50 dark:brightness-75" />
-              {/* eslint-enable @next/next/no-img-element */}
-            </div>
-          </>
         )}
 
         <div ref={listRef} className={`mx-[17px] mt-[10px] empty:hidden ${messages.length > 0 ? "max-h-72 space-y-2 overflow-y-auto" : "space-y-2"}`}>
@@ -692,12 +641,12 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
             />
           )}
           {choices.length > 0 && !pending && (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-2">
               {choices.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  className="rounded-full border border-tk-send bg-paper px-[10px] py-[4px] text-[12px] text-tk-wordmark"
+                  className="min-h-11 rounded-[10px] border-[1.5px] border-terra bg-cream px-3 text-[14px] font-semibold text-tk-check"
                   onClick={() => void send(null, { message: c })}
                 >
                   {c}
@@ -713,10 +662,10 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               </Button>
             </div>
           )}
-          {pending && <p className="text-xs text-charcoal/50">Thinking…</p>}
+          {pending && <p className="text-[13px] text-charcoal/60">Thinking…</p>}
         </div>
 
-        {(error || mic.error) && <p className="mx-[17px] mt-2 text-[12px] text-red-700">{error ?? mic.error}</p>}
+        {(error || mic.error) && <p className="mx-[17px] mt-2 text-[13px] text-red-700">{error ?? mic.error}</p>}
 
         <form onSubmit={(e) => void send(e)} className="relative z-0 mt-[12px] space-y-[11px] px-[17px]">
           <textarea
@@ -740,7 +689,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
             rows={2}
             disabled={!hydrated}
             placeholder="I want to see Habima Square, the Jaffa port, and a good market"
-            className="block w-full resize-y rounded-[6px] border border-tk-field bg-paper px-[13px] py-[5px] text-[16px] leading-[1.5] text-tk-body placeholder:text-[#8a8580] focus:border-tk-send focus:outline-none"
+            className="block min-h-[76px] w-full resize-y rounded-[10px] border-[1.5px] border-forest bg-cream px-3 py-2 text-[16px] leading-[1.5] text-tk-ink placeholder:text-charcoal/50 focus:outline-2 focus:outline-offset-1 focus:outline-forest"
           />
           <div className="flex flex-wrap items-center gap-[7px]">
             <input
@@ -758,7 +707,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               type="button"
               disabled={images.length >= MAX_IMAGES}
               onClick={() => fileInputRef.current?.click()}
-              className="rounded-full border border-tk-field bg-paper px-[10px] py-[3px] text-[12px] text-tk-body hover:border-tk-send disabled:cursor-not-allowed"
+              className="min-h-11 rounded-full border-[1.5px] border-forest bg-cream px-4 text-[14px] font-semibold text-forest hover:bg-tk-bar disabled:cursor-not-allowed disabled:opacity-50"
             >
               📎 Add image
             </button>
@@ -813,17 +762,16 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                   type="button"
                   aria-pressed={themes.includes(t.label)}
                   onClick={() => setThemes((cur) => (cur.includes(t.label) ? cur.filter((l) => l !== t.label) : [...cur, t.label]))}
-                  className={`flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border ${themes.includes(t.label) ? "border-tk-send bg-paper ring-1 ring-tk-send" : "border-[#eadfce] bg-tk-bubble"} py-[4px] pe-[12px] ps-[4px] font-brand text-[12.5px] font-semibold tracking-[0.005em] text-tk-ink shadow-[0_1px_3px_rgba(50,32,16,0.12)] transition-colors hover:border-tk-send hover:bg-paper`}
-                >
+                  className={`flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[10px] border-[1.5px] pe-3 ps-1.5 font-app-sans text-[15px] font-semibold text-tk-ink transition-colors ${themes.includes(t.label) ? "border-terra bg-terra/15" : "border-forest bg-cream hover:bg-tk-bar"}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={t.image} alt="" aria-hidden className="h-[22px] w-[22px] rounded-full object-cover" />
+                  <img src={t.image} alt="" aria-hidden className="h-[30px] w-[30px] rounded-[6px] object-cover" />
                   {t.label}
                 </button>
               ))}
               <button
                 type="button"
                 onClick={() => inputRef.current?.focus()}
-                className="flex shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border border-dashed border-tk-send/60 bg-transparent py-[4px] pe-[12px] ps-[8px] font-brand text-[12.5px] font-semibold text-tk-wordmark transition-colors hover:bg-paper"
+                className="flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[10px] border-[1.5px] border-dashed border-forest/60 bg-transparent pe-3 ps-3 font-app-sans text-[15px] font-semibold text-forest transition-colors hover:bg-tk-bar"
               >
                 <span aria-hidden>📍</span>Custom Walk
               </button>
@@ -841,7 +789,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 aria-label={mic.listening ? "Stop dictation" : "Dictate"}
                 aria-pressed={mic.listening}
                 title={mic.listening ? "Stop dictation" : "Dictate"}
-                className={`flex h-[37px] w-[37px] shrink-0 items-center justify-center rounded-full border border-tk-field text-[16px] ${mic.listening ? "animate-pulse bg-tk-send text-on-accent" : "bg-paper text-tk-body"}`}
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-[1.5px] border-forest text-[16px] ${mic.listening ? "animate-pulse bg-terra text-on-accent" : "bg-cream text-forest"}`}
               >
                 🎤
               </button>
@@ -853,7 +801,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 onClick={() => setMicLang(shownMicLang === "he" ? "en" : "he")}
                 aria-label={shownMicLang === "he" ? "Dictation language: Hebrew. Tap for English" : "Dictation language: English. Tap for Hebrew"}
                 title={shownMicLang === "he" ? "Dictation language: Hebrew (tap for English)" : "Dictation language: English (tap for Hebrew)"}
-                className="flex h-[37px] shrink-0 items-center justify-center rounded-full border border-tk-field bg-paper px-[9px] text-[12.5px] font-medium text-tk-body disabled:opacity-50"
+                className="flex h-12 shrink-0 items-center justify-center rounded-full border-[1.5px] border-forest bg-cream px-3 text-[14px] font-semibold text-forest disabled:opacity-50"
               >
                 {shownMicLang === "he" ? "עב" : "EN"}
               </button>
@@ -861,7 +809,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
             <button
               type="submit"
               disabled={!hydrated || pending || isBuilding || (!text.trim() && images.length === 0 && themes.length === 0)}
-              className="block h-[37px] min-w-0 flex-1 rounded-[9px] bg-tk-send text-[15.9px] font-medium leading-none text-on-accent transition-colors hover:bg-[#c2643c] disabled:cursor-not-allowed"
+              className="block h-12 min-w-0 flex-1 rounded-full bg-terra text-[16px] font-semibold leading-none text-on-accent shadow-[0_3px_0_var(--tk-lip)] transition-colors hover:bg-terra/90 active:translate-y-[2px] active:shadow-[0_1px_0_var(--tk-lip)] disabled:cursor-not-allowed disabled:bg-terra/40 disabled:shadow-none"
             >
               {isBuilding ? "Building your walk…" : !hydrated ? "Loading…" : "Send"}
             </button>
@@ -871,7 +819,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 onClick={() => undoSend()}
                 aria-label="Stop"
                 title="Stop"
-                className="flex h-[37px] w-[37px] shrink-0 items-center justify-center rounded-full bg-tk-ink text-tk-card transition-opacity hover:opacity-85"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-tk-ink text-tk-card transition-opacity hover:opacity-85"
               >
                 <span aria-hidden className="block h-[13px] w-[13px] rounded-[2px] bg-current" />
               </button>

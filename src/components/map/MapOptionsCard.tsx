@@ -6,8 +6,9 @@ import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { GROUPS } from "@/components/map/top-rated-groups";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { SEG_WRAP, segCell } from "@/components/ui/panel-style";
 
-const CARD = "mx-auto w-full max-w-[440px] space-y-3 rounded-tk-card bg-paper p-4 shadow-tk-card";
+const CARD = "mx-auto w-full max-w-[440px] space-y-3 border-b border-tk-hair bg-cream px-4 py-3 font-app-sans";
 
 /** Base map and day/night. `id` is where the layers glyph scrolls to. */
 export function DisplaySection({
@@ -23,16 +24,14 @@ export function DisplaySection({
   /** More display switches (voice, walked path) that belong with these. */
   children?: ReactNode;
 }) {
-  const seg = (on: boolean) =>
-    `min-h-11 flex-1 rounded-full px-4 text-[15px] font-medium transition-colors ${on ? "bg-forest/10 text-forest shadow-tk-soft" : "text-charcoal/70"}`;
   return (
     <section id="walk-details-display" aria-label="Map view" className={CARD}>
       {showMapType ? (
-        <div role="radiogroup" aria-label="Base map" className="flex gap-1 rounded-full bg-charcoal/5 p-1">
-          <button type="button" role="radio" aria-checked={mapType === "map"} onClick={() => onMapType("map")} className={seg(mapType === "map")}>
+        <div role="radiogroup" aria-label="Base map" className={SEG_WRAP}>
+          <button type="button" role="radio" aria-checked={mapType === "map"} onClick={() => onMapType("map")} className={segCell(mapType === "map")}>
             Map
           </button>
-          <button type="button" role="radio" aria-checked={mapType === "satellite"} onClick={() => onMapType("satellite")} className={seg(mapType === "satellite")}>
+          <button type="button" role="radio" aria-checked={mapType === "satellite"} onClick={() => onMapType("satellite")} className={segCell(mapType === "satellite")}>
             Satellite
           </button>
         </div>
@@ -56,7 +55,7 @@ export function PlacesSection({ topRated, onTopRated, topRatedNote }: { topRated
         role="switch"
         aria-checked={Boolean(topRated)}
         onClick={() => onTopRated(!topRated)}
-        className={`flex min-h-11 w-full items-center justify-between rounded-full px-4 text-[15px] font-medium ${topRated ? "bg-terra/10 text-terra shadow-tk-soft" : "bg-charcoal/5 text-charcoal"}`}
+        className={`flex min-h-11 w-full items-center justify-between rounded-[10px] border-[1.5px] px-4 text-[15px] font-semibold ${topRated ? "border-terra bg-terra/15 text-tk-check" : "border-forest bg-cream text-forest"}`}
       >
         <span>Top rated</span>
         <span aria-hidden>{topRated ? "On" : "Off"}</span>
@@ -108,7 +107,7 @@ export function MapOptionsCard({
   signedIn: boolean;
 }) {
   return (
-    <div className="mt-4 space-y-3">
+    <div className="space-y-0">
       <DisplaySection mapType={mapType} onMapType={onMapType} showMapType={showMapType} />
       <PlacesSection topRated={topRated} onTopRated={onTopRated} topRatedNote={topRatedNote} />
       <AccountRows signedIn={signedIn} />

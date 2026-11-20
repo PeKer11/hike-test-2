@@ -1,11 +1,13 @@
 "use client";
 
+import { SEG_WRAP, segCell } from "@/components/ui/panel-style";
+
 export interface SegmentedItem<T extends string> {
   id: T;
   label: string;
 }
 
-/** A 48px tab row: the selected tab is a tinted pill with a soft shadow (never a bare border). */
+/** A connected tab row: forest edge, hairline dividers, the selected tab filled forest. */
 export function Segmented<T extends string>({
   items,
   value,
@@ -18,7 +20,7 @@ export function Segmented<T extends string>({
   label: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="flex gap-1 rounded-full bg-charcoal/5 p-1">
+    <div role="tablist" aria-label={label} className={SEG_WRAP}>
       {items.map((item) => (
         <button
           key={item.id}
@@ -26,9 +28,7 @@ export function Segmented<T extends string>({
           role="tab"
           aria-selected={value === item.id}
           onClick={() => onChange(item.id)}
-          className={`min-h-12 flex-1 rounded-full px-4 text-[16px] font-medium transition-colors motion-reduce:transition-none ${
-            value === item.id ? "bg-paper text-forest shadow-tk-soft" : "text-charcoal/70"
-          }`}
+          className={segCell(value === item.id)}
         >
           {item.label}
         </button>

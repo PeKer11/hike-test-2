@@ -6,8 +6,8 @@ interface ToggleProps {
 
 export function Toggle({ checked, onChange, label }: ToggleProps) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
-      <span className="text-charcoal/80">{label}</span>
+    <label className="flex cursor-pointer items-center justify-between gap-3 text-[15px]">
+      <span className="text-tk-ink">{label}</span>
       <button
         type="button"
         className={`relative h-6 w-11 shrink-0 rounded-full transition ${

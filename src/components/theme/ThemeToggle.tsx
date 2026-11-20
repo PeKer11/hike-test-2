@@ -32,7 +32,7 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
       className={
         floating
           ? "fixed right-3 top-3 z-[1000] flex items-center gap-0.5 rounded-full border border-charcoal/10 bg-paper/90 p-1 shadow-tk-soft backdrop-blur"
-          : "flex items-center gap-0.5 rounded-full border border-charcoal/10 bg-paper/95 p-1 shadow-sm"
+          : "flex items-center overflow-hidden rounded-[10px] border-[1.5px] border-forest bg-cream"
       }
     >
       {OPTIONS.map((o) => (
@@ -44,8 +44,8 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
           aria-label={o.label}
           title={o.label}
           onClick={() => setChoice(o.value)}
-          className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
-            choice === o.value ? "bg-terra text-on-accent" : "text-charcoal/60 hover:text-charcoal"
+          className={`flex items-center justify-center transition-colors ${floating ? "h-9 w-9 rounded-full" : "h-11 w-14 first:border-e first:border-tk-hair"} ${
+            choice === o.value ? (floating ? "bg-terra text-on-accent" : "bg-forest text-cream") : "text-charcoal/60 hover:text-charcoal"
           }`}
         >
           <svg

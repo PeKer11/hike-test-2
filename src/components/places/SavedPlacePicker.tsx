@@ -72,17 +72,17 @@ export function SavedPlacePicker({ addedIds, inWalkIds = [], onAdd }: SavedPlace
   };
 
   return (
-    <section className="space-y-2 rounded-[10px] border border-charcoal/10 bg-cream/60 p-3">
-      <button type="button" aria-expanded={open} onClick={() => void toggleOpen()} className="cursor-pointer text-sm font-medium text-forest hover:underline">
+    <section className="-mx-4 bg-cream font-app-sans">
+      <button type="button" aria-expanded={open} onClick={() => void toggleOpen()} className="flex min-h-11 w-full cursor-pointer items-center border-y border-tk-hair bg-tk-bar px-4 text-start text-[15px] font-semibold text-tk-ink">
         {open ? "− From saved places" : "+ From saved places"}
       </button>
       {open && (
-        <>
-          {loading && <p className="text-[13px] text-charcoal/60">Loading…</p>}
-          {!loading && places.length === 0 && <p className="text-[13px] text-charcoal/60">No unvisited saved places. Add some in the Places tab.</p>}
+        <div className="space-y-2 px-4 py-3">
+          {loading && <p className="text-[13px] text-charcoal/70">Loading…</p>}
+          {!loading && places.length === 0 && <p className="text-[13px] text-charcoal/70">No unvisited saved places. Add some in the Places tab.</p>}
           <ul aria-label="Saved places to add" className="space-y-1">
             {places.map((p) => (
-              <li key={p.id} className="rounded-md bg-paper/70 p-2 text-[13px]">
+              <li key={p.id} className="border-b border-tk-hair py-2 text-[15px] last:border-b-0">
                 <label className="flex cursor-pointer items-center gap-2">
                   <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} />
                   <span className="text-charcoal">{p.label}</span>
@@ -97,11 +97,11 @@ export function SavedPlacePicker({ addedIds, inWalkIds = [], onAdd }: SavedPlace
           </ul>
           {error && <p role="alert" className="text-[13px] text-terra">{error}</p>}
           {picked.size > 0 && (
-            <button type="button" onClick={() => void add()} className="cursor-pointer rounded-full bg-forest px-3 py-1 text-[13px] font-medium text-cream">
+            <button type="button" onClick={() => void add()} className="min-h-11 cursor-pointer rounded-full bg-terra px-5 text-[14px] font-semibold text-on-accent shadow-[0_2px_0_var(--tk-lip)]">
               Add {picked.size} to walk
             </button>
           )}
-        </>
+        </div>
       )}
     </section>
   );

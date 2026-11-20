@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Button, Card, LoadingSpinner } from "@/components/ui";
+import { Button, LoadingSpinner } from "@/components/ui";
+import { CTRL_BOX, SEC_BAR, chipCell } from "@/components/ui/panel-style";
 import {
   MAX_SCROLLBACK,
   type ExchangeTurn,
@@ -838,23 +839,16 @@ export function PlacePromptPanel({
   };
 
   return (
-    <Card className="space-y-3">
-      <div>
-        <h2 className="font-display text-base font-bold text-forest">
-          Name your own stops
-        </h2>
-        <p className="text-xs text-charcoal/60">
-          Type where you want to go — we&apos;ll find the places and build the
-          walk around them.
-        </p>
-      </div>
+    <section className="-mx-4 border-b border-tk-hair bg-cream font-app-sans">
+      <h2 className={SEC_BAR}>Name your own stops</h2>
+      <div className="space-y-3 px-4 py-3">
 
       {/* A standing fact this prompt reversed. Deliberately an inline note
           rather than a modal: the app has already acted on what the walker just
           said, and this only offers to take that back. Ignoring it is a valid
           answer — the newest statement stands. */}
       {contradiction && (
-        <div className="space-y-1 rounded-md border border-terra/30 bg-terra/5 px-2 py-1.5 text-xs">
+        <div className="space-y-1 rounded-md border border-terra/30 bg-terra/5 px-2 py-1.5 text-[13px]">
           <p className="text-charcoal/80">
             Updated what I remember: &ldquo;{contradiction.supersededText}
             &rdquo; → &ldquo;{contradiction.newText}&rdquo;
@@ -884,7 +878,7 @@ export function PlacePromptPanel({
       {undoFailed && (
         <p
           role="alert"
-          className="rounded-md bg-rose-50 px-2 py-1.5 text-xs text-rose-700"
+          className="rounded-md bg-rose-50 px-2 py-1.5 text-[13px] text-rose-700"
         >
           Couldn&apos;t undo that — what I remember is unchanged. Fix it under
           &ldquo;Things I remember about you&rdquo; in settings.
@@ -900,7 +894,7 @@ export function PlacePromptPanel({
             type="button"
             aria-expanded={isScrollbackOpen}
             onClick={() => setIsScrollbackOpen((open) => !open)}
-            className="flex w-full cursor-pointer items-center justify-between px-2 py-1.5 text-xs text-charcoal/70 hover:text-forest"
+            className="flex w-full cursor-pointer items-center justify-between px-2 py-1.5 text-[13px] text-charcoal/70 hover:text-forest"
           >
             <span>Recent requests ({scrollback.length})</span>
             <span aria-hidden="true">{isScrollbackOpen ? "▲" : "▼"}</span>
@@ -913,7 +907,7 @@ export function PlacePromptPanel({
               {scrollback.map((entry) => (
                 <li
                   key={entry.id}
-                  className="rounded-md bg-paper/70 px-2 py-1 text-xs"
+                  className="rounded-md bg-paper/70 px-2 py-1 text-[13px]"
                 >
                   <p className="text-charcoal/80">
                     {truncatePrompt(entry.prompt)}
@@ -931,7 +925,7 @@ export function PlacePromptPanel({
               <button
                 type="button"
                 onClick={clearHistory}
-                className="cursor-pointer text-xs text-charcoal/50 underline hover:text-terra"
+                className="cursor-pointer text-[13px] text-charcoal/50 underline hover:text-terra"
               >
                 Clear history
               </button>
@@ -946,7 +940,7 @@ export function PlacePromptPanel({
             <button
               type="button"
               onClick={startNewChat}
-              className="cursor-pointer text-xs text-charcoal/60 underline hover:text-terra"
+              className="cursor-pointer text-[13px] text-charcoal/60 underline hover:text-terra"
             >
               New chat
             </button>
@@ -984,7 +978,7 @@ export function PlacePromptPanel({
         }}
         rows={3}
         placeholder="I want to see Habima Square, the Jaffa port, and a good market"
-        className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
+        className={`${CTRL_BOX} min-h-[88px]`}
       />
 
       <Button onClick={() => void extract()} disabled={isLoading} fullWidth>
@@ -999,7 +993,7 @@ export function PlacePromptPanel({
       </Button>
 
       {error && (
-        <p className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">{error}</p>
+        <p className="rounded-md bg-rose-50 p-2 text-[13px] text-rose-700">{error}</p>
       )}
 
       {/* Asked instead of silently guessing a generic walk. The walk we would
@@ -1011,7 +1005,7 @@ export function PlacePromptPanel({
           touched makes the second one unreachable. */}
       {clarificationCategories.length > 0 && (
         <div className="space-y-2 rounded-md bg-cream/70 p-2">
-          <p className="text-xs text-charcoal/80">
+          <p className="text-[13px] text-charcoal/80">
             What kind of walk are you after? Pick up to {MAX_CATEGORY_NEEDS}.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -1035,11 +1029,7 @@ export function PlacePromptPanel({
                           : [...current, category],
                     )
                   }
-                  className={`cursor-pointer rounded-full px-3 py-1 text-xs transition disabled:cursor-default disabled:opacity-50 ${
-                    isSelected
-                      ? "bg-terra text-on-accent shadow-sm"
-                      : "border border-terra/40 bg-paper text-forest hover:bg-terra/10"
-                  }`}
+                  className={`cursor-pointer disabled:cursor-default disabled:opacity-50 ${chipCell(isSelected)}`}
                 >
                   {CATEGORY_LABELS[category]}
                 </button>
@@ -1061,7 +1051,7 @@ export function PlacePromptPanel({
           menu, and "3 hours, up to 1km" answers both in one line. */}
       {followUpMissing && (
         <div className="space-y-2 rounded-md bg-cream/70 p-2">
-          <p className="text-xs text-charcoal/80">
+          <p className="text-[13px] text-charcoal/80">
             {followUpQuestion(followUpMissing)}
           </p>
           <input
@@ -1070,7 +1060,7 @@ export function PlacePromptPanel({
             aria-label={followUpQuestion(followUpMissing)}
             onChange={(event) => setFollowUpText(event.target.value)}
             placeholder="3 hours, up to 1km"
-            className="w-full rounded-md border border-charcoal/15 px-3 py-2 text-base sm:text-sm focus:border-terra focus:outline-none"
+            className={CTRL_BOX}
           />
           <Button
             fullWidth
@@ -1083,21 +1073,21 @@ export function PlacePromptPanel({
       )}
 
       {followUpReply && (
-        <p role="status" className="rounded-md bg-cream/70 p-2 text-xs text-charcoal/80">
+        <p role="status" className="rounded-md bg-cream/70 p-2 text-[13px] text-charcoal/80">
           {followUpReply}
         </p>
       )}
 
       {hasResult && selectedAttractions.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs font-medium text-charcoal/80">
+          <p className="text-[13px] font-medium text-charcoal/80">
             Found — tap a place to see it on the map
           </p>
           <ul className="space-y-1">
             {selectedAttractions.map((attraction) => (
               <li
                 key={attraction.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-charcoal/10 bg-cream/70 px-3 py-2 text-xs text-charcoal/80 hover:bg-cream"
+                className="flex items-center justify-between gap-2 rounded-md border border-charcoal/10 bg-cream/70 px-3 py-2 text-[13px] text-charcoal/80 hover:bg-cream"
               >
                 <button
                   type="button"
@@ -1129,14 +1119,14 @@ export function PlacePromptPanel({
       )}
 
       {hasResult && unresolvedNames.length > 0 && (
-        <div className="rounded-md bg-amber-50 p-2 text-xs text-amber-800">
+        <div className="rounded-md bg-amber-50 p-2 text-[13px] text-amber-800">
           Couldn&apos;t locate: {unresolvedNames.join(", ")}. Try a more specific
           name.
         </div>
       )}
 
       {hasResult && attractions.length === 0 && unresolvedNames.length === 0 && (
-        <p className="text-xs text-charcoal/60">
+        <p className="text-[13px] text-charcoal/60">
           No places found in that text — mention them by name.
         </p>
       )}
@@ -1144,7 +1134,7 @@ export function PlacePromptPanel({
       {attractions.length > 0 &&
         (acceptedAttractions ? (
           <div className="space-y-2">
-            <p className="rounded-md bg-terra/10 p-2 text-xs text-forest">
+            <p className="rounded-md bg-terra/10 p-2 text-[13px] text-forest">
               {acceptedAttractions.length} stop
               {acceptedAttractions.length === 1 ? "" : "s"} will be used for the
               next walk you build.
@@ -1152,7 +1142,7 @@ export function PlacePromptPanel({
             {/* Asked here rather than in settings because this is the only
                 moment the question exists — the walker has just named stops and
                 is about to build the walk around them. */}
-            <label className="flex items-start gap-2 text-xs text-charcoal/70">
+            <label className="flex items-start gap-2 text-[13px] text-charcoal/70">
               <input
                 type="checkbox"
                 checked={fillRemainingTime}
@@ -1187,10 +1177,11 @@ export function PlacePromptPanel({
             Use these stops in my walk
           </Button>
         ) : (
-          <p className="text-xs text-charcoal/60">
+          <p className="text-[13px] text-charcoal/60">
             You removed every place — search again to start over.
           </p>
         ))}
-    </Card>
+      </div>
+    </section>
   );
 }
