@@ -104,6 +104,8 @@ describe("locate", () => {
 
   it("retries the quick fix with backoff, at most 3 times, and keeps the watch alive", () => {
     const { geo, quick } = fakeGeo();
+    // A page that is not visible is never re-armed: keeps the 30 s watchdog (tested below) out of this one.
+    vi.stubGlobal("document", Object.assign(new EventTarget(), { visibilityState: "hidden" }));
     run("walk");
     quick[0].fail(err(3));
     expect(geo.getCurrentPosition).toHaveBeenCalledTimes(1);
@@ -204,5 +206,100 @@ describe("locate", () => {
     run("start");
     watches[0].ok(pos(15, 32.5, 34.9));
     expect(JSON.parse(localStorage.getItem(LAST_FIX_KEY)!)).toMatchObject({ lat: 32.5, lng: 34.9, acc: 15 });
+  });
+});
+
+describe("locate: a walk keeps its watch alive (back from another app, or silent)", () => {
+  function page() {
+    const doc = new EventTarget() as unknown as Document & { visibilityState: string };
+    doc.visibilityState = "visible";
+    vi.stubGlobal("document", doc);
+    const set = (v: "visible" | "hidden") => {
+      doc.visibilityState = v;
+      doc.dispatchEvent(new Event("visibilitychange"));
+    };
+    return { doc, set };
+  }
+
+  it("re-arms the watch and asks for one fresh fix when the page comes back", () => {
+    const { geo, quick, watches } = fakeGeo();
+    const p = page();
+    const r = run("walk");
+    watches[0].ok(pos(8));
+    expect(geo.watchPosition).toHaveBeenCalledTimes(1);
+
+    p.set("hidden"); // Waze, a locked phone
+    expect(geo.watchPosition).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(120_000);
+    p.set("visible");
+
+    expect(geo.clearWatch).toHaveBeenCalledTimes(1);
+    expect(geo.watchPosition).toHaveBeenCalledTimes(2);
+    expect(quick.at(-1)?.opts).toMatchObject({ enableHighAccuracy: true, maximumAge: 5000 });
+
+    // The new watch and the fresh read both reach the tracker.
+    watches[1].ok(pos(9, 32.09));
+    quick.at(-1)?.ok(pos(7, 32.091));
+    expect(r.fixes.at(-1)?.coordinates.lat).toBe(32.091);
+    expect(r.fixes).toHaveLength(3);
+  });
+
+  it("re-arms a watch that has been silent for 30 s with the page visible, once per silence", () => {
+    const { geo, watches } = fakeGeo();
+    page();
+    run("walk");
+    watches[0].ok(pos(8));
+
+    vi.advanceTimersByTime(29_000); // the watchdog looks every 10 s
+    expect(geo.watchPosition).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(11_000); // 30 s of silence passed at the 30 s look
+    expect(geo.watchPosition).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(15_000); // 55 s: the re-armed watch gets its own 30 s
+    expect(geo.watchPosition).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(5_000); // 60 s: still silent, once more
+    expect(geo.watchPosition).toHaveBeenCalledTimes(3);
+  });
+
+  it("leaves a watch that keeps delivering alone, and never re-arms a hidden page", () => {
+    const { geo, watches } = fakeGeo();
+    const p = page();
+    run("walk");
+    for (let i = 0; i < 12; i += 1) {
+      vi.advanceTimersByTime(10_000);
+      watches[0].ok(pos(8));
+    }
+    expect(geo.watchPosition).toHaveBeenCalledTimes(1);
+
+    p.doc.visibilityState = "hidden";
+    vi.advanceTimersByTime(300_000);
+    expect(geo.watchPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing of the kind for a start, and stop() takes the listener and the watchdog away", () => {
+    const start = fakeGeo();
+    const p1 = page();
+    run("start");
+    p1.set("visible");
+    vi.advanceTimersByTime(120_000);
+    expect(start.geo.watchPosition).toHaveBeenCalledTimes(1);
+
+    const walk = fakeGeo();
+    const p2 = page();
+    const r = run("walk");
+    r.handle.stop();
+    p2.set("visible");
+    vi.advanceTimersByTime(120_000);
+    expect(walk.geo.watchPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not re-arm once the permission is denied", () => {
+    const { geo, watches } = fakeGeo();
+    (navigator as unknown as { permissions: unknown }).permissions = { query: async () => ({ state: "denied" }) };
+    const p = page();
+    run("walk");
+    watches[0].fail(err(1));
+    p.set("visible");
+    vi.advanceTimersByTime(120_000);
+    expect(geo.watchPosition).toHaveBeenCalledTimes(1);
   });
 });

@@ -5,12 +5,13 @@ import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility
 import "leaflet-defaulticon-compatibility";
 
 import { AttributionControl, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { MapClickHandler } from "@/components/map/MapClickHandler";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
 import { routeColors } from "@/lib/map/route-colors";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
+import { useFollowPause } from "@/lib/hooks/useFollowPause";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
 import { CurrentPositionMarker } from "@/components/map/CurrentPositionMarker";
 import { MapMarkers } from "@/components/map/MapMarkers";
@@ -125,16 +126,17 @@ function PositionFollower({
   onLayers?: () => void;
 }) {
   const map = useMap();
-  // The walker dragged the map: stop pulling it back until they tap "re-centre".
-  const [paused, setPaused] = useState(false);
+  // The walker dragged the map: stop pulling it back for a while (or until they tap "re-centre").
+  const { paused, pause, scheduleResume, resume } = useFollowPause();
 
   useEffect(() => {
-    const pause = () => setPaused(true);
     map.on("dragstart", pause);
+    map.on("dragend", scheduleResume);
     return () => {
       map.off("dragstart", pause);
+      map.off("dragend", scheduleResume);
     };
-  }, [map]);
+  }, [map, pause, scheduleResume]);
 
   useEffect(() => {
     if (!followPosition || !currentPosition || paused) {
@@ -149,7 +151,7 @@ function PositionFollower({
       showFollow={followPosition}
       following={!paused}
       onFollow={() => {
-        setPaused(false);
+        resume();
         if (currentPosition) map.panTo([currentPosition.lat, currentPosition.lng]);
       }}
       onLayers={onLayers}

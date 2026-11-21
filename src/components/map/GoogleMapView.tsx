@@ -2,11 +2,12 @@
 
 import { APIProvider, ColorScheme, ControlPosition, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { MapCredits } from "@/components/map/MapCredits";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
 import { routeColors } from "@/lib/map/route-colors";
+import { useFollowPause } from "@/lib/hooks/useFollowPause";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
 
 import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStopMarkers } from "@/components/map/GoogleMarkers";
@@ -86,13 +87,17 @@ function FitPath({ path }: { path?: Coordinates[] }) {
 
 function PositionFollower({ currentPosition, followPosition = false, onLayers }: { currentPosition?: Coordinates; followPosition?: boolean; onLayers?: () => void }) {
   const map = useMap();
-  // The walker dragged the map: stop pulling it back until they tap "re-centre".
-  const [paused, setPaused] = useState(false);
+  // The walker dragged the map: stop pulling it back for a while (or until they tap "re-centre").
+  const { paused, pause, scheduleResume, resume } = useFollowPause();
   useEffect(() => {
     if (!map) return;
-    const l = map.addListener("dragstart", () => setPaused(true));
-    return () => l.remove();
-  }, [map]);
+    const start = map.addListener("dragstart", pause);
+    const end = map.addListener("dragend", scheduleResume);
+    return () => {
+      start.remove();
+      end.remove();
+    };
+  }, [map, pause, scheduleResume]);
   useEffect(() => {
     if (map && followPosition && currentPosition && !paused) map.panTo(currentPosition);
   }, [map, currentPosition, followPosition, paused]);
@@ -101,7 +106,7 @@ function PositionFollower({ currentPosition, followPosition = false, onLayers }:
       showFollow={followPosition}
       following={!paused}
       onFollow={() => {
-        setPaused(false);
+        resume();
         if (map && currentPosition) map.panTo(currentPosition);
       }}
       onLayers={onLayers}

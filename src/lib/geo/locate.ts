@@ -10,6 +10,10 @@ import type { Coordinates } from "@/lib/types";
  *   4. retries with backoff while nothing has answered;
  *   5. an IP-city fallback (start only) when nothing answers in 6 s.
  * Errors reach the UI only as a state, and only when no fix exists after 12 s.
+ *
+ * A walk also keeps its watch alive: a page that was hidden (another app, a locked phone) may come
+ * back with a watch that never delivers again, so it is re-armed on return and whenever no fix has
+ * got through for 30 s while the page is visible.
  */
 
 export type LocateState =
@@ -61,6 +65,10 @@ const IP_FALLBACK_MS = 6_000;
 /** A walk ignores a fix older than this: a cached one would move the dot backwards and start the clock early. */
 const WALK_MAX_FIX_AGE_MS = 15_000;
 const RETRY_DELAYS_MS = [3_000, 6_000, 12_000];
+/** A walk whose watch has been silent this long, with the page visible, is re-armed. */
+const WALK_SILENT_MS = 30_000;
+const WALK_WATCHDOG_MS = 10_000;
+const REARM_FIX_TIMEOUT_MS = 10_000;
 
 // GeolocationPositionError codes (the constants are not on every mocked error).
 const PERMISSION_DENIED = 1;
@@ -130,6 +138,10 @@ export function locate(options: LocateOptions): { stop(): void } {
   let lastWalkFixTs = 0;
   const timers = new Set<ReturnType<typeof setTimeout>>();
   let removeVisibility: (() => void) | null = null;
+  // A walk's liveness: when a usable fix last got through, when the watch was last re-armed.
+  let lastLiveFixAt = 0;
+  let lastRearmAt = 0;
+  let removeLiveness: (() => void) | null = null;
 
   const later = (ms: number, fn: () => void) => {
     const t = setTimeout(() => {
@@ -158,7 +170,10 @@ export function locate(options: LocateOptions): { stop(): void } {
       if (Date.now() - fix.timestamp > WALK_MAX_FIX_AGE_MS || fix.timestamp < lastWalkFixTs) return;
       lastWalkFixTs = fix.timestamp;
     }
-    if (fix.source === "gps") hasLiveFix = true;
+    if (fix.source === "gps") {
+      hasLiveFix = true;
+      lastLiveFixAt = Date.now();
+    }
     // A walk consumes every fix (the tracker filters). A start only wants an improving one.
     const improves = !best || fix.accuracyMeters <= best.accuracyMeters;
     if (purpose === "start" && !improves) return;
@@ -233,6 +248,45 @@ export function locate(options: LocateOptions): { stop(): void } {
     }
   };
 
+  const startWatch = () => {
+    watchId = geo?.watchPosition(
+      (pos) => handleFix(toFix(pos)),
+      handleError,
+      { enableHighAccuracy: true, maximumAge: WATCH_MAX_AGE_MS, timeout: WATCH_TIMEOUT_MS },
+    ) ?? null;
+  };
+
+  /** Drop the watch and open a new one, plus one fresh read so the dot does not wait for it. */
+  const rearm = () => {
+    if (stopped || !geo || state === "denied") return;
+    lastRearmAt = Date.now();
+    clearWatch();
+    startWatch();
+    geo.getCurrentPosition?.(
+      (pos) => handleFix(toFix(pos)),
+      handleError,
+      { enableHighAccuracy: true, maximumAge: WATCH_MAX_AGE_MS, timeout: REARM_FIX_TIMEOUT_MS },
+    );
+  };
+
+  /** A walk only: back from another app, or silent for too long, the watch is re-armed. */
+  const keepWalkWatchAlive = () => {
+    if (purpose !== "walk" || removeLiveness || typeof document === "undefined") return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") rearm();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const dog = setInterval(() => {
+      if (stopped || document.visibilityState === "hidden") return;
+      if (Date.now() - Math.max(lastLiveFixAt, lastRearmAt) >= WALK_SILENT_MS) rearm();
+    }, WALK_WATCHDOG_MS);
+    lastLiveFixAt = Date.now();
+    removeLiveness = () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(dog);
+    };
+  };
+
   function begin() {
     if (stopped) return;
     if (!geo) {
@@ -258,11 +312,8 @@ export function locate(options: LocateOptions): { stop(): void } {
 
     // 2. Quick coarse fix, 3. refining watch, both at once.
     quickFix();
-    watchId = geo.watchPosition(
-      (pos) => handleFix(toFix(pos)),
-      handleError,
-      { enableHighAccuracy: true, maximumAge: WATCH_MAX_AGE_MS, timeout: WATCH_TIMEOUT_MS },
-    );
+    startWatch();
+    keepWalkWatchAlive();
     if (purpose === "start") later(START_WATCH_CAP_MS, clearWatch);
 
     // 5. Nothing at all in 6 s: the IP city.
@@ -285,6 +336,8 @@ export function locate(options: LocateOptions): { stop(): void } {
       timers.clear();
       removeVisibility?.();
       removeVisibility = null;
+      removeLiveness?.();
+      removeLiveness = null;
     },
   };
 }
