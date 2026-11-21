@@ -38,6 +38,8 @@ describe("undo send", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((_url: string, init: RequestInit) => {
+        // Stop also posts /api/assistant/cancel (no signal); only the turn request carries one.
+        if (_url !== "/api/assistant") return Promise.resolve(new Response("{}"));
         signal = init.signal as AbortSignal;
         return new Promise((_resolve, reject) => signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))));
       }),

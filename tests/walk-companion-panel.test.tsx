@@ -153,7 +153,7 @@ describe("WalkCompanionPanel — saved profile pre-fills the form", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Build My Walk"));
+    fireEvent.click(screen.getByText("Build walking route"));
 
     expect(onBuildWalk).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -181,7 +181,7 @@ describe("WalkCompanionPanel — saved profile pre-fills the form", () => {
     expect(isSelected("Normal (15 min/km)")).toBe(true);
     expect(isSelected("Museums")).toBe(false);
 
-    fireEvent.click(screen.getByText("Build My Walk"));
+    fireEvent.click(screen.getByText("Build walking route"));
 
     expect(onBuildWalk).toHaveBeenCalledWith(
       expect.objectContaining({

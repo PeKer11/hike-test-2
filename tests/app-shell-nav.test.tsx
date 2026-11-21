@@ -13,20 +13,33 @@ vi.mock("@/components/StandingFactsPanel", () => ({ StandingFactsPanel: () => <d
 afterEach(cleanup);
 
 describe("tab bar", () => {
-  it("has the four hubs plus a raised new-route button, marks the current one, and shows the friend badge", () => {
+  it("has the five destinations, marks the current one, and shows the friend badge on Walks", () => {
     const onNavigate = vi.fn();
     render(<TabBar view="walks" lang="en" friendBadge={2} onNavigate={onNavigate} />);
+    expect(screen.getAllByRole("button")).toHaveLength(5);
     expect(screen.getByRole("button", { name: /Walks/ }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("button", { name: /Home/ }).getAttribute("aria-current")).toBeNull();
     expect(screen.getByText("2")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "New route" }));
+    fireEvent.click(screen.getByRole("button", { name: "Plan" }));
     expect(onNavigate).toHaveBeenCalledWith("plan");
+  });
+
+  it("lights Walks for the Friends screen, and Walk opens the live walk only when one is running", () => {
+    const onNavigate = vi.fn();
+    const { rerender } = render(<TabBar view="social" lang="en" friendBadge={0} onNavigate={onNavigate} />);
+    expect(screen.getByRole("button", { name: "Walks" }).getAttribute("aria-current")).toBe("page");
+    fireEvent.click(screen.getByRole("button", { name: "Walk" }));
+    expect(onNavigate).toHaveBeenLastCalledWith("plan");
+    rerender(<TabBar view="home" lang="en" friendBadge={0} walkLive onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole("button", { name: "Walk" }));
+    expect(onNavigate).toHaveBeenLastCalledWith("walk");
   });
 
   it("speaks Hebrew", () => {
     render(<TabBar view="home" lang="he" friendBadge={0} onNavigate={vi.fn()} />);
-    expect(screen.getByRole("button", { name: /הליכות/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "מסלול חדש" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "מסלולים" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "תכנון" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "פרופיל" })).toBeTruthy();
   });
 });
 

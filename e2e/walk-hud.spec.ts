@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { appErrors, watchConsole } from "./support/console-watch";
+import { openMore } from "./support/open-more";
 
 /**
  * The live-walk screen on a phone: Start Walk gives the whole viewport to the
@@ -94,9 +95,10 @@ test("Start Walk fills the phone screen with the map and keeps the HUD out of th
   await page.route("**/api/nearby", (route) => route.fulfill({ json: { places: [] } }));
 
   await page.goto("/app?view=plan");
+  await openMore(page);
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
-  await page.getByRole("button", { name: "Build My Walk" }).click();
+  await page.getByRole("button", { name: "Build walking route" }).click();
   await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible({
     timeout: 15_000,
   });
@@ -144,7 +146,7 @@ test("Start Walk fills the phone screen with the map and keeps the HUD out of th
   // Ending the walk brings the form back.
   await page.getByRole("button", { name: "End walk" }).click();
   await page.getByRole("button", { name: /End walk/ }).click();
-  await expect(page.getByPlaceholder("Latitude")).toBeVisible();
+  await expect(page.getByPlaceholder("Latitude")).toBeAttached();
 
   expect(watch.hydrationErrors).toEqual([]);
   expect(appErrors(watch)).toEqual([]);
@@ -162,9 +164,10 @@ test("the OSM attribution stays above the HUD while an alert card is showing", a
   );
 
   await page.goto("/app?view=plan");
+  await openMore(page);
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
-  await page.getByRole("button", { name: "Build My Walk" }).click();
+  await page.getByRole("button", { name: "Build walking route" }).click();
   await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible({
     timeout: 15_000,
   });
@@ -220,9 +223,10 @@ test("the direction options sheet stays out of the account-pill corner and above
   );
 
   await page.goto("/app?view=plan");
+  await openMore(page);
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
-  await page.getByRole("button", { name: "Build My Walk" }).click();
+  await page.getByRole("button", { name: "Build walking route" }).click();
   await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible({
     timeout: 15_000,
   });
@@ -282,9 +286,10 @@ test("the off-route card is centred in the map area, wide, with tall actions", a
   await page.route("**/api/directions", (route) => route.fulfill({ status: 500, json: { error: "stubbed" } }));
 
   await page.goto("/app?view=plan");
+  await openMore(page);
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
-  await page.getByRole("button", { name: "Build My Walk" }).click();
+  await page.getByRole("button", { name: "Build walking route" }).click();
   await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible({ timeout: 15_000 });
   await page.getByLabel(/Simulate this walk/).check();
   await page.getByRole("button", { name: "Start Walk" }).click();

@@ -687,7 +687,7 @@ describe("PlacePromptPanel — the session scrollback", () => {
   }
 
   function sendPrompt(text: string) {
-    fireEvent.change(screen.getByRole("textbox", { name: "" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Stops or request" }), {
       target: { value: text },
     });
     fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
@@ -749,7 +749,7 @@ describe("PlacePromptPanel — the session scrollback", () => {
     sendPrompt("first walk");
     const thread = within(await screen.findByRole("list", { name: "Conversation" }));
     await thread.findByText(/Does that look right/);
-    expect((screen.getByRole("textbox", { name: "" }) as HTMLTextAreaElement).value).toBe("");
+    expect((screen.getByRole("textbox", { name: "Stops or request" }) as HTMLTextAreaElement).value).toBe("");
 
     sendPrompt("second walk");
     await waitFor(() => expect(thread.getAllByText(/Does that look right/).length).toBe(2));
@@ -1345,7 +1345,7 @@ describe("PlacePromptPanel — the follow-up turn", () => {
     await screen.findByText(
       "How much time do you have, and how far do you want to end up?",
     );
-    fireEvent.change(screen.getByRole("textbox", { name: "" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Stops or request" }), {
       target: { value: "הבימה בתל אביב" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
@@ -1429,7 +1429,7 @@ describe("PlacePromptPanel — persisted history", () => {
   }
 
   function sendPrompt(text: string) {
-    fireEvent.change(screen.getByRole("textbox", { name: "" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Stops or request" }), {
       target: { value: text },
     });
     fireEvent.click(screen.getByRole("button", { name: "Find these places" }));
@@ -1467,7 +1467,7 @@ describe("PlacePromptPanel — persisted history", () => {
     renderPanel({ persistHistory: true, isSignedIn: false });
 
     await waitFor(() => {
-      expect(screen.getByRole("textbox", { name: "" })).toBeTruthy();
+      expect(screen.getByRole("textbox", { name: "Stops or request" })).toBeTruthy();
     });
     expect(historyCalls(calls)).toEqual([]);
     expect(screen.queryByRole("button", { name: /Recent requests/ })).toBeNull();
@@ -1478,7 +1478,7 @@ describe("PlacePromptPanel — persisted history", () => {
     renderPanel({ persistHistory: false, isSignedIn: true });
 
     await waitFor(() => {
-      expect(screen.getByRole("textbox", { name: "" })).toBeTruthy();
+      expect(screen.getByRole("textbox", { name: "Stops or request" })).toBeTruthy();
     });
     expect(historyCalls(calls)).toEqual([]);
   });
@@ -1671,7 +1671,7 @@ describe("PlacePromptPanel — a contradicted standing fact", () => {
   }
 
   function sendPrompt(text: string) {
-    fireEvent.change(screen.getByRole("textbox", { name: "" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Stops or request" }), {
       target: { value: text },
     });
     fireEvent.click(screen.getByRole("button", { name: "Find these places" }));

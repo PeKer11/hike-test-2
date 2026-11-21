@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { appErrors, watchConsole } from "./support/console-watch";
+import { openMore } from "./support/open-more";
 
 /**
  * One walk, built the way a walker builds it: typed into the real form, in a
@@ -115,6 +116,8 @@ test("a walker fills in the form and gets a plan back", async ({ page }) => {
 
   await page.goto("/app?view=plan");
 
+  await openMore(page);
+
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
   // The number fields carry no `for`/`id` pairing, so they are addressed by the
@@ -124,7 +127,7 @@ test("a walker fills in the form and gets a plan back", async ({ page }) => {
   await page.locator('input[type="number"][min="0.5"][max="10"]').fill("1.5");
   await page.getByRole("button", { name: "Landmarks" }).click();
 
-  await page.getByRole("button", { name: "Build My Walk" }).click();
+  await page.getByRole("button", { name: "Build walking route" }).click();
 
   // Real Overpass + ORS is several round trips; the stub answers instantly.
   await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible(

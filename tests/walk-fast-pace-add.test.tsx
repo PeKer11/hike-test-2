@@ -136,7 +136,7 @@ async function startFastWalk(untilQuestion = true) {
   await flush();
   fireEvent.change(screen.getByPlaceholderText("Latitude"), { target: { value: String(ORIGIN.lat) } });
   fireEvent.change(screen.getByPlaceholderText("Longitude"), { target: { value: String(ORIGIN.lng) } });
-  fireEvent.click(screen.getByRole("button", { name: "Build My Walk" }));
+  fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
   await flush();
   fireEvent.click(screen.getByLabelText(/Simulate this walk/));
   fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));

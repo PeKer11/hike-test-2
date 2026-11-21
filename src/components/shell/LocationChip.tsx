@@ -39,7 +39,7 @@ export function LocationChip({ lang, onClick, label }: { lang: "he" | "en"; onCl
       type="button"
       onClick={onClick}
       dir={lang === "he" ? "rtl" : "ltr"}
-      className="tk-champagne flex h-9 min-w-0 max-w-[64%] items-center gap-2 py-[5px] pe-[15px] ps-3 text-[16px] leading-none tracking-[0.02em]"
+      className="tk-champagne flex h-9 min-w-0 max-w-full items-center gap-2 py-[5px] pe-[15px] ps-3 text-[16px] leading-none tracking-[0.02em]"
     >
       <span aria-hidden className="tk-champagne-ring" />
       <span className="min-w-0 truncate">{label ?? start}</span>

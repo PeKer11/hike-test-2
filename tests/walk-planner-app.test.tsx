@@ -172,7 +172,7 @@ function fillOrigin(origin: Coordinates = ORIGIN) {
 }
 
 function clickBuild() {
-  fireEvent.click(screen.getByRole("button", { name: "Build My Walk" }));
+  fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
 }
 
 /** Fill the form, build, and wait for the plan to land on screen. */

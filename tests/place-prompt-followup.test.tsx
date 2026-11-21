@@ -64,7 +64,7 @@ describe("PlacePromptPanel follow-up reply", () => {
     const status = await screen.findByRole("status");
     expect(status.textContent).toContain("180 min");
     expect(status.textContent).toContain("finish within 1 km");
-    expect(status.textContent).toContain("Build My Walk");
+    expect(status.textContent).toContain("Build walking route");
     expect(status.textContent).toContain("it will pick the places");
   });
 

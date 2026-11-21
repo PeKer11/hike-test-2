@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { appErrors, watchConsole } from "./support/console-watch";
 import { ORIGIN, STUBBED_PLAN } from "./support/stub-plan";
+import { openMore } from "./support/open-more";
 
 /** A Hebrew-UI walk: the page flips to RTL, nothing scrolls sideways, and the HUD stays clear of the account pill. */
 test.use({
@@ -29,9 +30,10 @@ test("a Hebrew walk lays out right-to-left without overflow", async ({ page }, t
 
   await page.goto("/app?view=plan");
   await expect.poll(() => page.evaluate(() => document.documentElement.dir)).toBe("rtl");
+  await openMore(page);
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
-  await page.getByRole("button", { name: "Build My Walk" }).click();
+  await page.getByRole("button", { name: "Build walking route" }).click();
   await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible({ timeout: 15_000 });
   await testInfo.attach("planner-he", { body: await page.screenshot(), contentType: "image/png" });
 

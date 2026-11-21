@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { appErrors, watchConsole } from "./support/console-watch";
+import { openMore } from "./support/open-more";
 
 /**
  * The app shell: one mounted planner, screens switched with ?view=.
@@ -39,9 +40,9 @@ for (const viewport of [
       const nav = page.getByRole("navigation", { name: "App" }).filter({ visible: true });
       await expect(nav).toBeVisible();
 
+      // The bar is Home, Plan, Walk, Walks, Me (round 13). Friends lives under Walks.
       for (const [name, view] of [
         ["Walks", "walks"],
-        ["Social", "social"],
         ["Me", "me"],
         ["Home", "home"],
       ] as const) {
@@ -49,13 +50,12 @@ for (const viewport of [
         await expect(page.locator(`[data-view=${view}]`)).toBeAttached();
       }
 
-      // Plan is a full-screen task screen: no phone tab bar, a back button instead.
-      await nav.getByRole("button", { name: "New route", exact: true }).click();
+      // Plan keeps the bar. With no walk running, Walk also opens Plan, where a walk is started.
+      await nav.getByRole("button", { name: "Plan", exact: true }).click();
       await expect(page.locator("[data-view=plan]")).toBeAttached();
-      await expect(page.getByPlaceholder("Latitude")).toBeVisible();
-      if (viewport.phone) await expect(page.getByRole("navigation", { name: "App" }).filter({ visible: true })).toHaveCount(0);
-      if (viewport.phone) await page.getByRole("button", { name: "Back" }).click();
-      else await nav.getByRole("button", { name: "Home", exact: true }).click();
+      await expect(page.getByPlaceholder("Latitude")).toBeAttached();
+      await expect(page.getByRole("navigation", { name: "App" }).filter({ visible: true })).toHaveCount(1);
+      await nav.getByRole("button", { name: "Home", exact: true }).click();
       await expect(page.locator("[data-view=home]")).toBeAttached();
 
       // Browser Back walks the same history.
@@ -70,16 +70,17 @@ for (const viewport of [
       await page.route("**/api/walk-plan", (route) => route.fulfill({ json: STUBBED_PLAN }));
       await page.route("**/api/nearby", (route) => route.fulfill({ json: { places: [] } }));
       await page.goto("/app?view=plan");
+      await openMore(page);
       await page.getByPlaceholder("Latitude").fill("32.0779");
       await page.getByPlaceholder("Longitude").fill("34.7742");
-      await page.getByRole("button", { name: "Build My Walk" }).click();
+      await page.getByRole("button", { name: "Build walking route" }).click();
       await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible({ timeout: 15_000 });
       await page.getByLabel(/Simulate this walk/).check();
       await page.getByRole("button", { name: "Start Walk" }).click();
       await expect(page.getByTestId("walk-hud")).toBeVisible();
       await expect(page).toHaveURL(/view=walk/);
-      // The live walk is a full-screen task: no tab bar.
-      await expect(page.getByRole("navigation", { name: "App" }).filter({ visible: true })).toHaveCount(viewport.phone ? 0 : 1);
+      // The bar stays on the live walk too (mockup C).
+      await expect(page.getByRole("navigation", { name: "App" }).filter({ visible: true })).toHaveCount(1);
 
       // Leave to Home (history push) and come back: the same walk is still running.
       await page.evaluate(() => window.history.pushState(null, "", "/app"));

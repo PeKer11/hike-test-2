@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { appErrors, watchConsole } from "./support/console-watch";
 import { ORIGIN, STUBBED_PLAN } from "./support/stub-plan";
+import { openMore } from "./support/open-more";
 
 /**
  * Airplane mode in the middle of a real (non-simulated) walk: no crash, the HUD stays, the GPS dot keeps
@@ -24,9 +25,10 @@ test("a walk survives two minutes offline and resumes lookups when the network r
   await page.route("**/api/nearby", (route) => route.fulfill(nearby));
 
   await page.goto("/app?view=plan");
+  await openMore(page);
   await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
   await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
-  await page.getByRole("button", { name: "Build My Walk" }).click();
+  await page.getByRole("button", { name: "Build walking route" }).click();
   await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Start Walk" }).click();
   await expect(page.getByTestId("walk-hud")).toBeVisible();
@@ -62,7 +64,7 @@ test("a walk survives two minutes offline and resumes lookups when the network r
   await expect(page.getByTestId("walk-hud")).toBeVisible();
   await page.getByRole("button", { name: "End walk" }).click();
   await page.getByRole("button", { name: /End walk/ }).click();
-  await expect(page.getByPlaceholder("Latitude")).toBeVisible();
+  await expect(page.getByPlaceholder("Latitude")).toBeAttached();
   expect(watch.hydrationErrors).toEqual([]);
   expect(appErrors(watch)).toEqual([]);
 });

@@ -16,7 +16,7 @@ const ROUTES = [
   { path: "/", heading: "A walk built around you" },
   { path: "/app", heading: /Good (morning|afternoon|evening)/ },
   { path: "/app?view=plan", heading: "City Walk Companion" },
-  { path: "/login", heading: "Welcome back" },
+  { path: "/login", heading: "Sign in to Traike" },
   { path: "/pricing", heading: "Walk first. Pay later." },
 ];
 

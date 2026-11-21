@@ -3861,13 +3861,15 @@ export function WalkPlannerApp({
                   <img src="/traike-icon.png" alt="" className="h-[30px] w-[30px] rounded-lg" />
                   <span className="font-app-serif text-[24px] font-bold leading-none">Traike</span>
                 </Link>
-                <LocationChip
-                  lang={uiLang === "he" ? "he" : "en"}
-                  onClick={() => {
-                    setIsAdvancedOpen(false);
-                    setOpenMoreTick((n) => n + 1);
-                  }}
-                />
+                <div className="flex min-w-0 max-w-[64%] justify-end">
+                  <LocationChip
+                    lang={uiLang === "he" ? "he" : "en"}
+                    onClick={() => {
+                      setIsAdvancedOpen(false);
+                      setOpenMoreTick((n) => n + 1);
+                    }}
+                  />
+                </div>
               </div>
             )}
             <h1 dir="auto" className="mt-3 whitespace-nowrap text-start font-display text-[26px] font-normal leading-[1.12] text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">

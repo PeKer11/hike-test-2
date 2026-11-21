@@ -212,7 +212,7 @@ async function startSimulatedWalk(plan = planOf([MUSEUM, CATHEDRAL, MARKET])) {
   fireEvent.change(screen.getByPlaceholderText("Longitude"), {
     target: { value: String(ORIGIN.lng) },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Build My Walk" }));
+  fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
   await flush();
 
   // `WalkTracker.start()` throws without `navigator.geolocation`; the simulator
@@ -349,7 +349,7 @@ describe("what a rebuild cost the walker", () => {
     await rebuildDroppingTheCathedral();
 
     const dropped = screen.getByText("Old Cathedral");
-    const buildForm = screen.getByText("City Walk Companion");
+    const buildForm = screen.getByRole("button", { name: "Build walking route" });
 
     // Node.DOCUMENT_POSITION_FOLLOWING — the form comes after the panel.
     expect(dropped.compareDocumentPosition(buildForm) & 4).toBeTruthy();

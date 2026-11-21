@@ -218,7 +218,7 @@ async function startSimulatedWalk() {
   await flush();
   fireEvent.change(screen.getByPlaceholderText("Latitude"), { target: { value: String(ORIGIN.lat) } });
   fireEvent.change(screen.getByPlaceholderText("Longitude"), { target: { value: String(ORIGIN.lng) } });
-  fireEvent.click(screen.getByRole("button", { name: "Build My Walk" }));
+  fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
   await flush();
   fireEvent.click(screen.getByLabelText(/Simulate this walk/));
   fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
@@ -403,13 +403,13 @@ describe("a walker who has gone a different way (collapse)", () => {
     fireEvent.click(screen.getByRole("button", { name: /End walk/ })); // second tap confirms
     await flush(2);
     expect(screen.queryByTestId("walk-hud")).toBeNull();
-    expect(screen.getByRole("button", { name: "Build My Walk" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Build walking route" })).toBeTruthy();
 
     // A NEW walk starts while the old request is still in flight. Only the
     // request-id guard keeps the stale answer from showing its sheet in it.
     holdOptions = false;
     const plansBefore = walkPlanCalls.length;
-    fireEvent.click(screen.getByRole("button", { name: "Build My Walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
     await flush();
     fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
     await flush(3);

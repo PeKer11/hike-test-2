@@ -203,16 +203,16 @@ async function advance(ms: number) {
 async function startSimulatedWalk() {
   render(<WalkPlannerApp />);
   await flush();
-  fireEvent.change(screen.getByPlaceholderText("Latitude"), {
+  fireEvent.change(screen.getByPlaceholderText(/^(Latitude|קו רוחב)$/), {
     target: { value: String(ORIGIN.lat) },
   });
-  fireEvent.change(screen.getByPlaceholderText("Longitude"), {
+  fireEvent.change(screen.getByPlaceholderText(/^(Longitude|קו אורך)$/), {
     target: { value: String(ORIGIN.lng) },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Build My Walk" }));
+  fireEvent.click(screen.getByRole("button", { name: /^(Build walking route|בנה מסלול הליכה)$/ }));
   await flush();
   fireEvent.click(screen.getByLabelText(/Simulate this walk/));
-  fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
+  fireEvent.click(screen.getByRole("button", { name: /^(Start Walk|התחל הליכה)$/ }));
   await flush();
 }
 
@@ -294,7 +294,7 @@ describe("the live-walk HUD", () => {
     await flush();
     fireEvent.change(screen.getByPlaceholderText("Latitude"), { target: { value: String(ORIGIN.lat) } });
     fireEvent.change(screen.getByPlaceholderText("Longitude"), { target: { value: String(ORIGIN.lng) } });
-    fireEvent.click(screen.getByRole("button", { name: "Build My Walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
     await flush();
     fireEvent.click(screen.getByLabelText(/Simulate this walk/));
     fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
@@ -340,7 +340,7 @@ describe("ending the walk during a mid-walk rebuild", () => {
 
   function expectWalkEnded() {
     expect(screen.queryByTestId("walk-hud")).toBeNull();
-    expect(screen.getByRole("button", { name: "Build My Walk" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Build walking route" })).toBeTruthy();
   }
 
   it("does not restart the walk when the held rebuild later succeeds", async () => {

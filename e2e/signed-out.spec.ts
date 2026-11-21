@@ -20,7 +20,7 @@ test("the planner is public and the auth-backed surfaces stay quiet", async ({
   expect(response?.status()).toBe(200);
   expect(new URL(page.url()).pathname).toBe("/app");
   await expect(
-    page.getByRole("button", { name: "Build My Walk" }),
+    page.getByRole("button", { name: "Build walking route" }),
   ).toBeEnabled();
 
   // Nothing is remembered about a visitor who isn't anyone, so the panel that
@@ -44,6 +44,6 @@ test("the memory endpoints answer empty rather than erroring", async ({
 test("/login offers a way in", async ({ page }) => {
   await page.goto("/login");
 
-  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to Traike" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
 });
