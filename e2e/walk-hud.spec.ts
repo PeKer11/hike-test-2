@@ -130,11 +130,15 @@ test("Start Walk fills the phone screen with the map and keeps the HUD out of th
     hudBox!.y + hudBox!.height > pill.y;
   expect(overlapsPill).toBe(false);
 
-  // The HUD is one sheet that reaches the screen's bottom edge: no bare page background under it.
-  const bottomHit = await page.evaluate(
-    () => !!document.elementFromPoint(195, window.innerHeight - 2)?.closest("[data-testid=walk-hud]"),
+  // The HUD is one sheet that runs down to the tab bar: no bare page background between them.
+  const tabBox = await page.getByRole("navigation", { name: "App" }).boundingBox();
+  expect(tabBox).not.toBeNull();
+  expect(Math.abs(tabBox!.y - (hudBox!.y + hudBox!.height))).toBeLessThanOrEqual(2);
+  const gapHit = await page.evaluate(
+    (y) => !!document.elementFromPoint(195, y - 2)?.closest("[data-testid=walk-hud]"),
+    tabBox!.y,
   );
-  expect(bottomHit).toBe(true);
+  expect(gapHit).toBe(true);
 
   // OSM attribution stays visible, above the HUD rather than under it.
   const attribution = page.locator(".leaflet-control-attribution");
@@ -179,9 +183,10 @@ test("the OSM attribution stays above the HUD while an alert card is showing", a
   await page.getByRole("button", { name: "Details" }).click();
   await page.getByRole("button", { name: "Details" }).click();
   await page.getByRole("button", { name: /Stray \d+ m off route/ }).click();
-  await page.getByRole("button", { name: "Close", exact: false }).first().click();
+  await page.getByRole("button", { name: "Back to walk" }).click();
 
-  const card = page.getByTestId("walk-hud").getByRole("alert");
+  // The off-route card is centred over the map (a sibling of the sheet, not inside it).
+  const card = page.getByTestId("off-route-card");
   await expect(card).toBeVisible({ timeout: 30_000 });
 
   // `--hud-h` is published asynchronously by a ResizeObserver, so poll the boxes.

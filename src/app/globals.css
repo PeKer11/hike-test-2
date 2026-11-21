@@ -45,6 +45,9 @@
   /* Round 13 "leather": the one action colour. Dark ink on it, a hard lip under it. */
   --tk-leather: #d2602f;
   --tk-on-leather: #111915;
+  /* Live walk: the pine-to-sunset deck under the map (mockup C) and the light text on it. */
+  --tk-turn: linear-gradient(180deg, #89310e 0%, #a23f13 62%, #b64d18 100%);
+  --tk-on-turn: #fff7ec;
 }
 
 /* Dark: warm forest night. Brand tokens swap as pairs, so text and fills that
@@ -86,6 +89,8 @@
   --tk-on-sel: #1a1613;
   --tk-leather: #e06a38;
   --tk-on-leather: #111915;
+  --tk-turn: linear-gradient(180deg, #171310 0%, #261a13 65%, #312016 100%);
+  --tk-on-turn: #fff3e2;
 
   /* Status shades used as text/tints on light cards. */
   --color-rose-50: #3a1f22;
@@ -282,6 +287,46 @@
     transition: transform 80ms ease, box-shadow 80ms ease;
   }
   .tk-fab:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--tk-lip); }
+
+  /* Live walk (mockup C): the deck under the map, the paper tags floating on it, the leather time tag. */
+  .tk-turn-deck {
+    background: var(--tk-turn);
+    color: var(--tk-on-turn);
+    border-block-end: 1.5px solid var(--tk-lip);
+  }
+  .tk-paper-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    height: 36px;
+    padding-inline: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--tk-hair);
+    background: var(--tk-cream);
+    color: var(--tk-tk-ink);
+    box-shadow: 0 2px 0 var(--tk-lip);
+    font-family: var(--font-app-sans);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .tk-time-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    height: 26px;
+    padding-inline: 6px;
+    border-radius: 4px;
+    background: var(--tk-leather);
+    color: var(--tk-on-leather);
+    font-family: var(--font-app-sans);
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /* Night map: invert only the tiles, never markers or routes. */
@@ -388,8 +433,14 @@ body {
   bottom: 0;
   z-index: 900;
 }
+/* The attribution is fixed to the viewport, and the HUD sits on top of the phone tab bar (62px), so lift it by both. */
 .walk-hud .leaflet-container .leaflet-control-attribution {
-  bottom: var(--hud-h, 9rem);
+  bottom: calc(var(--hud-h, 9rem) + 62px + env(safe-area-inset-bottom));
+}
+@media (min-width: 1024px) {
+  .walk-hud .leaflet-container .leaflet-control-attribution {
+    bottom: var(--hud-h, 9rem);
+  }
 }
 
 

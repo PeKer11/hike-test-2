@@ -14,6 +14,7 @@ export function WalkSheet({
   half,
   onFull,
   label,
+  deck,
   children,
 }: {
   sheetRef?: Ref<HTMLDivElement>;
@@ -23,6 +24,8 @@ export function WalkSheet({
   onFull: () => void;
   /** Accessible name of the handle. */
   label: string;
+  /** The sunset deck (round 13) at the very top; the handle floats over it. */
+  deck?: ReactNode;
   children: ReactNode;
 }) {
   const [state, setState] = useState<SheetState>("peek");
@@ -37,8 +40,9 @@ export function WalkSheet({
       ref={sheetRef}
       data-testid="walk-hud"
       data-sheet={state}
-      className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col gap-2 rounded-t-[22px] bg-paper px-4 pt-1 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(30,61,47,0.18)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)] dark:ring-1 dark:ring-inset dark:ring-[rgba(242,235,225,0.06)]"
+      className={`pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col gap-2 overflow-hidden rounded-t-[6px] border-t-[1.5px] border-[var(--tk-lip)] bg-paper px-4 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-6px_18px_rgba(30,20,10,0.16)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)] ${deck ? "" : "pt-1"}`}
     >
+      {deck}
       <button
         type="button"
         aria-label={label}
@@ -62,9 +66,9 @@ export function WalkSheet({
           }
           up();
         }}
-        className="mx-auto flex h-6 w-24 touch-none items-center justify-center"
+        className={`mx-auto flex h-6 w-24 touch-none items-center justify-center ${deck ? "absolute inset-x-0 top-1 z-10" : ""}`}
       >
-        <span aria-hidden className="h-1 w-9 rounded-full bg-charcoal/25" />
+        <span aria-hidden className={`h-1 w-9 rounded-full ${deck ? "bg-[rgba(255,247,236,0.5)]" : "bg-charcoal/25"}`} />
       </button>
       {children}
       {state === "half" ? half : null}

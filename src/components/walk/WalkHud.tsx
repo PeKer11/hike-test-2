@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { WalkAlertCard, type WalkAlert } from "@/components/walk/WalkAlertCard";
 import { WalkSheet } from "@/components/walk/WalkSheet";
 import { WalkStatsBar, type WalkStatsData } from "@/components/walk/WalkStatsBar";
+import { WalkTurnDeck, etaClock } from "@/components/walk/WalkTurnDeck";
 import type { LocateState } from "@/lib/geo/locate";
 import { walkCopy } from "@/lib/walk/walk-copy";
 
@@ -33,6 +34,8 @@ interface WalkHudProps {
   lang?: "he" | "en";
   /** The next unvisited stop and roughly how many minutes away it is. */
   nextStop?: { name: string; minutes: number | null } | null;
+  /** Which stop the walker is heading for, of how many; drives the chip floating on the map. */
+  stopProgress?: { index: number; total: number } | null;
   /** Shown only when the sheet is dragged to HALF: the stops coming up and the quick actions. */
   half?: ReactNode;
   /** Past HALF (or the layers glyph): the full Details. */
@@ -50,7 +53,7 @@ interface WalkHudProps {
  * map ends exactly above it (Google's logo and terms stay visible; Leaflet's
  * attribution is lifted clear of it).
  */
-export function WalkHud({ alert, notice = null, sharing = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, half, onDetails, onEndWalk }: WalkHudProps) {
+export function WalkHud({ alert, notice = null, sharing = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, stopProgress = null, half, onDetails, onEndWalk }: WalkHudProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -86,8 +89,34 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
 
   return (
     <div ref={outerRef} className="pointer-events-none absolute inset-0 z-[600]">
+      {/* The Traike mark and the stop chip float on the map, beside Google's own controls (they sit at the inline-end: right, or left in Hebrew). */}
+      <div dir={lang === "he" ? "rtl" : "ltr"} className="absolute inset-x-0 top-[max(12px,env(safe-area-inset-top))] flex items-center gap-2 ps-3.5 pe-[60px]">
+        <span className="tk-paper-tag pointer-events-auto shrink-0">
+          <svg aria-hidden width="20" height="20" viewBox="0 0 26 26" fill="none">
+            <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            <circle cx="19.5" cy="6.5" r="5" fill="var(--tk-cream)" stroke="currentColor" strokeWidth="2" />
+            <circle cx="19.5" cy="6.5" r="2.3" fill="var(--tk-leather)" />
+          </svg>
+          <strong className="font-app-serif text-[17px] font-semibold">Traike</strong>
+        </span>
+        {stopProgress && stopProgress.total > 0 ? (
+          <span dir="auto" data-testid="walk-stop-chip" className="tk-paper-tag pointer-events-auto !gap-1.5 !px-2.5 !text-[15px]">
+            <span aria-hidden className="tk-champagne-ring !border-[var(--tk-tk-ink)] !bg-[var(--tk-cream)]" />
+            <span className="min-w-0 truncate">
+              {t.stopOf(stopProgress.index, stopProgress.total)}
+              {stats?.timeToFinishMin != null ? <> · <bdi dir="ltr">{etaClock(stats.timeToFinishMin)}</bdi></> : null}
+            </span>
+          </span>
+        ) : null}
+      </div>
       {center}
-      <WalkSheet sheetRef={stackRef} half={half} onFull={onDetails} label={t.details}>
+      <WalkSheet
+        sheetRef={stackRef}
+        half={half}
+        onFull={onDetails}
+        label={t.details}
+        deck={nextStop ? <WalkTurnDeck label={t.nextStop} name={nextStop.name} minutes={nextStop.minutes} minUnit={t.minUnit} /> : undefined}
+      >
         {sheet ?? (alert ? <WalkAlertCard key={alert.id} alert={alert} /> : null)}
         {gpsLabel ? (
           <div
@@ -131,15 +160,6 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
             ) : null}
           </div>
         ) : null}
-        {nextStop ? (
-          <p dir="auto" className="flex items-baseline gap-2 text-[17px] font-medium leading-6 text-tk-ink" data-testid="walk-next-stop">
-            <span aria-hidden className="h-2.5 w-2.5 shrink-0 translate-y-px rounded-full bg-terra" />
-            <span className="min-w-0 truncate">
-              {t.nextStop} · {nextStop.name}
-            </span>
-            {nextStop.minutes !== null ? <span className="shrink-0 text-[13px] text-charcoal/60">{nextStop.minutes} {lang === "he" ? "דק׳" : "min"}</span> : null}
-          </p>
-        ) : null}
         {stats ? <WalkStatsBar stats={stats} lang={lang} /> : null}
         <div className="flex flex-wrap items-center gap-2">
           {chat}
@@ -153,7 +173,7 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
                 setConfirmEnd(true);
               }
             }}
-            className="ms-auto min-h-12 shrink-0 rounded-full bg-terra/10 px-5 text-[15px] font-semibold text-terra shadow-tk-soft transition-colors hover:bg-terra/15"
+            className="tk-btn tk-btn-secondary ms-auto min-h-[52px] shrink-0"
           >
             {confirmEnd ? t.endConfirm : t.endWalk}
           </button>

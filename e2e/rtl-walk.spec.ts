@@ -31,14 +31,14 @@ test("a Hebrew walk lays out right-to-left without overflow", async ({ page }, t
   await page.goto("/app?view=plan");
   await expect.poll(() => page.evaluate(() => document.documentElement.dir)).toBe("rtl");
   await openMore(page);
-  await page.getByPlaceholder("Latitude").fill(ORIGIN.lat);
-  await page.getByPlaceholder("Longitude").fill(ORIGIN.lng);
-  await page.getByRole("button", { name: "Build walking route" }).click();
+  await page.getByPlaceholder("קו רוחב").fill(ORIGIN.lat);
+  await page.getByPlaceholder("קו אורך").fill(ORIGIN.lng);
+  await page.getByRole("button", { name: "בנה מסלול הליכה" }).click();
   await expect(page.getByRole("heading", { name: "Your Walk Plan" })).toBeVisible({ timeout: 15_000 });
   await testInfo.attach("planner-he", { body: await page.screenshot(), contentType: "image/png" });
 
   await page.getByLabel(/Simulate this walk/).check();
-  await page.getByRole("button", { name: "Start Walk" }).click();
+  await page.getByRole("button", { name: "התחל הליכה" }).click();
   const hud = page.getByTestId("walk-hud");
   await expect(hud).toBeVisible();
   await expect(page.getByTestId("walk-stats")).toBeVisible();

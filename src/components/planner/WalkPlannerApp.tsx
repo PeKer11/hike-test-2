@@ -4980,6 +4980,7 @@ export function WalkPlannerApp({
             sheet={directionSheet}
             stats={walkStats}
             nextStop={nextStopInfo}
+            stopProgress={waypoints.length > 0 ? { index: Math.min(waypoints.length, waypoints.length - upcomingStops.length + 1), total: waypoints.length } : null}
             half={halfContent}
             gpsState={gpsState}
             lang={uiLang === "he" ? "he" : "en"}

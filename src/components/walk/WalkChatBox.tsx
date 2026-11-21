@@ -30,7 +30,7 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="min-h-12 w-full rounded-full bg-terra px-5 text-[15px] font-semibold text-on-accent shadow-tk-soft transition-colors hover:bg-terra/90"
+          className="tk-btn tk-btn-primary w-full"
         >
           {copy.ask}
         </button>

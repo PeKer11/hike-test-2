@@ -72,6 +72,36 @@ describe("the walk sheet", () => {
     expect(screen.getByText("+20 min over plan")).toBeTruthy();
   });
 
+  it("puts the minutes to the next stop and its arrival time on the sunset deck", () => {
+    vi.setSystemTime(new Date(2026, 10, 21, 18, 30, 0));
+    render(<WalkHud alert={null} stats={stats} nextStop={{ name: "Carmel Market", minutes: 6 }} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    const deck = screen.getByTestId("walk-turn-deck");
+    expect(deck.textContent).toContain("6");
+    expect(deck.textContent).toContain("min");
+    expect(deck.textContent).toContain("Carmel Market");
+    expect(deck.textContent).toContain("18:36");
+  });
+
+  it("keeps a deck without the big number when the distance to the next stop is not known", () => {
+    render(<WalkHud alert={null} stats={stats} nextStop={{ name: "Carmel Market", minutes: null }} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(screen.getByTestId("walk-next-stop").textContent).toContain("Carmel Market");
+    expect(screen.getByTestId("walk-turn-deck").textContent).not.toMatch(/\d\d:\d\d/);
+  });
+
+  it("floats the Traike mark and the stop chip over the map, with the finish time", () => {
+    vi.setSystemTime(new Date(2026, 10, 21, 18, 0, 0));
+    render(<WalkHud alert={null} stats={{ ...stats, timeToFinishMin: 80 }} stopProgress={{ index: 2, total: 4 }} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(screen.getByText("Traike")).toBeTruthy();
+    expect(screen.getByTestId("walk-stop-chip").textContent).toBe("Stop 2 of 4 · 19:20");
+  });
+
+  it("speaks the stop chip in Hebrew and hides it when there are no stops", () => {
+    const { rerender } = render(<WalkHud alert={null} stats={stats} lang="he" stopProgress={{ index: 1, total: 3 }} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(screen.getByTestId("walk-stop-chip").textContent).toContain("תחנה 1 מתוך 3");
+    rerender(<WalkHud alert={null} stats={stats} lang="he" stopProgress={null} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(screen.queryByTestId("walk-stop-chip")).toBeNull();
+  });
+
   it("speaks Hebrew when asked", () => {
     render(<WalkHud alert={null} stats={stats} lang="he" nextStop={{ name: "שוק הכרמל", minutes: 4 }} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
     expect(screen.getByRole("button", { name: "סיום הליכה" })).toBeTruthy();

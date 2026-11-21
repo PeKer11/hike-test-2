@@ -15,7 +15,7 @@ import { appErrors, watchConsole } from "./support/console-watch";
 const ROUTES = [
   { path: "/", heading: "A walk built around you" },
   { path: "/app", heading: /Good (morning|afternoon|evening)/ },
-  { path: "/app?view=plan", heading: "City Walk Companion" },
+  { path: "/app?view=plan", heading: "Where shall we walk?" },
   { path: "/login", heading: "Sign in to Traike" },
   { path: "/pricing", heading: "Walk first. Pay later." },
 ];

@@ -183,6 +183,7 @@ test("a returning walker's stored settings hydrate without a mismatch", async ({
   const watch = watchConsole(page);
   await page.goto("/app?view=plan");
   await page.waitForFunction(() => "next" in window);
+  await openMore(page); // Walk settings live under "More options"
 
   // The stored blob is what the walker gets back, not the defaults the server
   // rendered -- a real browser store surviving a real SSR pass, which jsdom's
@@ -202,6 +203,7 @@ test("a walk setting survives a reload", async ({ page }) => {
   // actually makes -- change something, close the tab, come back -- has never
   // been exercised anywhere in `tests/`.
   await page.goto("/app?view=plan");
+  await openMore(page); // Walk settings live under "More options"
   await page.getByRole("button", { name: "Walk settings" }).click();
 
   const toggle = page.getByRole("button", { name: "Remember my preferences" });
@@ -214,6 +216,7 @@ test("a walk setting survives a reload", async ({ page }) => {
   const watch = watchConsole(page);
   await page.reload();
 
+  await openMore(page);
   await page.getByRole("button", { name: "Walk settings" }).click();
   await expect(
     page.getByRole("button", { name: "Remember my preferences" }),
