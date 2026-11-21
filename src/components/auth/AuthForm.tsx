@@ -3,13 +3,21 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { BTN } from "@/components/ui/panel-style";
 import { useHydrated } from "@/lib/hooks/useHydrated";
 import { createClient } from "@/lib/supabase/client";
 
 type AuthMode = "login" | "signup";
 
+const FORM_COPY = {
+  en: { email: "Email address", password: "Password", confirm: "Confirm password", forgot: "Forgot password?", login: "Continue", signup: "Create account", loggingIn: "Logging in…", creating: "Creating account…", noAccount: "No account yet? ", haveAccount: "Already have an account? ", signUpLink: "Sign up", logInLink: "Log in", enter: "Enter your email and password.", short: "Password must be at least 6 characters.", mismatch: "Passwords don't match." },
+  he: { email: "כתובת אימייל", password: "סיסמה", confirm: "אימות סיסמה", forgot: "שכחתם סיסמה?", login: "המשך", signup: "יצירת חשבון", loggingIn: "מתחברים…", creating: "יוצרים חשבון…", noAccount: "אין חשבון עדיין? ", haveAccount: "כבר יש חשבון? ", signUpLink: "הרשמה", logInLink: "התחברות", enter: "הזינו אימייל וסיסמה.", short: "הסיסמה צריכה להכיל לפחות 6 תווים.", mismatch: "הסיסמאות אינן זהות." },
+} as const;
+
 interface AuthFormProps {
   mode: AuthMode;
+  /** Language of the form's words (the screen around it reads the saved setting). */
+  lang?: "he" | "en";
   /** Error carried over from the auth callback redirect. */
   initialError?: string;
 }
@@ -17,9 +25,9 @@ interface AuthFormProps {
 // Brand tokens from DESIGN.md (see globals.css @theme) so these pages sit next
 // to the landing page rather than looking like the generic app chrome.
 const inputClasses =
-  "w-full rounded-[10px] border border-charcoal/15 bg-cream/40 px-3 py-2.5 text-sm text-charcoal focus:border-terra focus:outline-none";
+  "h-[46px] w-full rounded-[6px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 text-[16px] font-semibold text-tk-ink focus:outline-2 focus:outline-offset-1 focus:outline-[var(--tk-ctl)]";
 
-const labelClasses = "text-sm font-semibold text-forest";
+const labelClasses = "text-[14px] font-semibold text-tk-ink";
 
 // Invisible direction marks that Hebrew text (WhatsApp, Gmail) puts around a
 // pasted email; the browser rejects them and the user can't see why.
@@ -66,7 +74,8 @@ export function friendlyError(error: {
   }
 }
 
-export function AuthForm({ mode, initialError }: AuthFormProps) {
+export function AuthForm({ mode, initialError, lang = "en" }: AuthFormProps) {
+  const t = FORM_COPY[lang];
   // Before hydration the browser would submit this form itself (GET, password in the URL).
   const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -88,15 +97,15 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
     const confirmPassword = String(form.get("confirmPassword") ?? "");
 
     if (!email.includes("@") || !password) {
-      setError("Enter your email and password.");
+      setError(t.enter);
       return;
     }
     if (mode === "signup" && password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError(t.short);
       return;
     }
     if (mode === "signup" && password !== confirmPassword) {
-      setError("Passwords don't match.");
+      setError(t.mismatch);
       return;
     }
 
@@ -153,105 +162,59 @@ export function AuthForm({ mode, initialError }: AuthFormProps) {
   const isSignup = mode === "signup";
 
   return (
-    <div className="w-full max-w-sm space-y-5 rounded-xl bg-paper p-8 shadow-[0_4px_20px_rgba(30,61,47,0.12)]">
-      <div className="space-y-2">
-        <h1 className="font-display text-2xl font-bold text-forest">
-          {isSignup ? "Create your account" : "Welcome back"}
-        </h1>
-        <p className="text-sm leading-relaxed text-charcoal/70">
-          {isSignup
-            ? "Save your walking profile so every walk starts where the last one left off."
-            : "Log in to pick up your walking profile."}
-        </p>
-      </div>
-
-      <form className="space-y-4" method="post" onSubmit={handleSubmit} noValidate>
+    <form method="post" onSubmit={handleSubmit} noValidate className="font-app-sans">
+      <div className="space-y-3 border-b border-tk-hair px-4 py-3">
         <label className="block space-y-1.5">
-          <span className={labelClasses}>Email</span>
-          <input
-            type="email"
-            name="email"
-            id="email"
-            autoComplete="email"
-            required
-            className={inputClasses}
-          />
+          <span className={labelClasses}>{t.email}</span>
+          <input type="email" name="email" id="email" dir="ltr" autoComplete="email" required className={inputClasses} />
         </label>
 
         <label className="block space-y-1.5">
-          <span className={labelClasses}>Password</span>
-          <input
-            type="password"
-            name="password"
-            id="password"
-            autoComplete={isSignup ? "new-password" : "current-password"}
-            required
-            className={inputClasses}
-          />
+          <span className={labelClasses}>{t.password}</span>
+          <input type="password" name="password" id="password" dir="ltr" autoComplete={isSignup ? "new-password" : "current-password"} required className={inputClasses} />
         </label>
 
         {isSignup && (
           <label className="block space-y-1.5">
-            <span className={labelClasses}>Confirm password</span>
-            <input
-              type="password"
-              name="confirmPassword"
-              id="confirmPassword"
-              autoComplete="new-password"
-              required
-              className={inputClasses}
-            />
+            <span className={labelClasses}>{t.confirm}</span>
+            <input type="password" name="confirmPassword" id="confirmPassword" dir="ltr" autoComplete="new-password" required className={inputClasses} />
           </label>
         )}
 
         {!isSignup && (
-          <Link
-            href="/forgot-password"
-            className="block text-sm font-semibold text-terra hover:text-terra/80"
-          >
-            Forgot password?
+          <Link href="/forgot-password" className="flex min-h-11 items-center text-[14px] font-semibold text-tk-ink underline">
+            {t.forgot}
           </Link>
         )}
 
-        {error && (
-          <p className="rounded-[10px] bg-terra/10 p-3 text-xs text-terra">
-            {error}
-          </p>
-        )}
+        {error && <p className="rounded-[6px] bg-terra/10 p-3 text-[14px] text-tk-check">{error}</p>}
 
-        {notice && (
-          <p className="rounded-[10px] bg-skysoft/25 p-3 text-xs text-forest">
-            {notice}
-          </p>
-        )}
+        {notice && <p className="rounded-[6px] bg-skysoft/25 p-3 text-[14px] text-tk-ink">{notice}</p>}
+      </div>
 
-        <button
-          type="submit"
-          disabled={isSubmitting || !hydrated}
-          className="w-full rounded-[10px] bg-terra px-7 py-3 text-sm font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90 disabled:bg-terra/50"
-        >
+      <div className="flex flex-col gap-[10px] px-4 pb-4 pt-[14px]">
+        <button type="submit" disabled={isSubmitting || !hydrated} className={`${BTN} w-full`}>
           {isSubmitting ? (
             <span className="inline-flex items-center justify-center gap-2" role="status">
-              <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-cream/40 border-t-cream" />
-              {isSignup ? "Creating account…" : "Logging in…"}
+              <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-current/40 border-t-current" />
+              {isSignup ? t.creating : t.loggingIn}
             </span>
-          ) : isSignup ? (
-            "Create account"
           ) : (
-            "Log in"
+            <>
+              {isSignup ? t.signup : t.login}
+              <svg aria-hidden width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </>
           )}
         </button>
-      </form>
-
-      <p className="text-sm text-charcoal/70">
-        {isSignup ? "Already have an account? " : "No account yet? "}
-        <Link
-          href={isSignup ? "/login" : "/signup"}
-          className="font-semibold text-terra hover:text-terra/80"
-        >
-          {isSignup ? "Log in" : "Sign up"}
-        </Link>
-      </p>
-    </div>
+        <p className="text-center text-[16px] text-tk-ink">
+          {isSignup ? t.haveAccount : t.noAccount}
+          <Link href={isSignup ? "/login" : "/signup"} className="font-semibold underline">
+            {isSignup ? t.logInLink : t.signUpLink}
+          </Link>
+        </p>
+      </div>
+    </form>
   );
 }

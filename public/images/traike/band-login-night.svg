@@ -1,0 +1,57 @@
+<svg preserveAspectRatio="xMidYMin slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><g id="bougainvillea-spray-night">
+      <path d="M0,0 C8,-6 18,-4 23,2 C17,8 9,9 0,0 Z" fill="#7D1D3B"/>
+      <path d="M12,-5 C21,-13 31,-9 35,-1 C26,5 17,4 12,-5 Z" fill="#9E2B4E"/>
+      <path d="M-9,4 C-2,-4 8,-2 12,6 C4,12 -5,11 -9,4 Z" fill="#59122A"/>
+      <path d="M18,5 C26,0 36,3 39,11 C30,15 21,13 18,5 Z" fill="#852040"/>
+      <path d="M4,9 C12,5 21,8 24,16 C15,19 7,17 4,9 Z" fill="#B84062"/>
+      <path d="M14,2 L16,0 M28,6 L30,5" stroke="#FFDFA6" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
+    </g><linearGradient id="sky-night" x1="0" y1="0" x2="0.1" y2="1">
+      <stop offset="0%" stop-color="#19162B"/>
+      <stop offset="35%" stop-color="#33223D"/>
+      <stop offset="64%" stop-color="#75362E"/>
+      <stop offset="85%" stop-color="#C97F53"/>
+      <stop offset="100%" stop-color="#F3EFE6"/>
+    </linearGradient><radialGradient id="lantern-halo-night" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFE9A6" stop-opacity="0.92"/>
+      <stop offset="40%" stop-color="#F59B3D" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#9E3F22" stop-opacity="0"/>
+    </radialGradient></defs>
+          <rect width="390" height="300" fill="url(#sky-night)"/>
+
+          <!-- Night Stars Framed Inside the Arch -->
+          <g fill="#FFF2CC">
+            <circle cx="118" cy="78" r="1.1" opacity="0.8"/>
+            <circle cx="276" cy="72" r="1.2" opacity="0.85"/>
+            <circle cx="144" cy="112" r="0.9" opacity="0.6"/>
+            <circle cx="252" cy="118" r="1" opacity="0.65"/>
+          </g>
+
+          <!-- Distant Night Roofs & Warm Windows -->
+          <path d="M52,230 L92,216 L128,218 L142,208 L166,222 L238,224 L262,210 L295,214 L338,228 Z" fill="#2A1C30"/>
+          <rect x="98" y="220" width="4" height="5" fill="#FFE08C" opacity="0.8"/>
+          <rect x="278" y="218" width="4" height="5" fill="#FFE08C" opacity="0.8"/>
+
+          <!-- Framing Archway Lit from Within by the Suspended Lantern -->
+          <path d="M0,0 L390,0 L390,285 L344,285 L344,136 C344,58 282,18 195,18 C108,18 46,58 46,136 L46,285 L0,285 Z" fill="#1C1526"/>
+          <path d="M195,18 C282,18 344,58 344,136 L344,275 L353,275 L353,134 C353,50 288,9 195,9 C102,9 37,50 37,134 L37,275 L46,275 L46,136 C46,58 108,18 195,18 Z" fill="#8C5642"/>
+
+          <!-- Radiant Night Lantern Glow -->
+          <g transform="translate(195, 18)">
+            <circle cx="0" cy="76" r="68" fill="url(#lantern-halo-night)"/>
+            <line x1="0" y1="0" x2="0" y2="46" stroke="#140F1C" stroke-width="2"/>
+            <path d="M-12,42 C-6,36 6,36 12,42" stroke="#140F1C" stroke-width="1.6" fill="none"/>
+            <path d="M-15,54 C-12,44 12,44 15,54 Z" fill="#1E1629"/>
+            <rect x="-17" y="54" width="34" height="3" rx="1.5" fill="#2B1F38"/>
+            <polygon points="-13,57 13,57 9,85 -9,85" fill="#FFF3BD" stroke="#1E1629" stroke-width="1.8"/>
+            <line x1="-5" y1="57" x2="-3.5" y2="85" stroke="#1E1629" stroke-width="1.3"/>
+            <line x1="5" y1="57" x2="3.5" y2="85" stroke="#1E1629" stroke-width="1.3"/>
+            <path d="M0,65 C3.5,71 3.5,77 0,80 C-3.5,77 -3.5,71 0,65 Z" fill="#FFB038"/>
+            <path d="M-9,85 L9,85 L0,94 Z" fill="#1E1629"/>
+          </g>
+
+          <use href="#bougainvillea-spray-night" transform="translate(42, 54) rotate(28) scale(0.92)"/>
+          <use href="#bougainvillea-spray-night" transform="translate(314, 48) rotate(138) scale(0.92)"/>
+
+          
+          
+        </svg>

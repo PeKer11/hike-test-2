@@ -1,0 +1,88 @@
+<svg preserveAspectRatio="xMidYMin slice" aria-hidden="true" viewBox="0 0 390 300" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><g id="bougainvillea-spray">
+      <path d="M0,0 C8,-6 18,-4 23,2 C17,8 9,9 0,0 Z" fill="#C92A49"/>
+      <path d="M12,-5 C21,-13 31,-9 35,-1 C26,5 17,4 12,-5 Z" fill="#E34B68"/>
+      <path d="M-9,4 C-2,-4 8,-2 12,6 C4,12 -5,11 -9,4 Z" fill="#A61C38"/>
+      <path d="M18,5 C26,0 36,3 39,11 C30,15 21,13 18,5 Z" fill="#C92A49"/>
+      <path d="M4,9 C12,5 21,8 24,16 C15,19 7,17 4,9 Z" fill="#EB657E"/>
+      <path d="M27,-4 C34,-10 43,-7 46,0 C39,5 31,3 27,-4 Z" fill="#F07D92"/>
+      <!-- Tiny cream paper-flower stamens -->
+      <path d="M14,2 L16,0 M28,6 L30,5 M8,11 L10,11" stroke="#FFF3D6" stroke-width="1.3" stroke-linecap="round"/>
+    </g><g id="palm-crown-day">
+      <path d="M0,0 C-14,-12 -34,-14 -48,-4 C-32,-5 -15,-2 0,3 Z" fill="#3B4229"/>
+      <path d="M0,0 C-10,-19 -28,-27 -44,-23 C-27,-19 -12,-10 0,2 Z" fill="#4B5433"/>
+      <path d="M0,0 C-2,-22 -12,-36 -25,-40 C-12,-30 -4,-15 1,1 Z" fill="#5D663E"/>
+      <path d="M0,0 C10,-22 26,-33 43,-31 C27,-24 12,-12 0,2 Z" fill="#4E5735"/>
+      <path d="M0,0 C18,-15 39,-16 54,-5 C36,-7 18,-4 0,3 Z" fill="#363D25"/>
+      <path d="M0,0 C16,-4 33,3 42,15 C28,8 14,4 0,3 Z" fill="#2D331F"/>
+      <path d="M0,0 C-15,-2 -30,6 -38,18 C-25,10 -12,5 0,3 Z" fill="#2D331F"/>
+    </g><radialGradient id="lantern-halo-day" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFF4CC" stop-opacity="0.75"/>
+      <stop offset="55%" stop-color="#F7A94B" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#E87A2E" stop-opacity="0"/>
+    </radialGradient><linearGradient id="sky-day" x1="0" y1="0" x2="0.15" y2="1">
+      <stop offset="0%" stop-color="#8A2B0E"/>
+      <stop offset="34%" stop-color="#BD451A"/>
+      <stop offset="65%" stop-color="#E5843C"/>
+      <stop offset="86%" stop-color="#F4C386"/>
+      <stop offset="100%" stop-color="#F3EFE6"/>
+    </linearGradient></defs>
+          <rect width="390" height="300" fill="url(#sky-day)"/>
+
+          <!-- Soft Warm Glow Behind Center Lantern & Headline -->
+          <circle cx="195" cy="138" r="95" fill="#7D2409" opacity="0.32"/>
+          <circle cx="195" cy="222" r="78" fill="#FFE6A8" opacity="0.38"/>
+
+          <!-- Low Distant Horizon Glimpse of Jaffa Roofs & Sea -->
+          <path d="M40,228 L350,228 L350,265 L40,265 Z" fill="#E3934F" opacity="0.55"/>
+          <path d="M52,230 L92,216 L128,218 L142,208 L166,222 L238,224 L262,210 L295,214 L338,228 Z" fill="#9E3F1C" opacity="0.72"/>
+          <!-- Tiny distant spire & palm -->
+          <path d="M268,212 L272,194 L276,212 Z" fill="#853114"/>
+          <path d="M114,220 Q112,204 109,194" stroke="#6E2810" stroke-width="1.8" fill="none"/>
+          <use href="#palm-crown-day" transform="translate(109,194) scale(0.38)"/>
+
+          <!-- Framing Kurkar Limestone Archway (Left & Right Piers + Overhead Vault) -->
+          <!-- Outer shaded stonework -->
+          <path d="M0,0 L390,0 L390,285 L344,285 L344,136 C344,58 282,18 195,18 C108,18 46,58 46,136 L46,285 L0,285 Z" fill="#6B250E"/>
+          <!-- Inner sunlit bevel of the stone arch -->
+          <path d="M195,18 C282,18 344,58 344,136 L344,275 L353,275 L353,134 C353,50 288,9 195,9 C102,9 37,50 37,134 L37,275 L46,275 L46,136 C46,58 108,18 195,18 Z" fill="#EEA968"/>
+
+          <!-- Hand-cut Keystone & Voussoir Masonry Lines -->
+          <g stroke="#7A2D13" stroke-width="1" opacity="0.55">
+            <line x1="186" y1="9" x2="188" y2="19"/>
+            <line x1="204" y1="9" x2="202" y2="19"/>
+            <line x1="142" y1="16" x2="146" y2="25"/>
+            <line x1="248" y1="16" x2="244" y2="25"/>
+            <line x1="98" y1="34" x2="105" y2="42"/>
+            <line x1="292" y1="34" x2="285" y2="42"/>
+            <line x1="62" y1="68" x2="71" y2="73"/>
+            <line x1="328" y1="68" x2="319" y2="73"/>
+          </g>
+
+          <!-- Artisanal Wrought-Iron Jaffa Courtyard Lantern Suspended at Top Center -->
+          <g transform="translate(195, 18)">
+            <circle cx="0" cy="76" r="42" fill="url(#lantern-halo-day)"/>
+            <!-- Iron chain & scrollwork bracket -->
+            <line x1="0" y1="0" x2="0" y2="46" stroke="#3B1609" stroke-width="2"/>
+            <path d="M-12,42 C-6,36 6,36 12,42" stroke="#3B1609" stroke-width="1.6" fill="none"/>
+            <!-- Domed copper-iron cap -->
+            <path d="M-15,54 C-12,44 12,44 15,54 Z" fill="#471B0B"/>
+            <rect x="-17" y="54" width="34" height="3" rx="1.5" fill="#5E2410"/>
+            <!-- Hexagonal warm glass lantern body -->
+            <polygon points="-13,57 13,57 9,85 -9,85" fill="#FFF1C2" stroke="#471B0B" stroke-width="1.8"/>
+            <line x1="-5" y1="57" x2="-3.5" y2="85" stroke="#471B0B" stroke-width="1.3"/>
+            <line x1="5" y1="57" x2="3.5" y2="85" stroke="#471B0B" stroke-width="1.3"/>
+            <!-- Warm inner flame -->
+            <path d="M0,66 C3,71 3,77 0,79 C-3,77 -3,71 0,66 Z" fill="#FF9E2C"/>
+            <!-- Finial base -->
+            <path d="M-9,85 L9,85 L0,94 Z" fill="#471B0B"/>
+          </g>
+
+          <!-- Graceful Bougainvillea & Olive Branches Framing Upper Corners -->
+          <use href="#bougainvillea-spray" transform="translate(42, 54) rotate(28) scale(0.92)"/>
+          <use href="#bougainvillea-spray" transform="translate(28, 92) rotate(58) scale(0.76)"/>
+          <use href="#bougainvillea-spray" transform="translate(314, 48) rotate(138) scale(0.92)"/>
+          <use href="#bougainvillea-spray" transform="translate(342, 88) rotate(115) scale(0.76)"/>
+
+          
+          
+        </svg>
