@@ -10,7 +10,9 @@ import { MeetCard, RequestCard } from "@/components/social/RequestCard";
 import { WalkTogetherSheet } from "@/components/social/WalkTogetherSheet";
 import { ProfileEditSheet } from "@/components/social/ProfileEditSheet";
 import { ProfileView } from "@/components/social/ProfileView";
-import { BandStat, BandTitle, ScreenBand } from "@/components/shell/ScreenBand";
+import { WalksBand } from "@/components/shell/WalksBand";
+import { WalksTabs } from "@/components/shell/WalksTabs";
+import { useWalksSummary } from "@/lib/hooks/useWalksSummary";
 import { SheetSection } from "@/components/ui/SheetSection";
 import { BTN, BTN_ALT_SM, BTN_SM, FIELD, chipCell } from "@/components/ui/panel-style";
 import { meetLabel, useMeetNames } from "@/lib/hooks/useMeetNames";
@@ -76,6 +78,10 @@ export function SocialView({
   const [together, setTogether] = useState<{ friend: { id: string; name: string }; choices: MeetChoice[]; token?: string } | null>(null);
   const [senderSheet, setSenderSheet] = useState<WalkRequest | null>(null);
   const meetNames = useMeetNames(requests);
+  const summary = useWalksSummary(signedIn);
+  const openWalks = (tab: "saved" | "walked" | "friends") => {
+    if (tab !== "friends") window.history.pushState(null, "", `/app?view=walks&tab=${tab === "walked" ? "history" : "saved"}`);
+  };
 
   const refresh = useCallback(async () => {
     if (!session) return;
@@ -127,7 +133,7 @@ export function SocialView({
 
   if (!signedIn) {
     return (
-      <Shell lang={lang} band={<ScreenBand art="friends"><BandTitle className="mt-5">{t.title}</BandTitle></ScreenBand>}>
+      <Shell lang={lang} band={<WalksBand lang={lang} summary={null} />}>
         <SheetSection className="text-center">
           <p className="text-[18px] font-semibold text-tk-ink">{t.needSignIn}</p>
           <Link href="/login" className={BTN}>
@@ -198,10 +204,10 @@ export function SocialView({
   );
 
   const band = (
-    <ScreenBand art="friends" actions={headerActions}>
-      <BandTitle className="mt-5">{t.title}</BandTitle>
-      {ready && accepted.length > 0 ? <BandStat value={accepted.length} label={t.friendsStat} /> : null}
-    </ScreenBand>
+    <>
+      <WalksBand lang={lang} summary={summary} actions={headerActions} />
+      <WalksTabs lang={lang} value="friends" summary={summary ? { ...summary, friends: accepted.length } : ready ? { saved: 0, walked: 0, km: 0, friends: accepted.length } : null} onChange={openWalks} />
+    </>
   );
 
   return (

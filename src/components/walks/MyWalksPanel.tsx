@@ -141,8 +141,8 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   // The list rows speak the walker's language; the detail page below is still English.
   const L =
     lang === "he"
-      ? { again: "הולכים שוב", cont: "המשך", start: "מתחילים", draft: "טיוטה", status: { planned: "מתוכנן", saved: "שמור", completed: "הושלם" }, min: "דק׳", km: 'ק"מ', last: "הליכה אחרונה", open: "פתיחה" }
-      : { again: "Walk again", cont: "Continue", start: "Start walk", draft: "draft", status: { planned: "planned", saved: "saved", completed: "completed" }, min: "min", km: "km", last: "Last walked", open: "Open" };
+      ? { again: "צא", cont: "המשך", start: "צא", draft: "טיוטה", status: { planned: "מתוכנן", saved: "שמור", completed: "הושלם" }, min: "דק׳", km: 'ק"מ', last: "הליכה אחרונה", open: "פתיחה", walked: "הושלם", stops: "תחנות" }
+      : { again: "Walk", cont: "Continue", start: "Walk", draft: "draft", status: { planned: "planned", saved: "saved", completed: "completed" }, min: "min", km: "km", last: "Last walked", open: "Open", walked: "Walked", stops: "stops" };
 
   // The main button says what it will do: continue an interrupted walk, start one never walked, or walk a finished one again.
   // All three go through onWalkAgain, whose chooser already offers "continue from the last stop" when a run ended early.
@@ -157,25 +157,25 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
     </button>
   );
 
-  // The list row: what it is, at a glance. Tap it to go inside; only the main button lives here.
-  const card = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => (
-    <li key={w.id} className={ROW}>
-      <button type="button" aria-label={`${L.open} ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-start">
-        <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} className="h-12 w-12 shrink-0 !rounded-[8px]" />
-        <span className="block min-w-0 flex-1 space-y-0.5">
-          <span dir="auto" className="block font-app-sans text-[17px] font-semibold leading-snug text-tk-ink">{w.title}</span>
-          <span className="flex flex-wrap items-center gap-x-2 text-[14px] text-tk-sage">
-            <span className={`shrink-0 rounded-full px-2 ${CHIP[w.status]}`}>{isDraft ? L.draft : L.status[w.status]}</span>
-            <span className="whitespace-nowrap">{runCount > 0 ? `${L.last} ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}</span>
-            {w.totalMin !== null && <span className="whitespace-nowrap">· {w.totalMin} {L.min}</span>}
-            {w.distanceM !== null && <span className="whitespace-nowrap">· {(w.distanceM / 1000).toFixed(1)} {L.km}</span>}
-          </span>
-          {w.stops.length > 0 && <span className="flex items-center gap-1.5 text-[14px] text-tk-body"><Accessory name="footprints" className="w-4 shrink-0" /><span dir="auto" className="min-w-0 truncate">{w.stops.map((s) => s.name).join(" → ")}</span></span>}
-        </span>
-      </button>
-      <div className="shrink-0">{primaryButton(w, runs, runCount, true)}</div>
-    </li>
-  );
+  // The list row (round 13): a 48px route tile, the title, one meta line ("65 min · 4.1 km · 4 stops"), and the Walk button.
+  // Tap the row to go inside; only the main button lives on it.
+  const card = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => {
+    const meta = [
+      w.totalMin !== null ? `${Math.round(w.totalMin)} ${L.min}` : null,
+      w.distanceM !== null ? `${(w.distanceM / 1000).toFixed(1)} ${L.km}` : null,
+      runCount > 0 ? `${L.walked} ${fmt(runs[0].startedAt)}` : w.stops.length > 0 ? `${w.stops.length} ${L.stops}` : isDraft ? L.draft : null,
+    ].filter(Boolean);
+    return (
+      <li key={w.id} className="grid grid-cols-[48px_1fr_auto] items-center gap-3 border-b border-tk-hair px-4 py-[10px] font-app-sans">
+        <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
+        <button type="button" aria-label={`${L.open} ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="min-w-0 cursor-pointer text-start">
+          <span dir="auto" className="block text-[18px] font-semibold leading-[1.22] text-tk-ink">{w.title}</span>
+          <span className="mt-0.5 block text-[14px] text-tk-sage"><bdi>{meta.join(" · ")}</bdi></span>
+        </button>
+        <div className="shrink-0">{primaryButton(w, runs, runCount, true)}</div>
+      </li>
+    );
+  };
 
   // Inside one walk: the whole route, every stop in order, the numbers, and every action.
   const detailView = ({ walk: w, runs, runCount, isDraft }: WalkWithRuns) => (

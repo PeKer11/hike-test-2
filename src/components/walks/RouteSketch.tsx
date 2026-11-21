@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import type { Coordinates } from "@/lib/types";
 
 /** A route drawn small: the walk, the walker, and a dashed line to where it joins. No map library, no tiles. */
-export function RouteSketch({ route, here = null, label, className = "h-[120px] w-full" }: { route: Coordinates[]; here?: Coordinates | null; label: string; className?: string }) {
+export function RouteSketch({ route, here = null, label, className = "h-[120px] w-full", square = false }: { route: Coordinates[]; here?: Coordinates | null; label: string; className?: string; /** A square viewbox, for the 48px tile on a list row. */ square?: boolean }) {
   const view = useMemo(() => {
     const pts = here ? [...route, here] : route;
     const lats = pts.map((p) => p.lat);
@@ -15,14 +15,14 @@ export function RouteSketch({ route, here = null, label, className = "h-[120px] 
     const minLng = Math.min(...lngs);
     const maxLng = Math.max(...lngs);
     const span = Math.max(maxLat - minLat, maxLng - minLng, 1e-5);
-    const w = 300;
+    const w = square ? 120 : 300;
     const h = 120;
     const pad = 14;
     const scale = (Math.min(w, h) - pad * 2) / span;
     const x = (lng: number) => pad + (lng - minLng) * scale + (w - pad * 2 - (maxLng - minLng) * scale) / 2;
     const y = (lat: number) => h - pad - (lat - minLat) * scale - (h - pad * 2 - (maxLat - minLat) * scale) / 2;
     return { w, h, x, y };
-  }, [route, here]);
+  }, [route, here, square]);
   const d = route.map((p, i) => `${i ? "L" : "M"}${view.x(p.lng).toFixed(1)} ${view.y(p.lat).toFixed(1)}`).join(" ");
   // The dashed approach: from the walker to the closest vertex of the route.
   const near = here

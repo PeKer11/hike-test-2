@@ -45,7 +45,8 @@ import { LocationChip } from "@/components/shell/LocationChip";
 import { PLAN_COPY } from "@/components/route/plan-copy";
 import { ScreenHeader } from "@/components/shell/ScreenHeader";
 import { WalksBand } from "@/components/shell/WalksBand";
-import { Segmented } from "@/components/shell/Segmented";
+import { WalksTabs } from "@/components/shell/WalksTabs";
+import { useWalksSummary } from "@/lib/hooks/useWalksSummary";
 import { BTN, BTN_ALT, BTN_SM } from "@/components/ui/panel-style";
 import { classifyPoint } from "@/lib/places/safety-zones";
 import { presenceEnabled } from "@/lib/social/flag";
@@ -1236,6 +1237,7 @@ export function WalkPlannerApp({
     window.history.replaceState(null, "", `/app?view=walks&tab=${tab}`);
   };
   const hubTab = view === "walks" || view === "social";
+  const walksSummary = useWalksSummary(isSignedIn && view === "walks", walksVersion);
   // Walks is a sheet under a sunset band (round 13), not the sand-wall sidebar.
   const walksScreen = view === "walks";
   // Plan and Walks sit under a painted band on one cream sheet (the live walk and the legacy hub tabs keep the old column).
@@ -3886,7 +3888,7 @@ export function WalkPlannerApp({
           </div>
         </div>
 
-        {walksScreen && <WalksBand lang={uiLang === "he" ? "he" : "en"} signedIn={isSignedIn} />}
+        {walksScreen && <WalksBand lang={uiLang === "he" ? "he" : "en"} summary={walksSummary} />}
         {hubTab && !walksScreen && (
           <div className="relative z-10 mx-auto mb-3 max-w-[440px]">
             <div aria-hidden className="pointer-events-none absolute -inset-x-4 top-0 -z-10 h-44 bg-[url('/images/traike/folded-map.svg')] bg-cover bg-center opacity-20" />
@@ -4006,15 +4008,14 @@ export function WalkPlannerApp({
             <>
               {isSignedIn && !walkMode && view === undefined && <SideTabs value={sideTab} onChange={setSideTab} friendsBadge={sideTab === "friends" ? 0 : friendRequests} />}
               {isSignedIn && !walkMode && view === "walks" && (
-                <Segmented
-                  label={uiLang === "he" ? "הליכות" : "Walks"}
-                  value={sideTab === "places" ? "places" : walksSegment}
-                  onChange={chooseWalksTab}
-                  items={
-                    uiLang === "he"
-                      ? [{ id: "history", label: "היסטוריה" }, { id: "saved", label: "שמורים" }, { id: "places", label: "מקומות" }]
-                      : [{ id: "history", label: "History" }, { id: "saved", label: "Saved" }, { id: "places", label: "Places" }]
-                  }
+                <WalksTabs
+                  lang={uiLang === "he" ? "he" : "en"}
+                  value={walksSegment === "history" ? "walked" : "saved"}
+                  summary={walksSummary}
+                  onChange={(id) => {
+                    if (id === "friends") onNavigate?.("social");
+                    else chooseWalksTab(id === "walked" ? "history" : "saved");
+                  }}
                 />
               )}
               {isSignedIn && !walkMode && sideTab === "walks" && (
@@ -4045,7 +4046,26 @@ export function WalkPlannerApp({
                   }}
                 />
               )}
+              {isSignedIn && !walkMode && view === "walks" && sideTab === "places" && (
+                <button type="button" onClick={() => chooseWalksTab(walksSegment)} className="tk-bar -mx-4 w-[calc(100%+2rem)] cursor-pointer">
+                  <span>{uiLang === "he" ? "חזרה למסלולים" : "Back to walks"}</span>
+                  <span aria-hidden>‹</span>
+                </button>
+              )}
               {isSignedIn && !walkMode && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}
+              {isSignedIn && !walkMode && view === "walks" && sideTab === "walks" && (
+                <>
+                  <button type="button" onClick={() => chooseWalksTab("places")} className="tk-bar -mx-4 w-[calc(100%+2rem)] cursor-pointer">
+                    <span>{uiLang === "he" ? "מקומות שמורים" : "Saved places"}</span>
+                    <span aria-hidden>›</span>
+                  </button>
+                  <div className="-mx-4 px-4 pb-4 pt-[14px]">
+                    <button type="button" onClick={() => { setSideTab("plan"); onNavigate?.("plan"); }} className={`${BTN} w-full`}>
+                      {uiLang === "he" ? "צור מסלול חדש" : "Create new route"}
+                    </button>
+                  </div>
+                </>
+              )}
               {isSignedIn && !walkMode && sideTab === "friends" && <FriendsPanel
                   expanded
                   onPlan={planSharedWalk}

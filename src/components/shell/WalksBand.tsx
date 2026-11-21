@@ -1,35 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-import { BandStat, BandTitle, ScreenBand } from "@/components/shell/ScreenBand";
-import { withWalkClient } from "@/lib/walks/walk-history";
+import { BandMeta, BandTitle, ScreenBand } from "@/components/shell/ScreenBand";
+import { LocationChip } from "@/components/shell/LocationChip";
+import type { WalksSummary } from "@/lib/hooks/useWalksSummary";
 
 const COPY = {
-  en: { title: "Walks", done: "walks done" },
-  he: { title: "הליכות", done: "הליכות שהושלמו" },
+  en: { title: "My walks & friends", walks: (n: number) => `${n} ${n === 1 ? "walk" : "walks"}`, km: "km" },
+  he: { title: "המסלולים שלי וחברים", walks: (n: number) => `${n} הליכות`, km: "ק״מ" },
 } as const;
 
-/** The top of the Walks screen: the Jaffa sunset, the title, and the walked count as a designed number. */
-export function WalksBand({ lang, signedIn }: { lang: "he" | "en"; signedIn: boolean }) {
+/** The top of Walks and Friends (round 13): the Jaffa sunset, "My walks & friends", and the walked count with kilometres. */
+export function WalksBand({ lang, summary, art = "walks", actions }: { lang: "he" | "en"; summary: WalksSummary | null; art?: "walks" | "friends"; actions?: React.ReactNode }) {
   const t = COPY[lang];
-  const [count, setCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!signedIn) return;
-    let live = true;
-    void withWalkClient(async (client, userId) => (await import("@/lib/walks/saved-walks")).countMyWalkedWalks(client, userId)).then((n) => {
-      if (live && typeof n === "number") setCount(n);
-    });
-    return () => {
-      live = false;
-    };
-  }, [signedIn]);
-
   return (
-    <ScreenBand art="walks">
-      <BandTitle className="mt-5">{t.title}</BandTitle>
-      {count !== null ? <BandStat value={count} label={t.done} /> : null}
+    <ScreenBand
+      art={art}
+      tall
+      actions={
+        <>
+          {actions}
+          <LocationChip lang={lang} onClick={() => window.history.pushState(null, "", "/app?view=plan")} />
+        </>
+      }
+    >
+      <BandTitle className="mt-[14px]">{t.title}</BandTitle>
+      {summary && summary.walked > 0 ? (
+        <BandMeta>
+          <bdi>{t.walks(summary.walked)}</bdi> · <bdi>{summary.km.toFixed(1)}</bdi> {t.km}
+        </BandMeta>
+      ) : null}
     </ScreenBand>
   );
 }

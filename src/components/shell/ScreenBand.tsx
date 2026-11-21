@@ -17,19 +17,19 @@ export type BandArt = keyof typeof SCENES;
  * puts on it. The art melts into the cream sheet below, so there is no seam and no strip. Mirrored in Hebrew so the
  * open sky stays on the side the text starts from.
  */
-export function ScreenBand({ art, actions, children }: { art: BandArt; /** Controls at the end of the brand row (an invite pill, an avatar). */ actions?: ReactNode; children: ReactNode }) {
+export function ScreenBand({ art, actions, tall = false, children }: { art: BandArt; /** Controls at the end of the brand row (the start chip, an avatar). */ actions?: ReactNode; /** The Walks / Friends band is 310px; Me is a compact band. */ tall?: boolean; children: ReactNode }) {
   return (
-    <header className="relative isolate min-h-[260px] overflow-hidden bg-cream">
+    <header className={`relative isolate overflow-hidden bg-cream ${tall ? "min-h-[310px]" : "min-h-[192px]"}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={SCENES[art]} alt="" aria-hidden className="absolute inset-0 -z-10 h-full w-full object-cover object-bottom rtl:-scale-x-100 dark:brightness-[0.55] dark:saturate-[0.85]" />
       <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[32%] bg-gradient-to-b from-transparent to-cream" />
-      <div className="relative mx-auto max-w-[560px] px-4 pb-11 pt-[max(18px,env(safe-area-inset-top))]">
+      <div className="relative mx-auto max-w-[560px] px-4 pb-4 pt-[max(14px,env(safe-area-inset-top))]">
         {/* The mark stays on the left in Hebrew too. */}
-        <div dir="ltr" className="flex items-center justify-between gap-3">
-          <span className={`flex w-fit items-center gap-2.5 ${ON_ART}`}>
+        <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
+          <span className={`flex w-fit items-center gap-2 ${ON_ART}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/traike-icon.png" alt="" width={30} height={30} className="h-[30px] w-[30px] rounded-lg" />
-            <span className="font-app-serif text-[24px] font-bold leading-none tracking-tight">Traike</span>
+            <span className="font-app-serif text-[24px] font-bold leading-none">Traike</span>
           </span>
           {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
         </div>
@@ -40,7 +40,7 @@ export function ScreenBand({ art, actions, children }: { art: BandArt; /** Contr
 }
 
 export function BandTitle({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <h1 className={`max-w-[260px] font-display text-[32px] leading-[1.1] ${ON_ART} ${className}`}>{children}</h1>;
+  return <h1 dir="auto" className={`max-w-[230px] font-display text-[28px] font-normal leading-[1.12] ${ON_ART} ${className}`}>{children}</h1>;
 }
 
 /** A designed number: soft Fraunces numerals, the label small beside it. */
@@ -51,4 +51,9 @@ export function BandStat({ value, label }: { value: ReactNode; label: string }) 
       <span className="text-[15px] font-semibold">{label}</span>
     </p>
   );
+}
+
+/** One quiet line under the title (the mockup's "12 walks · 48.4 km"). */
+export function BandMeta({ children }: { children: ReactNode }) {
+  return <p className={`mt-[10px] text-[14px] font-semibold leading-5 ${ON_ART}`}>{children}</p>;
 }
