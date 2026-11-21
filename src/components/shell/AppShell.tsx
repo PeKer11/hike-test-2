@@ -86,7 +86,7 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
       {view === "social" ? (
         <SocialView lang={lang === "he" ? "he" : "en"} bridge={bridge} signedIn={live.signedIn} profileId={profileId} nearbyToken={nearbyToken} addCode={addCode} requests={live.walkRequests} requestsAvailable={live.requestsAvailable} walkLive={live.walkLive} />
       ) : null}
-      {view === "me" ? <MeView lang={lang} settings={live.settings} bridge={bridge} signedIn={live.signedIn} walkLive={live.walkLive} /> : null}
+      {view === "me" ? <MeView lang={lang} settings={live.settings} bridge={bridge} signedIn={live.signedIn} walkLive={live.walkLive} suggestedPace={suggestedPace} /> : null}
 
       <TabBar view={view} lang={lang} friendBadge={live.friendRequests} walkLive={live.walkLive} onNavigate={navigate} />
       <Rail view={view} lang={lang} friendBadge={live.friendRequests} walkLive={live.walkLive} onNavigate={navigate} />

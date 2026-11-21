@@ -151,7 +151,7 @@ export function StandingFactsPanel({
         className="tk-bar w-full cursor-pointer"
       >
         <span>{he ? "מה שאני זוכר עליכם" : "Things I remember about you"} ({facts.length})</span>
-        <span aria-hidden="true">{isOpen ? "▲" : "▼"}</span>
+        <span aria-hidden="true">{isOpen ? "−" : "+"}</span>
       </button>
 
       {isOpen && (

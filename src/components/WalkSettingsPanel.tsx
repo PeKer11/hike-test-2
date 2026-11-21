@@ -171,7 +171,7 @@ export function WalkSettingsPanel({
         className="tk-bar w-full cursor-pointer"
       >
         <span>{tx("Walk settings", HE.title)}</span>
-        <span aria-hidden="true">{isOpen ? "▲" : "▼"}</span>
+        <span aria-hidden="true">{isOpen ? "−" : "+"}</span>
       </button>
 
       {isOpen && (

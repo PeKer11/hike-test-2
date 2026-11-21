@@ -650,7 +650,7 @@ describe("routeOrderMode (Best route from here)", () => {
 
   it("shows the row in Hebrew when asked", () => {
     render(<WalkSettingsPanel settings={DEFAULT_WALK_SETTINGS} onChange={vi.fn()} lang="he" />);
-    fireEvent.click(disclosure());
+    fireEvent.click(screen.getByRole("button", { name: /הגדרות הליכה/ }));
     expect(screen.getByLabelText(/המסלול הכי טוב מכאן/)).toBeTruthy();
   });
 });

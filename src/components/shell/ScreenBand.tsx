@@ -10,7 +10,7 @@ const SCENES = {
   friends: "/images/traike/band-friends.svg",
 } as const;
 
-export type BandArt = keyof typeof SCENES;
+export type BandArt = keyof typeof SCENES | "sky";
 
 /**
  * The top of a hub screen (Walks, Friends, Me): a painted sunset scene, the Traike mark, and whatever the screen
@@ -20,9 +20,16 @@ export type BandArt = keyof typeof SCENES;
 export function ScreenBand({ art, actions, tall = false, children }: { art: BandArt; /** Controls at the end of the brand row (the start chip, an avatar). */ actions?: ReactNode; /** The Walks / Friends band is 310px; Me is a compact band. */ tall?: boolean; children: ReactNode }) {
   return (
     <header className={`relative isolate overflow-hidden bg-cream ${tall ? "min-h-[310px]" : "min-h-[192px]"}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={SCENES[art]} alt="" aria-hidden className="absolute inset-0 -z-10 h-full w-full object-cover object-bottom rtl:-scale-x-100 dark:brightness-[0.55] dark:saturate-[0.85]" />
-      <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[32%] bg-gradient-to-b from-transparent to-cream" />
+      {art === "sky" ? (
+        /* Me: the plain sunset sky, no scene ("pure sunset calm"). */
+        <div aria-hidden className="absolute inset-0 -z-10" style={{ background: "var(--tk-sky)" }} />
+      ) : (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={SCENES[art]} alt="" aria-hidden className="absolute inset-0 -z-10 h-full w-full object-cover object-bottom rtl:-scale-x-100 dark:brightness-[0.55] dark:saturate-[0.85]" />
+          <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[32%] bg-gradient-to-b from-transparent to-cream" />
+        </>
+      )}
       <div className="relative mx-auto max-w-[560px] px-4 pb-4 pt-[max(14px,env(safe-area-inset-top))]">
         {/* The mark stays on the left in Hebrew too. */}
         <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
@@ -31,7 +38,7 @@ export function ScreenBand({ art, actions, tall = false, children }: { art: Band
             <img src="/traike-icon.png" alt="" width={30} height={30} className="h-[30px] w-[30px] rounded-lg" />
             <span className="font-app-serif text-[24px] font-bold leading-none">Traike</span>
           </span>
-          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+          {actions ? <div className="flex min-w-0 max-w-[64%] items-center justify-end gap-2">{actions}</div> : null}
         </div>
         {children}
       </div>
