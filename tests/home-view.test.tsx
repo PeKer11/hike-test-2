@@ -15,7 +15,7 @@ function setup(over: { greetingName?: string | null; lang?: "he" | "en" } = {}) 
 }
 
 describe("Home", () => {
-  it("offers two big choices that navigate to plan and walks", () => {
+  it("offers the plan button in the hero and a way to the walks list", () => {
     const onNavigate = setup();
     fireEvent.click(screen.getByRole("button", { name: /Plan my walk/ }));
     expect(onNavigate).toHaveBeenLastCalledWith("plan");
@@ -33,8 +33,8 @@ describe("Home", () => {
 
   it("has at most four blocks", () => {
     setup();
-    // greeting + the choice grid (signed out: no walk to continue, no context card)
-    expect(document.querySelectorAll("h1, section, [aria-label='New route']").length).toBeLessThanOrEqual(4);
+    // greeting + the walks bar (signed out: no walk to continue, no timeline, no context row)
+    expect(document.querySelectorAll("h1, section").length).toBeLessThanOrEqual(4);
   });
 
   it("speaks Hebrew", () => {
