@@ -16,6 +16,8 @@ export interface WalkStatsData {
   remainingM: number;
   /** The minutes the walker allowed in total, when known (for the "over plan" line). */
   allowedMin?: number;
+  /** Really at the end of the route: close, on a good fix, for a few seconds (`RouteEndDetector`). */
+  atRouteEnd?: boolean;
 }
 
 const TONE_DOT: Record<PaceTone, string> = {

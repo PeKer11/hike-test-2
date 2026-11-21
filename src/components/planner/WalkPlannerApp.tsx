@@ -112,6 +112,7 @@ import {
   routeDirectionDeg,
   timeToFinishMin,
 } from "@/lib/walk/walk-stats";
+import { RouteEndDetector } from "@/lib/walk/route-end";
 import {
   rejoinCandidates,
   spliceRoute,
@@ -207,8 +208,6 @@ import { readTtsOptIn, ttsSupported, writeTtsOptIn } from "@/lib/walk/tts";
 
 /** A GPS fix older than this is stale: nothing re-routes automatically from it. */
 const STALE_FIX_MS = 20_000;
-/** The walk counts as finished this close to the end of the route (with every stop visited). */
-const FINISH_REMAINING_M = 40;
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -619,6 +618,8 @@ export function WalkPlannerApp({
   // the numbers that reach the screen go through setState (once a second).
   const speedEstimatorRef = useRef<SpeedEstimator | null>(null);
   const paceAdvisorRef = useRef<PaceAdvisor | null>(null);
+  // The "reached the end" card waits for `RouteEndDetector` (close to the end, a good fix, a few seconds).
+  const routeEndRef = useRef(new RouteEndDetector());
   const [paceAdvisory, setPaceAdvisory] = useState<{
     kind: PaceAdvice;
     at: number;
@@ -821,6 +822,11 @@ export function WalkPlannerApp({
       remainingVisitMin,
     });
     const elapsedMin = Math.max(0, (now - firstFixAt) / 60_000);
+    const atRouteEnd = routeEndRef.current.update({
+      remainingM,
+      accuracyM: fix.accuracyMeters,
+      atMs: fix.timestamp,
+    });
     setWalkStats({
       kmh: speed.kmh,
       speedState: speed.state,
@@ -832,6 +838,7 @@ export function WalkPlannerApp({
       walkedM,
       remainingM,
       allowedMin: input.availableMinutes,
+      atRouteEnd,
     });
   };
 
@@ -878,6 +885,7 @@ export function WalkPlannerApp({
     paceAdvisorRef.current = null;
     firstFixAtRef.current = null;
     matchedRef.current = null;
+    routeEndRef.current.reset();
     setPaceAdvisory(null);
     setWalkStats(null);
     setOffRouteHint(null);
@@ -3602,7 +3610,7 @@ export function WalkPlannerApp({
       !isOffRoute &&
       !finishKeepWalking &&
       walkStats !== null &&
-      walkStats.remainingM <= FINISH_REMAINING_M &&
+      walkStats.atRouteEnd === true &&
       (walkPlan?.orderedAttractions ?? []).every((a) => visitedAttractionIds.includes(a.id))
     ) {
       const fc = walkCopy.finished[uiLang === "he" ? "he" : "en"];
