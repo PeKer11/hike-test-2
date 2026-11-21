@@ -863,7 +863,7 @@ export function PlacePromptPanel({
   });
 
   return (
-    <section className="-mx-4 border-b border-tk-hair bg-cream px-4 py-3 font-app-sans">
+    <section className="border-b border-tk-hair bg-cream px-4 py-3 font-app-sans">
       <label htmlFor="plan-request" className="mb-2 block text-[16px] font-semibold leading-[1.42] text-tk-ink">
         {t.requestLabel}
       </label>
@@ -1003,7 +1003,7 @@ export function PlacePromptPanel({
           setPrompt(event.target.value);
           setFollowUpReply(null);
         }}
-        rows={3}
+        rows={2}
         placeholder={t.requestPlaceholder}
         className={`${CTRL_BOX} min-h-[74px] resize-y`}
       />

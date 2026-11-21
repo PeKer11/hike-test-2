@@ -440,7 +440,7 @@ export function WalkCompanionPanel({
 
   // The sheet (mockup r13): vibe row, the request box, time, a quiet "More options" bar, then the one primary button.
   return (
-    <section className="-mx-4 bg-cream font-app-sans">
+    <section className={`-mx-4 bg-cream font-app-sans ${chatOnly ? "" : "pt-5"}`}>
       {!chatOnly && (
         <>
           <div className={BLOCK}>

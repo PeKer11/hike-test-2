@@ -3842,7 +3842,7 @@ export function WalkPlannerApp({
           {/* Round 13 header: the terracotta-washed Jaffa photo, the mark, one title line, the guide and his chat card; it melts into the cream sheet. */}
           <div aria-hidden className="tk-art-city absolute inset-0 -z-10" />
           <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[34%] bg-gradient-to-b from-transparent to-cream" />
-          <div className="relative mx-auto max-w-[440px] px-4 pt-[max(14px,env(safe-area-inset-top))]">
+          <div className={`relative mx-auto max-w-[440px] px-4 pt-[max(14px,env(safe-area-inset-top))] ${!isAdvancedOpen && !compact ? "h-[330px]" : ""}`}>
             {!compact && (
               /* The mark stays on the left in Hebrew too; the start chip is the other end of the row. */
               <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
@@ -3860,18 +3860,18 @@ export function WalkPlannerApp({
                 />
               </div>
             )}
-            <h1 dir="auto" className="mt-3 text-start font-display text-[26px] font-normal leading-[1.12] text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
+            <h1 dir="auto" className="mt-3 whitespace-nowrap text-start font-display text-[26px] font-normal leading-[1.12] text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
               {isAdvancedOpen ? PLAN_COPY[uiLang === "he" ? "he" : "en"].advanced : PLAN_COPY[uiLang === "he" ? "he" : "en"].where}
             </h1>
             {!isAdvancedOpen && !compact ? (
-              <div dir="ltr" className="mt-1 flex items-end gap-[10px]">
+              <div dir="ltr" className="relative start-4 flex items-end gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/images/traike/guide-cut.png"
                   alt="Traike walking guide"
-                  className="pointer-events-none -mb-[6px] h-[204px] w-[136px] flex-none object-cover object-bottom [filter:drop-shadow(0_6px_10px_rgba(60,20,5,.35))] [mask-image:linear-gradient(180deg,#000_82%,transparent_100%)]"
+                  className="pointer-events-none -mb-[14px] h-[204px] w-[136px] flex-none object-cover object-bottom [filter:drop-shadow(0_6px_10px_rgba(60,20,5,.35))] [mask-image:linear-gradient(180deg,#000_82%,transparent_100%)]"
                 />
-                <div dir={uiLang === "he" ? "rtl" : "ltr"} className="relative mb-[12px] flex-1 rounded-[6px] border border-tk-hair bg-cream px-[13px] py-[11px] shadow-[0_2px_0_var(--tk-lip)]">
+                <div dir={uiLang === "he" ? "rtl" : "ltr"} className="relative mb-3 flex-1 rounded-[6px] border border-tk-hair bg-cream px-[13px] py-[11px] shadow-[0_2px_0_var(--tk-lip)] before:absolute before:bottom-4 before:-left-[7px] before:h-3 before:w-3 before:rotate-45 before:border-b before:border-s before:border-tk-hair before:bg-cream before:content-['']">
                   <h2 className="font-app-serif text-[18px] font-semibold leading-[1.18] text-tk-ink">
                     {PLAN_COPY[uiLang === "he" ? "he" : "en"].chatTitle}
                   </h2>
@@ -3915,7 +3915,7 @@ export function WalkPlannerApp({
             <IconCollapse className="h-4 w-4" />
           </button>
         ) : null}
-        <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : `space-y-[15px] px-4 pb-6 ${walksScreen ? "pt-1" : bandScreen ? "pt-3" : ""}`}`}>
+        <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : `space-y-[15px] px-4 pb-6 ${walksScreen ? "pt-1" : bandScreen ? "pt-0" : ""}`}`}>
           {isAdvancedOpen && (
             <Card className="space-y-2">
               <div className="text-sm font-semibold text-forest">Planning mode</div>
@@ -4577,13 +4577,15 @@ export function WalkPlannerApp({
                   </div>
                 </div>
               )}
-              <WalkSlot walking={walkMode} order={31}>
-                <TrailIntelligencePanel
-                  report={trailBriefing}
-                  isLoading={isTrailBriefingLoading}
-                  error={trailBriefingError}
-                />
-              </WalkSlot>
+              {walkMode || walkPlan || trailBriefing || isTrailBriefingLoading || trailBriefingError ? (
+                <WalkSlot walking={walkMode} order={31}>
+                  <TrailIntelligencePanel
+                    report={trailBriefing}
+                    isLoading={isTrailBriefingLoading}
+                    error={trailBriefingError}
+                  />
+                </WalkSlot>
+              ) : null}
               {walkMode && (
                 <>
                   <WalkSectionTitle walking order={10}>{walkCopy.hud.sheet[uiLang === "he" ? "he" : "en"].sections.walk}</WalkSectionTitle>
