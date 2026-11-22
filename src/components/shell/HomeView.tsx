@@ -107,7 +107,8 @@ const HERO_PHONE = "/images/traike/home-forest.jpg";
 const HERO_FORWARD = "/images/traike/home-forest-forward.jpg";
 const HERO_WIDE = "/images/traike/home-forest-wide.jpg";
 
-const ON_PHOTO = "text-[#FFF8EE] [text-shadow:0_2px_14px_rgba(0,0,0,.45)]";
+// From md the numbers sit over the busier part of the landscape, so the shadow gets a tight inner edge there; phone is unchanged.
+const ON_PHOTO = "text-[#FFF8EE] [text-shadow:0_2px_14px_rgba(0,0,0,.45)] md:[text-shadow:0_1px_3px_rgba(0,0,0,.5),0_2px_16px_rgba(0,0,0,.5)]";
 
 /** The 52px timeline rows of the mockup: time column (here the step), spine with a ring, the stop, a tag. */
 function StopRow({ index, count, name, tag, current, past }: { index: number; count: number; name: string; tag: string; current?: boolean; past?: boolean }) {
@@ -233,7 +234,7 @@ export function HomeView({
 
   return (
     <div className="font-app-sans fixed inset-0 z-[900] overflow-y-auto bg-cream text-charcoal lg:start-[72px]">
-      <header className={`relative isolate overflow-hidden bg-cream${wide ? " md:min-h-[clamp(26rem,34vw,34rem)]" : ""}`}>
+      <header className={`relative isolate overflow-hidden bg-cream${wide ? " md:flex md:min-h-[clamp(26rem,34vw,34rem)] md:flex-col" : ""}`}>
         <Image src={homeBg === "city" ? "/images/traike/home-city.jpg" : homeBg === "forward" ? HERO_FORWARD : HERO_PHONE} alt="" fill priority sizes="100vw" aria-hidden className={`-z-20 object-cover object-[50%_38%] dark:hidden${wide ? " md:hidden" : ""}`} />
         <Image src={homeBg === "city" ? "/images/traike/home-city-night.jpg" : homeBg === "forward" ? HERO_FORWARD : HERO_PHONE} alt="" fill sizes="100vw" aria-hidden className={`-z-20 hidden object-cover object-[50%_38%] ${wide ? "max-md:dark:block" : "dark:block"}`} />
         {wide && (
@@ -254,7 +255,7 @@ export function HomeView({
             style={{ background: "linear-gradient(180deg, rgba(14,22,16,.5) 0%, rgba(14,22,16,.3) 34%, rgba(14,22,16,.05) 60%, rgba(14,22,16,0) 72%, color-mix(in srgb, var(--tk-paper) 55%, transparent) 90%, var(--tk-paper) 100%)" }}
           />
         )}
-        <div className="relative mx-auto max-w-[560px] px-4 pb-[14px] pt-[max(14px,env(safe-area-inset-top))]">
+        <div className={`relative px-4 pb-[14px] pt-[max(14px,env(safe-area-inset-top))] ${wide ? "tk-page md:flex md:flex-1 md:flex-col" : "mx-auto max-w-[560px]"}`}>
           <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
             <TraikeLockup className={ON_PHOTO} />
             <div className="flex min-w-0 max-w-[64%] justify-end">
@@ -262,7 +263,9 @@ export function HomeView({
             </div>
           </div>
 
-          <div className="mt-4">
+          {/* From md the traveler is on the start side of the picture (mirrored in Hebrew), so the numbers and the button take
+              the other side, bottom-aligned in the band; they never cross the figure. Phone: the same block as ever. */}
+          <div className={`mt-4${wide ? " md:ms-auto md:mt-auto md:w-full md:max-w-[440px]" : ""}`}>
             {hero ? (
               <>
                 <h1 dir="auto" className={`text-[15px] font-bold leading-[1.3] ${ON_PHOTO}`}>{snapshot && !walkLive ? t.suggestTitle : t.lastTitle}</h1>
@@ -308,7 +311,9 @@ export function HomeView({
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-[560px] flex-col pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12">
+      {/* Phone: one 560px column. md and up: the page column; with a timeline, the walk is one column and the context row and
+          recent walks the other (the wrapper is `contents` on a phone, so nothing moves there). */}
+      <div className={`tk-page flex flex-col pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12${timeline.length > 0 ? " md:grid md:grid-cols-2 md:items-start md:gap-x-6 lg:gap-x-10" : ""}`}>
         {timeline.length > 0 ? (
           <section aria-label={snapshot && !walkLive ? t.routeBar : t.routeLast}>
             <h2 className="tk-bar">
@@ -327,6 +332,7 @@ export function HomeView({
           </section>
         ) : null}
 
+        <div className="contents md:block">
         {incomingRequest ? contextRow(socialCopy[lang].wantsToWalk(incomingRequest.otherName)) : walkingNames.length > 0 ? contextRow(socialCopy[lang].friendsWalking(walkingNames.join(lang === "he" ? " ו" : ", "))) : null}
 
         <section aria-label={t.recent}>
@@ -343,8 +349,9 @@ export function HomeView({
               <span aria-hidden className="rtl:-scale-x-100">›</span>
             </button>
           )}
-          {signedIn
-            ? recent.map((w) => (
+          {signedIn ? (
+            <div className={timeline.length > 0 ? undefined : "md:grid md:grid-cols-2 md:gap-x-6 lg:gap-x-10"}>
+              {recent.map((w) => (
                 <div key={w.id} className="grid grid-cols-[48px_1fr_auto] items-center gap-3 border-b border-tk-hair px-4 py-[10px]">
                   <RouteSketch route={routeOf(w)} label={`${t.route} ${w.title}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
                   <div className="min-w-0">
@@ -359,9 +366,11 @@ export function HomeView({
                     {t.walk}
                   </button>
                 </div>
-              ))
-            : null}
+              ))}
+            </div>
+          ) : null}
         </section>
+        </div>
       </div>
     </div>
   );

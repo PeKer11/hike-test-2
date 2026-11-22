@@ -97,6 +97,31 @@ describe("Home hero picture", () => {
     expect(heroImages("/images/traike/home-forest-wide.jpg")).toHaveLength(0);
   });
 
+  it("puts the numbers and the button on the end side from md, clear of the traveler, and keeps the phone block as it was", () => {
+    setup();
+    const button = screen.getByRole("button", { name: /Plan my walk/ });
+    const block = button.parentElement as HTMLElement;
+    // Phone: the same block as before. md and up: the end side of the band (mirrored with the picture in Hebrew), 440px wide.
+    expect(block.className).toContain("mt-4");
+    for (const c of ["md:ms-auto", "md:mt-auto", "md:max-w-[440px]"]) expect(block.className).toContain(c);
+    // The header column is the shared page column, a flex column from md so the block can sit at the bottom.
+    expect(document.querySelector("header > div.relative")?.className).toContain("tk-page");
+  });
+
+  it("?homebg=city keeps its own 560px column and block at every width", () => {
+    window.history.replaceState(null, "", "/app?homebg=city");
+    setup();
+    const block = screen.getByRole("button", { name: /Plan my walk/ }).parentElement as HTMLElement;
+    expect(block.className).not.toContain("md:ms-auto");
+    expect(document.querySelector("header > div.relative")?.className).toContain("max-w-[560px]");
+  });
+
+  it("lays the content out in the page column", () => {
+    setup();
+    const content = document.querySelector("section[aria-label]")?.closest("div.tk-page");
+    expect(content).toBeTruthy();
+  });
+
   it("ships the wide picture big enough to stay sharp and small enough to load", () => {
     // Read the JPEG's frame header: no image library needed.
     const size = (file: string) => {
