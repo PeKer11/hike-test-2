@@ -99,6 +99,12 @@ function greetingKey(hour: number): "morning" | "afternoon" | "evening" {
   return "evening";
 }
 
+// Hero pictures. The portrait is the approved phone look and stays the default; the landscape serves md and up;
+// ?homebg=forward swaps the phone one for a variant with the traveler a little closer (a comparison, not the default).
+const HERO_PHONE = "/images/traike/home-forest.jpg";
+const HERO_FORWARD = "/images/traike/home-forest-forward.jpg";
+const HERO_WIDE = "/images/traike/home-forest-wide.jpg";
+
 const ON_PHOTO = "text-[#FFF8EE] [text-shadow:0_2px_14px_rgba(0,0,0,.45)]";
 
 /** The 52px timeline rows of the mockup: time column (here the step), spine with a ring, the stop, a tag. */
@@ -141,14 +147,15 @@ export function HomeView({
   const [snapshot, setSnapshot] = useState<ActiveWalkSnapshot | null>(null);
   const [recent, setRecent] = useState<SavedWalk[]>([]);
   const [hour, setHour] = useState(12);
-  const [homeBg, setHomeBg] = useState<"city" | "forest">("forest");
+  const [homeBg, setHomeBg] = useState<"city" | "forest" | "forward">("forest");
   const [socialName, setSocialName] = useState<string | null>(null);
   const [walkingNames, setWalkingNames] = useState<string[]>([]);
 
   // Read on the client only: the server cannot know the time of day or this device's storage.
   useEffect(() => {
     setHour(new Date().getHours());
-    if (new URLSearchParams(window.location.search).get("homebg") === "city") setHomeBg("city");
+    const bg = new URLSearchParams(window.location.search).get("homebg");
+    if (bg === "city" || bg === "forward") setHomeBg(bg);
     setSnapshot(loadActiveWalk());
   }, []);
   useEffect(() => {
@@ -212,6 +219,9 @@ export function HomeView({
         ? last.stops.map((s, i, all) => ({ name: s.name, tag: i === 0 ? t.start : i === all.length - 1 ? t.finish : "" }))
         : [];
 
+  // The forest scenes have a sharp wide picture for tablet and desktop; the city one does not.
+  const wide = homeBg !== "city";
+
   const contextRow = (text: string) => (
     <button type="button" onClick={() => onNavigate("social")} className="tk-row w-full text-start">
       <span className="flex-1 text-[18px] font-semibold leading-[1.22]">{text}</span>
@@ -221,14 +231,27 @@ export function HomeView({
 
   return (
     <div className="font-app-sans fixed inset-0 z-[900] overflow-y-auto bg-cream text-charcoal lg:start-[72px]">
-      <header className="relative isolate overflow-hidden bg-cream">
-        <Image src={homeBg === "forest" ? "/images/traike/home-forest.jpg" : "/images/traike/home-city.jpg"} alt="" fill priority sizes="100vw" aria-hidden className="-z-20 object-cover object-[50%_38%] dark:hidden" />
-        <Image src={homeBg === "forest" ? "/images/traike/home-forest.jpg" : "/images/traike/home-city-night.jpg"} alt="" fill sizes="100vw" aria-hidden className="-z-20 hidden object-cover object-[50%_38%] dark:block" />
+      <header className={`relative isolate overflow-hidden bg-cream${wide ? " md:min-h-[clamp(26rem,34vw,34rem)]" : ""}`}>
+        <Image src={homeBg === "city" ? "/images/traike/home-city.jpg" : homeBg === "forward" ? HERO_FORWARD : HERO_PHONE} alt="" fill priority sizes="100vw" aria-hidden className={`-z-20 object-cover object-[50%_38%] dark:hidden${wide ? " md:hidden" : ""}`} />
+        <Image src={homeBg === "city" ? "/images/traike/home-city-night.jpg" : homeBg === "forward" ? HERO_FORWARD : HERO_PHONE} alt="" fill sizes="100vw" aria-hidden className={`-z-20 hidden object-cover object-[50%_38%] ${wide ? "max-md:dark:block" : "dark:block"}`} />
+        {wide && (
+          // Tablet and desktop only: a 2880x1200 landscape, sharp at the full width. The phone pair above is untouched.
+          // On a tablet the band is covered by height, so the picture is drawn about 1000px wide (hence that size).
+          // The traveler is on the start side, so Hebrew mirrors the picture to keep him on the reading side.
+          <Image src={HERO_WIDE} alt="" fill sizes="(min-width: 1024px) calc(100vw - 72px), 1000px" aria-hidden className="-z-20 hidden object-cover object-[0%_62%] md:block rtl:-scale-x-100" />
+        )}
         <div
           aria-hidden
-          className="absolute inset-0 -z-10"
+          className={`absolute inset-0 -z-10${wide ? " md:hidden" : ""}`}
           style={{ background: "linear-gradient(180deg, rgba(14,22,16,.5) 0%, rgba(14,22,16,.12) 38%, rgba(14,22,16,0) 62%, color-mix(in srgb, var(--tk-paper) 55%, transparent) 88%, var(--tk-paper) 100%)" }}
         />
+        {wide && (
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 hidden md:block"
+            style={{ background: "linear-gradient(180deg, rgba(14,22,16,.5) 0%, rgba(14,22,16,.3) 34%, rgba(14,22,16,.05) 60%, rgba(14,22,16,0) 72%, color-mix(in srgb, var(--tk-paper) 55%, transparent) 90%, var(--tk-paper) 100%)" }}
+          />
+        )}
         <div className="relative mx-auto max-w-[560px] px-4 pb-[14px] pt-[max(14px,env(safe-area-inset-top))]">
           <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
             <span className={`flex w-fit items-center gap-2 ${ON_PHOTO}`}>
