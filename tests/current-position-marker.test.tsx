@@ -38,6 +38,16 @@ describe("CurrentPositionMarker (Leaflet)", () => {
     }
   });
 
+  it("draws the direction beam with the arrowhead, and none without a heading", () => {
+    const { rerender } = render(<CurrentPositionMarker position={POSITION} headingDeg={212.4} />);
+    const beam = () => document.querySelector("[data-testid=walker-beam]");
+    expect(beam()).not.toBeNull();
+    expect(/rotate\((-?[\d.]+)deg\)/.exec(beam()!.getAttribute("style") ?? "")?.[1]).toBe("212");
+    rerender(<CurrentPositionMarker position={POSITION} accuracyM={20} headingDeg={undefined} />);
+    expect(beam()).toBeNull();
+    expect(screen.getByTestId("halo")).toBeTruthy(); // the accuracy halo is untouched by the beam
+  });
+
   it("centres the dot on the position: the marker box is anchored at its middle", () => {
     render(<CurrentPositionMarker position={POSITION} headingDeg={0} />);
     expect(screen.getByTestId("leaflet-marker").getAttribute("data-size")).toBe(`${WALKER_BOX_PX}x${WALKER_BOX_PX}`);
