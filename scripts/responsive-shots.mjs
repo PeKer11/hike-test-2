@@ -149,8 +149,13 @@ async function settle(page) {
 async function buildPlan(page, lang) {
   const he = lang === "he";
   await page.goto(`${BASE}/app?view=plan`);
-  await page.locator("details").evaluateAll((all) => all.forEach((d) => (d.open = true)));
-  await page.getByPlaceholder(he ? "קו רוחב" : "Latitude").fill("32.0779");
+  // A dev server re-renders the tree once after hydration, which closes the <details> again: open them until the field shows.
+  const lat = page.getByPlaceholder(he ? "קו רוחב" : "Latitude");
+  for (let i = 0; i < 25 && !(await lat.isVisible()); i++) {
+    await page.locator("details").evaluateAll((all) => all.forEach((d) => (d.open = true)));
+    await page.waitForTimeout(300);
+  }
+  await lat.fill("32.0779");
   await page.getByPlaceholder(he ? "קו אורך" : "Longitude").fill("34.7742");
   await page.getByRole("button", { name: he ? "בנה מסלול הליכה" : "Build walking route" }).click();
   await page.getByRole("heading", { name: "Your Walk Plan" }).waitFor({ timeout: 20_000 });

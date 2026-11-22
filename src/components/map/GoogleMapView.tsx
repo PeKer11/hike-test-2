@@ -79,7 +79,14 @@ function FitPath({ path }: { path?: Coordinates[] }) {
   const map = useMap();
   useEffect(() => {
     const b = path ? boundsOf(path) : null;
-    if (map && b) map.fitBounds(b, 48);
+    if (!map || !b) return;
+    // The Plan map is hidden until there is a route and shown in the same render that brings it: wait a frame so Google
+    // has measured the box before it picks the zoom.
+    const frame = requestAnimationFrame(() => {
+      google.maps.event.trigger(map, "resize");
+      map.fitBounds(b, 48);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [map, path]);
   return null;
 }

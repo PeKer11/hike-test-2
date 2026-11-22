@@ -1304,7 +1304,11 @@ export function WalkPlannerApp({
       });
     }
     if (plan.orderedAttractions[0] && !keepViewport) {
-      focusOn(plan.orderedAttractions[0].coordinates, 14);
+      // The whole walk in view (the route line, or the stops when there is no line), not one stop at zoom 14.
+      const fit = geometry.length > 1 ? geometry : plan.orderedAttractions.map((a) => a.coordinates);
+      const spread = fit.some((c) => c.lat !== fit[0].lat || c.lng !== fit[0].lng);
+      if (spread) setPlanFit([...fit]);
+      else focusOn(plan.orderedAttractions[0].coordinates, 15);
     }
   };
 
@@ -1437,6 +1441,11 @@ export function WalkPlannerApp({
   };
   // Phone only: hide the side panel so the map fills the screen.
   const [mapFull, setMapFull] = useState(false);
+  // The path the Plan map fits itself to after a build; a saved walk opened on the map takes the view over.
+  const [planFit, setPlanFit] = useState<Coordinates[] | undefined>(undefined);
+  useEffect(() => {
+    if (walkPreview) setPlanFit(undefined);
+  }, [walkPreview]);
   // Starting a walk puts the map back to the real plan. The preview survives the jump from Walks to the map screen (Close ends it).
   useEffect(() => {
     if (walkMode) setWalkPreview(null);
@@ -4096,6 +4105,8 @@ export function WalkPlannerApp({
       ]
     : [];
   const planMapHidden = !walkMode && !mapFull && !isAdvancedOpen && !walkPlan && !walkPreview && previewPlaces.length === 0 && !route?.geometry?.length && waypoints.length === 0;
+  // On a phone the Plan map is the top block, above the chat and the form, once there is something to show (and never in the live walk).
+  const mapTop = !walkMode && !mapFull && !planMapHidden && !hubTab;
   const mapOptionsCard = (
     <MapOptionsCard
       mapType={mapType}
@@ -4141,15 +4152,19 @@ export function WalkPlannerApp({
           }
         />
       ) : null}
-      <div className="flex h-full w-full flex-col @4xl:flex-row">
+      <div className={`flex h-full w-full flex-col ${walkMode ? "@4xl:flex-row" : "@3xl:flex-row"}`}>
       {/* The aside stays mounted through a walk (form state survives). On a
           narrow frame it is hidden until "Details" lifts it as a bottom sheet;
           from @4xl up it is simply the sidebar it always was. */}
       <aside
         ref={asideRef}
-        className={`isolate ${walkMode || mapFull ? "order-2" : "order-1"} min-h-0 w-full flex-1 overflow-y-auto overscroll-contain border-t border-charcoal/10 @4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r @6xl:w-[400px] ${
+        className={`isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain ${mapTop ? "" : "border-t"} border-charcoal/10 ${
+          walkMode
+            ? "@4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r"
+            : "@3xl:relative @3xl:order-1 @3xl:h-full @3xl:w-[320px] @3xl:flex-none @3xl:border-t-0 @3xl:border-r"
+        } @6xl:w-[400px] ${
           walkMode && !isDetailsOpen ? "hidden @4xl:block" : ""
-        } ${mapFull && !walkMode ? "hidden @4xl:block" : ""} ${
+        } ${mapFull && !walkMode ? "hidden @3xl:block" : ""} ${
           walkMode && isDetailsOpen
             ? "absolute inset-x-0 bottom-0 z-[700] max-h-[70%] flex-none rounded-t-2xl shadow-[0_-4px_20px_rgba(30,61,47,0.18)] @4xl:static @4xl:max-h-none @4xl:flex-1 @4xl:rounded-none @4xl:shadow-none"
             : "relative"
@@ -5085,11 +5100,13 @@ export function WalkPlannerApp({
               ) : null}
               {!walkMode && !hubTab ? (
                 <div className="-mx-4 border-t border-tk-hair">
-                  {/* On a phone the map is a screen of its own: it is not squeezed in under the form. */}
-                  <button type="button" onClick={() => setMapFull(true)} className="tk-bar w-full cursor-pointer !border-0 @4xl:hidden">
-                    <span>{PLAN_COPY[uiLang === "he" ? "he" : "en"].fullMap}</span>
-                    <ExpandIcon className="h-4 w-4" />
-                  </button>
+                  {/* The one "Full map": on the map itself when the map is up top; this row only while there is no map to carry it. */}
+                  {planMapHidden ? (
+                    <button type="button" onClick={() => setMapFull(true)} className="tk-bar w-full cursor-pointer !border-0 @3xl:hidden">
+                      <span>{PLAN_COPY[uiLang === "he" ? "he" : "en"].fullMap}</span>
+                      <ExpandIcon className="h-4 w-4" />
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => setIsAdvancedOpen(true)}
@@ -5139,11 +5156,11 @@ export function WalkPlannerApp({
       {/* The wrapper is the flex item the map section used to be. Our routing credit sits in flow right under the map
           (Plan) or at the bottom of the walk sheet (Live Walk), never on the map's edge. */}
       <div
-        className={`flex-col @4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1 ${
+        className={`flex-col ${walkMode ? "@4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1" : "@3xl:order-2 @3xl:h-full @3xl:min-h-0 @3xl:flex-1"} ${
           walkMode || mapFull
             ? "order-1 h-full min-h-0 flex-1"
-            : "order-2 h-[26%] min-h-[200px] shrink-0 border-t-[1.5px] border-[var(--tk-ctl)] @4xl:border-t-0"
-        } ${planMapHidden ? "hidden @4xl:flex" : hubTab ? "hidden" : "flex"}`}
+            : "order-1 h-[40%] min-h-[200px] shrink-0 border-b-[1.5px] border-[var(--tk-ctl)] @3xl:border-b-0"
+        } ${planMapHidden ? "hidden @3xl:flex" : hubTab ? "hidden" : "flex"}`}
       >
       <section className="relative min-h-0 flex-1 overflow-hidden">
         {walkMode && isOffRoute && routeOrderAsk ? (
@@ -5196,10 +5213,10 @@ export function WalkPlannerApp({
             type="button"
             onClick={() => setMapFull((v) => !v)}
             aria-pressed={mapFull}
-            className="absolute bottom-3 start-3 z-[700] flex h-11 items-center gap-2 rounded-full border border-forest/20 bg-paper px-4 text-sm font-semibold text-forest shadow-tk-card @4xl:hidden"
+            className="absolute bottom-3 start-3 z-[700] flex h-11 items-center gap-2 rounded-full border border-forest/20 bg-paper px-4 text-sm font-semibold text-forest shadow-tk-card @3xl:hidden"
           >
             {mapFull ? <CollapseIcon className="h-4 w-4" /> : <ExpandIcon className="h-4 w-4" />}
-            {mapFull ? "Back to plan" : "Full map"}
+            {PLAN_COPY[uiLang === "he" ? "he" : "en"][mapFull ? "backToPlan" : "fullMap"]}
           </button>
         ) : null}
         <DynamicMap
@@ -5207,7 +5224,7 @@ export function WalkPlannerApp({
           routeGeometry={
             walkPreview ? [] : walkPhase === "walking" ? remainingGeometry : (route?.geometry ?? [])
           }
-          fitPath={walkPreview?.path}
+          fitPath={walkPreview?.path ?? planFit}
           center={center}
           focusTick={focusTick}
           zoom={zoom}
