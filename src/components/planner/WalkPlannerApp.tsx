@@ -104,6 +104,7 @@ import {
 } from "@/lib/walk/walk-cadence";
 import { SpeedEstimator } from "@/lib/walk/speed-estimator";
 import { PaceAdvisor, type PaceAdvice } from "@/lib/walk/pace-advisor";
+import { PaceMismatchWatcher, type PaceMismatchOffer } from "@/lib/walk/pace-mismatch";
 import {
   detourMinutes,
   isNearAnyStop,
@@ -618,6 +619,9 @@ export function WalkPlannerApp({
   // the numbers that reach the screen go through setState (once a second).
   const speedEstimatorRef = useRef<SpeedEstimator | null>(null);
   const paceAdvisorRef = useRef<PaceAdvisor | null>(null);
+  // "You walk much faster than the plan assumes": asked once, answered with a tap (`PaceMismatchWatcher`).
+  const paceMismatchRef = useRef<PaceMismatchWatcher | null>(null);
+  const [paceMismatchOffer, setPaceMismatchOffer] = useState<PaceMismatchOffer | null>(null);
   // The "reached the end" card waits for `RouteEndDetector` (close to the end, a good fix, a few seconds).
   const routeEndRef = useRef(new RouteEndDetector());
   const [paceAdvisory, setPaceAdvisory] = useState<{
@@ -861,6 +865,12 @@ export function WalkPlannerApp({
       // clock runs 10x, which would take every card down after six seconds.
       if (advice) setPaceAdvisory({ kind: advice, at: Date.now() });
     }
+    const mismatch = paceMismatchRef.current;
+    if (mismatch) {
+      const speed = speedEstimatorRef.current?.current(now);
+      const offer = mismatch.update({ kmh: speed?.kmh ?? null, moving: speed?.state === "moving", atMs: now });
+      if (offer) setPaceMismatchOffer(offer);
+    }
     // An unanswered offer takes itself down; the next one is a fresh question.
     setPaceAdvisory((prev) =>
       prev && Date.now() - prev.at > ADVISOR_CARD_TTL_MS ? null : prev,
@@ -883,6 +893,8 @@ export function WalkPlannerApp({
     shortcut.clear();
     speedEstimatorRef.current = null;
     paceAdvisorRef.current = null;
+    paceMismatchRef.current = null;
+    setPaceMismatchOffer(null);
     firstFixAtRef.current = null;
     matchedRef.current = null;
     routeEndRef.current.reset();
@@ -2226,6 +2238,8 @@ export function WalkPlannerApp({
     walkInputRef.current = { ...input, walkingPaceMinPerKm: minPerKm };
     replanTriggerRef.current?.setPlannedPace(minPerKm);
     paceAdvisorRef.current?.setPlannedPace(minPerKm);
+    paceMismatchRef.current?.setPlannedPace(minPerKm);
+    setPaceMismatchOffer(null);
     setPaceAdvisory(null);
     const kmh = Math.round((60 / minPerKm) * 10) / 10;
     showWalkNotice(
@@ -2708,6 +2722,9 @@ export function WalkPlannerApp({
     speedEstimatorRef.current = new SpeedEstimator();
     paceAdvisorRef.current = planInput
       ? new PaceAdvisor(planInput.walkingPaceMinPerKm)
+      : null;
+    paceMismatchRef.current = planInput
+      ? new PaceMismatchWatcher(planInput.walkingPaceMinPerKm)
       : null;
     firstFixAtRef.current = null;
 
@@ -3571,6 +3588,26 @@ export function WalkPlannerApp({
         actions: [
           { label: sc.accept, primary: true, onClick: () => void shortcut.accept() },
           { label: sc.keep, onClick: shortcut.dismiss },
+        ],
+      };
+    } else if (paceMismatchOffer) {
+      const pm = walkCopy.paceMismatch[uiLang === "he" ? "he" : "en"];
+      const o = paceMismatchOffer;
+      walkAlert = {
+        id: "pace-mismatch",
+        tone: "info",
+        icon: "🚶",
+        title: pm.title(o.measuredKmh),
+        body: pm.body(o.plannedKmh),
+        actions: [
+          { label: pm.update(o.measuredKmh), primary: true, onClick: () => rebaselinePace(60 / o.measuredKmh) },
+          {
+            label: pm.keep(o.plannedKmh),
+            onClick: () => {
+              paceMismatchRef.current?.decline();
+              setPaceMismatchOffer(null);
+            },
+          },
         ],
       };
     } else if (paceAdvisory) {

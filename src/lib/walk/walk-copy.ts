@@ -161,6 +161,21 @@ export const walkCopy = {
     en: { title: "You've reached the end of your route", finish: "Finish walk", keep: "Keep walking" },
     he: { title: "הגעתם לסוף המסלול", finish: "סיום הליכה", keep: "ממשיכים ללכת" },
   },
+  /** The plan assumes a much slower pace than the walker is really walking: offer to plan at the real one. */
+  paceMismatch: {
+    en: {
+      title: (kmh: number) => `You're walking about ${kmh} km/h`,
+      body: (plannedKmh: number) => `Your plan assumes ${plannedKmh} km/h.`,
+      update: (kmh: number) => `Plan at ${kmh} km/h`,
+      keep: (plannedKmh: number) => `Keep ${plannedKmh} km/h`,
+    },
+    he: {
+      title: (kmh: number) => `אתם הולכים כ-${kmh} קמ״ש`,
+      body: (plannedKmh: number) => `התוכנית מניחה ${plannedKmh} קמ״ש.`,
+      update: (kmh: number) => `לתכנן לפי ${kmh} קמ״ש`,
+      keep: (plannedKmh: number) => `להישאר ב-${plannedKmh} קמ״ש`,
+    },
+  },
   turn: {
     straight: (m: number) => `Keep straight, ${roundedMeters(m)}`,
     left: (m: number) => `Turn left, ${roundedMeters(m)}`,
