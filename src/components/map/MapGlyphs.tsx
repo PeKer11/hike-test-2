@@ -1,5 +1,7 @@
 "use client";
 
+import { FitRouteIcon, LayersIcon, NavArrowIcon } from "@/components/ui/icons";
+
 /**
  * The controls drawn on the live-walk map: follow me, the whole route, and layers
  * (opens the Details sheet at its display section). Everything else lives in Details.
@@ -43,10 +45,8 @@ export function MapGlyphs({
           aria-pressed={following}
           className={`${BASE} ${following ? "bg-forest text-on-accent" : "bg-paper text-forest"}`}
         >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-            <circle cx="12" cy="12" r="3.5" fill={following ? "currentColor" : "none"} />
-            <path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4" />
-          </svg>
+          {/* The navigation arrow: "me". Filled while the map follows the walker. */}
+          <NavArrowIcon filled={following} />
         </button>
       ) : null}
       {onFitRoute ? (
@@ -58,19 +58,12 @@ export function MapGlyphs({
           className={`${BASE} ${fitting ? "bg-forest text-on-accent" : "bg-paper text-forest"}`}
         >
           {/* A frame with a route curve inside: "see all of it". */}
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M4 9V6a2 2 0 0 1 2-2h3M20 9V6a2 2 0 0 0-2-2h-3M4 15v3a2 2 0 0 0 2 2h3M20 15v3a2 2 0 0 1-2 2h-3" />
-            <path d="M8 15c1.5-4.5 4.5 0 6-3.5 .6-1.4 1.2-2 2-2.5" />
-          </svg>
+          <FitRouteIcon />
         </button>
       ) : null}
       {onLayers ? (
         <button type="button" onClick={onLayers} aria-label={t.layers} className={`${BASE} bg-paper text-forest`}>
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M12 3 3 8l9 5 9-5-9-5Z" />
-            <path d="m3 12.5 9 5 9-5" />
-            <path d="m3 17 9 5 9-5" />
-          </svg>
+          <LayersIcon />
         </button>
       ) : null}
     </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { CloseIcon } from "@/components/ui/icons";
 import type { StoredFact } from "@/lib/preferences/fact-extractor";
 
 /**
@@ -172,9 +173,9 @@ export function StandingFactsPanel({
                   type="button"
                   onClick={() => forget(fact.id)}
                   aria-label={he ? `לשכוח את "${fact.text}"` : `Forget "${fact.text}"`}
-                  className="shrink-0 cursor-pointer text-charcoal/40 hover:text-terra"
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center text-charcoal/40 hover:text-terra"
                 >
-                  ✕
+                  <CloseIcon className="h-4 w-4" />
                 </button>
               </li>
             ))}

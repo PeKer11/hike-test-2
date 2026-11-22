@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 
 import { LocationChip } from "@/components/shell/LocationChip";
 import { BTN, BTN_ALT_SM } from "@/components/ui/panel-style";
+import { ArrowIcon } from "@/components/ui/icons";
+import { TraikeLockup } from "@/components/ui/TraikeMark";
 import { RouteSketch } from "@/components/walks/RouteSketch";
 import { routeOf } from "@/lib/walks/walk-again";
 import type { PlannerBridge, AppView } from "@/lib/shell/planner-bridge";
@@ -254,10 +256,7 @@ export function HomeView({
         )}
         <div className="relative mx-auto max-w-[560px] px-4 pb-[14px] pt-[max(14px,env(safe-area-inset-top))]">
           <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
-            <span className={`flex w-fit items-center gap-2 ${ON_PHOTO}`}>
-              <Image src="/traike-icon.png" alt="" width={30} height={30} className="rounded-lg" />
-              <span className="font-app-serif text-[24px] font-bold leading-none">Traike</span>
-            </span>
+            <TraikeLockup className={ON_PHOTO} />
             <div className="flex min-w-0 max-w-[64%] justify-end">
               <LocationChip lang={lang} onClick={() => onNavigate("plan")} />
             </div>
@@ -298,9 +297,7 @@ export function HomeView({
               className={`${BTN} mt-[14px] !min-h-12 w-full`}
             >
               {inProgress ? (walkLive ? t.backToWalk : t.continueWalk) : t.planMyWalk}
-              <svg aria-hidden width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
+              <ArrowIcon />
             </button>
             {inProgress ? (
               <button type="button" onClick={() => onNavigate("plan")} className="sr-only">

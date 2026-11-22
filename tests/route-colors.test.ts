@@ -14,6 +14,19 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+/** An opaque hex colour drawn at `alpha` over an opaque background, as the map draws a semi-transparent line. */
+function over(fg: string, bg: string, alpha: number): string {
+  const mix = (i: number) => Math.round(alpha * parseInt(fg.slice(i, i + 2), 16) + (1 - alpha) * parseInt(bg.slice(i, i + 2), 16));
+  return `#${[1, 3, 5].map((i) => mix(i).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Best contrast the trail gives against `bg`: its core or its casing, each drawn at its own opacity over the imagery. */
+function trailContrast(trail: ReturnType<typeof walkedTrail>, bg: string): number {
+  const core = contrast(over(trail.core.color, bg, trail.core.opacity), bg);
+  const casing = trail.casing ? contrast(over(trail.casing.color, bg, trail.casing.opacity), bg) : 0;
+  return Math.max(core, casing);
+}
+
 /** Typical Google hybrid-imagery colours (the eight of docs/FEEDBACK-ROUND-2026-11-22.md item 7). */
 const IMAGERY: Record<string, string> = {
   canopy: "#2f4b2d",
@@ -38,7 +51,7 @@ describe("walked trail colours", () => {
     for (const theme of ["light", "dark"] as MapTheme[]) {
       const trail = walkedTrail(theme, "satellite");
       expect(trail.core).toMatchObject({ color: "#f6b81c", weight: 4, opacity: 0.95 });
-      expect(trail.casing).toMatchObject({ color: "#1b2620", weight: 7, opacity: 0.5 });
+      expect(trail.casing).toMatchObject({ color: "#1b2620", weight: 7, opacity: 0.7 });
     }
   });
 
@@ -48,20 +61,23 @@ describe("walked trail colours", () => {
   });
 
   it.each(Object.entries(IMAGERY))("stays visible on satellite %s: best of core and casing is at least 3:1", (_name, bg) => {
-    const trail = walkedTrail("light", "satellite");
-    const best = Math.max(contrast(trail.core.color, bg), contrast(trail.casing!.color, bg));
-    expect(best).toBeGreaterThanOrEqual(3);
+    expect(trailContrast(walkedTrail("light", "satellite"), bg)).toBeGreaterThanOrEqual(3);
   });
 
   it("holds the 3:1 bar for every theme and base map that uses a casing", () => {
     for (const theme of ["light", "dark"] as MapTheme[]) {
       for (const mapType of ["satellite"] as BaseMap[]) {
-        const { core, casing } = walkedTrail(theme, mapType);
-        for (const bg of Object.values(IMAGERY)) {
-          expect(Math.max(contrast(core.color, bg), casing ? contrast(casing.color, bg) : 0)).toBeGreaterThanOrEqual(3);
-        }
+        const trail = walkedTrail(theme, mapType);
+        for (const bg of Object.values(IMAGERY)) expect(trailContrast(trail, bg)).toBeGreaterThanOrEqual(3);
       }
     }
+  });
+
+  it("needs the casing at 0.7: drawn at 0.5 the worst background falls under 3:1", () => {
+    const faint = { ...SATELLITE_TRAIL, casing: { ...SATELLITE_TRAIL.casing!, opacity: 0.5 } };
+    const worst = (trail: ReturnType<typeof walkedTrail>) => Math.min(...Object.values(IMAGERY).map((bg) => trailContrast(trail, bg)));
+    expect(worst(faint)).toBeLessThan(3);
+    expect(worst(SATELLITE_TRAIL)).toBeGreaterThanOrEqual(3);
   });
 
   it("documents why the old grey failed: below 1.5:1 on dry grass, sand and roofs", () => {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Button, Card } from "@/components/ui";
+import { CloseIcon, StarIcon, ThumbDownIcon, ThumbUpIcon } from "@/components/ui/icons";
 import { CATEGORY_EMOJI } from "@/lib/constants/categories";
 import { socialEnabled } from "@/lib/social/flag";
 import type { Attraction } from "@/lib/types";
@@ -114,9 +115,9 @@ export function WalkFeedbackCard({
           type="button"
           aria-label="Dismiss feedback"
           onClick={onDismiss}
-          className="cursor-pointer text-sm leading-none text-charcoal/40 transition hover:text-charcoal/70"
+          className="flex h-6 w-6 cursor-pointer items-center justify-center text-charcoal/40 transition hover:text-charcoal/70"
         >
-          ×
+          <CloseIcon className="h-4 w-4" />
         </button>
       </div>
 
@@ -142,26 +143,26 @@ export function WalkFeedbackCard({
                 onClick={() => rate(attraction, true)}
                 aria-label={`Liked ${attraction.name}`}
                 aria-pressed={rating === true}
-                className={`shrink-0 rounded-full px-1.5 py-0.5 text-sm transition ${
+                className={`flex shrink-0 items-center justify-center rounded-full p-1 text-forest transition ${
                   rating === true
                     ? "bg-terra/15 opacity-100"
-                    : "opacity-30 hover:opacity-70"
+                    : "opacity-40 hover:opacity-80"
                 }`}
               >
-                👍
+                <ThumbUpIcon />
               </button>
               <button
                 type="button"
                 onClick={() => rate(attraction, false)}
                 aria-label={`Did not like ${attraction.name}`}
                 aria-pressed={rating === false}
-                className={`shrink-0 rounded-full px-1.5 py-0.5 text-sm transition ${
+                className={`flex shrink-0 items-center justify-center rounded-full p-1 text-forest transition ${
                   rating === false
                     ? "bg-charcoal/10 opacity-100"
-                    : "opacity-30 hover:opacity-70"
+                    : "opacity-40 hover:opacity-80"
                 }`}
               >
-                👎
+                <ThumbDownIcon />
               </button>
               {socialEnabled() && (
                 <button
@@ -169,11 +170,11 @@ export function WalkFeedbackCard({
                   onClick={() => recommend(attraction)}
                   aria-label={`Recommend ${attraction.name}`}
                   aria-pressed={recommended[attraction.id] === true}
-                  className={`shrink-0 rounded-full px-1.5 py-0.5 text-sm transition ${
-                    recommended[attraction.id] ? "bg-terra/15 opacity-100" : "opacity-30 hover:opacity-70"
+                  className={`flex shrink-0 items-center justify-center rounded-full p-1 text-terra transition ${
+                    recommended[attraction.id] ? "bg-terra/15 opacity-100" : "opacity-40 hover:opacity-80"
                   }`}
                 >
-                  ⭐
+                  <StarIcon filled={recommended[attraction.id] === true} />
                 </button>
               )}
             </li>

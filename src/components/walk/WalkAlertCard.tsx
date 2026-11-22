@@ -1,3 +1,19 @@
+import type { ReactNode } from "react";
+
+import { ChatIcon, DropIcon, FlagIcon, GaugeIcon, RainIcon, ShortcutIcon, SunsetIcon, type IconProps } from "@/components/ui/icons";
+
+export type WalkAlertIcon = "rain" | "water" | "sunset" | "ask" | "shortcut" | "pace" | "finish";
+
+const ALERT_ICONS: Record<WalkAlertIcon, (props: IconProps) => ReactNode> = {
+  rain: RainIcon,
+  water: DropIcon,
+  sunset: SunsetIcon,
+  ask: ChatIcon,
+  shortcut: ShortcutIcon,
+  pace: GaugeIcon,
+  finish: FlagIcon,
+};
+
 export interface WalkAlertAction {
   label: string;
   onClick: () => void;
@@ -17,7 +33,8 @@ export interface WalkAlert {
   variant?: "question";
   /** Small credit line under a question (e.g. weather data attribution). */
   footnote?: string;
-  icon?: string;
+  /** Which glyph of the icon set leads the card (never a text emoji). */
+  icon?: WalkAlertIcon;
   title: string;
   /** A place name (user-edited map data): shown with dir="auto" under the title. */
   subject?: string;
@@ -47,8 +64,8 @@ export function WalkAlertCard({ alert }: { alert: WalkAlert }) {
     >
       <div className="flex items-start gap-2">
         {alert.icon ? (
-          <span aria-hidden className="text-lg leading-none">
-            {alert.icon}
+          <span aria-hidden className="mt-px shrink-0">
+            {ALERT_ICONS[alert.icon]({ className: "h-5 w-5" })}
           </span>
         ) : null}
         <div className="min-w-0 flex-1">

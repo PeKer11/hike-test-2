@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { ChevronDownIcon } from "@/components/ui/icons";
 import { walkCopy } from "@/lib/walk/walk-copy";
 
 export interface OffRouteCardProps {
@@ -139,9 +140,7 @@ export function OffRouteCard({ mode, lang, distanceM, hint, busy, countdown, sig
             aria-label={t.minimise}
             className="absolute start-1 top-1 flex h-11 w-11 items-center justify-center rounded-full text-charcoal/60"
           >
-            <svg aria-hidden viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
+            <ChevronDownIcon />
           </button>
           {compact ? null : (
             // eslint-disable-next-line @next/next/no-img-element

@@ -1,6 +1,6 @@
 "use client";
 
-import { NAV_ICONS } from "@/components/shell/TabBar";
+import { LiveDot, NAV_ICONS } from "@/components/shell/TabBar";
 import { NAV_ITEMS, navFor, navTarget } from "@/components/shell/nav";
 import type { AppView } from "@/lib/shell/planner-bridge";
 
@@ -28,6 +28,7 @@ export function Rail({
           <button key={i.id} type="button" onClick={() => onNavigate(navTarget(i.id, walkLive))} aria-current={on ? "page" : undefined} className="tk-tab min-h-14 w-14">
             <Icon />
             {i[lang]}
+            {i.id === "walk" && walkLive ? <LiveDot className="end-2.5 top-1.5" /> : null}
             {i.id === "walks" && friendBadge > 0 ? (
               <span className="absolute end-1 top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-terra px-1 text-[13px] font-semibold leading-none text-on-accent">
                 {friendBadge}

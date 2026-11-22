@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui";
+import { CloseIcon } from "@/components/ui/icons";
 import { CATEGORY_EMOJI } from "@/lib/constants/categories";
 import type { LostStop } from "@/lib/walk/planner-actions";
 
@@ -40,9 +41,9 @@ export function DroppedStopsPanel({ stops, onRecall, onDismiss }: Props) {
         <button
           onClick={onDismiss}
           aria-label="Dismiss dropped stops"
-          className="shrink-0 rounded-full px-1.5 text-sm text-amber-700/60 transition hover:text-amber-900"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-amber-700/60 transition hover:text-amber-900"
         >
-          ✕
+          <CloseIcon className="h-4 w-4" />
         </button>
       </div>
       <ul className="space-y-1.5">

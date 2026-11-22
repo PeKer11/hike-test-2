@@ -1,5 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
+
+import { BackIcon, FoodIcon, HomeIcon, TreeIcon, type IconProps } from "@/components/ui/icons";
 import { walkCopy } from "@/lib/walk/walk-copy";
 
 export type SheetTheme = "nature" | "food" | "short" | "back";
@@ -22,11 +25,11 @@ interface DirectionOptionsSheetProps {
   onBack: () => void;
 }
 
-const THEME_ICON: Record<SheetTheme, string> = {
-  nature: "🌳",
-  food: "🍴",
-  short: "🏠",
-  back: "↩",
+const THEME_ICON: Record<SheetTheme, (props: IconProps) => ReactNode> = {
+  nature: TreeIcon,
+  food: FoodIcon,
+  short: HomeIcon,
+  back: BackIcon,
 };
 
 const THEME_KEY = {
@@ -77,7 +80,7 @@ export function DirectionOptionsSheet({
               }`}
             >
               <span className="flex items-center gap-1.5 text-sm font-semibold">
-                <span aria-hidden>{THEME_ICON[option.theme]}</span>
+                {THEME_ICON[option.theme]({ className: "h-[18px] w-[18px] shrink-0" })}
                 {t(THEME_KEY[option.theme])}
               </span>
               <span className="mt-0.5 block text-[13px] text-charcoal/70">

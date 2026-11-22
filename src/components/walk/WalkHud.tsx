@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { MapCredits } from "@/components/map/MapCredits";
 import { WalkAlertCard, type WalkAlert } from "@/components/walk/WalkAlertCard";
+import { CheckIcon, StopIcon, WarnIcon } from "@/components/ui/icons";
+import { TraikeLockup } from "@/components/ui/TraikeMark";
 import { WalkSheet } from "@/components/walk/WalkSheet";
 import { WalkStatsBar, type WalkStatsData } from "@/components/walk/WalkStatsBar";
 import { WalkTurnDeck, etaClock } from "@/components/walk/WalkTurnDeck";
@@ -92,16 +94,13 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
 
   return (
     <div ref={outerRef} className="pointer-events-none absolute inset-0 z-[600]">
-      {/* The Traike mark and the stop chip float on the map, beside Google's own controls (they sit at the inline-end: right, or left in Hebrew). */}
+      {/* The Traike logo and the stop chip float on the map, beside Google's own controls (they sit at the inline-end: right, or left in Hebrew). */}
       <div dir={lang === "he" ? "rtl" : "ltr"} className="absolute inset-x-0 top-[max(12px,env(safe-area-inset-top))] flex items-center gap-2 ps-3.5 pe-[60px]">
-        <span className="tk-paper-tag pointer-events-auto shrink-0">
-          <svg aria-hidden width="20" height="20" viewBox="0 0 26 26" fill="none">
-            <path d="M4 22C7 16 10 15 14 13.5C17 12.2 18.2 10.2 19 8.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            <circle cx="19.5" cy="6.5" r="5" fill="var(--tk-cream)" stroke="currentColor" strokeWidth="2" />
-            <circle cx="19.5" cy="6.5" r="2.3" fill="var(--tk-leather)" />
-          </svg>
-          <strong className="font-app-serif text-[17px] font-semibold">Traike</strong>
-        </span>
+        {/* The logo, not a control: no box, no lip, nothing under it to tap (touches go through to the map). */}
+        <TraikeLockup
+          data-testid="walk-logo"
+          className="pointer-events-none shrink-0 select-none text-[#FFF7EC] [text-shadow:0_0_3px_rgba(27,38,32,0.7),0_1px_8px_rgba(27,38,32,0.6)]"
+        />
         {stopProgress && stopProgress.total > 0 ? (
           <span dir="auto" data-testid="walk-stop-chip" className="tk-paper-tag pointer-events-auto !gap-1.5 !px-2.5 !text-[15px]">
             <span aria-hidden className="tk-champagne-ring !border-[var(--tk-tk-ink)] !bg-[var(--tk-cream)]" />
@@ -152,9 +151,7 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
             data-testid="walk-notice"
             className={`flex items-center gap-2 rounded-2xl px-3 py-1 text-[15px] font-medium ${notice.tone === "ok" ? "bg-forest/10 text-forest" : "bg-warn/15 text-tk-ink"}`}
           >
-            <svg aria-hidden viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              {notice.tone === "ok" ? <path d="M5 12.5l4.5 4.5L19 7.5" /> : <path d="M12 8v5m0 3.5h.01M10.3 3.9L2.6 17.5A2 2 0 004.3 20.5h15.4a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" />}
-            </svg>
+            {notice.tone === "ok" ? <CheckIcon className="h-[18px] w-[18px] shrink-0" /> : <WarnIcon className="h-[18px] w-[18px] shrink-0" />}
             <span dir="auto" className="min-w-0 flex-1 py-2">{notice.text}</span>
             {notice.action ? (
               <button type="button" onClick={notice.action.onClick} className="min-h-11 shrink-0 rounded-full px-3 text-[15px] font-semibold text-terra">
@@ -178,6 +175,7 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
             }}
             className="tk-btn tk-btn-secondary ms-auto min-h-[52px] shrink-0"
           >
+            <StopIcon />
             {confirmEnd ? t.endConfirm : t.endWalk}
           </button>
         </div>

@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { GROUPS, type Group } from "@/components/map/top-rated-groups";
 import { GooglePlaceCard } from "@/components/map/GooglePlaceCard";
+import { CheckIcon, PlusIcon, StarIcon } from "@/components/ui/icons";
 import { distanceM, namesOverlap } from "@/lib/places/match";
 import { notableEnabled, socialEnabled } from "@/lib/social/flag";
 import type { Attraction, AttractionCategory } from "@/lib/types";
@@ -93,8 +94,9 @@ function countSearch() {
 function AddToWalkButton({ attraction, onAdd, added }: { attraction: Attraction; onAdd?: (a: Attraction) => void; added: boolean }) {
   if (!onAdd) return null;
   return (
-    <button type="button" disabled={added} onClick={() => onAdd(attraction)} className="mt-1 rounded-full bg-terra px-3 py-1 text-[13px] font-medium text-on-accent disabled:bg-forest/70">
-      {added ? "✓ Added to walk" : "＋ Add to walk"}
+    <button type="button" disabled={added} onClick={() => onAdd(attraction)} className="mt-1 inline-flex items-center gap-1 rounded-full bg-terra px-3 py-1 text-[13px] font-medium text-on-accent disabled:bg-forest/70">
+      {added ? <CheckIcon className="h-4 w-4" /> : <PlusIcon className="h-4 w-4" />}
+      {added ? "Added to walk" : "Add to walk"}
     </button>
   );
 }
@@ -279,7 +281,7 @@ export function GoogleRecommendedLayer({ enabled, onNote, onAddToWalk, addedIds 
           ) : i.source === "notable" ? (
             goldStar
           ) : (
-            pin("#fff", "#c2652f", "★", 26)
+            pin("#fff", "#c2652f", <StarIcon filled className="h-full w-full text-[#c2652f]" />, 26)
           )}
         </AdvancedMarker>
       ))}
@@ -290,7 +292,7 @@ export function GoogleRecommendedLayer({ enabled, onNote, onAddToWalk, addedIds 
             {open.source === "google" ? (
               <>
                 <div className="text-[13px] text-charcoal/80">
-                  {GROUPS[open.group ?? "sights"].label} · ★ {open.rating?.toFixed(1)} · {open.ratingCount} Google reviews
+                  {GROUPS[open.group ?? "sights"].label} · <StarIcon filled className="inline h-3.5 w-3.5 align-[-2px]" /> {open.rating?.toFixed(1)} · {open.ratingCount} Google reviews
                 </div>
                 {reviewsFor === open.key ? (
                   <GooglePlaceCard name={open.name} lat={open.lat} lng={open.lng} placeId={open.placeId} startWithReviews />

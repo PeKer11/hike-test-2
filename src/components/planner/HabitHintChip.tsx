@@ -1,5 +1,6 @@
 "use client";
 
+import { CloseIcon } from "@/components/ui/icons";
 import type { Habit } from "@/lib/preferences/habit-model";
 import type { HabitHint } from "@/lib/preferences/habit-hints";
 
@@ -33,9 +34,9 @@ export function HabitHintChip({
             type="button"
             onClick={() => onDismiss(h.habit)}
             aria-label={DISMISS[lang]}
-            className="px-1 font-semibold text-charcoal/60"
+            className="flex h-6 w-6 items-center justify-center text-charcoal/60"
           >
-            ×
+            <CloseIcon className="h-4 w-4" />
           </button>
         </li>
       ))}

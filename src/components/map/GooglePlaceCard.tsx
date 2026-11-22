@@ -3,6 +3,7 @@
 import L from "leaflet";
 import { useEffect, useRef, useState } from "react";
 
+import { BackIcon } from "@/components/ui/icons";
 import { distanceM, namesOverlap } from "@/lib/places/match";
 
 const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
@@ -94,8 +95,9 @@ export function GooglePlaceCard({ name, lat, lng, placeId: knownId, startWithRev
       {state === "error" || (placeId && !safeId) ? <p className="text-[13px] text-charcoal/80">Could not load Google reviews.</p> : null}
       {state === "ready" && matchedName ? <p className="text-[13px] text-charcoal/80">Google: {matchedName}</p> : null}
       {state === "ready" ? (
-        <button type="button" className="mb-1 text-[13px] underline" onClick={() => setShowReviews((v) => !v)}>
-          {showReviews ? "← Back" : "See reviews"}
+        <button type="button" className="mb-1 inline-flex items-center gap-1 text-[13px] underline" onClick={() => setShowReviews((v) => !v)}>
+          {showReviews ? <BackIcon className="h-4 w-4" /> : null}
+          {showReviews ? "Back" : "See reviews"}
         </button>
       ) : null}
       <div ref={host} style={{ minWidth: 260, maxHeight: 190, overflowY: "auto" }} />

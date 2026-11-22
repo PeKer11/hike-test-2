@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
+import { ChatIcon, ChevronDownIcon } from "@/components/ui/icons";
 import type { WalkChat } from "@/lib/hooks/useWalkChat";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
 import type { ChatLang } from "@/lib/walk/chat/reply";
@@ -32,6 +33,7 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
           onClick={() => setOpen(true)}
           className="tk-btn tk-btn-primary w-full"
         >
+          <ChatIcon />
           {copy.ask}
         </button>
       </div>
@@ -48,9 +50,9 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
           type="button"
           onClick={() => setOpen(false)}
           aria-label="Minimize"
-          className="min-h-9 min-w-9 rounded-full px-2 text-[15px] font-semibold leading-none text-forest/70 hover:bg-forest/10"
+          className="flex min-h-9 min-w-9 items-center justify-center rounded-full px-2 text-forest/70 hover:bg-forest/10"
         >
-          ⌄
+          <ChevronDownIcon />
         </button>
       </div>
       {chat.messages.length > 0 && (

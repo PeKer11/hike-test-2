@@ -24,6 +24,15 @@ describe("WalkChatBox", () => {
     expect(input.value).toBe("");
   });
 
+  it("leads Ask with the chat bubble, and minimises with a chevron icon rather than a text glyph", () => {
+    render(<WalkChatBox chat={chatWith()} lang="en" />);
+    expect(screen.getByRole("button", { name: "Ask" }).querySelector("svg path")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const minimise = screen.getByRole("button", { name: "Minimize" });
+    expect(minimise.querySelector("svg")).not.toBeNull();
+    expect(minimise.textContent).toBe("");
+  });
+
   it("shows action buttons until one has been used", () => {
     const messages = [
       { id: 1, role: "app" as const, text: "I can drop Stop b.", actions: [{ kind: "drop" as const, stopId: "b", label: "Skip Stop b" }], used: false },

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { PushPinIcon } from "@/components/ui/icons";
 import type { Attraction } from "@/lib/types";
 import { formatDistance } from "@/lib/utils/geo";
 import { CATEGORY_EMOJI } from "@/lib/constants/categories";
@@ -151,13 +152,13 @@ export function AttractionDistancesPanel({
                       ? `Unpin ${attraction.name}`
                       : `Pin ${attraction.name}`
                   }
-                  className={`ml-2 shrink-0 rounded-full px-1.5 py-0.5 text-sm transition ${
+                  className={`ml-2 flex shrink-0 items-center justify-center rounded-full p-1 text-amber-800 transition ${
                     isPinned
                       ? "bg-amber-100 opacity-100"
-                      : "opacity-30 hover:opacity-70"
+                      : "opacity-40 hover:opacity-80"
                   }`}
                 >
-                  📌
+                  <PushPinIcon />
                 </button>
               )}
               <span

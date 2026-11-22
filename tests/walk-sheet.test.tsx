@@ -95,6 +95,22 @@ describe("the walk sheet", () => {
     expect(screen.getByTestId("walk-stop-chip").textContent).toBe("Stop 2 of 4 · 19:20");
   });
 
+  it("draws the Traike mark as a logo, not a control: no button, no hit area, one drawing", () => {
+    render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    const logo = screen.getByTestId("walk-logo");
+    expect(logo.textContent).toBe("Traike");
+    expect(logo.className).toContain("pointer-events-none");
+    expect(logo.className).not.toContain("tk-paper-tag");
+    expect(logo.closest("button, a")).toBeNull();
+    // The same app-icon art as every header (next/image serves it as /_next/image?url=%2Ftraike-icon.png).
+    expect(decodeURIComponent(logo.querySelector("img")!.getAttribute("src") ?? "")).toContain("/traike-icon.png");
+  });
+
+  it("leads End walk with the stop square", () => {
+    render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "End walk" }).querySelector("svg rect")).not.toBeNull();
+  });
+
   it("speaks the stop chip in Hebrew and hides it when there are no stops", () => {
     const { rerender } = render(<WalkHud alert={null} stats={stats} lang="he" stopProgress={{ index: 1, total: 3 }} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
     expect(screen.getByTestId("walk-stop-chip").textContent).toContain("תחנה 1 מתוך 3");

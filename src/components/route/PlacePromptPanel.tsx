@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from "react";
 
 import { Button, LoadingSpinner } from "@/components/ui";
 import { PLAN_COPY, type PlanLang } from "@/components/route/plan-copy";
+import { CloseIcon } from "@/components/ui/icons";
 import { BTN_ALT_SM, CTRL_BOX, chipCell } from "@/components/ui/panel-style";
 import {
   MAX_SCROLLBACK,
@@ -1138,9 +1139,9 @@ export function PlacePromptPanel({
                       attractions.filter((a) => !next.includes(a.id)),
                     );
                   }}
-                  className="cursor-pointer text-sm leading-none text-charcoal/40 transition hover:text-rose-600"
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center text-charcoal/40 transition hover:text-rose-600"
                 >
-                  ×
+                  <CloseIcon className="h-4 w-4" />
                 </button>
               </li>
             ))}

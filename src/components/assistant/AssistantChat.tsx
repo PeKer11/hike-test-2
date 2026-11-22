@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { recognitionLang, textLang, useSpeechInput } from "@/lib/speech/recognition";
 import { speak, stopSpeaking, ttsSupported } from "@/lib/walk/tts";
 
 import { Button } from "@/components/ui";
+import { CloseIcon, ImageIcon, MicIcon, PlanIcon, SlidersIcon, SpeakerIcon, StopIcon, WarnIcon } from "@/components/ui/icons";
 import {
   DEFAULT_PACE_MIN_PER_KM,
   type AssistantState,
@@ -100,8 +101,8 @@ const COPY = {
     title: "Plan with Traike",
     chats: (n: number) => `Chats (${n})`,
     newChat: "New chat",
-    settingsTitle: "Settings",
-    settingsAria: "Assistant settings",
+    settingsTitle: "Preferences",
+    settingsAria: "Assistant preferences",
     noChats: "No chats yet.",
     deleteChat: "Delete chat",
     clickToCopy: "Click to copy",
@@ -112,7 +113,7 @@ const COPY = {
     simulate: "Simulate (10×)",
     thinking: "Thinking…",
     placeholder: "I want to see Habima Square, the Jaffa port, and a good market",
-    addImage: "📎 Add image",
+    addImage: "Add image",
     removeImage: "Remove image",
     customWalk: "Custom Walk",
     dictate: "Dictate",
@@ -143,8 +144,8 @@ const COPY = {
     title: "תכנון עם טרייק",
     chats: (n: number) => `שיחות (${n})`,
     newChat: "שיחה חדשה",
-    settingsTitle: "הגדרות",
-    settingsAria: "הגדרות העוזר",
+    settingsTitle: "העדפות",
+    settingsAria: "העדפות העוזר",
     noChats: "אין שיחות עדיין.",
     deleteChat: "מחיקת שיחה",
     clickToCopy: "לחצו להעתקה",
@@ -155,7 +156,7 @@ const COPY = {
     simulate: "הדמיה (פי 10)",
     thinking: "חושב…",
     placeholder: "אני רוצה לעבור בכיכר הבימה, שוק טוב ולסיים בנמל יפו לקראת שקיעה",
-    addImage: "📎 הוספת תמונה",
+    addImage: "הוספת תמונה",
     removeImage: "הסרת תמונה",
     customWalk: "הליכה משלי",
     dictate: "הכתבה",
@@ -213,7 +214,19 @@ function renderMessage(
   places: Candidate[],
   onFocusPlace: (coordinates: Coordinates) => void,
 ) {
-  const text = content.replace(/\*\*/g, "");
+  // A "⚠" in a reply (the assistant's own warnings) is drawn with the set's warning icon, not the font's glyph.
+  return content
+    .replace(/\*\*/g, "")
+    .split(/⚠\s*/)
+    .map((segment, i) => (
+      <Fragment key={i}>
+        {i > 0 ? <WarnIcon className="me-1.5 inline h-[17px] w-[17px] align-[-3px] text-terra" /> : null}
+        {renderPlaces(segment, places, onFocusPlace)}
+      </Fragment>
+    ));
+}
+
+function renderPlaces(text: string, places: Candidate[], onFocusPlace: (coordinates: Coordinates) => void) {
   // The model often shortens a name ("אתגר בטבע" for "אתגר בטבע - סולמות וחבלים"), so each
   // place answers to its full name and to the part before a dash, comma or bracket.
   const byName = new Map<string, Candidate>();
@@ -629,15 +642,14 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
           <button
             type="button"
             aria-label={t.settingsAria}
-            title={t.settingsTitle}
-            className={`ms-auto flex h-[22px] w-[22px] items-center justify-center transition-colors ${
+            aria-expanded={settingsOpen}
+            className={`ms-auto flex min-h-[22px] items-center gap-1.5 transition-colors ${
               settingsOpen ? "text-tk-send" : "text-tk-body hover:text-tk-send"
             }`}
             onClick={() => setSettingsOpen((v) => !v)}
           >
-            <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="currentColor" fillRule="evenodd" aria-hidden>
-              <path d="M20.43 10.29 L22.91 10.57 L22.91 13.43 L20.43 13.71 L19.17 16.75 L20.72 18.70 L18.70 20.72 L16.75 19.17 L13.71 20.43 L13.43 22.91 L10.57 22.91 L10.29 20.43 L7.25 19.17 L5.30 20.72 L3.28 18.70 L4.83 16.75 L3.57 13.71 L1.09 13.43 L1.09 10.57 L3.57 10.29 L4.83 7.25 L3.28 5.30 L5.30 3.28 L7.25 4.83 L10.29 3.57 L10.57 1.09 L13.43 1.09 L13.71 3.57 L16.75 4.83 L18.70 3.28 L20.72 5.30 L19.17 7.25Z M12 8.4a3.6 3.6 0 1 0 0 7.2a3.6 3.6 0 1 0 0-7.2Z" />
-            </svg>
+            <SlidersIcon className="h-[18px] w-[18px]" />
+            {t.settingsTitle}
           </button>
         </div>
       </div>
@@ -666,10 +678,10 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 <button
                   type="button"
                   aria-label={t.deleteChat}
-                  className="text-xs text-charcoal/50 hover:text-red-600"
+                  className="flex h-6 w-6 items-center justify-center text-charcoal/50 hover:text-red-600"
                   onClick={() => void deleteChat(c.id)}
                 >
-                  ✕
+                  <CloseIcon className="h-4 w-4" />
                 </button>
               </li>
             ))}
@@ -712,9 +724,9 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                     stopSpeaking();
                     setSpeakingIdx(speak(m.content, textLang(m.content), true) ? i : null);
                   }}
-                  className="mt-1 block text-[13px] opacity-60 hover:opacity-100"
+                  className="mt-1 block opacity-60 hover:opacity-100"
                 >
-                  {speakingIdx === i ? "⏹" : "🔊"}
+                  {speakingIdx === i ? <StopIcon className="h-[18px] w-[18px]" /> : <SpeakerIcon className="h-[18px] w-[18px]" />}
                 </button>
               )}
               {copiedAt === i && <span className="absolute -top-2 end-2 rounded-full bg-tk-ink px-2 text-[10px] text-tk-card">{t.copied}</span>}
@@ -802,6 +814,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               onClick={() => fileInputRef.current?.click()}
               className={BTN_ALT_SM}
             >
+              <ImageIcon />
               {t.addImage}
             </button>
             {images.map((src, i) => (
@@ -812,9 +825,9 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                   type="button"
                   aria-label={t.removeImage}
                   onClick={() => setImages((cur) => cur.filter((_, j) => j !== i))}
-                  className="absolute -right-[5px] -top-[5px] flex h-[15px] w-[15px] items-center justify-center rounded-full bg-tk-ink text-[10px] leading-none text-on-accent"
+                  className="absolute -right-[6px] -top-[6px] flex h-[18px] w-[18px] items-center justify-center rounded-full bg-tk-ink text-on-accent"
                 >
-                  ×
+                  <CloseIcon className="h-[10px] w-[10px] [&_path]:[stroke-width:2.6]" />
                 </button>
               </span>
             ))}
@@ -866,7 +879,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 onClick={() => inputRef.current?.focus()}
                 className={`${chipCell(false)} shrink-0 gap-2 whitespace-nowrap !border-dashed bg-transparent text-[15px]`}
               >
-                <span aria-hidden>📍</span>{t.customWalk}
+                <PlanIcon className="h-5 w-5" />{t.customWalk}
               </button>
             </div>
           )}
@@ -884,7 +897,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 title={mic.listening ? t.stopDictation : t.dictate}
                 className={`${BTN_ALT} w-12 shrink-0 !px-0 ${mic.listening ? "animate-pulse !border-terra !bg-terra !text-on-accent" : ""}`}
               >
-                🎤
+                <MicIcon />
               </button>
             )}
             {mic.supported && (

@@ -35,6 +35,15 @@ describe("tab bar", () => {
     expect(onNavigate).toHaveBeenLastCalledWith("walk");
   });
 
+  it("puts a live dot on the Walk tab only while a walk is running", () => {
+    const { rerender } = render(<TabBar view="home" lang="en" friendBadge={0} onNavigate={vi.fn()} />);
+    expect(screen.queryByTestId("walk-live-dot")).toBeNull();
+    rerender(<TabBar view="home" lang="en" friendBadge={0} walkLive onNavigate={vi.fn()} />);
+    const dot = screen.getByTestId("walk-live-dot");
+    expect(screen.getByRole("button", { name: "Walk" }).contains(dot)).toBe(true);
+    expect(dot.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("speaks Hebrew", () => {
     render(<TabBar view="home" lang="he" friendBadge={0} onNavigate={vi.fn()} />);
     expect(screen.getByRole("button", { name: "מסלולים" })).toBeTruthy();

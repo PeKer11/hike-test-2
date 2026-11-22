@@ -61,7 +61,7 @@ export function WalkFinishCard({
       </div>
       <Card className="space-y-3 bg-gradient-to-b from-terra/10 to-cream text-center">
         <h2 className="font-display text-2xl font-bold text-forest">
-          {he ? "סיימת את ההליכה! 🎉" : "You finished your walk! 🎉"}
+          {he ? "סיימת את ההליכה!" : "You finished your walk!"}
         </h2>
         <p className="text-sm text-charcoal/70">
           {he ? "איזו הליכה! גילית מקומות חדשים והכרת את האזור כמו מקומי." : "What a great walk! You explored new places and saw the area like a local."}

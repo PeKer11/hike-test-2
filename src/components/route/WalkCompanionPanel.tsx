@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button, LoadingSpinner } from "@/components/ui";
 import { PLAN_COPY, VIBES, PACE_LABELS, CATEGORY_LABELS_PLAN, type PlanLang } from "@/components/route/plan-copy";
+import { ArrowIcon } from "@/components/ui/icons";
 import { SegRow } from "@/components/ui/SegRow";
 import { BTN, CTRL_BOX, chipCell } from "@/components/ui/panel-style";
 import { StandingFactsPanel } from "@/components/StandingFactsPanel";
@@ -607,9 +608,7 @@ export function WalkCompanionPanel({
             ) : (
               <>
                 {t.build}
-                <svg aria-hidden width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
+                <ArrowIcon />
               </>
             )}
           </button>

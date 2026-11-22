@@ -1,3 +1,4 @@
+import { PeopleIcon } from "@/components/ui/icons";
 import {
   similarBadgeText,
   supportBadgeText,
@@ -23,7 +24,7 @@ export function CommunityBadge({
   if (!bucket && !similar) return null;
   return (
     <p className="text-[13px] text-forest/80" data-testid="community-badge">
-      {bucket ? <span>🤝 {supportBadgeText(lang, bucket)}</span> : null}
+      {bucket ? <span className="inline-flex items-center gap-1"><PeopleIcon className="h-4 w-4" /> {supportBadgeText(lang, bucket)}</span> : null}
       {bucket && similar ? " · " : null}
       {similar ? <span>{similarBadgeText(lang, similar)}</span> : null}
     </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui";
+import { ClockIcon, TrailIcon, WalkIcon } from "@/components/ui/icons";
 import type { WalkPlan } from "@/lib/types";
 import { formatDistance } from "@/lib/utils/geo";
 import { CATEGORY_EMOJI } from "@/lib/constants/categories";
@@ -54,9 +55,9 @@ export function WalkPlanResults({ plan, error, community, lang = "en" }: WalkPla
       <div>
         <h2 className="font-display text-base font-bold text-forest">Your Walk Plan</h2>
         <div className="mt-1 flex gap-3 text-xs text-charcoal/60">
-          <span>🕐 {Math.round(plan.totalMinutes)} min total</span>
-          <span>🚶 {Math.round(walkingMinutes)} min walking</span>
-          <span>📍 {formatDistance(plan.totalDistanceMeters)}</span>
+          <span className="inline-flex items-center gap-1"><ClockIcon className="h-4 w-4" /> {Math.round(plan.totalMinutes)} min total</span>
+          <span className="inline-flex items-center gap-1"><WalkIcon className="h-4 w-4" /> {Math.round(walkingMinutes)} min walking</span>
+          <span className="inline-flex items-center gap-1"><TrailIcon className="h-4 w-4" /> {formatDistance(plan.totalDistanceMeters)}</span>
         </div>
       </div>
 

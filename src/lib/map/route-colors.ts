@@ -29,10 +29,12 @@ export interface WalkedTrail {
  * On satellite no single fill reads on both dark canopy and pale sand or roofs, so the trail is the brand
  * gold with a dark edge (same pair in both themes), the way the route solves it with its white casing.
  * Thinner than the route (4 against 5) so it reads as "behind you". See docs/FEEDBACK-ROUND-2026-11-22.md item 7.
+ * The casing is at 0.7, not 0.5: drawn with its opacity over the imagery, 0.5 leaves the worst of the eight reference
+ * backgrounds at 2.3:1, and 0.7 holds the 3:1 non-text bar (3.1:1; tests/route-colors.test.ts blends it in).
  */
 export const SATELLITE_TRAIL: WalkedTrail = {
   core: { color: "#f6b81c", weight: 4, opacity: 0.95 },
-  casing: { color: "#1b2620", weight: 7, opacity: 0.5 },
+  casing: { color: "#1b2620", weight: 7, opacity: 0.7 },
 };
 
 /** The painted roadmap keeps the muted warm-stone "route-past" trail (the approved paper-map look). */

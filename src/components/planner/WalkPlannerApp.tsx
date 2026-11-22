@@ -49,7 +49,9 @@ import { ScreenHeader } from "@/components/shell/ScreenHeader";
 import { WalksBand } from "@/components/shell/WalksBand";
 import { WalksTabs } from "@/components/shell/WalksTabs";
 import { useWalksSummary } from "@/lib/hooks/useWalksSummary";
+import { CloseIcon, CollapseIcon, ExpandIcon, RefreshIcon } from "@/components/ui/icons";
 import { BTN, BTN_ALT, BTN_SM } from "@/components/ui/panel-style";
+import { TraikeLockup } from "@/components/ui/TraikeMark";
 import { classifyPoint } from "@/lib/places/safety-zones";
 import { presenceEnabled } from "@/lib/social/flag";
 import { PresencePublisher } from "@/lib/social/presence-publisher";
@@ -227,42 +229,6 @@ interface PlanSnapshot {
   startTime: number;
   /** The route rules (stroller/wheelchair access) the plan was built with, restored on undo. */
   routeRules?: AssistantBuild["routeRules"];
-}
-
-/* Iconoir-style glyph (1.5px stroke, round caps) — DESIGN.md forbids icon
-   packages, and this is the only icon the planner needs. */
-function IconExpand({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />
-    </svg>
-  );
-}
-
-function IconCollapse({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M20 4l-7 7m0 0h6m-6 0V5M4 20l7-7m0 0H5m6 0v6" />
-    </svg>
-  );
 }
 
 // Comfortably past `deviation-detector.ts`'s 50 m re-route threshold, and not
@@ -1367,7 +1333,7 @@ export function WalkPlannerApp({
   };
   // Phone only: hide the side panel so the map fills the screen.
   const [mapFull, setMapFull] = useState(false);
-  // Starting a walk puts the map back to the real plan. The preview survives the jump from Walks to the map screen (Close ✕ ends it).
+  // Starting a walk puts the map back to the real plan. The preview survives the jump from Walks to the map screen (Close ends it).
   useEffect(() => {
     if (walkMode) setWalkPreview(null);
   }, [walkMode]);
@@ -3602,7 +3568,7 @@ export function WalkPlannerApp({
         id: q.id,
         tone: "info",
         variant: "question",
-        icon: q.kind === "rain" ? "🌧" : q.kind === "heat-water" ? "💧" : q.kind === "sunset" ? "🌇" : "🧭",
+        icon: q.kind === "rain" ? "rain" : q.kind === "heat-water" ? "water" : q.kind === "sunset" ? "sunset" : "ask",
         title: q.title,
         // Weather is Open-Meteo data: credit it on the questions it drives.
         footnote:
@@ -3621,7 +3587,7 @@ export function WalkPlannerApp({
       walkAlert = {
         id: o.id,
         tone: "info",
-        icon: "↪",
+        icon: "shortcut",
         title: sc.title(o.stopName),
         body: sc.body(o.savingMin, Math.round(o.savingM)),
         actions: [
@@ -3635,7 +3601,7 @@ export function WalkPlannerApp({
       walkAlert = {
         id: "pace-mismatch",
         tone: "info",
-        icon: "🚶",
+        icon: "pace",
         title: pm.title(o.measuredKmh),
         body: pm.body(o.plannedKmh),
         actions: [
@@ -3654,7 +3620,7 @@ export function WalkPlannerApp({
       walkAlert = {
         id: `pace-${paceAdvisory.kind}`,
         tone: "info",
-        icon: slow ? "🐢" : "🚶",
+        icon: "pace",
         title: slow ? walkCopy.pace.slowTitle : walkCopy.pace.fastTitle,
         actions: [
           {
@@ -3693,7 +3659,7 @@ export function WalkPlannerApp({
       walkAlert = {
         id: "walk-finished",
         tone: "info",
-        icon: "🏁",
+        icon: "finish",
         title: fc.title,
         actions: [
           { label: fc.finish, primary: true, onClick: handleEndWalk },
@@ -3941,10 +3907,8 @@ export function WalkPlannerApp({
             {!compact && (
               /* The mark stays on the left in Hebrew too; the start chip is the other end of the row. */
               <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
-                <Link href="/" className="flex w-fit items-center gap-2 text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/traike-icon.png" alt="" className="h-[30px] w-[30px] rounded-lg" />
-                  <span className="font-app-serif text-[24px] font-bold leading-none">Traike</span>
+                <Link href="/" className="w-fit text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
+                  <TraikeLockup />
                 </Link>
                 <div className="flex min-w-0 max-w-[64%] justify-end">
                   <LocationChip
@@ -4009,7 +3973,7 @@ export function WalkPlannerApp({
             className="tk-bar relative z-10 w-full cursor-pointer text-start"
           >
             <span>{PLAN_COPY[uiLang === "he" ? "he" : "en"].simple}</span>
-            <IconCollapse className="h-4 w-4" />
+            <CollapseIcon className="h-4 w-4" />
           </button>
         ) : null}
         <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : `space-y-[15px] px-4 pb-6 ${walksScreen ? "pt-1" : bandScreen ? "pt-0" : ""}`}`}>
@@ -4832,10 +4796,7 @@ export function WalkPlannerApp({
               {/* Only when there is something to clear. */}
               {!walkMode && !walksScreen && (walkPlan || previewPlaces.length > 0 || promptAttractions) ? (
                 <button type="button" onClick={handleClearAll} className="mx-auto flex min-h-11 items-center gap-[8px] text-[14px] font-semibold text-tk-body">
-                  <svg aria-hidden viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 12a8 8 0 1 1-2.5-5.8" />
-                    <path d="M20 4v5h-5" />
-                  </svg>
+                  <RefreshIcon className="h-[15px] w-[15px]" />
                   {PLAN_COPY[uiLang === "he" ? "he" : "en"].startOver}
                 </button>
               ) : null}
@@ -4844,7 +4805,7 @@ export function WalkPlannerApp({
                   {/* On a phone the map is a screen of its own: it is not squeezed in under the form. */}
                   <button type="button" onClick={() => setMapFull(true)} className="tk-bar w-full cursor-pointer !border-0 @4xl:hidden">
                     <span>{PLAN_COPY[uiLang === "he" ? "he" : "en"].fullMap}</span>
-                    <IconExpand className="h-4 w-4" />
+                    <ExpandIcon className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
@@ -4853,7 +4814,7 @@ export function WalkPlannerApp({
                     className="tk-bar w-full cursor-pointer !border-0"
                   >
                     <span>{PLAN_COPY[uiLang === "he" ? "he" : "en"].advanced}</span>
-                    <IconExpand className="h-4 w-4" />
+                    <ExpandIcon className="h-4 w-4" />
                   </button>
                 </div>
               ) : null}
@@ -4954,7 +4915,7 @@ export function WalkPlannerApp({
             aria-pressed={mapFull}
             className="absolute bottom-3 start-3 z-[700] flex h-11 items-center gap-2 rounded-full border border-forest/20 bg-paper px-4 text-sm font-semibold text-forest shadow-tk-card @4xl:hidden"
           >
-            {mapFull ? <IconCollapse className="h-4 w-4" /> : <IconExpand className="h-4 w-4" />}
+            {mapFull ? <CollapseIcon className="h-4 w-4" /> : <ExpandIcon className="h-4 w-4" />}
             {mapFull ? "Back to plan" : "Full map"}
           </button>
         ) : null}
@@ -5018,8 +4979,9 @@ export function WalkPlannerApp({
                 {uiLang === "he" ? "צא להליכה" : "Walk"}
               </button>
             )}
-            <button type="button" onClick={() => setWalkPreview(null)} className="pointer-events-auto cursor-pointer rounded-full bg-tk-ink px-4 py-1.5 text-sm font-medium text-tk-card shadow-lg">
-              {walkPreview.title} · Close ✕
+            <button type="button" onClick={() => setWalkPreview(null)} className="pointer-events-auto flex cursor-pointer items-center gap-1.5 rounded-full bg-tk-ink px-4 py-1.5 text-sm font-medium text-tk-card shadow-lg">
+              {walkPreview.title} · Close
+              <CloseIcon className="h-4 w-4" />
             </button>
           </div>
         )}

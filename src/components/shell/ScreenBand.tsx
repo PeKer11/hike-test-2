@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { TraikeLockup } from "@/components/ui/TraikeMark";
+
 /** Cream type that sits on the sunset art; a soft shadow keeps it readable where the sky is light. */
 const ON_ART = "text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]";
 
@@ -37,11 +39,7 @@ export function ScreenBand({ art, actions, tall = false, children }: { art: Band
       <div className="relative mx-auto max-w-[560px] px-4 pb-4 pt-[max(14px,env(safe-area-inset-top))]">
         {/* The mark stays on the left in Hebrew too. */}
         <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
-          <span className={`flex w-fit items-center gap-2 ${ON_ART}`}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/traike-icon.png" alt="" width={30} height={30} className="h-[30px] w-[30px] rounded-lg" />
-            <span className="font-app-serif text-[24px] font-bold leading-none">Traike</span>
-          </span>
+          <TraikeLockup className={ON_ART} />
           {actions ? <div className="flex min-w-0 max-w-[64%] items-center justify-end gap-2">{actions}</div> : null}
         </div>
         {children}

@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 
 import { AuthForm } from "@/components/auth/AuthForm";
+import { TraikeLockup } from "@/components/ui/TraikeMark";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useAuthLang } from "@/lib/hooks/useAuthLang";
 
@@ -45,9 +45,8 @@ export function AuthScreen({ mode, initialError }: { mode: "login" | "signup"; i
         <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[46%] bg-gradient-to-b from-transparent to-cream" />
 
         <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
-          <Link href="/" className="flex w-fit items-center gap-2 text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
-            <Image src="/traike-icon.png" alt="" width={30} height={30} className="rounded-lg" />
-            <span className="font-app-serif text-[24px] font-bold leading-none">Traike</span>
+          <Link href="/" className="w-fit text-[#FFF7EC] [text-shadow:0_1px_10px_rgba(60,20,6,0.55)]">
+            <TraikeLockup />
           </Link>
           <Link
             href="/app"

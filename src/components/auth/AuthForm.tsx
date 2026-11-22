@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { ArrowIcon } from "@/components/ui/icons";
 import { BTN } from "@/components/ui/panel-style";
 import { useHydrated } from "@/lib/hooks/useHydrated";
 import { createClient } from "@/lib/supabase/client";
@@ -202,9 +203,7 @@ export function AuthForm({ mode, initialError, lang = "en" }: AuthFormProps) {
           ) : (
             <>
               {isSignup ? t.signup : t.login}
-              <svg aria-hidden width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="rtl:-scale-x-100">
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
+              <ArrowIcon />
             </>
           )}
         </button>

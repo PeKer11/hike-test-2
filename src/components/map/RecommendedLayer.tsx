@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Marker, Popup, useMap } from "react-leaflet";
 
 import { GooglePlaceCard } from "@/components/map/GooglePlaceCard";
+import { CheckIcon, PlusIcon } from "@/components/ui/icons";
 import { notableEnabled, socialEnabled } from "@/lib/social/flag";
 import type { Attraction, AttractionCategory } from "@/lib/types";
 
@@ -59,23 +60,24 @@ function AddToWalkButton({ attraction, onAdd, added }: { attraction: Attraction;
       type="button"
       disabled={added}
       onClick={() => onAdd(attraction)}
-      className="mt-1 rounded-full bg-terra px-3 py-1 text-[13px] font-medium text-on-accent disabled:bg-forest/70"
+      className="mt-1 inline-flex items-center gap-1 rounded-full bg-terra px-3 py-1 text-[13px] font-medium text-on-accent disabled:bg-forest/70"
     >
-      {added ? "✓ Added to walk" : "＋ Add to walk"}
+      {added ? <CheckIcon className="h-4 w-4" /> : <PlusIcon className="h-4 w-4" />}
+      {added ? "Added to walk" : "Add to walk"}
     </button>
   );
 }
 
 const notableIcon = L.divIcon({
   className: "custom-map-notable-marker",
-  html: '<span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:9999px;background:#2f5d46;border:2px solid #fff;color:#fff;font-size:12px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.35);">✦</span>',
+  html: '<span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:9999px;background:#2f5d46;border:2px solid #fff;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.35);"><svg viewBox="0 0 24 24" width="12" height="12" fill="#fff" stroke="#fff" stroke-width="1.75" stroke-linejoin="round"><path d="M12 3.4l2.5 5.3 5.8.7-4.3 4 1.1 5.7L12 16.3l-5.1 2.8L8 13.4l-4.3-4 5.8-.7L12 3.4z"/></svg></span>',
   iconSize: [22, 22],
   iconAnchor: [11, 11],
 });
 
 const starIcon = L.divIcon({
   className: "custom-map-recommended-marker",
-  html: '<span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:#fff;border:2px solid #c2652f;font-size:15px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,0.35);">⭐</span>',
+  html: '<span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:#fff;border:2px solid #c2652f;box-shadow:0 1px 4px rgba(0,0,0,0.35);"><svg viewBox="0 0 24 24" width="15" height="15" fill="#c2652f" stroke="#c2652f" stroke-width="1.75" stroke-linejoin="round"><path d="M12 3.4l2.5 5.3 5.8.7-4.3 4 1.1 5.7L12 16.3l-5.1 2.8L8 13.4l-4.3-4 5.8-.7L12 3.4z"/></svg></span>',
   iconSize: [26, 26],
   iconAnchor: [13, 13],
 });

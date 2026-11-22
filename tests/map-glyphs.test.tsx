@@ -41,6 +41,17 @@ describe("MapGlyphs", () => {
     expect(screen.getByLabelText("Re-centre on me").getAttribute("aria-pressed")).toBe("false");
   });
 
+  it("draws re-centre as a navigation arrow, filled only while following; the other two are different drawings", () => {
+    const { rerender } = render(<MapGlyphs showFollow following onFollow={vi.fn()} onFitRoute={vi.fn()} onLayers={vi.fn()} />);
+    const arrow = () => screen.getByLabelText("Re-centre on me").querySelector("svg path")!;
+    expect(arrow().getAttribute("fill")).toBe("currentColor");
+    expect(screen.getByLabelText("Re-centre on me").querySelector("svg circle")).toBeNull(); // no crosshair
+    const drawings = ["Re-centre on me", "Show whole route", "Map layers"].map((l) => screen.getByLabelText(l).querySelector("svg")!.innerHTML);
+    expect(new Set(drawings).size).toBe(3);
+    rerender(<MapGlyphs showFollow following={false} onFollow={vi.fn()} onFitRoute={vi.fn()} onLayers={vi.fn()} />);
+    expect(arrow().getAttribute("fill")).toBe("none");
+  });
+
   it("is 44 px and in the same column as the others", () => {
     render(<MapGlyphs showFollow following onFollow={vi.fn()} onFitRoute={vi.fn()} onLayers={vi.fn()} />);
     const fit = screen.getByLabelText("Show whole route");
