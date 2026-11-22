@@ -2,10 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   isPlausibleConnector,
+  pathLengthM,
+  rejoinBlock,
   rejoinCandidates,
   spliceRoute,
   turnInstruction,
+  withOutcomeTag,
+  type RejoinGateInput,
 } from "@/lib/walk/rejoin";
+import { LOCAL_REJOIN_COOLDOWN_MS } from "@/lib/walk/walk-cadence";
+import { walkCopy } from "@/lib/walk/walk-copy";
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
 
@@ -101,5 +107,64 @@ describe("turnInstruction", () => {
     const t = turnInstruction(null, pos, north(80, 80));
     expect(t.kind).toBe("compass");
     expect(t.text).toContain("north-east");
+  });
+});
+
+describe("rejoinBlock: why a way-back attempt does not run", () => {
+  const free: RejoinGateInput = { manual: true, inFlight: false, collapsed: false, fixStale: false, sinceLastRejoinMs: Infinity };
+
+  it("lets a tap through when nothing is in the way", () => {
+    expect(rejoinBlock(free)).toBeNull();
+    expect(rejoinBlock({ ...free, manual: false })).toBeNull();
+  });
+
+  it("says busy while a way back is already being routed, for a tap and for an automatic attempt", () => {
+    expect(rejoinBlock({ ...free, inFlight: true })).toBe("busy");
+    expect(rejoinBlock({ ...free, manual: false, inFlight: true })).toBe("busy");
+  });
+
+  it("a tap inside the one-a-minute cooldown still runs; an automatic attempt stands aside", () => {
+    const justNow = { sinceLastRejoinMs: LOCAL_REJOIN_COOLDOWN_MS - 1 };
+    expect(rejoinBlock({ ...free, ...justNow })).toBeNull();
+    expect(rejoinBlock({ ...free, ...justNow, manual: false })).toBe("cooldown");
+    expect(rejoinBlock({ ...free, manual: false, sinceLastRejoinMs: LOCAL_REJOIN_COOLDOWN_MS })).toBeNull();
+  });
+
+  it("a tap is not refused by pending direction options (the caller cancels them); an automatic attempt is", () => {
+    expect(rejoinBlock({ ...free, collapsed: true })).toBeNull();
+    expect(rejoinBlock({ ...free, collapsed: true, manual: false })).toBe("collapsing");
+  });
+
+  it("never splices from a stale fix on a tap", () => {
+    expect(rejoinBlock({ ...free, fixStale: true })).toBe("stale");
+    // An automatic attempt is checked for staleness by its caller, as before.
+    expect(rejoinBlock({ ...free, fixStale: true, manual: false })).toBeNull();
+  });
+
+  it("busy outranks stale, and a stale tap does not wait behind a collapse", () => {
+    expect(rejoinBlock({ ...free, inFlight: true, fixStale: true })).toBe("busy");
+    expect(rejoinBlock({ ...free, collapsed: true, fixStale: true })).toBe("stale");
+  });
+});
+
+describe("way-back notices", () => {
+  it("measures a connector and tags the outcome only on a preview build", () => {
+    expect(Math.round(pathLengthM([north(0), north(100), north(250)]))).toBe(250);
+    expect(pathLengthM([north(0)])).toBe(0);
+    expect(withOutcomeTag("Way back drawn.", "routed", false)).toBe("Way back drawn.");
+    expect(withOutcomeTag("Way back drawn.", "routed", true)).toBe("Way back drawn. [routed]");
+  });
+
+  it("has an English and a Hebrew line for every outcome that draws nothing", () => {
+    for (const lang of ["en", "he"] as const) {
+      const n = walkCopy.notice[lang];
+      for (const text of [n.wayBackBusy, n.wayBackStale, n.wayBackFailedOptions, n.wayBackFailedRebuild, n.wayBackFarRebuild, n.wayBackRebuild]) {
+        expect(text.length).toBeGreaterThan(10);
+      }
+      expect(n.wayBackDrawn(120)).toContain("120");
+      expect(n.wayBackDrawnFar(120)).toContain("120");
+    }
+    expect(walkCopy.notice.he.wayBackDrawn(120)).toMatch(/[א-ת]/);
+    expect(walkCopy.notice.en.wayBackDrawnFar(120)).toContain("Walk to the road first");
   });
 });

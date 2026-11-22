@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WalkHud } from "@/components/walk/WalkHud";
 import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types";
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
+import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 
 // Same stand-in, and the same reason, as `tests/walk-planner-app.test.tsx`.
 vi.mock("@/components/map", () => ({
@@ -16,12 +17,18 @@ vi.mock("@/components/map", () => ({
     waypoints,
     pinnedIds = [],
     onTogglePin,
+    routeGeometry,
   }: {
     waypoints: { id: string; name: string }[];
     pinnedIds?: string[];
     onTogglePin?: (id: string) => void;
+    routeGeometry?: { lat: number; lng: number }[];
   }) => (
-    <div data-testid="map" data-pinned={pinnedIds.join(",")}>
+    <div
+      data-testid="map"
+      data-pinned={pinnedIds.join(",")}
+      data-route-first={routeGeometry?.[0] ? `${routeGeometry[0].lat.toFixed(5)},${routeGeometry[0].lng.toFixed(5)}` : ""}
+    >
       {waypoints.map((waypoint) => (
         <button
           key={waypoint.id}
@@ -128,6 +135,13 @@ type WalkPlanBody = Record<string, unknown>;
 let walkPlanCalls: WalkPlanBody[];
 let rerouteCalls: Array<{ from: Coordinates; candidates: Coordinates[] }>;
 let rerouteMode: "ok" | "fail";
+// What /api/reroute answers in "fail" mode (422 none plausible, 429 rate limit, 502 ORS down).
+let rerouteFailStatus: number;
+// The connector starts this many metres south of the walker, as when ORS snaps them to a street away from their feet.
+let rerouteStartGapM: number;
+// When set, /api/reroute stays pending until `releaseReroute()`.
+let holdReroute: boolean;
+let releaseReroute: (() => void) | null;
 let settingsStore: Record<string, string>;
 // When set, the next `/api/walk-plan` call stays pending until settled.
 let holdPlan: boolean;
@@ -139,6 +153,10 @@ function installFetch() {
   walkPlanCalls = [];
   rerouteCalls = [];
   rerouteMode = "ok";
+  rerouteFailStatus = 422;
+  rerouteStartGapM = 0;
+  holdReroute = false;
+  releaseReroute = null;
   holdPlan = false;
   heldPlan = null;
   vi.stubGlobal(
@@ -171,14 +189,20 @@ function installFetch() {
           candidates: Coordinates[];
         };
         rerouteCalls.push(body);
-        if (rerouteMode === "fail") {
-          return { ok: false, status: 422, json: async () => ({ error: "none" }) };
+        if (holdReroute) {
+          await new Promise<void>((resolve) => {
+            releaseReroute = resolve;
+          });
         }
+        if (rerouteMode === "fail") {
+          return { ok: false, status: rerouteFailStatus, json: async () => ({ error: "none" }) };
+        }
+        const start = { lat: body.from.lat - rerouteStartGapM / 111_195, lng: body.from.lng };
         return {
           ok: true,
           status: 200,
           json: async () => ({
-            geometry: [body.from, body.candidates[0]],
+            geometry: [start, body.candidates[0]],
             distanceMeters: 100,
             candidateIndex: 0,
           }),
@@ -248,7 +272,9 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.useRealTimers();
 });
 
@@ -396,6 +422,181 @@ describe("the local way back", () => {
     expect(rerouteCalls[0].candidates.length).toBeGreaterThanOrEqual(1);
     expect(rerouteCalls[0].candidates.length).toBeLessThanOrEqual(2);
     expect(walkPlanCalls).toHaveLength(1);
+    // And it is seen to work: the card is answered and the walk sheet says what was drawn.
+    expect(screen.queryByTestId("off-route-card")).toBeNull();
+    expect(screen.getByTestId("walk-notice").textContent).toContain("Way back drawn");
+  });
+});
+
+/** The synthetic stray: 100 m beside the route from the first fix on, and it stays there until "Rejoin the route". */
+function strayBesideRoute() {
+  vi.spyOn(SimulatedWalkTracker.prototype, "strayOffRoute").mockImplementation(async function (this: SimulatedWalkTracker) {
+    (this as unknown as { stray: unknown }).stray = { offsetMeters: 100, untilDistance: Infinity };
+    return false;
+  });
+}
+
+async function clickStray() {
+  await advance(2_000);
+  fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
+  await flush();
+}
+
+const backButton = () => screen.queryByRole("button", { name: /^(Back to my route|חזרה למסלול)$/ });
+async function waitForCard() {
+  for (let i = 0; i < 20 && backButton() === null; i += 1) await advance(1_000);
+  expect(backButton()).not.toBeNull();
+}
+const noticeText = () => screen.queryByTestId("walk-notice")?.textContent ?? "";
+const routeFirst = () => screen.getByTestId("map").getAttribute("data-route-first");
+
+describe("Back to my route: every tap shows what happened (feedback 2026-11-22, item 6)", () => {
+  it("draws the way back, answers the card, says so, and replaces the line even when the street is 60 m from the walker", async () => {
+    rerouteStartGapM = 60;
+    await startSimulatedWalk();
+    await stray();
+    const before = routeFirst();
+    expect(before).toBe(`${ORIGIN.lat.toFixed(5)},${ORIGIN.lng.toFixed(5)}`);
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush();
+
+    expect(rerouteCalls).toHaveLength(1);
+    // The walker is still off the old road, but the question is answered: the card is down.
+    expect(screen.queryByTestId("off-route-card")).toBeNull();
+    // The line the map draws now starts where the router put the connector, not where the old route began.
+    expect(routeFirst()).not.toBe(before);
+    expect(Number(routeFirst()!.split(",")[0])).toBeCloseTo(rerouteCalls[0].from.lat - 60 / 111_195, 4);
+    // The notice names the one thing left to do: walk to the road first.
+    const text = noticeText();
+    expect(text).toContain("Way back drawn");
+    expect(text).toContain("Walk to the road first");
+    expect(text).toContain("green line");
+    expect(screen.getByTestId("walk-notice").className).toContain("bg-forest/10"); // success tone
+    // No re-plan, no "Updating your route".
+    expect(walkPlanCalls).toHaveLength(1);
+    expect(screen.queryByText("Updating your route…")).toBeNull();
+  });
+
+  it("a connector that starts at the walker's feet just says to follow the green line, with its length", async () => {
+    await startSimulatedWalk();
+    await stray();
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush();
+    expect(noticeText()).toMatch(/^Way back drawn\. Follow the green line \(\d+ m\)\.$/);
+    expect(noticeText()).not.toContain("Walk to the road first");
+  });
+
+  it("speaks Hebrew on the sheet too", async () => {
+    settingsStore["walk-settings"] = JSON.stringify({ deviationMode: "ask", uiLanguage: "he" });
+    await startSimulatedWalk();
+    await stray();
+    fireEvent.click(screen.getByRole("button", { name: "חזרה למסלול" }));
+    await flush();
+    expect(noticeText()).toMatch(/סימנו את הדרך חזרה/);
+    expect(noticeText()).toContain("מ׳");
+  });
+
+  it("a second tap while the way back is still being routed says so instead of doing nothing", async () => {
+    holdReroute = true;
+    await startSimulatedWalk();
+    await stray();
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush();
+    expect(rerouteCalls).toHaveLength(1);
+    expect(screen.getAllByText("Finding the way back…").length).toBeGreaterThan(0); // the card's own busy line
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush();
+    expect(rerouteCalls).toHaveLength(1); // still just the one request
+    expect(noticeText()).toContain("Still finding the way back");
+
+    holdReroute = false;
+    await act(async () => releaseReroute!());
+    await flush();
+    expect(noticeText()).toContain("Way back drawn");
+    expect(screen.queryByTestId("off-route-card")).toBeNull();
+  });
+
+  it("a tap within a minute of the last way back still runs it, and a new stray brings the card back", async () => {
+    strayBesideRoute();
+    await startSimulatedWalk();
+    await clickStray();
+    await waitForCard();
+
+    fireEvent.click(backButton()!);
+    await flush();
+    expect(rerouteCalls).toHaveLength(1);
+    expect(noticeText()).toContain("Way back drawn");
+    expect(backButton()).toBeNull();
+
+    // Back on a line (the on-route fix re-arms the card), then straying again.
+    fireEvent.click(screen.getByRole("button", { name: "Rejoin the route" }));
+    await flush();
+    await advance(3_000);
+    fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
+    await flush();
+    await waitForCard();
+
+    // Still inside the 60 s fix-clock cooldown of the first success: the old code returned here without a word.
+    fireEvent.click(backButton()!);
+    await flush();
+    expect(rerouteCalls).toHaveLength(2);
+    expect(noticeText()).toContain("Way back drawn");
+  });
+
+  it.each([
+    [422, "no plausible way"],
+    [429, "rate limited"],
+    [502, "routing service down"],
+  ])("when /api/reroute says %i (%s) it explains, then rebuilds from here, never a silent no-op", async (status) => {
+    rerouteMode = "fail";
+    rerouteFailStatus = status;
+    await startSimulatedWalk();
+    await stray();
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush();
+
+    expect(rerouteCalls).toHaveLength(1);
+    expect(noticeText()).toContain("No street way back found");
+    expect(noticeText()).toContain("Rebuilding your route from here");
+    expect(screen.getByTestId("walk-notice").className).toContain("bg-warn/15");
+    // The full re-plan the notice promised.
+    expect(walkPlanCalls).toHaveLength(2);
+  });
+
+  it("a stale fix says it is waiting for GPS and does not route from where the walker was", async () => {
+    await startSimulatedWalk();
+    await stray();
+    // 30 s pass with no fix getting through (the clock moves, the position stream does not).
+    vi.setSystemTime(Date.now() + 30_000);
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush();
+
+    expect(rerouteCalls).toHaveLength(0);
+    expect(walkPlanCalls).toHaveLength(1);
+    expect(noticeText()).toContain("Waiting for a fresh GPS fix");
+    // Nothing was answered: the card is still up for the next tap.
+    expect(backButton()).not.toBeNull();
+  });
+
+  it("a preview deployment names the outcome in the notice; production does not", async () => {
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_ENV", "preview");
+    await startSimulatedWalk();
+    await stray();
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush();
+    expect(noticeText()).toMatch(/\[routed\]$/);
+    cleanup();
+
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_ENV", "production");
+    installFetch();
+    await startSimulatedWalk();
+    await stray();
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush();
+    expect(noticeText()).toContain("Way back drawn");
+    expect(noticeText()).not.toContain("[");
   });
 });
 

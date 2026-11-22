@@ -99,7 +99,6 @@ import {
   ADVISOR_CARD_TTL_MS,
   ADVISOR_STOP_QUIET_RADIUS_M,
   ENGINE_MAX_ACCURACY_M,
-  LOCAL_REJOIN_COOLDOWN_MS,
   LOCAL_REJOIN_MAX_DEVIATION_M,
 } from "@/lib/walk/walk-cadence";
 import { SpeedEstimator } from "@/lib/walk/speed-estimator";
@@ -115,9 +114,14 @@ import {
 } from "@/lib/walk/walk-stats";
 import { RouteEndDetector } from "@/lib/walk/route-end";
 import {
+  pathLengthM,
+  rejoinBlock,
   rejoinCandidates,
   spliceRoute,
   turnInstruction,
+  WALK_TO_ROAD_FIRST_M,
+  withOutcomeTag,
+  type RejoinOutcome,
 } from "@/lib/walk/rejoin";
 import { walkCopy } from "@/lib/walk/walk-copy";
 import { WalkRecorder } from "@/lib/walk/walk-recorder";
@@ -2439,30 +2443,44 @@ export function WalkPlannerApp({
    * rejoin was started automatically, left to the collapse (options after 60 s);
    * when they asked for it, they get the full re-plan from here.
    */
-  const runLocalRejoin = async (auto = false) => {
+  const runLocalRejoin = async (auto = false, { manual = false }: { manual?: boolean } = {}): Promise<RejoinOutcome> => {
     const fix = latestPaceUpdateRef.current;
     const matched = matchedRef.current;
     const geometry = walkGeometryRef.current;
-    if (walkTrackerRef.current === null) return;
-    if (rejoinInFlightRef.current) return;
-    // Options are on screen (or being fetched): nothing re-plans on its own.
-    if (collapseFlow.isCollapsed()) return;
-    const rejoinFailed = () => {
-      if (fix && collapseFlow.rejoinFailed(fix.timestamp)) return;
+    const n = walkCopy.notice[uiLang === "he" ? "he" : "en"];
+    // Every outcome that draws nothing says why on the walk sheet; a preview build also names the outcome.
+    const say = (outcome: RejoinOutcome, text: string, tone: "ok" | "warn" = "warn"): RejoinOutcome => {
+      showWalkNotice(withOutcomeTag(text, outcome, process.env.NEXT_PUBLIC_VERCEL_ENV === "preview"), tone);
+      return outcome;
+    };
+    if (walkTrackerRef.current === null) return "ended";
+    const blocked = rejoinBlock({
+      manual,
+      inFlight: rejoinInFlightRef.current,
+      collapsed: collapseFlow.isCollapsed(),
+      fixStale: !fix || Date.now() - lastFixWallRef.current > STALE_FIX_MS,
+      sinceLastRejoinMs: fix ? fix.timestamp - lastLocalRejoinAtRef.current : Number.POSITIVE_INFINITY,
+    });
+    if (blocked === "busy") return manual ? say("busy", n.wayBackBusy) : "busy";
+    if (blocked === "stale") return say("stale", n.wayBackStale);
+    if (blocked !== null) return blocked; // cooldown, collapsing: only an automatic attempt stands aside silently
+    // The walker asked for this, so direction options still being fetched give way to it.
+    if (manual && collapseFlow.isCollapsed()) collapseFlow.clear();
+    // No street way back: the second such failure collapses into direction options, else a full re-plan.
+    const rejoinFailed = (): RejoinOutcome => {
+      if (fix && collapseFlow.rejoinFailed(fix.timestamp)) return say("failed", n.wayBackFailedOptions);
       runDeviationTriggeredRebuild();
+      return say("rebuilding", n.wayBackFailedRebuild);
     };
     if (!fix || !matched || geometry.length < 2) {
       runDeviationTriggeredRebuild();
-      return;
-    }
-    if (fix.timestamp - lastLocalRejoinAtRef.current < LOCAL_REJOIN_COOLDOWN_MS) {
-      return;
+      return say("rebuilding", n.wayBackRebuild);
     }
     const from = fix.currentPosition;
     if (haversineDistance(from, matched.point) > LOCAL_REJOIN_MAX_DEVIATION_M) {
-      if (auto && collapseFlow.canCollapse(fix.timestamp)) return;
+      if (auto && collapseFlow.canCollapse(fix.timestamp)) return "collapsing";
       runDeviationTriggeredRebuild();
-      return;
+      return say("rebuilding", n.wayBackFarRebuild);
     }
 
     const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
@@ -2475,10 +2493,7 @@ export function WalkPlannerApp({
       matched.segmentIndex,
       nextStopAlongM(geometry, matched.segmentIndex, matched.point, stopsAhead),
     );
-    if (candidates.length === 0) {
-      rejoinFailed();
-      return;
-    }
+    if (candidates.length === 0) return rejoinFailed();
 
     rejoinInFlightRef.current = true;
     setIsFindingWayBack(true);
@@ -2496,11 +2511,10 @@ export function WalkPlannerApp({
       const candidate = candidates[data.candidateIndex ?? -1];
       // The walk may have ended, or been re-planned, while this was in flight.
       if (walkTrackerRef.current === null || walkGeometryRef.current !== requestGeometry) {
-        return;
+        return "ended";
       }
       if (!res.ok || !candidate || !data.geometry || data.geometry.length < 2) {
-        rejoinFailed();
-        return;
+        return rejoinFailed();
       }
 
       const spliced = spliceRoute(requestGeometry, candidate, data.geometry);
@@ -2518,8 +2532,17 @@ export function WalkPlannerApp({
         walkInputRef.current?.preferredCategories ?? [],
       );
       void discoveryRef.current?.ensureCovered(spliced, fix.timestamp);
+      // The excursion is answered. The walker is usually still off the old road (the line starts where the
+      // router snapped them, not at their feet), so without this the same card would stay up and a drawn
+      // line would look like nothing happened. It re-arms once they are back on a line, as after "I know where I'm going".
+      collapseFlow.rejoinSucceeded(fix.timestamp);
+      offRouteDismissedRef.current = true;
+      setOffRouteDismissed(true);
+      const connectorM = Math.max(10, Math.round(pathLengthM(data.geometry) / 10) * 10);
+      const walkToRoadFirst = haversineDistance(from, data.geometry[0]) > WALK_TO_ROAD_FIRST_M;
+      return say("routed", walkToRoadFirst ? n.wayBackDrawnFar(connectorM) : n.wayBackDrawn(connectorM), "ok");
     } catch {
-      if (walkTrackerRef.current !== null) rejoinFailed();
+      return walkTrackerRef.current !== null ? rejoinFailed() : "ended";
     } finally {
       rejoinInFlightRef.current = false;
       setIsFindingWayBack(false);
@@ -3780,7 +3803,7 @@ export function WalkPlannerApp({
         signedIn={isSignedIn}
         onBack={() => {
           if (offRouteMode === "ask") clearDeviationConfirmation();
-          void runLocalRejoin();
+          void runLocalRejoin(false, { manual: true });
         }}
         onBest={() => {
           if (offRouteMode === "ask") clearDeviationConfirmation();

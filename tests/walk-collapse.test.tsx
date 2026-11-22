@@ -424,6 +424,31 @@ describe("a walker who has gone a different way (collapse)", () => {
     expect(walkPlanCalls).toHaveLength(plansBefore + 1);
   });
 
+  // Item 6 of docs/FEEDBACK-ROUND-2026-11-22.md: the collapse starts fetching directions while the off-route
+  // card is still up, and a tap on "Back to my route" in that window used to return without a word.
+  it("'Back to my route' tapped while the direction options are still loading is not a dead button", async () => {
+    strayForever();
+    await startSimulatedWalk();
+    await clickStray();
+    holdOptions = true;
+    await advance(9_000);
+    expect(optionsRequests).toHaveLength(1);
+    expect(sheet()).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to my route" }));
+    await flush(3);
+
+    // The walker is 600 m away, so the honest answer is a re-plan from here, and the sheet says so.
+    expect(walkPlanCalls).toHaveLength(2);
+    expect(screen.getByTestId("walk-notice").textContent).toContain("You're far from the route");
+
+    // The options answer that was in flight is dropped: it never shows over the walker's own choice.
+    holdOptions = false;
+    await act(async () => heldOptions!());
+    await advance(1_000);
+    expect(sheet()).toBeNull();
+  });
+
   it("with nothing to offer it leaves the route alone (ask mode) rather than re-planning", async () => {
     scanPlaces = [];
     // No anchor either: a walker with no start point cannot be sent "back".

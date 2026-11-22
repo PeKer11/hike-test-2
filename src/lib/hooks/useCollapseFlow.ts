@@ -40,6 +40,8 @@ export interface CollapseFlow {
   feed: (fix: CollapseFix) => void;
   /** A local rejoin failed; true when that was the second one and the walk collapsed. */
   rejoinFailed: (atMs: number) => boolean;
+  /** A local rejoin was drawn: the off-route episode is answered, so failures and the 8-minute clock start over. */
+  rejoinSucceeded: (atMs: number) => void;
   /** A collapse is pending or its options are on screen: nothing may re-plan on its own. */
   isCollapsed: () => boolean;
   /** The options are on screen: nothing may replace them on its own. */
@@ -164,6 +166,14 @@ export function useCollapseFlow(deps: CollapseFlowDeps): CollapseFlow {
     [request],
   );
 
+  const rejoinSucceeded = useCallback((atMs: number) => {
+    const state = machineRef.current;
+    const base: CollapseState =
+      state.phase === "OFF_ROUTE" ? { ...state, phase: "REJOINING" } : state;
+    // Only a rejoin in progress settles; a collapse already under way is left alone.
+    machineRef.current = rejoinResult(base, { ok: true, atMs }).state;
+  }, []);
+
   const isCollapsed = useCallback(() => {
     const { phase } = machineRef.current;
     return phase === "COLLAPSED" || phase === "OFFERING";
@@ -198,6 +208,7 @@ export function useCollapseFlow(deps: CollapseFlowDeps): CollapseFlow {
     setHighlight,
     feed,
     rejoinFailed,
+    rejoinSucceeded,
     isCollapsed,
     isOffering,
     canCollapse,

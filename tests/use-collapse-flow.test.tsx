@@ -117,4 +117,47 @@ describe("useCollapseFlow", () => {
     // The cooldown from the collapse still holds.
     expect(hook.result.current.canCollapse(61_000 + COLLAPSE_COOLDOWN_MS - 1)).toBe(false);
   });
+
+  describe("rejoinSucceeded", () => {
+    const off = { deviationM: 90, accuracyM: 10 };
+
+    it("settles an off-route walker, so earlier failures no longer count towards a collapse", () => {
+      const { hook } = setup();
+      act(() => hook.result.current.feed({ atMs: 0, ...off }));
+      // One failed way back, then a drawn one: the episode is answered.
+      expect(hook.result.current.rejoinFailed(1_000)).toBe(false);
+      act(() => hook.result.current.rejoinSucceeded(2_000));
+      // The walker is still off the new line: a new episode starts, and its first failure is only the first.
+      act(() => hook.result.current.feed({ atMs: 3_000, ...off }));
+      expect(hook.result.current.rejoinFailed(4_000)).toBe(false);
+      expect(hook.result.current.isCollapsed()).toBe(false);
+      expect(fetchCalls).toBe(0);
+    });
+
+    it("without it the second failure collapses (the counter this resets)", () => {
+      const { hook } = setup();
+      act(() => hook.result.current.feed({ atMs: 0, ...off }));
+      expect(hook.result.current.rejoinFailed(1_000)).toBe(false);
+      expect(hook.result.current.rejoinFailed(2_000)).toBe(true);
+      expect(hook.result.current.isCollapsed()).toBe(true);
+    });
+
+    it("restarts the 8-minute off-route clock", () => {
+      const { hook } = setup();
+      act(() => hook.result.current.feed({ atMs: 0, ...off }));
+      act(() => hook.result.current.rejoinSucceeded(60_000));
+      // Seven minutes later, still off: the episode began again at the drawn line, so no collapse yet.
+      act(() => hook.result.current.feed({ atMs: 61_000, ...off }));
+      act(() => hook.result.current.feed({ atMs: 61_000 + 7 * 60_000, ...off }));
+      expect(hook.result.current.isCollapsed()).toBe(false);
+      expect(fetchCalls).toBe(0);
+    });
+
+    it("leaves a collapse that is already under way alone", () => {
+      const { hook } = setup();
+      strayUntilCollapse(hook.result);
+      act(() => hook.result.current.rejoinSucceeded(62_000));
+      expect(hook.result.current.isCollapsed()).toBe(true);
+    });
+  });
 });
