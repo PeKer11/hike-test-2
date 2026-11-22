@@ -4,6 +4,8 @@ Date: 2026-11-22. Branch `feat/design-r13-port`, reviewed at `4dbd5e5`.
 Method: read-only code trace (no `src/` or test changes), the related suites run green
 (9 files, 208 tests), and one scratch calculation against `paceCandidate`. Nothing here was
 checked on a phone; the last section lists what only a real walk can confirm.
+**Status: fixed on this branch after the review, see section 6.** The review text below describes the code at
+`4dbd5e5`; line numbers and "today" statements refer to that commit.
 Line numbers in `WalkPlannerApp.tsx` are from the working tree, which had 5 uncommitted lines
 (compass heading, another session) on top of `4dbd5e5`. At `4dbd5e5` itself, subtract 1 after line
 109, 3 after line 648 and 4 after line 2639. All other files match `4dbd5e5`.
@@ -411,3 +413,56 @@ A short field script that covers most of these:
 4. **P7, P8 and P9** (walk-level clocks and accumulators).
 5. **P11, P12 and P13** (card hygiene and Hebrew).
 6. **P4, P16, P17 and P18.**
+
+---
+
+## 6. Status after the fixes (2026-11-22)
+
+Branch `feat/design-r13-port`, commits `568b72a` to `539ae36`. Nothing was walked on a phone: every fix below is
+covered by unit tests and by component tests that drive a real simulated or mocked-GPS walk. Full suite green
+(3629 tests), `tsc` clean. Where a test could pass without the fix, it was checked by switching the fix off and
+watching the test fail.
+
+### Fixed
+
+| Problem | What changed | Commit |
+|---|---|---|
+| P3 loop loses "back to start" | Every automatic rebuild sends `returnTo` = the pinned real start | `568b72a` |
+| P5 change dropped while an update runs; flag stuck | A tapped change now says "Still updating your route" (EN/HE); automatic triggers stay silent. End walk, a fresh Start, Back to previous route and a stop-less direction abandon the running update and clear its flag. Add-a-place refuses before pinning anything | `6b7e9f4` |
+| P6 head-back overwritten by an update in flight | `startFromOptionRoute` cancels the running update first | `6b7e9f4` |
+| P1 lengthen/shorten sized at the planned pace | Pace rebuilds price the route at the sustained measured pace (5-min window, then smoothed speed, then the 4-s reading), clamped to 6-40 min/km | `5f64b30` |
+| P2 "Plan at X km/h" only changes a number | The card also offers "Plan at X km/h and lengthen the walk" when there is 10+ min to spare at that pace, and runs the rebuild at that pace. It takes itself down after 60 s and may ask again after 10 min | `5f64b30` |
+| P10 wrong numbers in the pace questions | The question's minutes come from the signed spare time (budget left minus time to finish at the real speed). The 1.5x-slower case now says 15 min, not 33; the 2.25x-faster case about 50, not 22 | `5f64b30` |
+| P11 unanswered mismatch card blocks sunset/heat/rain | It no longer blocks the companion, and it expires | `5f64b30` |
+| P7 time and distance restart after each change | Legs are banked on every change of route (rebuild, head-back, splice); the finish card, the saved run, the walk-end summary and the learned pace read the whole walk. The learned pace is the sustained pace. Totals are saved with the active walk | `264402a` |
+| P8 reload double counts elapsed time | The saved start applies to the first leg only | `264402a` |
+| P9 Back to previous route puts elapsed time on two clocks | Minutes spent count against the restored plan's budget; totals restored | `264402a` |
+| P19 simulator 10x clock makes "shorter" longer | Rebuild budgets and the planner chat's time left use the fix clock; the trigger cooldown carried to a new leg is capped to its own length | `264402a` |
+| P4 fill rebuilds bring back visited/dropped stops | `/api/walk-plan` takes `excludeIds`; the client sends visited and dropped stops. Lengthen also passes the heading | `839750e` |
+| P13 English-only cards in the Hebrew app | Older pace cards, "Updating your route...", failed/cancelled/manual-resume messages and the pinned warning have Hebrew; a test checks key parity and no English on the Hebrew side | `e81aa27` |
+| P17 "back to the route" read as "head back" | New `rejoin` chat intent runs Back to my route; the Hebrew head-back button says "חזרה להתחלה" | `fb706eb` |
+| P18 planner chat mid-walk | Estimates are priced at the walk's own pace and time left; an end limit stated this turn (0 = back where I started) reaches the rebuild; the queued wishlist is no longer appended on top of the stops Sol kept | `af5884d` |
+| P12 "Keep" and card cooldowns forgotten | The mismatch watcher (while the plan's pace is unchanged) and the advisor's card times carry to the next leg | `93dd716` |
+| P20 mismatch card never fires with red lights | Paused readings are skipped; 3 min of walking inside a 5-min window | `5797bed` |
+| P16 "Head back" missing for the late, far walker | Falls back to the way straight home whatever the time left; `/api/walk-options` lets the `back` theme retrace the walked track | `539ae36` |
+| P15 "shorter" can silently do nothing | After a lengthen/shorten the sheet says what happened (EN/HE) | `539ae36` |
+| P21 (part) chat-added places pinned for one build | They stay pinned for the walk | `539ae36` |
+
+### Not fixed
+
+- **P14** (one decision, one set of answers for the same situation). The older card, the companion question and the
+  chat still differ. P10 gives them the same numbers; unifying them is a design change.
+- **P2, chat path.** The chat's "Plan at X km/h" button still only re-bases the pace; the lengthen offer is on the
+  mismatch card only. The mirror case (telling the chat a slower speed silences the slow card) is also unchanged.
+- **P21, the rest:** "Next stop in N min" still uses the planned pace; a superseded queued Sol build still reports "the
+  map was not updated"; the walked trail is not saved with the active walk; matching restarts at segment 0 after revert
+  or resume; `rebaselinePace` does not re-price discovery until the next leg.
+- **Sol pins:** only places added from the walk chat stay pinned. Sol's own stops are pinned for the build that
+  places them, as before.
+- Not covered by a test: tapping a direction option (`chooseOption`) while an update runs shows the new message but has
+  no test of its own.
+
+### Still needs a phone
+
+Everything in section 4, plus: the new Head back over a retraced street, the Hebrew cards on a small screen, and
+whether ORS closes a loop at `returnTo` the way the tests assume.
