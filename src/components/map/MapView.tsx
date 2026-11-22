@@ -9,7 +9,7 @@ import { useEffect } from "react";
 
 import { MapClickHandler } from "@/components/map/MapClickHandler";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
-import { routeColors } from "@/lib/map/route-colors";
+import { walkedTrail } from "@/lib/map/route-colors";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import { useFollowPause } from "@/lib/hooks/useFollowPause";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
@@ -225,7 +225,7 @@ export default function MapView({
       {walkedGeometry && walkedGeometry.length > 1 ? (
         <Polyline
           positions={walkedGeometry.map((p) => [p.lat, p.lng])}
-          pathOptions={{ color: routeColors(theme === "dark" ? "dark" : "light").walked, weight: 5, opacity: 0.9 }}
+          pathOptions={walkedTrail(theme === "dark" ? "dark" : "light").core}
         />
       ) : null}
       <RoutePolyline geometry={routeGeometry} />

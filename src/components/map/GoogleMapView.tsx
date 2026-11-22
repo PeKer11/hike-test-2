@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 
 import { MapCredits } from "@/components/map/MapCredits";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
-import { routeColors } from "@/lib/map/route-colors";
+import { routeColors, walkedTrail } from "@/lib/map/route-colors";
 import { useFollowPause } from "@/lib/hooks/useFollowPause";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
 
@@ -146,6 +146,7 @@ export default function GoogleMapView({
   const theme = useResolvedTheme();
   const isPhone = useIsPhone();
   const colors = routeColors(theme === "dark" ? "dark" : "light");
+  const trail = walkedTrail(theme === "dark" ? "dark" : "light", mapType);
   const credits = [
     "Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors",
     ...(callouts?.some((a) => a.place.verification === "detected") ? [WORLDCOVER_ATTRIBUTION] : []),
@@ -180,7 +181,12 @@ export default function GoogleMapView({
           <Viewport center={center} zoom={zoom} focusTick={focusTick} />
           <FitPath path={fitPath} />
           <PositionFollower currentPosition={currentPosition} followPosition={followPosition} onLayers={onOpenDetails} />
-          {walkedGeometry && walkedGeometry.length > 1 ? <Line path={walkedGeometry} color={colors.walked} weight={5} opacity={0.9} zIndex={1} /> : null}
+          {walkedGeometry && walkedGeometry.length > 1 ? (
+            <>
+              {trail.casing ? <Line path={walkedGeometry} color={trail.casing.color} weight={trail.casing.weight} opacity={trail.casing.opacity} zIndex={0} /> : null}
+              <Line path={walkedGeometry} color={trail.core.color} weight={trail.core.weight} opacity={trail.core.opacity} zIndex={1} />
+            </>
+          ) : null}
           <Line path={routeGeometry} color={colors.casing} weight={9} opacity={0.9} zIndex={2} />
           <Line path={routeGeometry} color={colors.route} weight={5} opacity={0.95} zIndex={3} arrows />
           {previewRoutes?.map((r) => (
