@@ -124,3 +124,59 @@ describe("the walk sheet", () => {
     expect(screen.getByText(/התחנה הבאה/)).toBeTruthy();
   });
 });
+
+// Tablet and desktop (feedback round 2026-11-22, item 8): from md the sheet floats over the map instead of owning its bottom edge.
+describe("the walk sheet on a tablet and a desktop", () => {
+  const original = window.matchMedia;
+  // jsdom has no layout: give the sheet a size so "ends above the sheet" is a number to compare.
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(300);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(400);
+  });
+  afterEach(() => {
+    window.matchMedia = original;
+    vi.restoreAllMocks();
+  });
+
+  /** A matchMedia that says yes to every `(min-width: N px)` query up to `width`. */
+  function viewport(width: number) {
+    window.matchMedia = ((query: string) => {
+      const min = Number(/min-width:\s*(\d+)px/.exec(query)?.[1] ?? Infinity);
+      return { matches: width >= min, media: query, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false, onchange: null } as unknown as MediaQueryList;
+    }) as typeof window.matchMedia;
+  }
+  const hudHost = () => screen.getByTestId("walk-hud").parentElement!.parentElement as HTMLElement;
+
+  it("keeps the phone bottom sheet classes and adds the floating ones behind md and lg", () => {
+    render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    const cls = screen.getByTestId("walk-hud").className;
+    // The phone sheet is still edge to edge at the bottom.
+    for (const c of ["inset-x-0", "bottom-0", "rounded-t-[6px]", "border-t-[1.5px]"]) expect(cls.split(/\s+/)).toContain(c);
+    // Tablet: centred, 560px. Desktop: a 400px panel at the start side. Both leave the map's own bottom strip free.
+    for (const c of ["md:w-[560px]", "md:mx-auto", "md:bottom-8", "lg:start-4", "lg:w-[400px]"]) expect(cls.split(/\s+/)).toContain(c);
+  });
+
+  it("a phone: the map ends above the sheet", () => {
+    viewport(390);
+    render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(hudHost().style.getPropertyValue("--hud-h")).toBe("300px");
+    expect(hudHost().style.getPropertyValue("--hud-o")).toBe("");
+    expect(hudHost().style.getPropertyValue("--hud-w")).toBe("");
+  });
+
+  it("a tablet: the map keeps its whole height and the off-route card clears the sheet from above", () => {
+    viewport(768);
+    render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(hudHost().style.getPropertyValue("--hud-h")).toBe("0px");
+    expect(hudHost().style.getPropertyValue("--hud-o")).toBe("340px");
+    expect(hudHost().style.getPropertyValue("--hud-w")).toBe("");
+  });
+
+  it("a desktop: the map keeps its whole height and the off-route card clears the panel from the side", () => {
+    viewport(1280);
+    render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(hudHost().style.getPropertyValue("--hud-h")).toBe("0px");
+    expect(hudHost().style.getPropertyValue("--hud-o")).toBe("0px");
+    expect(hudHost().style.getPropertyValue("--hud-w")).toBe("432px");
+  });
+});

@@ -107,7 +107,7 @@ export function OffRouteCard({ mode, lang, distanceM, hint, busy, countdown, sig
       onKeyDown={(e) => {
         if (e.key === "Escape") setMinimised(true);
       }}
-      className="pointer-events-none absolute inset-x-0 top-0 bottom-[var(--hud-h,9rem)] z-[650]"
+      className="pointer-events-none absolute start-0 end-0 top-0 bottom-[var(--hud-o,var(--hud-h,9rem))] z-[650] lg:start-[var(--hud-w,0px)]"
     >
       {/* The scrim stops 28 px above the sheet so the map's logo row stays clean. */}
       <button

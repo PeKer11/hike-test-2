@@ -49,7 +49,7 @@ function Stat({
           {unit ? <span className="ms-1 text-[13px] font-medium text-charcoal/60">{unit}</span> : null}
         </span>
       </p>
-      <p className="truncate text-[13px] font-medium leading-[18px] text-charcoal/60">{label}</p>
+      <p className="truncate text-[13px] font-medium leading-[18px] text-charcoal/60 md:overflow-visible md:whitespace-normal">{label}</p>
     </div>
   );
 }

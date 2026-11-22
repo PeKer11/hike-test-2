@@ -81,14 +81,30 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
     const host = outerRef.current?.parentElement;
     if (!stack || !host) return;
 
-    const publish = () => host.style.setProperty("--hud-h", `${stack.offsetHeight}px`);
+    // A phone: the sheet is the map's bottom, so the map ends above it (--hud-h). From md it floats over the map: the map
+    // keeps its whole height (--hud-h 0), and what is drawn over the map (the off-route card) clears the sheet instead,
+    // above it on a tablet (--hud-o) and beside it on a desktop (--hud-w).
+    const tablet = typeof window.matchMedia === "function" ? window.matchMedia("(min-width: 768px)") : null;
+    const desktop = typeof window.matchMedia === "function" ? window.matchMedia("(min-width: 1024px)") : null;
+    const publish = () => {
+      const floats = tablet?.matches ?? false;
+      const beside = desktop?.matches ?? false;
+      host.style.setProperty("--hud-h", floats ? "0px" : `${stack.offsetHeight}px`);
+      if (floats) host.style.setProperty("--hud-o", beside ? "0px" : `${stack.offsetHeight + 40}px`);
+      else host.style.removeProperty("--hud-o");
+      if (beside) host.style.setProperty("--hud-w", `${stack.offsetWidth + 32}px`);
+      else host.style.removeProperty("--hud-w");
+    };
     publish();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(publish);
-    observer.observe(stack);
+    tablet?.addEventListener("change", publish);
+    desktop?.addEventListener("change", publish);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(publish);
+    observer?.observe(stack);
     return () => {
-      observer.disconnect();
-      host.style.removeProperty("--hud-h");
+      tablet?.removeEventListener("change", publish);
+      desktop?.removeEventListener("change", publish);
+      observer?.disconnect();
+      for (const name of ["--hud-h", "--hud-o", "--hud-w"]) host.style.removeProperty(name);
     };
   }, []);
 
