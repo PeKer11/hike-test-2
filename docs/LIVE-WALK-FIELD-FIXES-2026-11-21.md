@@ -1,6 +1,6 @@
 # Live-walk field fixes: three bugs from a real walk
 
-Date: 2026-11-21 · Branch: `feat/design-r13-port` · Status: causes found, plan written first, fixes built per bug (see "Status" at the end).
+Date: 2026-11-21 · Branch: `feat/design-r13-port` · Status: causes found, plan written first, all three fixes built and pushed (see "Status" at the end).
 
 **Owner report (Hebrew, translated):** on a real walk (1) he asked the assistant for 2 km/h for an hour, walked 4.5 km/h, and the app never asked whether to update the route or pace; (2) during "בוויז" along the way the location stayed stuck "in the middle" and the map froze; (3) the "You've reached the end of your route" card appeared a bit before the real end (screen: "Distance to finish 0.0 km", "Time to finish 1 min", buttons "Finish walk" / "Keep walking", "Ask").
 
@@ -47,7 +47,7 @@ There is **no quiz, trivia or "חידון" feature anywhere in the code** (searc
 ### Plan
 
 1. `locate()` for `purpose: "walk"`: on `visibilitychange` to visible, re-arm the watch (`clearWatch` then `watchPosition` again) and ask for one fresh `getCurrentPosition`; plus a watchdog that re-arms the watch when no GPS fix has been handled for 25 s while the page is visible, at most once per 25 s. Starts are untouched. Tests extend `tests/locate.test.ts` (fake geolocation + fake timers).
-2. Map follower (Google and Leaflet): resume following when the page becomes visible again, and 15 s after the last drag ended. One small shared helper hook so the two views do not drift. Test: new `tests/position-follower.test.tsx` only if the follower can be mounted without the real map; otherwise the hook is unit-tested on its own.
+2. Map follower (Google and Leaflet): resume following when the page becomes visible again, and 15 s after the last drag ended. One small shared hook (`src/lib/hooks/useFollowPause.ts`) so the two views do not drift. The followers cannot be mounted without the real maps, so the hook is unit-tested on its own (`tests/use-follow-pause.test.tsx`).
 3. Not done: a "GPS paused, tap to resume" banner and a background-location native wrapper (roadmap; a web page cannot track while hidden at all, so walking with Waze in the foreground will always lose the track for that time).
 
 ---
@@ -63,11 +63,11 @@ There is **no quiz, trivia or "חידון" feature anywhere in the code** (searc
 
 ### Plan (small and clean, so it is built)
 
-1. New pure `PaceMismatchWatcher` (`src/lib/walk/pace-mismatch.ts`): fed every tick with the HUD speed (`SpeedEstimator`, already smoothed, with a pause state) and the plan pace. When the measured speed is plausible (1.5-10 km/h), the walker is moving, and measured vs planned differ by 1.5x or more in either direction for 3 minutes of fix time in a row, it returns one offer `{ measuredKmh, plannedKmh }`. Asked once per direction per walk: after "Keep" it stays quiet; after "Update" the watcher takes the new plan pace.
+1. New pure `PaceMismatchWatcher` (`src/lib/walk/pace-mismatch.ts`): fed every tick with the HUD speed (`SpeedEstimator`, already smoothed, with a pause state). When the measured speed is plausible (1.5-10 km/h), the walker is moving, and measured is 2x the plan's speed or more for 3 minutes of fix time in a row, it returns one offer `{ measuredKmh, plannedKmh }`. **Faster only**: the existing "slower than planned" card already covers a much slower walker, and re-baselining there would mute its shorten / more-time answers. Asked once: after "Keep" it stays quiet until the plan's pace changes; after "Plan at it" the watcher takes the new pace. No rule for gaps between looks: a dead GPS or hidden page leaves the speed estimator with no recent fix (it then reports no speed, which breaks the run), and a gap rule would break under the simulator's 10x fix clock.
 2. `WalkPlannerApp`: one state for the offer, one `walkAlert` branch ahead of the pace cards: "You're walking about 4.5 km/h. The plan assumes 2 km/h." with "Plan at 4.5 km/h" (calls the existing `rebaselinePace`, which already shows "Planning at 4.5 km/h from here") and "Keep 2 km/h". English and Hebrew in `walk-copy.ts`.
-3. Tests: `tests/pace-mismatch.test.ts` (unit) and one `walk-hud` case with the simulator (plan 30 min/km, simulator at 13 min/km, offer shows, accepting changes the planned pace in the HUD).
+3. Tests: `tests/pace-mismatch.test.ts` (unit) and `tests/walk-pace-mismatch.test.tsx` (the simulated walker at 4 km/h, the plan set to 1.5 km/h through the walk chat's "N km/h" command: the card shows once, "Plan at 4 km/h" shows the notice and it never returns, "Keep 1.5 km/h" never returns, a walker on plan is never asked).
 
-Left as a feature (not built): re-baseline automatically with an Undo (design in section 4.4 of the speed plan); the single "spare minutes" number so that after re-baselining a faster walker still gets the "you have time to extend" offer (today that offer rides on the ratio against the plan pace, so re-baselining mutes it; section 4.3 of the speed plan); allowing 2 km/h and slower in `WalkTracker.computePace` (the 30 min/km clamp hides a walker slower than the plan they asked for); km/h next to min/km in `AssistantSettings.tsx` (labels still min/km only); the assistant being told the measured pace.
+Left as a feature (not built): the slower direction; re-baseline automatically with an Undo (design in section 4.4 of the speed plan); the single "spare minutes" number so that after re-baselining a faster walker still gets the "you have time to extend" offer (today that offer rides on the ratio against the plan pace, so re-baselining mutes it; section 4.3 of the speed plan); allowing 2 km/h and slower in `WalkTracker.computePace` (the 30 min/km clamp hides a walker slower than the plan they asked for); km/h next to min/km in `AssistantSettings.tsx` (labels still min/km only); the assistant being told the measured pace.
 
 ---
 
@@ -75,9 +75,20 @@ Left as a feature (not built): re-baseline automatically with an Undo (design in
 
 1. Walk with the screen on, switch to Waze (or lock the phone) for 2-3 minutes while walking, come back: the dot jumps to the real position within about 25 s without a reload, and the map follows again.
 2. Drag the map once, keep walking: the map pulls back to the dot about 15 s later; the re-centre control still works.
-3. Plan at 2 km/h, walk 4.5 km/h for 3+ minutes: the "You're walking about 4.5 km/h" card appears once; "Plan at 4.5 km/h" shows the notice and the card does not return; "Keep" never asks again for that direction.
+3. Plan at 2 km/h, walk 4.5 km/h for 3+ minutes: the "You're walking about 4.5 km/h" card appears once; "Plan at 4.5 km/h" shows the notice and the card does not return; "Keep 2 km/h" does not ask again unless the plan's pace changes. Check the card reads well over the map on a phone, and in Hebrew (RTL).
 4. Walk a route to the very end: no "reached the end" card until within about 15 m of the end and standing or arriving there for a few seconds; it does not appear 40 m early; "Finish walk" ends the walk.
 
 ## Status
 
-Filled in as each fix lands (commit hashes in the final report).
+All three fixes are on `feat/design-r13-port` and pushed. Nothing deployed.
+
+| Bug | Commit | What changed |
+|---|---|---|
+| plan | `e5e4bf9` | this document |
+| 3 end of route | `6c7e6da` | `route-end.ts` (`RouteEndDetector`), `atRouteEnd` on `WalkStatsData`, planner alert reads it; `tests/route-end.test.ts` |
+| 2 GPS and map | `1933739` | `locate.ts` re-arm on return and after 30 s of silence (walk only), `useFollowPause.ts` in both map views; `tests/locate.test.ts` (+5), `tests/use-follow-pause.test.tsx`. Committed by a concurrent session under its own message; the content is this fix |
+| 1 pace | `9a6f400` | `pace-mismatch.ts`, `walkCopy.paceMismatch`, planner state and alert branch; `tests/pace-mismatch.test.ts`, `tests/walk-pace-mismatch.test.tsx`. Same: committed by the concurrent session |
+
+Verification at the last commit: `npx tsc --noEmit -p .` clean (ignoring `.next-e2e`), full `vitest run`: 271 files passed, 3298 tests passed, 5 files skipped.
+
+Not changed and listed above as follow-ups: HUD "0.0 km" below 1 km, "Keep walking" re-arm, an arrived-but-not-at-the-end tier, a GPS-paused banner, the slower-pace prompt, silent re-baseline with Undo, the single spare-minutes number, the 30 min/km clamp in `WalkTracker.computePace`, km/h next to min/km in `AssistantSettings.tsx`.
