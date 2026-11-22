@@ -351,6 +351,20 @@
   }
 }
 
+/* The .tk-* controls above name var(--font-app-sans) / var(--font-app-serif). Tailwind emits those two on :root, where the font
+   variables they point at (--font-manrope, --font-fraunces ... are classes on <body>) do not exist yet, so they compute to
+   nothing, the declaration is invalid and every control simply takes the font of whatever it sits in: Manrope under a
+   `font-app-sans` screen (Home, Me), Heebo inside the planner (the Live Walk buttons, the Walks "Log in", the Plan chips).
+   From md up they are defined again on <body>, where the fonts live, so a button is one face on every tablet and desktop
+   screen. Phones are left exactly as approved; doing the same everywhere is one line for Ariel to approve (it moves those
+   phone buttons from Heebo to Manrope). */
+@media (min-width: 768px) {
+  body {
+    --font-app-sans: var(--font-manrope), var(--font-assistant), var(--font-heebo), sans-serif;
+    --font-app-serif: var(--font-fraunces), var(--font-frank), var(--font-heebo), serif;
+  }
+}
+
 /* Night map: invert only the tiles, never markers or routes. */
 :root[data-theme="dark"] .leaflet-tile-pane {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55);
