@@ -141,9 +141,20 @@ async function advance(ms: number) {
   await flush();
 }
 
-async function startSimulatedWalk(opts: { loop?: boolean } = {}) {
+async function startSimulatedWalk(opts: { loop?: boolean; hebrew?: boolean } = {}) {
   render(<WalkPlannerApp />);
   await flush();
+  if (opts.hebrew) {
+    // The planner form's labels follow the app language; the simulator controls stay English.
+    fireEvent.change(screen.getByPlaceholderText("קו רוחב"), { target: { value: String(ORIGIN.lat) } });
+    fireEvent.change(screen.getByPlaceholderText("קו אורך"), { target: { value: String(ORIGIN.lng) } });
+    fireEvent.click(screen.getByRole("button", { name: "בנה מסלול הליכה" }));
+    await flush();
+    fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+    fireEvent.click(screen.getByRole("button", { name: "התחל הליכה" }));
+    await flush();
+    return;
+  }
   fireEvent.change(screen.getByPlaceholderText("Latitude"), { target: { value: String(ORIGIN.lat) } });
   fireEvent.change(screen.getByPlaceholderText("Longitude"), { target: { value: String(ORIGIN.lng) } });
   if (opts.loop) fireEvent.change(screen.getByPlaceholderText("Any"), { target: { value: "0" } });
@@ -391,5 +402,37 @@ describe("P4: discovery is told which places are already done", () => {
   it("the very first build of a walk sends no exclusions", async () => {
     await startSimulatedWalk();
     expect(walkPlanCalls[0].excludeIds).toBeUndefined();
+  });
+});
+
+describe("P13: the Hebrew app shows no English on the update and pace cards", () => {
+  it("'Updating your route' and its keep button are Hebrew", async () => {
+    settingsStore["walk-settings"] = JSON.stringify({ deviationMode: "ask", routeOrderMode: "reorder", uiLanguage: "he" });
+    await startSimulatedWalk({ hebrew: true });
+    await advance(2_000);
+    fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
+    await flush();
+    await advance(8_000);
+    hangRebuilds = true;
+    fireEvent.click(screen.getAllByRole("button").find((b) => /המסלול הכי טוב מכאן|Best route/.test(b.textContent ?? ""))!);
+    await flush();
+
+    expect(screen.getByText("מעדכנים את המסלול…")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "להישאר במסלול הנוכחי" })).toBeTruthy();
+    expect(screen.queryByText("Updating your route…")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Keep my current route" })).toBeNull();
+  });
+
+  it("the older pace card is Hebrew too", async () => {
+    settingsStore["walk-settings"] = JSON.stringify({ deviationMode: "ask", uiLanguage: "he" });
+    await startSimulatedWalk({ hebrew: true });
+    await advance(3_000);
+    fireEvent.click(screen.getByRole("button", { name: "Fast pace" }));
+    await flush();
+    await advance(50_000);
+
+    expect(screen.getByText("הקצב שלכם מעולה!")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "להאריך את ההליכה" })).toBeTruthy();
+    expect(screen.queryByText("You're at a great pace!")).toBeNull();
   });
 });

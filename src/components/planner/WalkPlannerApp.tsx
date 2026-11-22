@@ -240,12 +240,6 @@ interface PlanSnapshot {
 // so far that the stray leaves the map view it was triggered from.
 const SIMULATED_STRAY_METERS = 80;
 
-const REPLAN_FAILED_MESSAGE =
-  "Couldn't build an updated route just now — keeping you on your current one.";
-
-const MANUAL_RESUME_MESSAGE =
-  "We reshaped your walk for your pace. Take a look, then press Start Walk when you're ready.";
-
 // How long a build is allowed to take before we stop waiting for it.
 //
 // Building a walk runs Overpass discovery and a chain of ORS calls in sequence,
@@ -264,8 +258,6 @@ const WALK_PLAN_TIMEOUT_MS = 120_000;
 // is a safe place to fall back to, so there is no reason to keep them waiting
 // two minutes for the new one.
 const MIDWALK_REBUILD_TIMEOUT_MS = 45_000;
-
-const REPLAN_CANCELLED_MESSAGE = "Kept your current route.";
 
 // When a build stops looking normal and starts looking stuck. Well past a
 // typical build, well short of the deadline — the walker is told it is still
@@ -1508,7 +1500,7 @@ export function WalkPlannerApp({
     return () => window.clearTimeout(timer);
   }, [walkNotice]);
   const reportReplanFailed = () => {
-    setWalkTrackingMessage(REPLAN_FAILED_MESSAGE);
+    setWalkTrackingMessage(walkCopy.rebuild[uiLang === "he" ? "he" : "en"].failed);
     showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].replanFailed, "warn");
   };
 
@@ -1820,9 +1812,7 @@ export function WalkPlannerApp({
           );
           if (!data.feasible || droppedPins.length > 0) {
             setPinnedTimeWarning(
-              `At your current pace you probably won't reach every pinned stop within the remaining ${Math.round(
-                input.availableMinutes,
-              )} min. Keep going anyway, add time, or unpin a stop.`,
+              walkCopy.rebuild[uiLang === "he" ? "he" : "en"].pinnedWarning(Math.round(input.availableMinutes)),
             );
           }
         }
@@ -1839,7 +1829,7 @@ export function WalkPlannerApp({
             // Opted out of auto-resume: the walk is already stopped and the new
             // plan is on screen, so all that's missing is telling the walker why
             // they're looking at it.
-            setWalkTrackingMessage(MANUAL_RESUME_MESSAGE);
+            setWalkTrackingMessage(walkCopy.rebuild[uiLang === "he" ? "he" : "en"].manualResume);
             showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].manualResume, "ok");
           } else {
             handleStartWalk(data);
@@ -1849,7 +1839,7 @@ export function WalkPlannerApp({
     } catch {
       if (requestId !== buildWalkRequestIdRef.current) return null;
       if (snapshot) {
-        if (cancelled) setWalkTrackingMessage(REPLAN_CANCELLED_MESSAGE);
+        if (cancelled) setWalkTrackingMessage(walkCopy.rebuild[uiLang === "he" ? "he" : "en"].cancelled);
         else reportReplanFailed();
       } else {
         // Our own deadline firing and the network dropping are different
@@ -3623,11 +3613,11 @@ export function WalkPlannerApp({
       walkAlert = {
         id: "rebuilding",
         tone: "info",
-        title: "Updating your route…",
-        body: isWalkPlanSlow ? "Still working, this one is slow." : undefined,
+        title: walkCopy.rebuild[uiLang === "he" ? "he" : "en"].updating,
+        body: isWalkPlanSlow ? walkCopy.rebuild[uiLang === "he" ? "he" : "en"].slow : undefined,
         actions: [
           {
-            label: "Keep my current route",
+            label: walkCopy.rebuild[uiLang === "he" ? "he" : "en"].keep,
             primary: true,
             onClick: () => cancelBuildRef.current?.(),
           },
@@ -3704,17 +3694,18 @@ export function WalkPlannerApp({
       walkAlert = { id: "off-route", tone: "alert", title: walkCopy.offRoute.title, actions: [] };
     } else if (paceConfirmation) {
       const slow = replanPaceDirection(paceConfirmation) === "slow";
+      const pc = walkCopy.pace[uiLang === "he" ? "he" : "en"];
       walkAlert = {
         id: `pace-ask-${paceConfirmation}`,
         tone: "info",
         title: slow
           ? paceConfirmation === "full-stop"
-            ? walkCopy.pace.askStill
-            : walkCopy.pace.askSlow
-          : walkCopy.pace.askFast,
+            ? pc.askStill
+            : pc.askSlow
+          : pc.askFast,
         actions: [
           {
-            label: slow ? walkCopy.pace.askSlowConfirm : walkCopy.pace.askFastConfirm,
+            label: slow ? pc.askSlowConfirm : pc.askFastConfirm,
             primary: true,
             onClick: () => {
               const reason = paceConfirmation;
@@ -3724,13 +3715,13 @@ export function WalkPlannerApp({
             },
           },
           {
-            label: slow ? walkCopy.pace.askSlowDismiss : walkCopy.pace.askFastDismiss,
+            label: slow ? pc.askSlowDismiss : pc.askFastDismiss,
             onClick: clearPaceConfirmation,
           },
           ...(slow
             ? [
                 {
-                  label: walkCopy.pace.askMoreTime,
+                  label: pc.askMoreTime,
                   onClick: () => {
                     clearPaceConfirmation();
                     runExtendedTimeRebuild();
@@ -3741,7 +3732,7 @@ export function WalkPlannerApp({
           ...(slow && isSignedIn
             ? [
                 {
-                  label: walkCopy.offRoute.talk,
+                  label: walkCopy.offRouteCard[uiLang === "he" ? "he" : "en"].talk,
                   onClick: () =>
                     walkChat.openWith(
                       uiLang === "he"
@@ -3831,14 +3822,15 @@ export function WalkPlannerApp({
       };
     } else if (paceAdvisory) {
       const slow = paceAdvisory.kind === "slow";
+      const pc = walkCopy.pace[uiLang === "he" ? "he" : "en"];
       walkAlert = {
         id: `pace-${paceAdvisory.kind}`,
         tone: "info",
         icon: "pace",
-        title: slow ? walkCopy.pace.slowTitle : walkCopy.pace.fastTitle,
+        title: slow ? pc.slowTitle : pc.fastTitle,
         actions: [
           {
-            label: slow ? walkCopy.pace.slowAction : walkCopy.pace.fastAction,
+            label: slow ? pc.slowAction : pc.fastAction,
             primary: true,
             onClick: () => {
               setPaceAdvisory(null);
@@ -3849,7 +3841,7 @@ export function WalkPlannerApp({
           ...(slow
             ? [
                 {
-                  label: walkCopy.pace.slowKeepStops,
+                  label: pc.slowKeepStops,
                   onClick: () => {
                     setPaceAdvisory(null);
                     runExtendedTimeRebuild();
@@ -3857,7 +3849,7 @@ export function WalkPlannerApp({
                 },
               ]
             : []),
-          { label: walkCopy.pace.dismiss, onClick: () => setPaceAdvisory(null) },
+          { label: pc.dismiss, onClick: () => setPaceAdvisory(null) },
         ],
       };
     } else if (
