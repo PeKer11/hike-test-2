@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { PACE_MISMATCH_REASK_MS, PACE_MISMATCH_SUSTAIN_MS, PaceMismatchWatcher } from "@/lib/walk/pace-mismatch";
+import {
+  PACE_MISMATCH_REASK_MS,
+  PACE_MISMATCH_SUSTAIN_MS,
+  PACE_MISMATCH_WINDOW_MS,
+  PaceMismatchWatcher,
+} from "@/lib/walk/pace-mismatch";
 
 const T0 = 5_000_000;
 /** Look every 5 s for `ms`, at a steady speed. Returns the first offer. */
@@ -162,5 +167,54 @@ describe("carrying a watcher to the next leg", () => {
     const again = walk(w, 4.5, T0, PACE_MISMATCH_REASK_MS + PACE_MISMATCH_SUSTAIN_MS + 10_000);
     expect(again.offer).not.toBeNull();
     expect(again.at).toBeLessThan(far);
+  });
+});
+
+// P20: a city walk stops at lights. A paused reading is skipped, not a reason to start the 3 minutes again.
+describe("red lights (paused readings)", () => {
+  /** What the speed estimator reports while standing: 0 km/h, not moving. */
+  const stand = (w: PaceMismatchWatcher, from: number, ms: number) => {
+    for (let t = from; t <= from + ms; t += 5_000) expect(w.update({ kmh: 0, moving: false, atMs: t })).toBeNull();
+    return from + ms;
+  };
+
+  it("2 minutes moving, 40 s paused, 2 minutes moving still earns the question", () => {
+    const w = new PaceMismatchWatcher(30);
+    const a = walk(w, 4.5, T0, 2 * 60_000);
+    expect(a.offer).toBeNull();
+    const paused = stand(w, a.at + 5_000, 40_000);
+    const b = walk(w, 4.5, paused + 5_000, 2 * 60_000);
+    expect(b.offer).toEqual({ measuredKmh: 4.5, plannedKmh: 2 });
+  });
+
+  it("the time spent standing is not counted as moving time", () => {
+    const w = new PaceMismatchWatcher(30);
+    const a = walk(w, 4.5, T0, 60_000);
+    const paused = stand(w, a.at + 5_000, 90_000);
+    // One minute moving plus one more after the light is two minutes of walking, not three and a half.
+    const b = walk(w, 4.5, paused + 5_000, 60_000);
+    expect(b.offer).toBeNull();
+  });
+
+  it("stands for so long that the walking falls out of the 5-minute window: it starts over", () => {
+    const w = new PaceMismatchWatcher(30);
+    const a = walk(w, 4.5, T0, 2 * 60_000);
+    const paused = stand(w, a.at + 5_000, PACE_MISMATCH_WINDOW_MS);
+    const b = walk(w, 4.5, paused + 5_000, 2 * 60_000);
+    expect(b.offer).toBeNull();
+    // ...and a full 3 minutes after that does ask.
+    expect(walk(w, 4.5, b.at + 5_000, 90_000).offer).not.toBeNull();
+  });
+
+  it("a slow reading (not a pause) still breaks the run", () => {
+    const w = new PaceMismatchWatcher(30);
+    const a = walk(w, 4.5, T0, 2 * 60_000);
+    w.update({ kmh: 2, moving: true, atMs: a.at + 5_000 });
+    expect(walk(w, 4.5, a.at + 10_000, 2 * 60_000).offer).toBeNull();
+  });
+
+  it("only pauses never ask", () => {
+    const w = new PaceMismatchWatcher(30);
+    stand(w, T0, 20 * 60_000);
   });
 });
