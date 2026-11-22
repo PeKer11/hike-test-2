@@ -155,7 +155,11 @@ export function MeView({
         </div>
       </ScreenBand>
 
-      <div className="mx-auto flex w-full max-w-[560px] flex-col pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12">
+      <div className="tk-page flex flex-col pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12">
+        {/* lg: the account and display on the start side, the walk settings and what Traike remembers on the other.
+            Both wrappers are `contents` below lg, so a phone and a tablet keep the one column in this same order. */}
+        <div className="contents lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-10">
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col">
         <section aria-label={t.prefs}>
           <h2 className={SEC_BAR}>{t.prefs}</h2>
           <div className={ROW}>
@@ -213,12 +217,16 @@ export function MeView({
         </section>
 
         <SocialMeCards lang={lang} signedIn={signedIn} />
+        </div>
 
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col">
         {settings ? <WalkSettingsPanel settings={settings} onChange={(next) => bridge.setSettings(next)} lang={lang} /> : null}
 
         <section aria-label={t.remembers}>
           <StandingFactsPanel isSignedIn={signedIn} learnPreferences={settings?.preferenceLearningEnabled ?? false} lang={lang} />
         </section>
+        </div>
+        </div>
 
         <section aria-label={t.refresh} className="border-b border-tk-hair">
           {confirming ? (

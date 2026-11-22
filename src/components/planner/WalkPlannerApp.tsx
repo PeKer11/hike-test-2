@@ -4250,7 +4250,7 @@ export function WalkPlannerApp({
             <CollapseIcon className="h-4 w-4" />
           </button>
         ) : null}
-        <div className={`relative z-10 mx-auto max-w-[440px] ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : `space-y-[15px] px-4 pb-6 ${walksScreen ? "pt-1" : bandScreen ? "pt-0" : ""}`}`}>
+        <div className={`relative z-10 ${walksScreen ? "tk-page" : "mx-auto max-w-[440px]"} ${hubTab && !isSignedIn ? "hidden " : ""}${walkMode ? "flex flex-col gap-[15px]" : `space-y-[15px] px-4 pb-6 ${walksScreen ? "pt-1" : bandScreen ? "pt-0" : ""}`}`}>
           {isAdvancedOpen && (
             <Card className="space-y-2">
               <div className="text-sm font-semibold text-forest">Planning mode</div>
@@ -4392,8 +4392,8 @@ export function WalkPlannerApp({
                     <span>{uiLang === "he" ? "מקומות שמורים" : "Saved places"}</span>
                     <span aria-hidden className="rtl:-scale-x-100">›</span>
                   </button>
-                  <div className="-mx-4 px-4 pb-4 pt-[14px]">
-                    <button type="button" onClick={() => { setSideTab("plan"); onNavigate?.("plan"); }} className={`${BTN} w-full`}>
+                  <div className="-mx-4 px-4 pb-4 pt-[14px] md:flex md:justify-center">
+                    <button type="button" onClick={() => { setSideTab("plan"); onNavigate?.("plan"); }} className={`${BTN} w-full md:w-auto md:min-w-[320px]`}>
                       {uiLang === "he" ? "צור מסלול חדש" : "Create new route"}
                     </button>
                   </div>

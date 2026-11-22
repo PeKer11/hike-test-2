@@ -29,14 +29,14 @@ export function ScreenBand({ art, actions, tall = false, children }: { art: Band
           {/* The scene is a 390x300 composition with the sun and boat under the title. On a wide screen it keeps that size
               at the start of the content column (never stretched to the viewport, which slid the sun and boat under the
               text) and melts into the sky on its far side (and on its near side once the column no longer touches the screen edge). It is mirrored in Hebrew, so "start" follows the language. */}
-          <div aria-hidden className="absolute inset-x-0 inset-y-0 -z-10 mx-auto max-w-[560px]">
+          <div aria-hidden className="tk-page absolute inset-x-0 inset-y-0 -z-10">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={SCENES[art]} alt="" className="absolute inset-y-0 start-0 h-full w-full object-cover object-bottom rtl:-scale-x-100 min-[430px]:w-[403px] min-[430px]:[mask-image:linear-gradient(to_right,#000_82%,transparent)] min-[600px]:[mask-image:linear-gradient(to_right,transparent,#000_10%,#000_82%,transparent)] dark:brightness-[0.55] dark:saturate-[0.85]" />
           </div>
           <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[32%] bg-gradient-to-b from-transparent to-cream" />
         </>
       )}
-      <div className="relative mx-auto max-w-[560px] px-4 pb-4 pt-[max(14px,env(safe-area-inset-top))]">
+      <div className="tk-page relative px-4 pb-4 pt-[max(14px,env(safe-area-inset-top))]">
         {/* The mark stays on the left in Hebrew too. */}
         <div dir="ltr" className="flex h-9 items-center justify-between gap-2">
           <TraikeLockup className={ON_ART} />

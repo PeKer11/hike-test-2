@@ -211,7 +211,7 @@ export function SocialView({
   );
 
   return (
-    <Shell lang={lang} band={band}>
+    <Shell lang={lang} band={band} columns>
       {addCode ? (
         <SheetSection title={t.addFriendTitle}>
           <p className="text-[16px]">{t.addFriendLine}</p>
@@ -480,11 +480,11 @@ export function SocialView({
   );
 }
 
-function Shell({ lang, band, children }: { lang: SocialLang; /** The painted band; null for a person's profile, which has its own header. */ band: React.ReactNode; children: React.ReactNode }) {
+function Shell({ lang, band, children, columns = false }: { lang: SocialLang; /** The painted band; null for a person's profile, which has its own header. */ band: React.ReactNode; children: React.ReactNode; /** Tablet and desktop: the sections flow in two columns (the friends screen); a short message stays centred in one. */ columns?: boolean }) {
   return (
     <div dir={lang === "he" ? "rtl" : "ltr"} className="fixed inset-0 z-[900] overflow-y-auto bg-cream font-app-sans text-charcoal lg:start-[72px]">
       {band}
-      <div className={`mx-auto flex w-full max-w-[560px] flex-col pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12 ${band ? "" : "gap-4 px-4"}`}>{children}</div>
+      <div className={`tk-page flex flex-col pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-12 ${band ? "" : "gap-4 px-4"}`}>{columns ? <div className="tk-cols-2">{children}</div> : children}</div>
     </div>
   );
 }

@@ -262,6 +262,12 @@
   @media (min-width: 768px) { .tk-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-items: start; } }
   @media (min-width: 1024px) { .tk-grid-2 { column-gap: 40px; } }
 
+  /* The same two columns for a stack of whole sections (the Friends screen): they flow down the first column, then the second,
+     and a section is never split. One column under md. */
+  .tk-cols-2 { display: block; }
+  @media (min-width: 768px) { .tk-cols-2 { display: block; column-count: 2; column-gap: 24px; } .tk-cols-2 > * { break-inside: avoid; } }
+  @media (min-width: 1024px) { .tk-cols-2 { column-gap: 40px; } }
+
   .tk-tab {
     position: relative;
     display: flex;

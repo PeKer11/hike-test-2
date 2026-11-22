@@ -329,7 +329,8 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
               ) : null}
             </>
           )}
-          <ul aria-label="My walks" className="-mx-4">
+          {/* The Walks screen is a full-width page from md up, so its rows are two columns there; the old side panel (no segment) stays one. */}
+          <ul aria-label="My walks" className={`-mx-4${segment !== undefined ? " md:grid md:grid-cols-2 md:gap-x-6 lg:gap-x-10" : ""}`}>
             {shown.map((item) => card(item))}
           </ul>
         </>
