@@ -38,6 +38,8 @@ export interface MapViewProps {
   currentPosition?: Coordinates;
   /** How sure the position is, in metres: drawn as a soft halo around the dot. */
   currentAccuracyM?: number;
+  /** Which way the walker faces, degrees clockwise from north; the dot shows an arrowhead only while there is one. */
+  currentHeadingDeg?: number | null;
   followPosition?: boolean;
   /** Places found from free text but not accepted into a walk yet. */
   previewPlaces?: Attraction[];
@@ -168,6 +170,7 @@ export default function MapView({
   onMapClick,
   currentPosition,
   currentAccuracyM,
+  currentHeadingDeg,
   followPosition,
   previewPlaces,
   pinnedIds,
@@ -221,7 +224,7 @@ export default function MapView({
       />
       <PreviewMarkers places={previewPlaces ?? []} />
       <RecommendedLayer onAddToWalk={onAddToWalk} addedIds={addedIds} />
-      {currentPosition ? <CurrentPositionMarker position={currentPosition} accuracyM={currentAccuracyM} /> : null}
+      {currentPosition ? <CurrentPositionMarker position={currentPosition} accuracyM={currentAccuracyM} headingDeg={currentHeadingDeg} /> : null}
       {walkedGeometry && walkedGeometry.length > 1 ? (
         <Polyline
           positions={walkedGeometry.map((p) => [p.lat, p.lng])}

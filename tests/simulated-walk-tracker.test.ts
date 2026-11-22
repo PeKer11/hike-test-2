@@ -694,3 +694,28 @@ describe("SimulatedWalkTracker — drifting off the planned pace", () => {
     expect(tracker.plannedPace).toBe(PACE_MIN_PER_KM);
   });
 });
+
+describe("SimulatedWalkTracker: the heading it reports", () => {
+  it("follows the route's direction, including at a turn", () => {
+    // 300 m due north, then 300 m due east.
+    const corner: Coordinates = { lat: 32.08 + 300 / 111_320, lng: 34.78 };
+    const route: Coordinates[] = [
+      { lat: 32.08, lng: 34.78 },
+      corner,
+      { lat: corner.lat, lng: corner.lng + 300 / (111_320 * Math.cos((32.08 * Math.PI) / 180)) },
+    ];
+    const { updates, onUpdate } = collect();
+    const tracker = new SimulatedWalkTracker(route, onUpdate, [], PACE_MIN_PER_KM, SPEED, TICK_MS);
+    tracker.start();
+    vi.advanceTimersByTime(TICK_MS * 100);
+    tracker.stop();
+
+    // Every tick carries one, from the first (the first leg's direction) on.
+    expect(updates.every((u) => typeof u.headingDeg === "number")).toBe(true);
+    expect(updates[0].headingDeg).toBeCloseTo(0, 0);
+    // Midway up the first leg: due north. Well into the second: due east.
+    expect(updates[20].headingDeg!).toBeCloseTo(0, 0);
+    expect(updates[90].headingDeg!).toBeCloseTo(90, 0);
+  });
+});
+

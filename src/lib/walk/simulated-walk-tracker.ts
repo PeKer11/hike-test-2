@@ -1,5 +1,5 @@
 import type { Attraction, Coordinates, OrsDirectionsResponse } from "@/lib/types";
-import { haversineDistance, routeDistanceBetween, toOrsCoord } from "@/lib/utils/geo";
+import { bearingBetween, haversineDistance, routeDistanceBetween, toOrsCoord } from "@/lib/utils/geo";
 import { decodePolyline } from "@/lib/utils/polyline";
 import type { PaceUpdateHandler, PaceUpdate } from "./walk-tracker";
 
@@ -60,6 +60,7 @@ export class SimulatedWalkTracker {
   private onUpdate: PaceUpdateHandler;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private distanceCovered: number = 0;
+  private lastPosition: Coordinates | null = null;
   private simulatedTime: number = 0;
   private cumulativeDist: number[];
   private totalDistance: number;
@@ -98,6 +99,7 @@ export class SimulatedWalkTracker {
   start(): void {
     if (this.geometry.length === 0) return;
     this.distanceCovered = 0;
+    this.lastPosition = null;
     this.simulatedTime = Date.now();
 
     // Time compression is the walker's own doing, not the pace's: a tick is
@@ -108,6 +110,15 @@ export class SimulatedWalkTracker {
       this.simulatedTime += simMsPerTick;
 
       const position = this.advance();
+      // Which way it just moved, as a phone's compass-fused heading would say while walking (see `HeadingSmoother`).
+      const previous = this.lastPosition;
+      this.lastPosition = position;
+      const headingDeg =
+        previous !== null && haversineDistance(previous, position) > 0.1
+          ? bearingBetween(previous, position)
+          : this.geometry.length > 1
+            ? bearingBetween(this.geometry[0], this.geometry[1])
+            : undefined;
 
       const update: PaceUpdate = {
         currentPosition: position,
@@ -118,6 +129,7 @@ export class SimulatedWalkTracker {
         // What a phone's Doppler speed would read: real walking speed, since
         // the timestamps above already carry the playback multiplier.
         speedMps: 1000 / (this.paceMinPerKm * 60),
+        headingDeg,
       };
 
       this.onUpdate(update);

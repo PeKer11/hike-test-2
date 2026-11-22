@@ -97,6 +97,32 @@ describe("WalkTracker", () => {
     });
   });
 
+  it("passes the device heading on to the update, and nothing when the device has none", () => {
+    const onUpdate = vi.fn();
+    let successCallback: ((position: GeolocationPosition) => void) | undefined;
+    vi.stubGlobal("navigator", {
+      geolocation: {
+        watchPosition: vi.fn((success: (position: GeolocationPosition) => void) => {
+          successCallback = success;
+          return 1;
+        }),
+        clearWatch: vi.fn(),
+      },
+    });
+    new WalkTracker(onUpdate).start();
+    const fix = (heading: number | null, timestamp: number) =>
+      ({
+        coords: { latitude: 31.7683, longitude: 35.2137, accuracy: 6, altitude: null, altitudeAccuracy: null, heading, speed: 1.2 },
+        timestamp,
+        toJSON: () => ({}),
+      }) as GeolocationPosition;
+
+    successCallback?.(fix(212, Date.now()));
+    successCallback?.(fix(null, Date.now() + 1));
+    expect(onUpdate.mock.calls[0][0].headingDeg).toBe(212);
+    expect(onUpdate.mock.calls[1][0].headingDeg).toBeUndefined();
+  });
+
   describe("accuracy handling", () => {
     function startWith(onUpdate: PaceUpdateHandler, onState?: (state: LocateState) => void) {
       let success: ((position: GeolocationPosition) => void) | undefined;

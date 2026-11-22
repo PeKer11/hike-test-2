@@ -5,9 +5,9 @@ import { LAST_FIX_KEY, locate, type LocateFix, type LocateState } from "@/lib/ge
 type Ok = (pos: GeolocationPosition) => void;
 type Fail = (err: GeolocationPositionError) => void;
 
-function pos(acc: number, lat = 32.08, lng = 34.77): GeolocationPosition {
+function pos(acc: number, lat = 32.08, lng = 34.77, extra: { heading?: number | null; speed?: number | null } = {}): GeolocationPosition {
   return {
-    coords: { latitude: lat, longitude: lng, accuracy: acc, speed: null },
+    coords: { latitude: lat, longitude: lng, accuracy: acc, speed: extra.speed ?? null, heading: extra.heading ?? null },
     timestamp: Date.now(),
   } as unknown as GeolocationPosition;
 }
@@ -301,5 +301,25 @@ describe("locate: a walk keeps its watch alive (back from another app, or silent
     p.set("visible");
     vi.advanceTimersByTime(120_000);
     expect(geo.watchPosition).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("locate: the device heading", () => {
+  const heardFix = (extra: { heading?: number | null; speed?: number | null }) => {
+    const { watches } = fakeGeo();
+    const r = run("walk");
+    watches[0].ok(pos(8, 32.08, 34.77, extra));
+    return r.fixes[0];
+  };
+
+  it("copies coords.heading when it is a real number of degrees", () => {
+    expect(heardFix({ heading: 137.5, speed: 1.3 }).headingDeg).toBe(137.5);
+    expect(heardFix({ heading: 0, speed: 1.3 }).headingDeg).toBe(0);
+  });
+
+  it.each([[null], [Number.NaN], [-1], [Number.POSITIVE_INFINITY], [361]])("leaves headingDeg out for %s", (heading) => {
+    const fix = heardFix({ heading, speed: 1.3 });
+    expect(fix.headingDeg).toBeUndefined();
+    expect("headingDeg" in fix && fix.headingDeg !== undefined).toBe(false);
   });
 });

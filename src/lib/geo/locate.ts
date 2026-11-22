@@ -33,6 +33,8 @@ export interface LocateFix {
   /** ms since epoch, from the device. */
   timestamp: number;
   speedMps?: number;
+  /** The device's own heading (`coords.heading`), degrees clockwise from north; only when it is a real number. */
+  headingDeg?: number;
   source: "cache" | "gps" | "ip";
   /** The city, for an IP fix ("roughly in {city}"). */
   city?: string;
@@ -115,11 +117,14 @@ export function saveLastFix(fix: Pick<LocateFix, "coordinates" | "accuracyMeters
 
 function toFix(pos: GeolocationPosition): LocateFix {
   const speed = pos.coords.speed;
+  // Standing (or on some iOS versions, slow) the browser reports null, NaN or -1: no heading at all, never a made-up one.
+  const heading = pos.coords.heading;
   return {
     coordinates: { lat: pos.coords.latitude, lng: pos.coords.longitude },
     accuracyMeters: pos.coords.accuracy,
     timestamp: pos.timestamp,
     speedMps: typeof speed === "number" && Number.isFinite(speed) ? speed : undefined,
+    headingDeg: typeof heading === "number" && Number.isFinite(heading) && heading >= 0 && heading <= 360 ? heading : undefined,
     source: "gps",
   };
 }

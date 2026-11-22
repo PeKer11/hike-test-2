@@ -18,15 +18,18 @@ vi.mock("@/components/map", () => ({
     pinnedIds = [],
     onTogglePin,
     routeGeometry,
+    currentHeadingDeg,
   }: {
     waypoints: { id: string; name: string }[];
     pinnedIds?: string[];
     onTogglePin?: (id: string) => void;
     routeGeometry?: { lat: number; lng: number }[];
+    currentHeadingDeg?: number | null;
   }) => (
     <div
       data-testid="map"
       data-pinned={pinnedIds.join(",")}
+      data-heading={currentHeadingDeg ?? ""}
       data-route-first={routeGeometry?.[0] ? `${routeGeometry[0].lat.toFixed(5)},${routeGeometry[0].lng.toFixed(5)}` : ""}
     >
       {waypoints.map((waypoint) => (
@@ -390,6 +393,40 @@ describe("the openrouteservice credit sits off the map (feedback 2026-11-22, ite
     fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek -> half
     expect(screen.getByTestId("walk-hud").getAttribute("data-sheet")).toBe("half");
     expect(creditText()).toBe(CREDIT);
+  });
+});
+
+describe("the walker's heading on the map (feedback 2026-11-22, item 1)", () => {
+  const heading = () => screen.getByTestId("map").getAttribute("data-heading");
+
+  it("has no arrowhead before the first fix, then faces the way the simulated walker is going (north)", async () => {
+    await startSimulatedWalk();
+    expect(heading()).toBe("");
+    await advance(4_000);
+    expect(Number(heading())).toBeCloseTo(0, 0); // the stub route runs due north
+  });
+
+  it("turns with the walker when the route turns, and not before", async () => {
+    // Off the planned line along the side street, which runs due east.
+    await startSimulatedWalk();
+    await advance(2_000);
+    expect(Number(heading())).toBeCloseTo(0, 0);
+    fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
+    await flush();
+    await advance(10_000);
+    // The smoother follows the east-bound detour: well round from north and heading for 90.
+    expect(Number(heading())).toBeGreaterThan(60);
+    expect(Number(heading())).toBeLessThanOrEqual(90.5);
+  });
+
+  it("drops the arrowhead when the walk ends", async () => {
+    await startSimulatedWalk();
+    await advance(4_000);
+    expect(heading()).not.toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "End walk" }));
+    fireEvent.click(screen.getByRole("button", { name: /End walk/ })); // second tap confirms
+    await flush();
+    expect(heading()).toBe("");
   });
 });
 

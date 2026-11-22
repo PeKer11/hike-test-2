@@ -103,6 +103,7 @@ import {
   ENGINE_MAX_ACCURACY_M,
   LOCAL_REJOIN_MAX_DEVIATION_M,
 } from "@/lib/walk/walk-cadence";
+import { HeadingSmoother } from "@/lib/walk/heading-smoother";
 import { SpeedEstimator } from "@/lib/walk/speed-estimator";
 import { PaceAdvisor, type PaceAdvice } from "@/lib/walk/pace-advisor";
 import { PaceMismatchWatcher, type PaceMismatchOffer } from "@/lib/walk/pace-mismatch";
@@ -674,6 +675,9 @@ export function WalkPlannerApp({
   // Where the GPS is in its lock-on, for the chip in the walk HUD; and how sure the dot is.
   const [gpsState, setGpsState] = useState<LocateState>("idle");
   const [currentAccuracyM, setCurrentAccuracyM] = useState<number | null>(null);
+  // Which way the walker faces (smoothed, degrees clockwise from north; null = no arrowhead): see `HeadingSmoother`.
+  const [currentHeadingDeg, setCurrentHeadingDeg] = useState<number | null>(null);
+  const headingSmootherRef = useRef(new HeadingSmoother());
   const [attractionDistances, setAttractionDistances] = useState<Record<string, number>>({});
   const routeAnchor =
     route?.orderedWaypoints[0]?.coordinates ?? route?.geometry[0];
@@ -925,6 +929,8 @@ export function WalkPlannerApp({
     setIsRecording(false);
     setCurrentPosition(null);
     setCurrentAccuracyM(null);
+    headingSmootherRef.current.reset();
+    setCurrentHeadingDeg(null);
     setGpsState("idle");
     setRemainingGeometry([]);
     markOffRoute(false);
@@ -2768,6 +2774,13 @@ export function WalkPlannerApp({
       }
       latestPaceUpdateRef.current = update;
       lastFixWallRef.current = Date.now();
+      headingSmootherRef.current.push({
+        position: update.currentPosition,
+        accuracyM: update.accuracyMeters,
+        timestamp: update.timestamp,
+        headingDeg: update.headingDeg,
+        speedMps: update.speedMps,
+      });
       if (firstFixAtRef.current === null) firstFixAtRef.current = resumedStartRef.current ?? update.timestamp;
 
       speedEstimatorRef.current?.record({
@@ -2816,6 +2829,7 @@ export function WalkPlannerApp({
 
       setCurrentPosition(update.currentPosition);
       setCurrentAccuracyM(update.accuracyMeters);
+      setCurrentHeadingDeg(headingSmootherRef.current.current(update.timestamp));
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
       walkedTrackRef.current.push(update.currentPosition);
@@ -4957,6 +4971,7 @@ export function WalkPlannerApp({
           walkedGeometry={walkPhase === "walking" && showWalkedPath ? [...walkedTrackRef.current] : undefined}
           currentPosition={currentPosition ?? undefined}
           currentAccuracyM={walkMode ? currentAccuracyM ?? undefined : undefined}
+          currentHeadingDeg={walkMode ? currentHeadingDeg : null}
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}
           onAddToWalk={walkPhase === "walking" ? undefined : addMapPlaceToWalk}

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { calloutHtml } from "@/components/map/PoiCallouts";
 import { markerIconHtml } from "@/components/map/MapMarkers";
+import { WalkerMarkerShape, WALKER_COLOR } from "@/components/map/WalkerMarker";
 import type { Attraction, Coordinates, Waypoint } from "@/lib/types";
 import type { Announcement } from "@/lib/walk/poi-announcer";
 
@@ -104,7 +105,7 @@ export function GooglePreviewMarkers({ places }: { places: Attraction[] }) {
   );
 }
 
-export function GoogleCurrentPosition({ position, accuracyM }: { position: Coordinates; accuracyM?: number }) {
+export function GoogleCurrentPosition({ position, accuracyM, headingDeg }: { position: Coordinates; accuracyM?: number; headingDeg?: number | null }) {
   const map = useMap();
   const maps = useMapsLibrary("maps");
   // A soft halo as wide as the fix is uncertain, so a coarse first fix reads as "somewhere around here".
@@ -115,10 +116,10 @@ export function GoogleCurrentPosition({ position, accuracyM }: { position: Coord
       center: position,
       radius: accuracyM,
       clickable: false,
-      strokeColor: "#2563eb",
+      strokeColor: WALKER_COLOR,
       strokeOpacity: 0.4,
       strokeWeight: 1,
-      fillColor: "#2563eb",
+      fillColor: WALKER_COLOR,
       fillOpacity: 0.12,
       zIndex: 400,
     });
@@ -126,7 +127,7 @@ export function GoogleCurrentPosition({ position, accuracyM }: { position: Coord
   }, [map, maps, position, accuracyM]);
   return (
     <AdvancedMarker position={position} zIndex={500}>
-      <span style={{ width: 16, height: 16, borderRadius: 9999, background: "#2563eb", border: "3px solid white", boxShadow: "0 0 0 4px rgba(37,99,235,0.3)", display: "block" }} />
+      <WalkerMarkerShape headingDeg={headingDeg} />
     </AdvancedMarker>
   );
 }

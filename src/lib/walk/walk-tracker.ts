@@ -32,6 +32,8 @@ export interface PaceUpdate {
   bearing?: number; // compass bearing from previous accepted sample, degrees (0=north)
   /** The device's own speed (`coords.speed`), m/s. Absent when it has none. */
   speedMps?: number;
+  /** The device's own heading (`coords.heading`), degrees clockwise from north, when it reports a real one. */
+  headingDeg?: number;
 }
 
 export type PaceUpdateHandler = (update: PaceUpdate) => void;
@@ -139,6 +141,7 @@ export class WalkTracker {
       attractionDistances: this.computeAttractionDistances(sample.coordinates),
       bearing,
       speedMps: fix.speedMps,
+      headingDeg: fix.headingDeg,
     });
   }
 
