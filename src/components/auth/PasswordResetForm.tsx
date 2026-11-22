@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ArrowIcon } from "@/components/ui/icons";
+import { BTN } from "@/components/ui/panel-style";
 import { useHydrated } from "@/lib/hooks/useHydrated";
 import { createClient, createRecoveryRequestClient } from "@/lib/supabase/client";
 
@@ -10,17 +12,62 @@ import { cleanEmail, friendlyError } from "./AuthForm";
 
 type ResetMode = "request" | "update";
 
+// The same controls as the sign-in form (round 13): control edge, cream fill, 16px so phones do not zoom.
 const inputClasses =
-  "w-full rounded-[10px] border border-charcoal/15 bg-cream/40 px-3 py-2.5 text-sm text-charcoal focus:border-terra focus:outline-none";
-const labelClasses = "text-sm font-semibold text-forest";
+  "h-[46px] w-full rounded-[6px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 text-[16px] font-semibold text-tk-ink focus:outline-2 focus:outline-offset-1 focus:outline-[var(--tk-ctl)]";
+const labelClasses = "text-[14px] font-semibold text-tk-ink";
+
+// Server errors keep their English wording (friendlyError); the words this form owns follow the screen's language.
+const COPY = {
+  en: {
+    email: "Email",
+    newPassword: "New password",
+    confirm: "Confirm password",
+    show: "Show passwords",
+    checking: "Checking your link…",
+    invalid: "This reset link is invalid or expired.",
+    requestNew: "Request a new one",
+    working: "Working…",
+    send: "Send reset link",
+    save: "Save password",
+    back: "Back to log in",
+    enterEmail: "Enter your email.",
+    notice: "If an account exists for that email, we sent a reset link. Check spam — only the newest link works.",
+    short: "Password must be at least 6 characters.",
+    mismatch: "Passwords don't match.",
+    wrong: "Something went wrong. Try again.",
+  },
+  he: {
+    email: "כתובת אימייל",
+    newPassword: "סיסמה חדשה",
+    confirm: "אימות סיסמה",
+    show: "הצגת הסיסמאות",
+    checking: "בודקים את הקישור…",
+    invalid: "קישור האיפוס אינו תקין או שפג תוקפו.",
+    requestNew: "בקשו קישור חדש",
+    working: "רק רגע…",
+    send: "שליחת קישור איפוס",
+    save: "שמירת הסיסמה",
+    back: "חזרה להתחברות",
+    enterEmail: "הזינו את כתובת האימייל.",
+    notice: "אם קיים חשבון עם האימייל הזה, שלחנו קישור איפוס. בדקו בספאם. רק הקישור האחרון תקף.",
+    short: "הסיסמה צריכה להכיל לפחות 6 תווים.",
+    mismatch: "הסיסמאות אינן זהות.",
+    wrong: "משהו השתבש. נסו שוב.",
+  },
+} as const;
 
 export function PasswordResetForm({
   mode,
   initialError,
+  lang = "en",
 }: {
   mode: ResetMode;
   initialError?: string;
+  /** Language of the words on this form (the frame around it reads the saved setting). */
+  lang?: "he" | "en";
 }) {
+  const t = COPY[lang];
   // Before hydration the browser would submit this form itself.
   const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -54,7 +101,7 @@ export function PasswordResetForm({
       if (isRequest) {
         const email = cleanEmail(String(form.get("email") ?? ""));
         if (!email.includes("@")) {
-          setError("Enter your email.");
+          setError(t.enterEmail);
           return;
         }
         // redirectTo must keep its "?": the email template appends "&token_hash=…".
@@ -69,9 +116,7 @@ export function PasswordResetForm({
           return;
         }
         // Same message whether or not the account exists.
-        setNotice(
-          "If an account exists for that email, we sent a reset link. Check spam — only the newest link works.",
-        );
+        setNotice(t.notice);
         setCoolingDown(true);
         setTimeout(() => setCoolingDown(false), 60_000);
         return;
@@ -79,11 +124,11 @@ export function PasswordResetForm({
 
       const password = String(form.get("password") ?? "");
       if (password.length < 6) {
-        setError("Password must be at least 6 characters.");
+        setError(t.short);
         return;
       }
       if (password !== String(form.get("confirmPassword") ?? "")) {
-        setError("Passwords don't match.");
+        setError(t.mismatch);
         return;
       }
       const { error: updateError } = await supabase.auth.updateUser({
@@ -95,112 +140,91 @@ export function PasswordResetForm({
       }
       window.location.assign("/app");
     } catch {
-      setError("Something went wrong. Try again.");
+      setError(t.wrong);
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="w-full max-w-sm space-y-5 rounded-xl bg-paper p-8 shadow-[0_4px_20px_rgba(30,61,47,0.12)]">
-      <h1 className="font-display text-2xl font-bold text-forest">
-        {isRequest ? "Reset your password" : "Choose a new password"}
-      </h1>
-
-      {hasSession === null && (
-        <p className="text-sm text-charcoal/70">Checking your link…</p>
-      )}
+    <div className="font-app-sans">
+      {hasSession === null && <p className="border-b border-tk-hair px-4 py-3 text-[14px] text-tk-sage">{t.checking}</p>}
       {hasSession === false && (
-        <p className="rounded-[10px] bg-terra/10 p-3 text-xs text-terra">
-          This reset link is invalid or expired.{" "}
+        <p className="m-4 rounded-[6px] bg-terra/10 p-3 text-[14px] text-tk-check">
+          {t.invalid}{" "}
           <Link href="/forgot-password" className="font-semibold underline">
-            Request a new one
+            {t.requestNew}
           </Link>
         </p>
       )}
 
-      <form
-        className={`space-y-4 ${hasSession ? "" : "hidden"}`}
-        method="post"
-        onSubmit={handleSubmit}
-        noValidate
-      >
-        {isRequest ? (
-          <label className="block space-y-1.5">
-            <span className={labelClasses}>Email</span>
-            <input
-              type="email"
-              name="email"
-              id="email"
-              autoComplete="email"
-              required
-              className={inputClasses}
-            />
-          </label>
-        ) : (
-          <>
+      <form className={hasSession ? "" : "hidden"} method="post" onSubmit={handleSubmit} noValidate>
+        <div className="space-y-3 border-b border-tk-hair px-4 py-3">
+          {isRequest ? (
             <label className="block space-y-1.5">
-              <span className={labelClasses}>New password</span>
-              <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                id="password"
-                autoComplete="new-password"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                required
-                className={inputClasses}
-              />
+              <span className={labelClasses}>{t.email}</span>
+              <input type="email" name="email" id="email" dir="ltr" autoComplete="email" required className={inputClasses} />
             </label>
-            <label className="block space-y-1.5">
-              <span className={labelClasses}>Confirm password</span>
-              <input
-                type={showPassword ? "text" : "password"}
-                name="confirmPassword"
-                id="confirmPassword"
-                autoComplete="new-password"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                required
-                className={inputClasses}
-              />
-            </label>
-            <label className="flex items-center gap-2 text-xs text-charcoal/70">
-              <input
-                type="checkbox"
-                checked={showPassword}
-                onChange={(event) => setShowPassword(event.target.checked)}
-              />
-              Show passwords
-            </label>
-          </>
-        )}
+          ) : (
+            <>
+              <label className="block space-y-1.5">
+                <span className={labelClasses}>{t.newPassword}</span>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  id="password"
+                  dir="ltr"
+                  autoComplete="new-password"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  required
+                  className={inputClasses}
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className={labelClasses}>{t.confirm}</span>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  id="confirmPassword"
+                  dir="ltr"
+                  autoComplete="new-password"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  required
+                  className={inputClasses}
+                />
+              </label>
+              <label className="flex min-h-11 items-center gap-2 text-[14px] font-semibold text-tk-ink">
+                <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} className="h-4 w-4 accent-[var(--tk-sel)]" />
+                {t.show}
+              </label>
+            </>
+          )}
 
-        {error && (
-          <p className="rounded-[10px] bg-terra/10 p-3 text-xs text-terra">
-            {error}
-          </p>
-        )}
-        {notice && (
-          <p className="rounded-[10px] bg-skysoft/25 p-3 text-xs text-forest">
-            {notice}
-          </p>
-        )}
+          {error && <p className="rounded-[6px] bg-terra/10 p-3 text-[14px] text-tk-check">{error}</p>}
+          {notice && <p className="rounded-[6px] bg-skysoft/25 p-3 text-[14px] text-tk-ink">{notice}</p>}
+        </div>
 
-        <button
-          type="submit"
-          disabled={isSubmitting || coolingDown || !hydrated}
-          className="w-full rounded-[10px] bg-terra px-7 py-3 text-sm font-bold text-cream shadow-[0_4px_20px_rgba(30,61,47,0.12)] transition-colors hover:bg-terra/90 disabled:bg-terra/50"
-        >
-          {isSubmitting ? "Working…" : isRequest ? "Send reset link" : "Save password"}
-        </button>
+        <div className="flex flex-col gap-[10px] px-4 pb-4 pt-[14px]">
+          <button type="submit" disabled={isSubmitting || coolingDown || !hydrated} className={`${BTN} w-full`}>
+            {isSubmitting ? (
+              t.working
+            ) : (
+              <>
+                {isRequest ? t.send : t.save}
+                <ArrowIcon />
+              </>
+            )}
+          </button>
+        </div>
       </form>
 
-      <p className="text-sm text-charcoal/70">
-        <Link href="/login" className="font-semibold text-terra hover:text-terra/80">
-          Back to log in
+      <p className="px-4 pb-4 text-center text-[16px] text-tk-ink">
+        <Link href="/login" className="font-semibold underline">
+          {t.back}
         </Link>
       </p>
     </div>
