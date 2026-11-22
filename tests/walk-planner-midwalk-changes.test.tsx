@@ -281,3 +281,93 @@ describe("P5: a change asked for while an update is running is not lost silently
     expect(screen.queryByTestId("walk-notice")?.textContent ?? "").not.toContain("Still updating");
   });
 });
+
+/** The finish card's numbers: "N min" and "X.Y km". */
+function finishCard() {
+  const text = screen.getByText("You finished your walk!").closest("div")!.textContent ?? "";
+  const minutes = Number(/(\d+) min/.exec(text)?.[1] ?? Number.NaN);
+  const km = Number(/(\d+\.\d) km/.exec(text)?.[1] ?? Number.NaN);
+  return { minutes, km };
+}
+
+async function addStopFromChat() {
+  fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+  const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
+  fireEvent.change(box, { target: { value: "add a stop" } });
+  fireEvent.submit(box.closest("form")!);
+  await flush();
+  fireEvent.click(screen.getByRole("button", { name: "Add a stop" }));
+  await flush();
+}
+
+async function endWalk() {
+  fireEvent.click(screen.getByRole("button", { name: "End walk" }));
+  fireEvent.click(screen.getByRole("button", { name: "End walk?" }));
+  await flush();
+}
+
+describe("P7: the walk's time and distance carry over a change of route", () => {
+  it("the finish card counts the whole walk, not just the leg since the last change", async () => {
+    // A walk that is only walked in one leg, for the yardstick.
+    await startSimulatedWalk();
+    await advance(60_000);
+    await endWalk();
+    const oneLeg = finishCard();
+    cleanup();
+    vi.unstubAllGlobals();
+    installFetch();
+
+    // The same minute of walking, then a change of route (a stop added from the chat), then the same minute again.
+    await startSimulatedWalk();
+    await advance(30_000);
+    const callsBefore = walkPlanCalls.length;
+    await addStopFromChat();
+    expect(walkPlanCalls.length).toBe(callsBefore + 1);
+    await advance(30_000);
+    await endWalk();
+    const twoLegs = finishCard();
+
+    // 60 s of fixes at 10x is 10 minutes. The second leg alone would read about 5.
+    expect(oneLeg.minutes).toBeGreaterThanOrEqual(9);
+    expect(twoLegs.minutes).toBeGreaterThanOrEqual(oneLeg.minutes - 1);
+    expect(twoLegs.minutes).toBeGreaterThan(oneLeg.minutes * 0.85);
+    expect(twoLegs.km).toBeGreaterThan(oneLeg.km * 0.7);
+  });
+});
+
+describe("P9: Back to previous route keeps the clock", () => {
+  it("minutes already spent still count against the restored plan's budget", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    await redrawFromHere(); // change 1
+    await advance(30_000); // five more minutes of walking on the new route
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to previous plan" }));
+    await flush();
+    await advance(1_000);
+
+    // Another change on the restored plan.
+    const before = walkPlanCalls.length;
+    await redrawFromHere();
+    expect(walkPlanCalls.length).toBeGreaterThan(before);
+    const body = walkPlanCalls[walkPlanCalls.length - 1];
+    // The plan had 90 minutes; about 8 are gone (5 + 1.5 + the next stray), so about 80 are left. The old wall
+    // clock gave nearly the full 90 back because it only saw the seconds, not the simulated minutes.
+    expect(body.availableMinutes as number).toBeLessThan(86);
+    expect(body.availableMinutes as number).toBeGreaterThan(70);
+  });
+});
+
+describe("P19: the simulator's fast clock does not make a rebuild's budget too long", () => {
+  it("six simulated minutes in, a redraw is given about six fewer minutes, not the whole budget back", async () => {
+    await startSimulatedWalk();
+    await advance(30_000); // 30 s of wall time is five minutes of fixes at 10x
+    const before = walkPlanCalls.length;
+    await redrawFromHere(); // 10 more seconds, so about 6.5 simulated minutes in
+    expect(walkPlanCalls.length).toBe(before + 1);
+    // The plan has 90 minutes. The wall clock saw only 40 seconds and would have said 89.3.
+    expect(walkPlanCalls[walkPlanCalls.length - 1].availableMinutes as number).toBeLessThan(86);
+    expect(walkPlanCalls[walkPlanCalls.length - 1].availableMinutes as number).toBeGreaterThan(78);
+  });
+});

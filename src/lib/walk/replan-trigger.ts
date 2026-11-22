@@ -130,6 +130,15 @@ export class ReplanTrigger {
     return reason;
   }
 
+  /**
+   * A new leg's clock begins at `now`. A cooldown armed on the previous leg's clock can sit far ahead of it
+   * (the simulator's fix clock runs 10x the wall clock), which would keep this trigger silent for the rest of
+   * the walk: it never lasts longer than its own length from `now`.
+   */
+  capCooldown(now: number): void {
+    this.cooldownUntil = Math.min(this.cooldownUntil, now + REPLAN_COOLDOWN_MS);
+  }
+
   /** The plan's pace changed (stated or re-baselined): judge the walker against it, keep cooldown. */
   setPlannedPace(minPerKm: number): void {
     if (Number.isFinite(minPerKm) && minPerKm > 0) this.plannedPaceMinPerKm = minPerKm;

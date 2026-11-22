@@ -37,6 +37,17 @@ describe("active walk store", () => {
     expect(loadActiveWalk(2_000)?.visitedIds).toEqual(["a"]);
   });
 
+  it("keeps the walk's totals so a reload does not forget the legs before the last change of route", () => {
+    saveActiveWalk({ ...snap(), walkBeganAt: 500, legsBefore: { minutes: 12.5, meters: 840 }, legOffsetMin: 3 }, 1_000);
+    const loaded = loadActiveWalk(2_000)!;
+    expect(loaded.walkBeganAt).toBe(500);
+    expect(loaded.legsBefore).toEqual({ minutes: 12.5, meters: 840 });
+    expect(loaded.legOffsetMin).toBe(3);
+    // An older snapshot, written before these fields existed, still loads.
+    saveActiveWalk(snap(), 1_000);
+    expect(loadActiveWalk(2_000)?.legsBefore).toBeUndefined();
+  });
+
   it("drops (and clears) a snapshot older than 2 hours", () => {
     saveActiveWalk(snap(), 1_000);
     expect(loadActiveWalk(1_000 + ACTIVE_WALK_MAX_AGE_MS + 1)).toBeNull();

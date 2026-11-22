@@ -17,6 +17,12 @@ export interface ActiveWalkSnapshot {
   walkId?: string | null;
   /** The route rules the walk was built with, so mid-walk rebuilds keep them. */
   routeRules?: unknown;
+  /** When the whole walk began (`startedAt` is the current leg's start after a change of route). */
+  walkBeganAt?: number;
+  /** Minutes and metres walked before the current leg, so the totals survive a reload. */
+  legsBefore?: { minutes: number; meters: number };
+  /** Minutes already spent against the current leg's budget before its first fix. */
+  legOffsetMin?: number;
   savedAt: number;
 }
 

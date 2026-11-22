@@ -232,6 +232,8 @@ interface PlanSnapshot {
   startTime: number;
   /** The route rules (stroller/wheelchair access) the plan was built with, restored on undo. */
   routeRules?: AssistantBuild["routeRules"];
+  /** Minutes and metres walked before this plan's leg began, so "back to previous route" can restore the walk's totals. */
+  banked?: { minutes: number; meters: number };
 }
 
 // Comfortably past `deviation-detector.ts`'s 50 m re-route threshold, and not
@@ -607,6 +609,14 @@ export function WalkPlannerApp({
     at: number;
   } | null>(null);
   const [walkStats, setWalkStats] = useState<WalkStatsData | null>(null);
+  // A change of route starts a new leg whose clock and distance start at zero (its budget is "what was left").
+  // The walk as a whole is these totals plus the live leg: the finish card, the saved run and the learned pace read them.
+  const walkStatsRef = useRef<WalkStatsData | null>(null);
+  const walkLegsBeforeRef = useRef({ minutes: 0, meters: 0 });
+  // Minutes already spent against the *current leg's* budget before its first fix (only after "back to previous route").
+  const legElapsedOffsetMinRef = useRef(0);
+  // Wall-clock moment the whole walk began (not the current leg).
+  const walkBeganAtRef = useRef<number | null>(null);
   // Timestamp (fix clock) of the first fix of this walk leg, for "elapsed".
   const firstFixAtRef = useRef<number | null>(null);
   // Fix clock vs wall clock: lets the ticker ask "what time is it on the fix
@@ -669,9 +679,8 @@ export function WalkPlannerApp({
     if (!fix || !input || !discovery) return null;
     const matched = matchedRef.current;
     const elapsedMin =
-      firstFixAtRef.current === null
-        ? 0
-        : (fix.timestamp - firstFixAtRef.current) / 60_000;
+      legElapsedOffsetMinRef.current +
+      (firstFixAtRef.current === null ? 0 : (fix.timestamp - firstFixAtRef.current) / 60_000);
     const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
     return {
       origin: fix.currentPosition,
@@ -709,6 +718,7 @@ export function WalkPlannerApp({
   const applySplicedRoute = (spliced: Coordinates[], atMs: number) => {
     if (walkTrackerRef.current === null) return;
     lastLocalRejoinAtRef.current = atMs;
+    bankWalkedMeters();
     walkGeometryRef.current = spliced;
     lastSegmentIndexRef.current = 0; // not null: null searches the whole line and a loop matches its last leg
     matchedRef.current = { segmentIndex: 0, point: spliced[0] };
@@ -820,13 +830,13 @@ export function WalkPlannerApp({
       plannedPace: input.walkingPaceMinPerKm,
       remainingVisitMin,
     });
-    const elapsedMin = Math.max(0, (now - firstFixAt) / 60_000);
+    const elapsedMin = legElapsedOffsetMinRef.current + Math.max(0, (now - firstFixAt) / 60_000);
     const atRouteEnd = routeEndRef.current.update({
       remainingM,
       accuracyM: fix.accuracyMeters,
       atMs: fix.timestamp,
     });
-    setWalkStats({
+    const stats: WalkStatsData = {
       kmh: speed.kmh,
       speedState: speed.state,
       plannedPaceMinPerKm: input.walkingPaceMinPerKm,
@@ -838,8 +848,40 @@ export function WalkPlannerApp({
       remainingM,
       allowedMin: input.availableMinutes,
       atRouteEnd,
-    });
+    };
+    walkStatsRef.current = stats;
+    setWalkStats(stats);
   };
+
+  // Minutes the current leg has run, on the fix clock (the simulator's runs 10x; the wall clock must not be mixed in).
+  const legElapsedMin = (): number => {
+    const fix = latestPaceUpdateRef.current;
+    const first = firstFixAtRef.current;
+    const raw = fix && first !== null ? Math.max(0, (fixClockNow(fix.timestamp) - first) / 60_000) : 0;
+    return legElapsedOffsetMinRef.current + raw;
+  };
+  // The leg that is ending goes into the walk's totals; the next leg counts from zero again.
+  const bankCurrentLeg = () => {
+    const stats = walkStatsRef.current;
+    if (stats) {
+      walkLegsBeforeRef.current = {
+        minutes: walkLegsBeforeRef.current.minutes + stats.elapsedMin,
+        meters: walkLegsBeforeRef.current.meters + stats.walkedM,
+      };
+    }
+    legElapsedOffsetMinRef.current = 0;
+    // A reload's saved start belongs to the first leg only; every later leg starts at its own first fix.
+    resumedStartRef.current = null;
+  };
+  // A splice replaces the line from the walker on, so distance along it starts again at zero: keep what was walked.
+  const bankWalkedMeters = () => {
+    const stats = walkStatsRef.current;
+    if (stats) walkLegsBeforeRef.current.meters += stats.walkedM;
+  };
+  const walkTotals = () => ({
+    minutes: walkLegsBeforeRef.current.minutes + (walkStats?.elapsedMin ?? 0),
+    meters: walkLegsBeforeRef.current.meters + (walkStats?.walkedM ?? 0),
+  });
 
   // Everything on the walk screen that runs on a schedule instead of per fix.
   const handleWalkTick = () => {
@@ -908,6 +950,7 @@ export function WalkPlannerApp({
     routeEndRef.current.reset();
     setPaceAdvisory(null);
     setWalkStats(null);
+    walkStatsRef.current = null;
     setOffRouteHint(null);
     offRouteDismissedRef.current = false;
     setOffRouteDismissed(false);
@@ -973,6 +1016,9 @@ export function WalkPlannerApp({
     // Keep the walk's identity: its start time (so elapsed carries on), its saved row and its route rules.
     resumedStartRef.current = snapshot.startedAt;
     walkStartTimeRef.current = snapshot.startedAt;
+    walkBeganAtRef.current = snapshot.walkBeganAt ?? snapshot.startedAt;
+    walkLegsBeforeRef.current = snapshot.legsBefore ?? { minutes: 0, meters: 0 };
+    legElapsedOffsetMinRef.current = snapshot.legOffsetMin ?? 0;
     walkIdCacheRef.current = snapshot.walkId ?? null;
     savedWalkIdRef.current = snapshot.walkId ? Promise.resolve(snapshot.walkId) : null;
     routeRulesRef.current = snapshot.routeRules as AssistantBuild["routeRules"];
@@ -1005,6 +1051,10 @@ export function WalkPlannerApp({
       lastFix: currentPosition,
       walkId: walkIdCacheRef.current,
       routeRules: routeRulesRef.current,
+      // The walk's totals before this leg: a reload must not forget what earlier legs walked.
+      walkBeganAt: walkBeganAtRef.current ?? undefined,
+      legsBefore: { ...walkLegsBeforeRef.current },
+      legOffsetMin: legElapsedOffsetMinRef.current,
     });
   };
   useEffect(() => {
@@ -1111,10 +1161,12 @@ export function WalkPlannerApp({
     resumedStartRef.current = null;
     walkIdCacheRef.current = null;
     if (walkMode) {
+      // The whole walk, not just the leg since the last change of route.
+      const totals = walkTotals();
       setFinishData({
         stops: walkPlanRef.current?.orderedAttractions.length ?? 0,
-        elapsedMin: walkStats?.elapsedMin ?? 0,
-        walkedKm: (walkStats?.walkedM ?? 0) / 1000,
+        elapsedMin: totals.minutes,
+        walkedKm: totals.meters / 1000,
       });
     }
     // Ask only about a walk that was actually walked, and only when there is
@@ -1154,6 +1206,9 @@ export function WalkPlannerApp({
     shortcut.endWalk();
     walkedTrackRef.current = [];
     walkStartPointRef.current = null;
+    walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
+    legElapsedOffsetMinRef.current = 0;
+    walkBeganAtRef.current = null;
     // Queued saved places belonged to that walk; the next one starts clean.
     setWishlist([]);
   };
@@ -1518,6 +1573,7 @@ export function WalkPlannerApp({
             geometry: walkGeometryRef.current,
             startTime: walkStartTimeRef.current,
             routeRules: rulesBefore,
+            banked: { ...walkLegsBeforeRef.current },
           }
         : null;
     // Make before break: during a mid-walk rebuild nothing is torn down until the
@@ -1531,6 +1587,8 @@ export function WalkPlannerApp({
       // instead of the route the walker deliberately started on. A user-initiated
       // build clears it below, which is where a genuinely new chain begins.
       if (snapshot) setPreviousPlan((prev) => prev ?? snapshot);
+      // The leg that ends here is part of the walk: bank it before its stats go (and the reload's saved start is spent).
+      if (snapshot) bankCurrentLeg();
       stopWalkTracking();
       walkInputRef.current = input;
       setLastWalkInput(input);
@@ -1564,6 +1622,9 @@ export function WalkPlannerApp({
       // A re-plan in the middle of a walk keeps the gray trail: it is still where the walker has been.
       if (walkPhase !== "walking") walkedTrackRef.current = [];
       walkStartPointRef.current = input.origin;
+      walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
+      legElapsedOffsetMinRef.current = 0;
+      walkBeganAtRef.current = null;
     }
 
     // Attractions the walker already reached are done — never re-plan them back
@@ -1839,8 +1900,9 @@ export function WalkPlannerApp({
     const sustained = sustainedPace();
     return {
       originalInput: orig,
-      walkStartTime: walkStartTimeRef.current,
-      now: Date.now(),
+      // The leg's elapsed time on the fix clock: the wall clock would run 10x slow against the simulator's fixes.
+      walkStartTime: 0,
+      now: legElapsedMin() * 60_000,
       // Only a trustworthy fix (<=50 m, see `onPositionUpdate`) or the point
       // the walker matched onto the route — never a fix with a wide error
       // circle, which is how a rebuild once started 100 m from the walker.
@@ -2261,6 +2323,7 @@ export function WalkPlannerApp({
       showWalkNotice(companionText(uiLang, "notice.amenityFailed"), "warn");
       return;
     }
+    bankWalkedMeters();
     walkGeometryRef.current = spliced;
     lastSegmentIndexRef.current = 0; // not null: null searches the whole line and a loop matches its last leg
     matchedRef.current = { segmentIndex: 0, point: spliced[0] };
@@ -2391,23 +2454,26 @@ export function WalkPlannerApp({
     const memory = companionMemoryRef.current;
     const discovery = discoveryRef.current;
     const input = walkInputRef.current;
-    if (walkMode && isSignedIn && (walkStats?.elapsedMin ?? 0) >= 1) {
+    // Everything below describes the whole walk: the legs before the last change of route plus the live one.
+    const totals = walkTotals();
+    const walkBeganAt = walkBeganAtRef.current ?? walkStartTimeRef.current;
+    if (walkMode && isSignedIn && totals.minutes >= 1) {
       // Saved places that were on this walk and visited get the "visited" mark (others are ignored).
       const seen = visitTrackerRef.current?.visitedIds ?? new Set<string>();
       const visitedStops = (walkPlanRef.current?.orderedAttractions ?? []).filter((a) => seen.has(a.id));
       if (visitedStops.length > 0) void markStopsVisited(stopsFromAttractions(visitedStops));
     }
-    if (walkMode && isSignedIn && savedWalkIdRef.current && (walkStats?.elapsedMin ?? 0) >= 1) {
+    if (walkMode && isSignedIn && savedWalkIdRef.current && totals.minutes >= 1) {
       const row = savedWalkIdRef.current;
       // Ended before the last stop: remember the next one, so "continue where I stopped" can pick it up.
       const planned = walkPlanRef.current?.orderedAttractions ?? [];
       const seenIds = visitTrackerRef.current?.visitedIds ?? new Set<string>();
       const nextStop = planned.findIndex((a) => !seenIds.has(a.id));
-      const done = { status: "completed" as const, totalMin: walkStats?.elapsedMin ?? 0, distanceM: walkStats?.walkedM ?? 0 };
+      const done = { status: "completed" as const, totalMin: totals.minutes, distanceM: totals.meters };
       void row
         .then(async (id) => {
           if (!id) return false;
-          void recordRun(id, { startedAt: new Date(walkStartTimeRef.current).toISOString(), ...(nextStop >= 0 ? { lastStopIndex: nextStop } : { finishedAt: new Date().toISOString() }), minutes: done.totalMin, distanceM: done.distanceM });
+          void recordRun(id, { startedAt: new Date(walkBeganAt).toISOString(), ...(nextStop >= 0 ? { lastStopIndex: nextStop } : { finishedAt: new Date().toISOString() }), minutes: done.totalMin, distanceM: done.distanceM });
           return updateWalk(id, done);
         })
         .then(() => setWalksVersion((v) => v + 1));
@@ -2419,29 +2485,31 @@ export function WalkPlannerApp({
       memory &&
       discovery &&
       input &&
-      (walkStats?.elapsedMin ?? 0) >= 1
+      totals.minutes >= 1
     ) {
       const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
       const stops = walkPlanRef.current?.orderedAttractions ?? [];
       const walkEndInput = buildWalkEndInput({
           learnPreferences: true,
-          startedAtMs: walkStartTimeRef.current,
-          plannedMin: input.availableMinutes,
-          actualMin: walkStats?.elapsedMin ?? 0,
-          distanceM: walkStats?.walkedM ?? 0,
+          startedAtMs: walkBeganAt,
+          // The time set for the whole walk: what earlier legs used plus what the last leg was given.
+          plannedMin: walkLegsBeforeRef.current.minutes + input.availableMinutes,
+          actualMin: totals.minutes,
+          distanceM: totals.meters,
           environment: discovery.environment,
           stopsPlanned: stops.length,
           stopsVisited: stops.filter((a) => visited.has(a.id)).length,
           records: companion.records(),
           collapseCount: 0,
           items: discovery.items(),
-          paceMinPerKm: latestPaceUpdateRef.current?.paceMinPerKm ?? null,
+          // The pace of the whole walk, not the last 4 seconds of GPS (which is null while standing at the end).
+          paceMinPerKm: sustainedPace() ?? (totals.meters >= 300 ? totals.minutes / (totals.meters / 1000) : null),
           // Routine habits: local-time bins only, and only with the granted consent.
           habits:
             walkSettings.learningConsent === "granted"
               ? buildHabitWalkEnd({
-                  startedAtMs: walkStartTimeRef.current,
-                  actualMin: walkStats?.elapsedMin ?? 0,
+                  startedAtMs: walkBeganAt,
+                  actualMin: totals.minutes,
                   timeZone: resolveTimeZone(
                     latestPaceUpdateRef.current?.currentPosition ?? null,
                     Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
@@ -2583,6 +2651,7 @@ export function WalkPlannerApp({
 
       const spliced = spliceRoute(requestGeometry, candidate, data.geometry);
       lastLocalRejoinAtRef.current = fix.timestamp;
+      bankWalkedMeters();
       walkGeometryRef.current = spliced;
       lastSegmentIndexRef.current = 0; // not null: null searches the whole line and a loop matches its last leg
       matchedRef.current = { segmentIndex: 0, point: spliced[0] };
@@ -2732,7 +2801,13 @@ export function WalkPlannerApp({
     }
     // A start the walker pressed (not the one a rebuild makes for itself) begins from a clean slate:
     // an "update running" flag left behind by a walk that ended mid-update must not block this one.
-    if (!planOverride) abandonMidWalkRebuild();
+    if (!planOverride) {
+      abandonMidWalkRebuild();
+      // A walk the walker started: its clock and totals begin now.
+      walkBeganAtRef.current = Date.now();
+      walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
+      legElapsedOffsetMinRef.current = 0;
+    }
     walkPlanRef.current = plan;
     // Give the map the whole screen for the walk.
     onRequestExpand?.(true);
@@ -2840,7 +2915,11 @@ export function WalkPlannerApp({
         headingDeg: update.headingDeg,
         speedMps: update.speedMps,
       });
-      if (firstFixAtRef.current === null) firstFixAtRef.current = resumedStartRef.current ?? update.timestamp;
+      if (firstFixAtRef.current === null) {
+        firstFixAtRef.current = resumedStartRef.current ?? update.timestamp;
+        // A cooldown armed on the previous leg's clock (the simulator's runs 10x ahead) must not outlast its length here.
+        replanTriggerRef.current?.capCooldown(update.timestamp);
+      }
 
       speedEstimatorRef.current?.record({
         coordinates: update.currentPosition,
@@ -3167,6 +3246,19 @@ export function WalkPlannerApp({
       snapshot.input.origin;
 
     abandonMidWalkRebuild();
+    // Back on the first plan of the chain: its budget is the one it started with, so the minutes spent since then
+    // count against it (the offset), and the walk's totals go back to what they were before that plan began.
+    const spentLeg = walkStatsRef.current;
+    const bankedNow = walkLegsBeforeRef.current;
+    const bankedThen = snapshot.banked ?? bankedNow;
+    const restoredAt = detectDeviation(resumePosition, snapshot.geometry, 0);
+    const restoredProgressM = progressAlong(snapshot.geometry, restoredAt.closestSegmentIndex, restoredAt.closestPointOnRoute).walkedM;
+    walkLegsBeforeRef.current = {
+      minutes: bankedThen.minutes,
+      meters: Math.max(0, bankedNow.meters + (spentLeg?.walkedM ?? 0) - restoredProgressM),
+    };
+    legElapsedOffsetMinRef.current = Math.max(0, bankedNow.minutes + (spentLeg?.elapsedMin ?? 0) - bankedThen.minutes);
+    resumedStartRef.current = null;
     stopWalkTracking();
     walkInputRef.current = { ...snapshot.input, origin: resumePosition };
     setLastWalkInput(walkInputRef.current);
@@ -3333,9 +3425,11 @@ export function WalkPlannerApp({
         geometry: walkGeometryRef.current,
         startTime: walkStartTimeRef.current,
         routeRules: routeRulesRef.current,
+        banked: { ...walkLegsBeforeRef.current },
       };
       setPreviousPlan((prev) => prev ?? snapshot);
     }
+    bankCurrentLeg();
     const plan: WalkPlan = {
       orderedAttractions: [],
       segments: [],
@@ -4320,7 +4414,7 @@ export function WalkPlannerApp({
                     const input = walkInputRef.current;
                     if (!plan || !input) return null;
                     if (walkPhaseRef.current === "walking") {
-                      const elapsed = (Date.now() - walkStartTimeRef.current) / 60_000;
+                      const elapsed = legElapsedMin();
                       return {
                         source: "walking",
                         start: input.origin,

@@ -431,3 +431,41 @@ describe("ReplanTrigger — setPlannedPace (both directions)", () => {
     expect(fresh.evaluate(e2)).toBeNull();
   });
 });
+
+describe("ReplanTrigger.capCooldown (a new leg's clock)", () => {
+  it("brings a cooldown armed on a clock that ran far ahead back to its own length", () => {
+    const trigger = new ReplanTrigger(15);
+    // Armed on the previous leg's clock, which ran 10x: a cooldown ending a very long way past the new leg's start.
+    const farAhead = T0 + 60 * 60_000;
+    const doneAt = walk(trigger, farAhead, SUSTAINED_SLOW_WINDOW_MS + 60_000, 30);
+    expect(trigger.evaluate(doneAt)).toBe("sustained-slow-pace");
+
+    // The next leg's clock starts back at T0, and the walker is slow again for the whole window.
+    const uncapped = new ReplanTrigger(15);
+    const uncappedDoneAt = walk(uncapped, farAhead, SUSTAINED_SLOW_WINDOW_MS + 60_000, 30);
+    expect(uncapped.evaluate(uncappedDoneAt)).toBe("sustained-slow-pace");
+
+    trigger.capCooldown(T0);
+    const slowAgainAt = walk(trigger, T0, SUSTAINED_SLOW_WINDOW_MS + 60_000, 30);
+    expect(slowAgainAt).toBeLessThan(farAhead);
+    // Not silent for the rest of the walk: its own length (12 minutes) has passed, so it fires again...
+    expect(trigger.evaluate(slowAgainAt)).toBe("sustained-slow-pace");
+    // ...where the same trigger without the cap would still be waiting out a cooldown from the future.
+    const stuck = new ReplanTrigger(15);
+    const stuckAt = walk(stuck, farAhead, SUSTAINED_SLOW_WINDOW_MS + 60_000, 30);
+    expect(stuck.evaluate(stuckAt)).toBe("sustained-slow-pace");
+    walk(stuck, T0, SUSTAINED_SLOW_WINDOW_MS + 60_000, 30);
+    expect(stuck.evaluate(slowAgainAt)).toBeNull();
+  });
+
+  it("leaves a cooldown that is still inside its own length alone", () => {
+    const trigger = new ReplanTrigger(15);
+    const doneAt = walk(trigger, T0, SUSTAINED_SLOW_WINDOW_MS + 60_000, 30);
+    expect(trigger.evaluate(doneAt)).toBe("sustained-slow-pace");
+    trigger.capCooldown(doneAt + 1_000);
+    const slowAgainAt = walk(trigger, doneAt + 1_000, SUSTAINED_SLOW_WINDOW_MS + 60_000, 30);
+    // Still cooling down just after: the cap did not shorten a normal cooldown.
+    expect(trigger.evaluate(doneAt + 60_000)).toBeNull();
+    expect(slowAgainAt).toBeGreaterThan(doneAt);
+  });
+});
