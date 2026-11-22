@@ -56,6 +56,21 @@ export function timeToFinishMin(args: {
   return (args.remainingM / 1000 / kmh) * 60 + args.remainingVisitMin;
 }
 
+/**
+ * Minutes ahead of (positive) or over (negative) the time the walker set, if the rest of the
+ * route is walked at `paceMinPerKm`: budget - elapsed - (distance left at that pace + visits).
+ */
+export function spareMinAtPace(args: {
+  availableMin: number;
+  elapsedMin: number;
+  remainingM: number;
+  remainingVisitMin: number;
+  paceMinPerKm: number;
+}): number {
+  const finish = (args.remainingM / 1000) * args.paceMinPerKm + args.remainingVisitMin;
+  return args.availableMin - args.elapsedMin - finish;
+}
+
 export type PaceTone = "good" | "warn" | "bad";
 
 /** Slower than plan is what costs the walker; faster is never flagged. */

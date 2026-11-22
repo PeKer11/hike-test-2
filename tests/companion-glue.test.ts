@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseMemoryWire, toMemoryWire } from "@/lib/preferences/companion-memory-wire";
 import { CompanionEngine } from "@/lib/walk/companion/companion-engine";
 import {
+  alertBlocksCompanion,
   amenityItemsFromPlaces,
   buildCandidates,
   conditionsDue,
@@ -278,5 +279,34 @@ describe("memory wire", () => {
     expect(bad.interactions.map((i) => i.poi_key)).toEqual(["ok"]);
     expect(bad.priors).toEqual({ rain: { asked: 2, answered: 2 } });
     expect(parseMemoryWire(null)).toBeNull();
+  });
+});
+
+describe("alertBlocksCompanion", () => {
+  it("lets the companion ask behind its own cards, the pace cards and the quiet 'plan at your real pace' offer", () => {
+    expect(alertBlocksCompanion(null)).toBe(false);
+    expect(alertBlocksCompanion("companion-sunset")).toBe(false);
+    expect(alertBlocksCompanion("pace-slow")).toBe(false);
+    expect(alertBlocksCompanion("pace-fast")).toBe(false);
+    expect(alertBlocksCompanion("pace-mismatch")).toBe(false);
+  });
+
+  it("still waits behind a real question or alert", () => {
+    expect(alertBlocksCompanion("off-route-ask")).toBe(true);
+    expect(alertBlocksCompanion("off-route")).toBe(true);
+    expect(alertBlocksCompanion("walk-finished")).toBe(true);
+    expect(alertBlocksCompanion("pace-ask-sustained-slow-pace")).toBe(true);
+  });
+});
+
+describe("buildCandidates: the pace question uses the spare minutes", () => {
+  it("asks 'add N min' with the real overrun", () => {
+    const c = buildCandidates(
+      tick({
+        remainingWalkMin: 65,
+        pace: { advice: "slow", currentPaceMinPerKm: 22.5, plannedPaceMinPerKm: 15, spareMin: -15 },
+      }),
+    ).find((x) => x.kind === "pace-slow")!;
+    expect(c.context.n).toBe(15);
   });
 });

@@ -9,10 +9,12 @@ import {
 import {
   buildAddPlaceRebuildRequest,
   buildDeviationRebuildRequest,
+  buildDropStopsRebuildRequest,
   buildExtendedTimeRebuildRequest,
   buildHeadingContinuedRebuildRequest,
   buildOptionRebuildRequest,
   buildPaceRebuildRequest,
+  sustainedPaceMinPerKm,
   buildRecallRebuildRequest,
   promptWalkBuildOptions,
   stopsAheadOfHeading,
@@ -1022,5 +1024,65 @@ describe("buildOptionRebuildRequest with a stated time", () => {
     expect(buildOptionRebuildRequest(late, [attraction("a")]).input.availableMinutes).toBe(20);
     expect(buildOptionRebuildRequest(late, [attraction("a")], { minutesFromNow: 80 }).input.availableMinutes).toBe(80);
     expect(buildOptionRebuildRequest(late, [attraction("a")], { minutesFromNow: 5 }).input.availableMinutes).toBe(15);
+  });
+});
+
+// P1 of docs/PACE-AND-MIDWALK-REROUTE-REVIEW-2026-11-22.md: lengthen and shorten are about the walker's real speed.
+describe("pace rebuilds are sized at the walker's pace, not the plan's", () => {
+  it("a fast walker's lengthen fills the time that is left at the fast pace", () => {
+    const { input, options } = buildPaceRebuildRequest(
+      "sustained-fast-pace",
+      state({ sizingPaceMinPerKm: 9 }),
+    );
+    expect(input.walkingPaceMinPerKm).toBe(9); // the plan said 12
+    expect(options.fillRemainingTime).toBe(true);
+    // The minutes are what is left of the budget, so the filler adds more places at the fast pace.
+    expect(input.availableMinutes).toBeGreaterThan(0);
+  });
+
+  it("a slow walker's shorter route is priced at the slow pace, so what does not fit is dropped", () => {
+    const { input, options } = buildPaceRebuildRequest(
+      "sustained-slow-pace",
+      state({ sizingPaceMinPerKm: 24 }),
+    );
+    expect(input.walkingPaceMinPerKm).toBe(24);
+    expect(options.fillRemainingTime).toBe(false);
+  });
+
+  it("keeps the plan's pace when nothing usable is measured", () => {
+    expect(buildPaceRebuildRequest("sustained-slow-pace", state()).input.walkingPaceMinPerKm).toBe(12);
+    expect(
+      buildPaceRebuildRequest("sustained-slow-pace", state({ sizingPaceMinPerKm: null })).input.walkingPaceMinPerKm,
+    ).toBe(12);
+    expect(
+      buildPaceRebuildRequest("sustained-slow-pace", state({ sizingPaceMinPerKm: Number.NaN })).input.walkingPaceMinPerKm,
+    ).toBe(12);
+  });
+
+  it("clamps the sizing pace to 6-40 min/km", () => {
+    expect(buildPaceRebuildRequest("sustained-fast-pace", state({ sizingPaceMinPerKm: 2 })).input.walkingPaceMinPerKm).toBe(6);
+    expect(buildPaceRebuildRequest("sustained-slow-pace", state({ sizingPaceMinPerKm: 90 })).input.walkingPaceMinPerKm).toBe(40);
+  });
+
+  it("only the pace path is re-priced: dropping a stop and 'give me more time' keep the plan's pace", () => {
+    const sized = state({ sizingPaceMinPerKm: 24 });
+    expect(buildDropStopsRebuildRequest(sized, ["b"]).input.walkingPaceMinPerKm).toBe(12);
+    expect(buildExtendedTimeRebuildRequest(sized).input.walkingPaceMinPerKm).toBe(12);
+  });
+});
+
+describe("sustainedPaceMinPerKm", () => {
+  it("prefers the 5-minute window over the smoothed speed over the 4-second reading", () => {
+    expect(
+      sustainedPaceMinPerKm({ windowMinPerKm: 13, smoothedKmh: 6, smoothedState: "moving", shortMinPerKm: 8 }),
+    ).toBe(13);
+    expect(sustainedPaceMinPerKm({ smoothedKmh: 6, smoothedState: "moving", shortMinPerKm: 8 })).toBeCloseTo(10);
+    expect(sustainedPaceMinPerKm({ shortMinPerKm: 8 })).toBe(8);
+  });
+
+  it("is null when nothing measured is usable (standing, no fix, an implausible speed)", () => {
+    expect(sustainedPaceMinPerKm({})).toBeNull();
+    expect(sustainedPaceMinPerKm({ smoothedKmh: 0, smoothedState: "paused", shortMinPerKm: null })).toBeNull();
+    expect(sustainedPaceMinPerKm({ smoothedKmh: 25, smoothedState: "moving" })).toBeNull();
   });
 });

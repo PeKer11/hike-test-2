@@ -70,6 +70,14 @@ export interface PaceRebuildState<TInput extends RebuildInput> {
    */
   currentPaceMinPerKm?: number | null;
   /**
+   * The pace a *lengthen / shorten* rebuild is sized at: the walker's sustained
+   * measured pace (see `sustainedPaceMinPerKm`), not the pace the plan was made
+   * at. `/api/walk-plan` sizes a walk at the pace it is sent, so sending the old
+   * plan's pace gave a fast walker a "longer" route that still ended early, and a
+   * slow walker a "shorter" one that still overran. Absent: the plan's pace.
+   */
+  sizingPaceMinPerKm?: number | null;
+  /**
    * Hard cap on the rebuilt walk's minutes (e.g. minutes to sunset). Unlike
    * MIN_REBUILD_MINUTES it is respected even below 15: a walk that must end by
    * sunset beats a "worth walking" stub.
@@ -91,13 +99,53 @@ export function buildPaceRebuildRequest<TInput extends RebuildInput>(
   heading?: number,
 ): { input: TInput; options: BuildWalkOptions } {
   const fast = replanPaceDirection(reason) === "fast";
-  const request = buildMidWalkRebuildRequest(state, {
+  const built = buildMidWalkRebuildRequest(state, {
     fillRemainingTime: fast,
   });
+  // Lengthen and shorten are about the walker's real speed: size the route at it.
+  const sizing = usableSizingPace(state.sizingPaceMinPerKm);
+  const request =
+    sizing === null ? built : { ...built, input: { ...built.input, walkingPaceMinPerKm: sizing } };
   // "Add a stop" must look ahead, not behind: only a fast walker discovers.
   return fast && heading !== undefined
     ? { ...request, options: { ...request.options, heading } }
     : request;
+}
+
+/** Slowest and fastest pace (min/km) a rebuild is sized at: 40 is 1.5 km/h, 6 is 10 km/h. */
+export const SIZING_PACE_MIN_PER_KM = { min: 6, max: 40 } as const;
+
+function usableSizingPace(pace: number | null | undefined): number | null {
+  if (pace === null || pace === undefined || !Number.isFinite(pace) || pace <= 0) return null;
+  return Math.min(SIZING_PACE_MIN_PER_KM.max, Math.max(SIZING_PACE_MIN_PER_KM.min, pace));
+}
+
+/**
+ * The pace to size a rebuild at, from what the app is measuring. Never the
+ * 4-second reading by itself: standing at a light it is null, and a street
+ * canyon makes it jump, which is how a lengthen was once sized at 1.3x the plan.
+ *
+ * In order of trust: the 5-minute pace window (stops left out), then the smoothed
+ * speed while the walker is moving, then the short reading. Null when nothing
+ * measured is usable, so the caller falls back to the plan's pace.
+ */
+export function sustainedPaceMinPerKm(sources: {
+  windowMinPerKm?: number | null;
+  smoothedKmh?: number | null;
+  smoothedState?: "moving" | "paused" | "unknown";
+  shortMinPerKm?: number | null;
+}): number | null {
+  const fromWindow = usableSizingPace(sources.windowMinPerKm);
+  if (fromWindow !== null) return fromWindow;
+  if (
+    sources.smoothedState === "moving" &&
+    typeof sources.smoothedKmh === "number" &&
+    sources.smoothedKmh >= 1.5 &&
+    sources.smoothedKmh <= 10
+  ) {
+    return usableSizingPace(60 / sources.smoothedKmh);
+  }
+  return usableSizingPace(sources.shortMinPerKm);
 }
 
 /**

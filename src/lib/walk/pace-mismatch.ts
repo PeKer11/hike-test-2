@@ -18,6 +18,10 @@ export const PACE_MISMATCH_RATIO = 2;
 export const PACE_MISMATCH_SUSTAIN_MS = 3 * 60_000;
 export const PACE_MISMATCH_MIN_KMH = 1.5;
 export const PACE_MISMATCH_MAX_KMH = 10;
+/** An offer nobody answered comes back no sooner than this (fix clock), as a fresh question. */
+export const PACE_MISMATCH_REASK_MS = 10 * 60_000;
+/** Spare minutes (at the offered pace) from which the card also offers to lengthen the walk. */
+export const PACE_MISMATCH_LENGTHEN_MIN_SPARE = 10;
 
 export interface PaceMismatchOffer {
   /** Walking speed now, to the nearest 0.5 km/h. */
@@ -32,6 +36,7 @@ export class PaceMismatchWatcher {
   private phase: Phase = "watching";
   private since: number | null = null;
   private lastAt = Number.NEGATIVE_INFINITY;
+  private quietUntil = Number.NEGATIVE_INFINITY;
 
   constructor(private plannedPaceMinPerKm: number) {}
 
@@ -41,6 +46,17 @@ export class PaceMismatchWatcher {
     this.plannedPaceMinPerKm = minPerKm;
     this.phase = "watching";
     this.since = null;
+  }
+
+  /**
+   * The offer was shown and nobody answered it (the card expired). Not a "keep": it may come back,
+   * but only as a new question after `PACE_MISMATCH_REASK_MS`, never straight away.
+   */
+  lapse(atMs: number): void {
+    if (this.phase !== "offered") return;
+    this.phase = "watching";
+    this.since = null;
+    this.quietUntil = atMs + PACE_MISMATCH_REASK_MS;
   }
 
   /** The walker chose to keep the plan's pace: stay quiet until it changes. */
@@ -54,6 +70,10 @@ export class PaceMismatchWatcher {
     if (sample.atMs <= this.lastAt) return null;
     this.lastAt = sample.atMs;
     if (this.phase !== "watching") return null;
+    if (sample.atMs < this.quietUntil) {
+      this.since = null;
+      return null;
+    }
     // No rule for a gap in the looks: a dead GPS or a hidden page leaves the speed estimator
     // with no recent fix, it reports no speed, and that already breaks the run below. (A gap
     // rule would also break under the simulator, whose fix clock runs 10x between ticks.)

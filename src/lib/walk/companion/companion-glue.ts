@@ -78,10 +78,22 @@ export function amenityItemsFromPlaces(
 
 // --- candidates ---------------------------------------------------------------
 
+/**
+ * Whether the alert on the walk sheet keeps the companion from asking. The companion's own cards and the
+ * pace cards (which it replaces) never do. The "plan at your real pace" card does not either: it is a
+ * quiet offer that may stand for a minute, and a sunset, heat or rain question must not wait behind it.
+ */
+export function alertBlocksCompanion(alertId: string | null | undefined): boolean {
+  if (!alertId) return false;
+  return !alertId.startsWith("companion-") && !/^pace-(slow|fast|mismatch)$/.test(alertId);
+}
+
 export interface PaceAdviceInput {
   advice: "slow" | "fast";
   currentPaceMinPerKm: number;
   plannedPaceMinPerKm: number;
+  /** Signed minutes ahead (+) or over (-) of the walk's budget, at the real speed; null when unknown. */
+  spareMin?: number | null;
 }
 
 export interface TickInput {
@@ -119,6 +131,7 @@ export function buildCandidates(i: TickInput): Candidate[] {
       currentPaceMinPerKm: i.pace.currentPaceMinPerKm,
       plannedPaceMinPerKm: i.pace.plannedPaceMinPerKm,
       remainingPlannedMin: i.remainingWalkMin,
+      spareMin: i.pace.spareMin ?? undefined,
       remainingStops: i.remainingStops,
       addPlace: i.addPlace ?? undefined,
       nowMs: i.nowMs,

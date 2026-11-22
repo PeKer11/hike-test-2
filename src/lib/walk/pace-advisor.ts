@@ -95,6 +95,15 @@ export class PaceAdvisor {
     return this.state;
   }
 
+  /**
+   * The walker's pace over the window (min/km, stops left out), or null when the window
+   * is too empty to say. What lengthen and shorten rebuilds are sized at.
+   */
+  measuredPaceMinPerKm(now: number): number | null {
+    const ratio = this.paceRatio(now);
+    return ratio === null ? null : ratio * this.plannedPaceMinPerKm;
+  }
+
   reset(): void {
     this.samples = [];
     this.pendingStop = false;

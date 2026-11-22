@@ -45,8 +45,11 @@ const ORIGIN: Coordinates = { lat: 32.08, lng: 34.78 };
  * seconds the off-route question stands, and at 10× playback that is around
  * ten kilometres of walking; a route the simulator finishes stops the tracker
  * and takes the situation under test off the table.
+ *
+ * That was a 30 km line. "Ahead of time" is now judged against the time the walker set, and 30 km cannot be
+ * walked in 90 minutes at any pace, so the line is 3 km: long enough for the fast walker's first minutes.
  */
-const ROUTE: Coordinates[] = [ORIGIN, { lat: 32.35, lng: 34.78 }];
+const ROUTE: Coordinates[] = [ORIGIN, { lat: 32.107, lng: 34.78 }];
 
 function attraction(id: string, name: string, lat: number): Attraction {
   return {

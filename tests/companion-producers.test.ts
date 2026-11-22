@@ -43,6 +43,47 @@ describe("sunsetMs", () => {
   });
 });
 
+// P10: the question's numbers come from the signed spare minutes, not from scaling the remaining time by the pace ratio.
+describe("paceCandidate numbers (spareMin)", () => {
+  const stops = [
+    { id: "a", name: "A" },
+    { id: "b", name: "B" },
+  ];
+  const base = { plannedPaceMinPerKm: 15, remainingStops: stops, nowMs: T0 };
+
+  it("slow: the overrun is the real overrun, not remaining x (ratio - 1)", () => {
+    // 1.5x slower, 2 km and 20 min of visits left: the old formula said 33 min, the true overrun is 15.
+    const old = paceCandidate({ ...base, advice: "slow", currentPaceMinPerKm: 22.5, remainingPlannedMin: 65 })!;
+    expect(old.context.n).toBe(33);
+    const c = paceCandidate({ ...base, advice: "slow", currentPaceMinPerKm: 22.5, remainingPlannedMin: 65, spareMin: -15 })!;
+    expect(c.context.n).toBe(15);
+    expect(c.kind).toBe("pace-slow");
+    // 15 min is past the 10-min "mild" line, so shortening still leads; 8 min over leads with "more time".
+    expect(c.answers[0].operator?.op).toBe("shorten");
+    const mild = paceCandidate({ ...base, advice: "slow", currentPaceMinPerKm: 22.5, remainingPlannedMin: 65, spareMin: -8 })!;
+    expect(mild.context.n).toBe(8);
+    expect(mild.answers[0].operator?.op).toBe("keep-all-extend");
+  });
+
+  it("slow: a walker who still fits the time they set is not asked anything", () => {
+    expect(paceCandidate({ ...base, advice: "slow", currentPaceMinPerKm: 22.5, remainingPlannedMin: 65, spareMin: 6 })).toBeNull();
+  });
+
+  it("fast: the spare minutes are the real ones (2.25x faster, about 50 ahead), not 22", () => {
+    const fast = { ...base, plannedPaceMinPerKm: 30, advice: "fast" as const, currentPaceMinPerKm: 13.3, remainingPlannedMin: 40 };
+    expect(paceCandidate(fast)!.context.n).toBe(Math.round(40 * (1 - 13.3 / 30)));
+    const c = paceCandidate({ ...fast, spareMin: 50 })!;
+    expect(c.context.n).toBe(50);
+    expect(c.answers.map((a) => a.operator?.op)).toEqual(["lengthen", "head-back", "dismiss"]);
+  });
+
+  it("fast: under the 12-minute floor asks nothing, even where the ratio formula would have asked", () => {
+    const fast = { ...base, advice: "fast" as const, currentPaceMinPerKm: 8, remainingPlannedMin: 60 };
+    expect(paceCandidate(fast)).not.toBeNull();
+    expect(paceCandidate({ ...fast, spareMin: 5 })).toBeNull();
+  });
+});
+
 describe("paceCandidate", () => {
   const stops = [
     { id: "a", name: "A" },

@@ -123,4 +123,14 @@ describe("PaceAdvisor", () => {
     }
     expect(said).toBe("slow");
   });
+
+  it("reports the walker's measured pace over the window, and nothing before it has enough coverage", () => {
+    const early = new PaceAdvisor(12);
+    const e = feed(early, T0, 120, 20);
+    expect(early.measuredPaceMinPerKm(e.end)).toBeNull();
+
+    const a = new PaceAdvisor(12);
+    const { end } = feed(a, T0, 330, 19.2);
+    expect(a.measuredPaceMinPerKm(end)).toBeCloseTo(19.2, 0);
+  });
 });

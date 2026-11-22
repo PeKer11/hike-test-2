@@ -8,6 +8,7 @@ import {
   detourMinutes,
   paceBarTone,
   progressAlong,
+  spareMinAtPace,
   timeToFinishMin,
 } from "@/lib/walk/walk-stats";
 import type { Coordinates } from "@/lib/types";
@@ -122,5 +123,20 @@ describe("detourMinutes", () => {
     // 100 m at 12 min/km (83.3 m/min): 2*100*1.25/83.3 = 3 min, + 45 visit.
     expect(detourMinutes(100, 12, 45)).toBe(48);
     expect(detourMinutes(0, 12, 20)).toBe(20);
+  });
+});
+
+describe("spareMinAtPace", () => {
+  it("is the budget left minus the time to finish at that pace: positive ahead, negative over", () => {
+    // 60 min set, 10 gone, 3 km and 5 visit minutes left.
+    const args = { availableMin: 60, elapsedMin: 10, remainingM: 3000, remainingVisitMin: 5 };
+    expect(spareMinAtPace({ ...args, paceMinPerKm: 13.3 })).toBeCloseTo(60 - 10 - (3 * 13.3 + 5), 5); // ~5.1 spare
+    expect(spareMinAtPace({ ...args, paceMinPerKm: 30 })).toBeCloseTo(60 - 10 - (3 * 30 + 5), 5); // 45 over
+    expect(spareMinAtPace({ ...args, paceMinPerKm: 30 })).toBeLessThan(0);
+  });
+
+  it("the planned-2-km/h walker at 4.5 km/h has time to lengthen", () => {
+    // Plan: 2 km/h (30 min/km). 1 h set, 15 min in, 2 km left.
+    expect(spareMinAtPace({ availableMin: 60, elapsedMin: 15, remainingM: 2000, remainingVisitMin: 0, paceMinPerKm: 13.3 })).toBeGreaterThan(10);
   });
 });

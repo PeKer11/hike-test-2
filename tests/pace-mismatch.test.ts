@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PACE_MISMATCH_SUSTAIN_MS, PaceMismatchWatcher } from "@/lib/walk/pace-mismatch";
+import { PACE_MISMATCH_REASK_MS, PACE_MISMATCH_SUSTAIN_MS, PaceMismatchWatcher } from "@/lib/walk/pace-mismatch";
 
 const T0 = 5_000_000;
 /** Look every 5 s for `ms`, at a steady speed. Returns the first offer. */
@@ -90,5 +90,27 @@ describe("PaceMismatchWatcher", () => {
     expect(walk(w, 4.5, T0, PACE_MISMATCH_SUSTAIN_MS).offer).not.toBeNull();
     w.setPlannedPace(60 / 4.5);
     expect(walk(w, 4.5, T0 + 5 * 60_000, 30 * 60_000).offer).toBeNull();
+  });
+});
+
+describe("an offer nobody answered (lapse)", () => {
+  it("may come back, but only as a new question after the quiet period", () => {
+    const w = new PaceMismatchWatcher(30);
+    const first = walk(w, 4.5, T0, PACE_MISMATCH_SUSTAIN_MS);
+    expect(first.offer).not.toBeNull();
+    w.lapse(first.at);
+    // Not straight away, however long the same speed is kept up.
+    expect(walk(w, 4.5, first.at + 5_000, PACE_MISMATCH_REASK_MS - 10_000).offer).toBeNull();
+    // After the quiet period the 3 minutes start counting again, and it asks once more.
+    const again = walk(w, 4.5, first.at + PACE_MISMATCH_REASK_MS, PACE_MISMATCH_SUSTAIN_MS + 10_000);
+    expect(again.offer).toEqual({ measuredKmh: 4.5, plannedKmh: 2 });
+  });
+
+  it("lapse after Keep changes nothing: Keep stays quiet until the plan's pace changes", () => {
+    const w = new PaceMismatchWatcher(30);
+    const first = walk(w, 4.5, T0, PACE_MISMATCH_SUSTAIN_MS);
+    w.decline();
+    w.lapse(first.at);
+    expect(walk(w, 4.5, first.at + 5_000, 60 * 60_000).offer).toBeNull();
   });
 });

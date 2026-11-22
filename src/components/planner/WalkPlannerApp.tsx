@@ -108,13 +108,14 @@ import {
 import { HeadingSmoother } from "@/lib/walk/heading-smoother";
 import { SpeedEstimator } from "@/lib/walk/speed-estimator";
 import { PaceAdvisor, type PaceAdvice } from "@/lib/walk/pace-advisor";
-import { PaceMismatchWatcher, type PaceMismatchOffer } from "@/lib/walk/pace-mismatch";
+import { PACE_MISMATCH_LENGTHEN_MIN_SPARE, PaceMismatchWatcher, type PaceMismatchOffer } from "@/lib/walk/pace-mismatch";
 import {
   detourMinutes,
   isNearAnyStop,
   nextStopAlongM,
   progressAlong,
   routeDirectionDeg,
+  spareMinAtPace,
   timeToFinishMin,
 } from "@/lib/walk/walk-stats";
 import { RouteEndDetector } from "@/lib/walk/route-end";
@@ -171,6 +172,7 @@ import {
   promptWalkBuildOptions,
   setSimulatedPaceDrift,
   stopsLostInRebuild,
+  sustainedPaceMinPerKm,
   toggleSimulatedStray,
   type LostStop,
   type SimulatedPaceDrift,
@@ -190,6 +192,7 @@ import { FORGOTTEN_EVENT } from "@/lib/preferences/forget-client";
 import { parseMemoryWire, type CompanionMemoryWire } from "@/lib/preferences/companion-memory-wire";
 import { planAmenityDetour } from "@/lib/walk/companion/amenity-route";
 import {
+  alertBlocksCompanion,
   amenityForAnswer,
   amenityItemsFromPlaces,
   detectUiLang,
@@ -595,6 +598,8 @@ export function WalkPlannerApp({
   // "You walk much faster than the plan assumes": asked once, answered with a tap (`PaceMismatchWatcher`).
   const paceMismatchRef = useRef<PaceMismatchWatcher | null>(null);
   const [paceMismatchOffer, setPaceMismatchOffer] = useState<PaceMismatchOffer | null>(null);
+  // Wall-clock moment the "plan at your real pace" card went up: it takes itself down after `ADVISOR_CARD_TTL_MS`.
+  const paceMismatchShownAtRef = useRef<number | null>(null);
   // The "reached the end" card waits for `RouteEndDetector` (close to the end, a good fix, a few seconds).
   const routeEndRef = useRef(new RouteEndDetector());
   const [paceAdvisory, setPaceAdvisory] = useState<{
@@ -774,6 +779,20 @@ export function WalkPlannerApp({
   const fixClockNow = (fixTimestamp: number) =>
     fixTimestamp + (Date.now() - lastFixWallRef.current);
 
+  // The walker's pace over the last few minutes (min/km), for sizing a lengthen or shorten and for the
+  // pace questions' numbers. Not the 4-second fix reading by itself: that one is null at a red light.
+  const sustainedPace = (): number | null => {
+    const fix = latestPaceUpdateRef.current;
+    const now = fix ? fixClockNow(fix.timestamp) : Date.now();
+    const speed = speedEstimatorRef.current?.current(now);
+    return sustainedPaceMinPerKm({
+      windowMinPerKm: paceAdvisorRef.current?.measuredPaceMinPerKm(now),
+      smoothedKmh: speed?.kmh,
+      smoothedState: speed?.state,
+      shortMinPerKm: fix?.paceMinPerKm,
+    });
+  };
+
   const refreshWalkStats = () => {
     const fix = latestPaceUpdateRef.current;
     const input = walkInputRef.current;
@@ -845,7 +864,19 @@ export function WalkPlannerApp({
     if (mismatch) {
       const speed = speedEstimatorRef.current?.current(now);
       const offer = mismatch.update({ kmh: speed?.kmh ?? null, moving: speed?.state === "moving", atMs: now });
-      if (offer) setPaceMismatchOffer(offer);
+      if (offer) {
+        paceMismatchShownAtRef.current = Date.now();
+        setPaceMismatchOffer(offer);
+      } else if (
+        paceMismatchShownAtRef.current !== null &&
+        Date.now() - paceMismatchShownAtRef.current > ADVISOR_CARD_TTL_MS
+      ) {
+        // Unanswered: the card goes (it must not stand in front of every other question for the whole walk),
+        // and the watcher may ask again later as a new question.
+        paceMismatchShownAtRef.current = null;
+        mismatch.lapse(now);
+        setPaceMismatchOffer(null);
+      }
     }
     // An unanswered offer takes itself down; the next one is a fresh question.
     setPaceAdvisory((prev) =>
@@ -870,6 +901,7 @@ export function WalkPlannerApp({
     speedEstimatorRef.current = null;
     paceAdvisorRef.current = null;
     paceMismatchRef.current = null;
+    paceMismatchShownAtRef.current = null;
     setPaceMismatchOffer(null);
     firstFixAtRef.current = null;
     matchedRef.current = null;
@@ -1804,6 +1836,7 @@ export function WalkPlannerApp({
     const orig = walkInputRef.current;
     if (!orig) return null;
     if (walkTrackerRef.current === null) return null;
+    const sustained = sustainedPace();
     return {
       originalInput: orig,
       walkStartTime: walkStartTimeRef.current,
@@ -1818,7 +1851,8 @@ export function WalkPlannerApp({
       settings: walkSettingsRef.current,
       currentAttractions: walkPlanRef.current?.orderedAttractions,
       pinnedIds: pinnedAttractionIdsRef.current,
-      currentPaceMinPerKm: latestPaceUpdateRef.current?.paceMinPerKm ?? null,
+      currentPaceMinPerKm: sustained,
+      sizingPaceMinPerKm: sustained,
     };
   };
 
@@ -1827,9 +1861,11 @@ export function WalkPlannerApp({
   const askForStopRef = useRef<(() => void) | null>(null);
   const addStopViaChat = () => addStopFromOffer();
 
-  const runPaceTriggeredRebuild = (reason: ReplanReason, automatic = false) => {
-    const state = midWalkRebuildState();
-    if (!state) return;
+  const runPaceTriggeredRebuild = (reason: ReplanReason, automatic = false, sizingPaceMinPerKm?: number) => {
+    const baseState = midWalkRebuildState();
+    if (!baseState) return;
+    // `sizingPaceMinPerKm`: the pace a card just promised ("Plan at 4.5 km/h"); otherwise what is measured.
+    const state = sizingPaceMinPerKm !== undefined ? { ...baseState, sizingPaceMinPerKm } : baseState;
     const lastFix = latestPaceUpdateRef.current;
     const heading = lastFix
       ? headingMonitorRef.current?.recentHeading(lastFix.timestamp) ?? undefined
@@ -2063,17 +2099,23 @@ export function WalkPlannerApp({
     const environment = discovery.environment;
     const items = discovery.items();
     // A fast walker covers a detour faster than the plan says: price it at the blend of both paces.
-    const measuredPace = fix.paceMinPerKm;
+    const measuredPace = sustainedPace();
     const pricedSpeedMpm =
       measuredPace && measuredPace >= 6 && measuredPace <= 40
         ? 1000 / Math.sqrt(input.walkingPaceMinPerKm * measuredPace)
         : speedMpm;
+    // Ahead (+) or over (-) of the time the walker set, at their real speed: what the question's numbers are made of.
+    const spareMin =
+      walkStats && walkStats.timeToFinishMin !== null && input.availableMinutes > 0
+        ? input.availableMinutes - walkStats.elapsedMin - walkStats.timeToFinishMin
+        : null;
     const pace =
-      paceAdvisory && fix.paceMinPerKm
+      paceAdvisory && measuredPace
         ? {
             advice: paceAdvisory.kind,
-            currentPaceMinPerKm: fix.paceMinPerKm,
+            currentPaceMinPerKm: measuredPace,
             plannedPaceMinPerKm: input.walkingPaceMinPerKm,
+            spareMin,
           }
         : null;
     const heading = headingMonitorRef.current?.recentHeading(fix.timestamp) ?? null;
@@ -2082,9 +2124,7 @@ export function WalkPlannerApp({
       target ? { id: target.item.id, distanceM: target.distanceM } : null,
     );
     const blocked =
-      (walkAlert !== null &&
-        !walkAlert.id.startsWith("companion-") &&
-        !/^pace-(slow|fast)$/.test(walkAlert.id)) ||
+      (walkAlert !== null && alertBlocksCompanion(walkAlert.id)) ||
       collapseFlow.offer !== null ||
       collapseFlow.isCollapsed();
     const habitOn = walkSettingsRef.current.learningConsent === "granted";
@@ -2243,6 +2283,7 @@ export function WalkPlannerApp({
     replanTriggerRef.current?.setPlannedPace(minPerKm);
     paceAdvisorRef.current?.setPlannedPace(minPerKm);
     paceMismatchRef.current?.setPlannedPace(minPerKm);
+    paceMismatchShownAtRef.current = null;
     setPaceMismatchOffer(null);
     setPaceAdvisory(null);
     const kmh = Math.round((60 / minPerKm) * 10) / 10;
@@ -2250,6 +2291,29 @@ export function WalkPlannerApp({
       uiLang === "he" ? `מתכננים לפי ${kmh} קמ״ש מכאן` : `Planning at ${kmh} km/h from here`,
       "ok",
     );
+  };
+
+  // Minutes ahead (+) or over (-) of the walker's time, if the rest of the route is walked at `minPerKm`.
+  const spareAtPace = (minPerKm: number): number | null => {
+    const input = walkInputRef.current;
+    if (!input || !walkStats || input.availableMinutes <= 0) return null;
+    const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    const remainingVisitMin = (walkPlanRef.current?.orderedAttractions ?? [])
+      .filter((a) => !visited.has(a.id))
+      .reduce((sum, a) => sum + a.avgVisitMinutes, 0);
+    return spareMinAtPace({
+      availableMin: input.availableMinutes,
+      elapsedMin: walkStats.elapsedMin,
+      remainingM: walkStats.remainingM,
+      remainingVisitMin,
+      paceMinPerKm: minPerKm,
+    });
+  };
+
+  // "Plan at X and lengthen": the walker's real pace becomes the plan's, and the time that frees up is filled.
+  const planAtPaceAndLengthen = (minPerKm: number) => {
+    rebaselinePace(minPerKm);
+    runPaceTriggeredRebuild("sustained-fast-pace", false, minPerKm);
   };
 
   const handleCompanionAnswer = (answered: AnsweredQuestion, snap: CompanionSnapshot | null) => {
@@ -3635,14 +3699,20 @@ export function WalkPlannerApp({
     } else if (paceMismatchOffer) {
       const pm = walkCopy.paceMismatch[uiLang === "he" ? "he" : "en"];
       const o = paceMismatchOffer;
+      // At the pace on offer, is there time to spare? Then the card also offers to use it (a longer walk).
+      const spare = spareAtPace(60 / o.measuredKmh);
+      const canLengthen = spare !== null && spare >= PACE_MISMATCH_LENGTHEN_MIN_SPARE;
       walkAlert = {
         id: "pace-mismatch",
         tone: "info",
         icon: "pace",
         title: pm.title(o.measuredKmh),
-        body: pm.body(o.plannedKmh),
+        body: canLengthen ? `${pm.body(o.plannedKmh)} ${pm.spare(Math.round(spare))}` : pm.body(o.plannedKmh),
         actions: [
-          { label: pm.update(o.measuredKmh), primary: true, onClick: () => rebaselinePace(60 / o.measuredKmh) },
+          ...(canLengthen
+            ? [{ label: pm.updateAndLengthen(o.measuredKmh), primary: true, onClick: () => planAtPaceAndLengthen(60 / o.measuredKmh) }]
+            : []),
+          { label: pm.update(o.measuredKmh), primary: !canLengthen, onClick: () => rebaselinePace(60 / o.measuredKmh) },
           {
             label: pm.keep(o.plannedKmh),
             onClick: () => {

@@ -12,6 +12,14 @@ export interface PaceProducerInput {
   plannedPaceMinPerKm: number;
   /** Minutes the plan still has left at the planned pace. */
   remainingPlannedMin: number;
+  /**
+   * Minutes the walker is ahead of the time they set (positive) or over it (negative):
+   * the budget left minus the time to finish at their real speed. When given, the
+   * question's numbers come from this and not from scaling `remainingPlannedMin` by the
+   * pace ratio, which was wrong whenever that value already included the real speed or
+   * a stop's visit minutes (it said "add 33 min" for a 15-min overrun).
+   */
+  spareMin?: number;
   /** Stops still ahead, in visit order. */
   remainingStops: PaceStop[];
   /** Fast only: a collection place worth adding. */
@@ -36,8 +44,10 @@ export function paceCandidate(input: PaceProducerInput): Candidate | null {
   const ratio = cur / planned;
   const expiresAtMs = input.nowMs + (input.ttlMs ?? PACE_QUESTION_TTL_MS);
 
+  const spare = typeof input.spareMin === "number" && Number.isFinite(input.spareMin) ? input.spareMin : null;
+
   if (input.advice === "slow") {
-    const overrunMin = input.remainingPlannedMin * (ratio - 1);
+    const overrunMin = spare !== null ? -spare : input.remainingPlannedMin * (ratio - 1);
     if (overrunMin <= 0) return null;
     // Never offer to drop the only stop left: an empty list makes the planner rediscover.
     const droppable =
@@ -64,7 +74,7 @@ export function paceCandidate(input: PaceProducerInput): Candidate | null {
     };
   }
 
-  const spareMin = input.remainingPlannedMin * (1 - ratio);
+  const spareMin = spare !== null ? spare : input.remainingPlannedMin * (1 - ratio);
   if (spareMin <= 0) return null;
   const lengthen: Answer = { id: "lengthen", label: "answer.lengthen", operator: { op: "lengthen" } };
   const finishEarly: Answer = { id: "finish-early", label: "answer.finishEarly", operator: { op: "head-back" } };
