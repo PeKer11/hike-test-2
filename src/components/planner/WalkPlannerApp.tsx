@@ -591,6 +591,8 @@ export function WalkPlannerApp({
   const paceAdvisorRef = useRef<PaceAdvisor | null>(null);
   // "You walk much faster than the plan assumes": asked once, answered with a tap (`PaceMismatchWatcher`).
   const paceMismatchRef = useRef<PaceMismatchWatcher | null>(null);
+  // What the previous leg of this walk knew: "Keep 2 km/h" and the card cooldowns outlive a change of route.
+  const paceCarryRef = useRef<{ mismatch: PaceMismatchWatcher | null; cardTimes: ReturnType<PaceAdvisor["cardTimes"]> | null }>({ mismatch: null, cardTimes: null });
   const [paceMismatchOffer, setPaceMismatchOffer] = useState<PaceMismatchOffer | null>(null);
   // Wall-clock moment the "plan at your real pace" card went up: it takes itself down after `ADVISOR_CARD_TTL_MS`.
   const paceMismatchShownAtRef = useRef<number | null>(null);
@@ -935,6 +937,12 @@ export function WalkPlannerApp({
   const stopWalkTracking = () => {
     shortcut.clear();
     speedEstimatorRef.current = null;
+    // A card taken down by the route changing under it was not answered: the question stays open for the next leg.
+    if (paceMismatchShownAtRef.current !== null) paceMismatchRef.current?.reopen();
+    paceCarryRef.current = {
+      mismatch: paceMismatchRef.current ?? paceCarryRef.current.mismatch,
+      cardTimes: paceAdvisorRef.current?.cardTimes() ?? paceCarryRef.current.cardTimes,
+    };
     paceAdvisorRef.current = null;
     paceMismatchRef.current = null;
     paceMismatchShownAtRef.current = null;
@@ -1204,6 +1212,7 @@ export function WalkPlannerApp({
     legElapsedOffsetMinRef.current = 0;
     walkBeganAtRef.current = null;
     droppedStopIdsRef.current = new Set();
+    paceCarryRef.current = { mismatch: null, cardTimes: null };
     // Queued saved places belonged to that walk; the next one starts clean.
     setWishlist([]);
   };
@@ -1621,6 +1630,7 @@ export function WalkPlannerApp({
       legElapsedOffsetMinRef.current = 0;
       walkBeganAtRef.current = null;
       droppedStopIdsRef.current = new Set();
+      paceCarryRef.current = { mismatch: null, cardTimes: null };
     }
 
     // Attractions the walker already reached are done — never re-plan them back
@@ -2890,8 +2900,13 @@ export function WalkPlannerApp({
     paceAdvisorRef.current = planInput
       ? new PaceAdvisor(planInput.walkingPaceMinPerKm)
       : null;
+    if (planInput && paceCarryRef.current.cardTimes) paceAdvisorRef.current?.restoreCardTimes(paceCarryRef.current.cardTimes);
+    // The same walk, the same plan pace: the question that was answered "Keep" (or is waiting out its quiet period) stays so.
+    const carriedMismatch = paceCarryRef.current.mismatch;
     paceMismatchRef.current = planInput
-      ? new PaceMismatchWatcher(planInput.walkingPaceMinPerKm)
+      ? carriedMismatch && carriedMismatch.plannedPace === planInput.walkingPaceMinPerKm
+        ? carriedMismatch
+        : new PaceMismatchWatcher(planInput.walkingPaceMinPerKm)
       : null;
     firstFixAtRef.current = null;
 
@@ -2921,6 +2936,7 @@ export function WalkPlannerApp({
         firstFixAtRef.current = resumedStartRef.current ?? update.timestamp;
         // A cooldown armed on the previous leg's clock (the simulator's runs 10x ahead) must not outlast its length here.
         replanTriggerRef.current?.capCooldown(update.timestamp);
+        paceMismatchRef.current?.startLeg(update.timestamp);
       }
 
       speedEstimatorRef.current?.record({
@@ -3815,6 +3831,7 @@ export function WalkPlannerApp({
             label: pm.keep(o.plannedKmh),
             onClick: () => {
               paceMismatchRef.current?.decline();
+              paceMismatchShownAtRef.current = null;
               setPaceMismatchOffer(null);
             },
           },

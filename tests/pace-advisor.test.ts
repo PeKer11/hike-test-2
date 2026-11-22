@@ -133,4 +133,36 @@ describe("PaceAdvisor", () => {
     const { end } = feed(a, T0, 330, 19.2);
     expect(a.measuredPaceMinPerKm(end)).toBeCloseTo(19.2, 0);
   });
+
+  it("a card shown on the previous leg is not shown again straight away on the next", () => {
+    const first = new PaceAdvisor(12);
+    const { end } = feed(first, T0, 330, 19.2);
+    expect(first.evaluate(end, false)).toBe("slow");
+
+    // A rebuild: a new advisor with the old card times and fresh samples of the new route.
+    const next = new PaceAdvisor(12);
+    next.restoreCardTimes(first.cardTimes());
+    const second = feed(next, end + 1_000, 330, 19.2);
+    // Under the 6-minute cooldown since the last card: not again.
+    expect(next.evaluate(end + 331_000 > second.end ? second.end : end + 331_000, false)).toBeNull();
+    // Without the carry-over it would have asked again.
+    const fresh = new PaceAdvisor(12);
+    const freshEnd = feed(fresh, end + 1_000, 330, 19.2).end;
+    expect(fresh.evaluate(freshEnd, false)).toBe("slow");
+  });
+
+  it("a card time from another clock (ahead of this one) does not silence it for good", () => {
+    const first = new PaceAdvisor(12);
+    const { end } = feed(first, T0 + 60 * 60_000, 330, 19.2);
+    expect(first.evaluate(end, false)).toBe("slow");
+
+    const next = new PaceAdvisor(12);
+    next.restoreCardTimes(first.cardTimes());
+    // The new leg's clock starts back at T0, an hour behind the card time. The first look finds a card time in the
+    // future and counts it from then; one cooldown later the card may come again (it is not silent for good).
+    const firstLook = feed(next, T0, 340, 19.2).end;
+    expect(next.evaluate(firstLook, false)).toBeNull();
+    const laterEnd = feed(next, firstLook + 10_000, 400, 19.2).end;
+    expect(next.evaluate(laterEnd, false)).toBe("slow");
+  });
 });

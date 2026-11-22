@@ -70,6 +70,16 @@ export class PaceAdvisor {
     }
   }
 
+  /** When each kind of card was last shown: carried to the next leg of the walk so a rebuild does not re-arm the question. */
+  cardTimes(): Record<PaceAdvice, number> {
+    return { ...this.lastCardAt };
+  }
+
+  /** Take over the card times of the previous leg (the samples, which describe that leg's route, are not). */
+  restoreCardTimes(times: Record<PaceAdvice, number>): void {
+    this.lastCardAt = { ...times };
+  }
+
   /** The advice a card should be shown for right now, or null. */
   evaluate(now: number, nearStop: boolean): PaceAdvice | null {
     const ratio = this.paceRatio(now);
@@ -89,6 +99,8 @@ export class PaceAdvisor {
     }
 
     if (this.state === null || nearStop) return null;
+    // A card time ahead of this clock (the previous leg ran on another one) counts as "just now", not "never again".
+    if (this.lastCardAt[this.state] > now) this.lastCardAt[this.state] = now;
     if (now - this.lastCardAt[this.state] < ADVISOR_CARD_COOLDOWN_MS) return null;
 
     this.lastCardAt[this.state] = now;

@@ -160,14 +160,14 @@ describe("lengthen and shorten are sized at the walker's real pace", () => {
     await flush();
     await advance(60_000);
 
-    const hud = within(screen.getByTestId("walk-hud"));
-    fireEvent.click(hud.getByRole("button", { name: "Ask" }));
+    const ask = screen.queryByRole("button", { name: "Ask" });
+    if (ask) fireEvent.click(ask); // the chat stays open after the first use
     const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
     fireEvent.change(box, { target: { value: "add a stop" } });
     fireEvent.submit(box.closest("form")!);
     await flush();
     const callsBefore = walkPlanCalls.length;
-    fireEvent.click(screen.getByRole("button", { name: "Add a stop" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Add a stop" }).at(-1)!);
     await flush();
 
     expect(walkPlanCalls.length).toBe(callsBefore + 1);

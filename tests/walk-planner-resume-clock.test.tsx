@@ -198,3 +198,84 @@ describe("a walk resumed after a reload", () => {
     expect(minutes).toBeLessThanOrEqual(24);
   });
 });
+
+/** Walk up the route at a steady speed (m/s): a fix every 5 s with the device's own speed, like a phone's Doppler. */
+async function walkNorth(fromM: number, seconds: number, mps: number): Promise<number> {
+  let at = fromM;
+  for (let t = 0; t < seconds; t += 5) {
+    await advance(5_000);
+    at += mps * 5;
+    await act(async () => {
+      stream?.onUpdate({
+        coordinates: { lat: ORIGIN.lat + at / M_PER_DEG_LAT, lng: ORIGIN.lng },
+        accuracyMeters: 5,
+        timestamp: Date.now(),
+        speedMps: mps,
+        source: "gps",
+      });
+    });
+  }
+  return at;
+}
+
+// P12: "Keep 2 km/h" must outlive a change of route. The walker's speed is the stream's, not the simulator's, so it
+// stays 4.5 km/h after the change whatever the plan says.
+describe("'Keep' on the plan-at-your-pace card survives a change of route", () => {
+  const FIELD_CASE: ActiveWalkSnapshot = {
+    plan: PLAN,
+    geometry: ROUTE,
+    input: { origin: ORIGIN, availableMinutes: 120, walkingPaceMinPerKm: 30, radiusMeters: 2000 }, // planned at 2 km/h
+    visitedIds: [],
+    startedAt: Date.now(),
+    lastFix: ORIGIN,
+    savedAt: Date.now(),
+  };
+
+  async function startAndKeep() {
+    const bridge = new PlannerBridge();
+    render(<WalkPlannerApp bridge={bridge} />);
+    await flush();
+    await act(async () => bridge.actions!.resumeWalk({ ...FIELD_CASE, startedAt: Date.now(), savedAt: Date.now() }));
+    await flush();
+    let at = await walkNorth(0, 240, 1.25); // 4.5 km/h for four minutes
+    // The companion's own question (about 57 minutes ahead, lengthen?) has the one card slot first: answer it.
+    const notNow = screen.queryByRole("button", { name: "Not now" });
+    if (notNow) {
+      fireEvent.click(notNow);
+      await flush();
+    }
+    expect(screen.getByText(/You're walking about 4\.5 km\/h/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Keep 2 km/h" }));
+    await flush();
+    expect(screen.queryByText(/You're walking about/)).toBeNull();
+    return at;
+  }
+
+  async function skipMuseumFromChat() {
+    const ask = screen.queryByRole("button", { name: "Ask" });
+    if (ask) fireEvent.click(ask);
+    const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
+    fireEvent.change(box, { target: { value: "skip the museum" } });
+    fireEvent.submit(box.closest("form")!);
+    await flush();
+    fireEvent.click(screen.getAllByRole("button", { name: /^Skip City Museum$/ }).at(-1)!);
+    await flush();
+  }
+
+  it("after Keep, a change that leaves the plan's pace alone does not bring the question back", async () => {
+    let at = await startAndKeep();
+    const callsBefore = walkPlanCalls.length;
+    await skipMuseumFromChat();
+    expect(walkPlanCalls.length).toBe(callsBefore + 1);
+    expect(walkPlanCalls[walkPlanCalls.length - 1].walkingPaceMinPerKm).toBe(30); // still planned at 2 km/h
+
+    // Five more minutes at 4.5 km/h on the new leg: a fresh watcher would ask again after three.
+    // The card lives for a minute, so look at every step, not only at the end.
+    let asked = false;
+    for (let i = 0; i < 12; i += 1) {
+      at = await walkNorth(at, 25, 1.25);
+      if (screen.queryByText(/You're walking about/)) asked = true;
+    }
+    expect(asked).toBe(false);
+  });
+});

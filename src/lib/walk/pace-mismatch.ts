@@ -40,6 +40,11 @@ export class PaceMismatchWatcher {
 
   constructor(private plannedPaceMinPerKm: number) {}
 
+  /** The pace the plan is judged against now: a watcher is only carried to the next leg while this is unchanged. */
+  get plannedPace(): number {
+    return this.plannedPaceMinPerKm;
+  }
+
   /** The plan was re-timed (the walker accepted, or said "N km/h"): a new question is allowed. */
   setPlannedPace(minPerKm: number): void {
     if (!Number.isFinite(minPerKm) || minPerKm <= 0) return;
@@ -57,6 +62,26 @@ export class PaceMismatchWatcher {
     this.phase = "watching";
     this.since = null;
     this.quietUntil = atMs + PACE_MISMATCH_REASK_MS;
+  }
+
+  /**
+   * A new leg of the same walk begins at `atMs` on the fix clock. A watcher carried over from the previous leg may hold
+   * times from a clock that ran ahead of this one (the simulator's runs 10x): the "older timestamp says nothing new" rule
+   * and the quiet period are re-based so it is not silent for the rest of the walk.
+   */
+  startLeg(atMs: number): void {
+    this.lastAt = Number.NEGATIVE_INFINITY;
+    this.since = null;
+    this.quietUntil = Math.min(this.quietUntil, atMs + PACE_MISMATCH_REASK_MS);
+  }
+
+  /**
+   * The card that was up went away without an answer because the route changed under it (not because the walker
+   * ignored it): the question is open again, with no quiet period.
+   */
+  reopen(): void {
+    if (this.phase === "offered") this.phase = "watching";
+    this.since = null;
   }
 
   /** The walker chose to keep the plan's pace: stay quiet until it changes. */

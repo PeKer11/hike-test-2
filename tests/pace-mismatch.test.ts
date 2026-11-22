@@ -114,3 +114,53 @@ describe("an offer nobody answered (lapse)", () => {
     expect(walk(w, 4.5, first.at + 5_000, 60 * 60_000).offer).toBeNull();
   });
 });
+
+describe("carrying a watcher to the next leg", () => {
+  it("exposes the pace it judges against, so a leg with the same plan pace can reuse it and keep a Keep", () => {
+    const w = new PaceMismatchWatcher(30);
+    expect(w.plannedPace).toBe(30);
+    const first = walk(w, 4.5, T0, PACE_MISMATCH_SUSTAIN_MS);
+    expect(first.offer).not.toBeNull();
+    w.decline();
+    // Same watcher on the next leg: still quiet however long the walker keeps this speed up.
+    expect(walk(w, 4.5, first.at + 5_000, 60 * 60_000).offer).toBeNull();
+  });
+
+  it("reopen: an offer taken down by a route change (not ignored) is asked again, without the quiet period", () => {
+    const w = new PaceMismatchWatcher(30);
+    const first = walk(w, 4.5, T0, PACE_MISMATCH_SUSTAIN_MS);
+    expect(first.offer).not.toBeNull();
+    w.reopen();
+    expect(walk(w, 4.5, first.at + 5_000, PACE_MISMATCH_SUSTAIN_MS + 10_000).offer).not.toBeNull();
+  });
+
+  it("reopen does not undo a Keep", () => {
+    const w = new PaceMismatchWatcher(30);
+    const first = walk(w, 4.5, T0, PACE_MISMATCH_SUSTAIN_MS);
+    w.decline();
+    w.reopen();
+    expect(walk(w, 4.5, first.at + 5_000, 60 * 60_000).offer).toBeNull();
+  });
+
+  it("startLeg: a watcher carried to a leg whose clock is behind its last reading is not silent for good", () => {
+    const w = new PaceMismatchWatcher(30);
+    // The previous leg ran an hour ahead of the next one (the simulator's 10x clock).
+    const far = T0 + 60 * 60_000;
+    expect(walk(w, 3, far, 60_000).offer).toBeNull(); // 3 km/h is not 2x a 2 km/h plan: nothing offered, but lastAt is now far ahead
+    expect(walk(w, 4.5, T0, 10 * 60_000).offer).toBeNull(); // a clock that went back says nothing new, ever
+    w.startLeg(T0);
+    expect(walk(w, 4.5, T0, PACE_MISMATCH_SUSTAIN_MS + 10_000).offer).not.toBeNull();
+  });
+
+  it("startLeg also brings a quiet period armed on the other clock back to its own length", () => {
+    const w = new PaceMismatchWatcher(30);
+    const far = T0 + 60 * 60_000;
+    const first = walk(w, 4.5, far, PACE_MISMATCH_SUSTAIN_MS);
+    expect(first.offer).not.toBeNull();
+    w.lapse(first.at); // quiet until far + 10 min
+    w.startLeg(T0);
+    const again = walk(w, 4.5, T0, PACE_MISMATCH_REASK_MS + PACE_MISMATCH_SUSTAIN_MS + 10_000);
+    expect(again.offer).not.toBeNull();
+    expect(again.at).toBeLessThan(far);
+  });
+});
