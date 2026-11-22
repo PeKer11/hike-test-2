@@ -100,3 +100,14 @@ describe("plannerHandoff", () => {
     expect((he.actions[0] as { label: string }).label).toMatch(/[א-ת]/);
   });
 });
+
+describe("resolveChat rejoin", () => {
+  it("offers Back to my route, and the Hebrew head-back button says it goes to the start", () => {
+    const en = resolveChat({ intent: "rejoin" }, ctx([stop("a")]), "en");
+    expect(en.actions).toEqual([{ kind: "rejoin", label: "Back to my route" }]);
+    const he = resolveChat({ intent: "rejoin" }, ctx([stop("a")]), "he");
+    expect(he.actions).toEqual([{ kind: "rejoin", label: "חזרה למסלול" }]);
+    const headBackHe = resolveChat({ intent: "head-back" }, ctx([]), "he");
+    expect(headBackHe.actions).toEqual([{ kind: "head-back", label: "חזרה להתחלה" }]);
+  });
+});

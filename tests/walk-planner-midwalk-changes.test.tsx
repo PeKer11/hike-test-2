@@ -436,3 +436,30 @@ describe("P13: the Hebrew app shows no English on the update and pace cards", ()
     expect(screen.queryByText("You're at a great pace!")).toBeNull();
   });
 });
+
+describe("P17: 'back to the route' typed in the chat gets the walker back onto the route", () => {
+  it("offers Back to my route (not Head back), and tapping it does not ask for a way to the start", async () => {
+    await startSimulatedWalk();
+    await advance(2_000);
+    fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
+    await flush();
+    await advance(8_000);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
+    fireEvent.change(box, { target: { value: "go back to the route" } });
+    fireEvent.submit(box.closest("form")!);
+    await flush();
+
+    const chat = within(screen.getByTestId("walk-chat"));
+    expect(chat.queryByRole("button", { name: "Head back" })).toBeNull();
+    const rejoin = chat.getByRole("button", { name: "Back to my route" });
+    fireEvent.click(rejoin);
+    await flush();
+    await advance(1_000);
+
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
+    // The way to the start is asked from /api/walk-options; getting back on the line never is.
+    expect(urls.some((u) => u.startsWith("/api/walk-options"))).toBe(false);
+  });
+});

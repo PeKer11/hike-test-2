@@ -3924,6 +3924,9 @@ export function WalkPlannerApp({
         runAddPlaceRebuild(action.name, action.coordinates);
       } else if (action.kind === "set-pace") {
         rebaselinePace(action.minPerKm);
+      } else if (action.kind === "rejoin") {
+        // The same thing as the off-route card's Back to my route: onto the planned line, not to the start.
+        void runLocalRejoin(false, { manual: true });
       } else if (action.kind === "ask-planner") {
         // Details + the planner chat with the walker's own words; they tap Send.
         setIsDetailsOpen(true);

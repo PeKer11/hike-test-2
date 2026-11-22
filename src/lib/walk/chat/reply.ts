@@ -16,6 +16,8 @@ export type ChatAction =
   | { kind: "apply-changes"; adds: Array<{ name: string; coordinates: Coordinates }>; dropStopIds: string[]; label: string }
   | { kind: "set-pace"; minPerKm: number; label: string }
   | { kind: "head-back"; label: string }
+  /** "Back to my route": get onto the planned line again (the walk sheet's own Back to my route). */
+  | { kind: "rejoin"; label: string }
   /** Hand the walker's own words to the planner chat (Details + chat, text prefilled; the walker taps Send). */
   | { kind: "ask-planner"; text: string; label: string };
 
@@ -68,6 +70,8 @@ const T = {
     whichStop: "Which stop? Say its name.",
     noStops: "There are no stops left to change.",
     headBack: "Head back",
+    rejoin: "Back to my route",
+    rejoinText: "I can take you back onto your route.",
     headBackText: "That is the last stop. I can take you back instead.",
     headBackOnly: "I can take you back to the start now.",
     shorterNoDrop: "The stops left are ones you picked, so I won't drop them. I can take you back instead.",
@@ -75,7 +79,7 @@ const T = {
     setPaceBtn: (kmh: string) => `Plan at ${kmh} km/h`,
     longer: "Add a stop",
     longerText: "I can look for one more stop ahead.",
-    help: "Try: cafe, water, toilet, skip, shorter, longer, or head back.",
+    help: "Try: cafe, water, toilet, skip, shorter, longer, back to my route, or head back.",
     needsPlan: "That needs a new plan. Send it to Traike?",
     sendToPlanner: "Send to Traike",
   },
@@ -91,7 +95,9 @@ const T = {
     skipText: (name: string) => `אפשר לדלג על ${name}.`,
     whichStop: "על איזו עצירה? אמרו את השם שלה.",
     noStops: "לא נשארו עצירות לשנות.",
-    headBack: "חזרה",
+    headBack: "חזרה להתחלה",
+    rejoin: "חזרה למסלול",
+    rejoinText: "אפשר להחזיר אתכם אל המסלול.",
     headBackText: "זו העצירה האחרונה. אפשר לחזור במקום.",
     headBackOnly: "אפשר להחזיר אתכם לנקודת ההתחלה עכשיו.",
     shorterNoDrop: "העצירות שנשארו הן כאלה שבחרתם, אז לא אוותר עליהן. אפשר לחזור במקום.",
@@ -99,7 +105,7 @@ const T = {
     setPaceBtn: (kmh: string) => `לתכנן ב-${kmh} קמ״ש`,
     longer: "להוסיף עצירה",
     longerText: "אפשר לחפש עוד עצירה בהמשך.",
-    help: "נסו: קפה, מים, שירותים, דלג, קצר יותר, ארוך יותר, או חזרה.",
+    help: "נסו: קפה, מים, שירותים, דלג, קצר יותר, ארוך יותר, חזרה למסלול, או חזרה להתחלה.",
     needsPlan: "זה דורש תוכנית חדשה. לשלוח לטרייק?",
     sendToPlanner: "שלחו לטרייק",
   },
@@ -180,6 +186,9 @@ export function resolveChat(intent: ParsedIntent, ctx: ChatContext, lang: ChatLa
 
     case "head-back":
       return { text: t.headBackOnly, actions: [headBack(lang)] };
+
+    case "rejoin":
+      return { text: t.rejoinText, actions: [{ kind: "rejoin", label: t.rejoin }] };
 
     default:
       return { text: t.help, actions: [] };

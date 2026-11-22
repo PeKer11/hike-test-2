@@ -179,3 +179,39 @@ describe("set-pace intent", () => {
     expect(parseIntent("I drive 90 km/h", []).intent).not.toBe("set-pace");
   });
 });
+
+// P17 of docs/PACE-AND-MIDWALK-REROUTE-REVIEW-2026-11-22.md: "back to the route" is getting onto the line, not heading to the start.
+describe("parseIntent: back to the route is a rejoin, not a head-back", () => {
+  it.each([
+    "back to the route",
+    "go back to the route",
+    "take me back to my route",
+    "get me back on the route",
+    "תחזיר אותי למסלול",
+    "חזרה למסלול",
+    "בוא נחזור למסלול",
+    "אפשר לחזור אל המסלול?",
+  ])("%s", (text) => {
+    expect(parseIntent(text, stops).intent).toBe("rejoin");
+  });
+
+  it.each([
+    "go back",
+    "take me back",
+    "head back",
+    "back to the start",
+    "take me back to the start of the route",
+    "go home",
+    "בוא נחזור",
+    "תחזור",
+    "תחזיר אותי להתחלה",
+    "נחזור לרכב",
+  ])("%s stays a head-back", (text) => {
+    expect(parseIntent(text, stops).intent).toBe("head-back");
+  });
+
+  it("a route word with no back word is not a rejoin", () => {
+    expect(parseIntent("make the route shorter", stops).intent).toBe("shorter");
+    expect(parseIntent("אפשר מסלול ארוך יותר", stops).intent).toBe("longer");
+  });
+});

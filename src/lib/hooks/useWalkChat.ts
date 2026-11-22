@@ -269,7 +269,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
               const st = fresh.stops[a.stopIndex];
               actions.push({ kind: "drop", stopId: st.id, label: lang === "he" ? `לדלג על ${st.name}` : `Skip ${st.name}` });
             } else if (a.kind === "head-back") {
-              actions.push({ kind: "head-back", label: lang === "he" ? "חזרה" : "Head back" });
+              actions.push({ kind: "head-back", label: lang === "he" ? "חזרה להתחלה" : "Head back" });
             }
           }
           // Several proposals in one reply: one extra button that applies them all in a single rebuild.

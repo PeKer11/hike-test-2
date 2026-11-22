@@ -7,6 +7,7 @@ export type ChatIntentName =
   | "longer"
   | "set-pace"
   | "head-back"
+  | "rejoin"
   | "unknown";
 
 export interface ParsedIntent {
@@ -49,6 +50,11 @@ const HEAD_BACK_WORDS = [
   "wrap up", "finish now", "end the walk", "go home",
   "חזור", "נחזור", "תחזור", "חזרה", "תחזיר", "להחזיר", "לסיים", "נסיים", "הביתה",
 ];
+// "Back to the route" is getting onto the line again, not heading to the start. It needs a back word and a route
+// word, and no word about the start or home ("take me back to the start of the route" stays a head-back).
+const BACK_WORDS = ["back", "return", "חזור", "נחזור", "תחזור", "חזרה", "תחזיר", "להחזיר"];
+const ROUTE_WORDS = ["route", "path", "track", "מסלול"];
+const START_WORDS = ["start", "begin", "home", "car", "התחלה", "הביתה", "רכב"];
 const SHORTER_WORDS = [
   "shorter", "shorten", "cut it short", "too long", "less time", "tired", "exhausted",
   "קצר", "קצרה", "קצרים", "קצרות", "לקצר", "פחות זמן", "עייף", "עייפה", "עייפים", "עייפות", "מתיש",
@@ -137,7 +143,7 @@ export function speedFromText(text: string): number | undefined {
 
 /**
  * Keyword intent for the walk chat. No network, no model. Precedence when a
- * sentence has several: skip > find > head-back > shorter > longer.
+ * sentence has several: skip > find > rejoin ("back to the route") > head-back > shorter > longer.
  * `stops` are the stops still ahead, in walk order.
  */
 export function parseIntent(rawText: string, stops: ChatStop[]): ParsedIntent {
@@ -158,6 +164,7 @@ export function parseIntent(rawText: string, stops: ChatStop[]): ParsedIntent {
   if (speedKmh !== undefined) return { intent: "set-pace", speedKmh };
   const amenity = amenityIn(text);
   if (amenity) return { intent: "find", amenity };
+  if (hasAny(text, BACK_WORDS) && hasAny(text, ROUTE_WORDS) && !hasAny(text, START_WORDS)) return { intent: "rejoin" };
   if (hasAny(text, HEAD_BACK_WORDS)) return { intent: "head-back" };
   if (hasAny(text, SHORTER_WORDS)) return { intent: "shorter" };
   if (hasAny(text, LONGER_WORDS)) return { intent: "longer" };
