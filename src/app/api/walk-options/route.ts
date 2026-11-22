@@ -101,7 +101,8 @@ function isOption(value: unknown): value is OptionRequest {
 
 /**
  * Up to three ways forward from a walker who left their plan, each a single ORS
- * directions call (no matrix). Options that retrace the walked track (> 25%),
+ * directions call (no matrix). Options that retrace the walked track (> 25%, except
+ * "back": the walker asked to be taken back, and the way home is often the way out),
  * mostly retrace the abandoned plan (> 60%, except "back"), or duplicate
  * another option (> 50%) are dropped. At most one retry across the request, for
  * the worst "via" option, with the walked track as avoid_polygons. At most
@@ -265,8 +266,8 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   candidates = candidates.filter(
     (c) =>
-      c.overlapWalked <= OVERLAP_MAX_WALKED &&
-      (c.req.theme === "back" || c.overlapPlan <= OVERLAP_MAX_PLAN),
+      c.req.theme === "back" ||
+      (c.overlapWalked <= OVERLAP_MAX_WALKED && c.overlapPlan <= OVERLAP_MAX_PLAN),
   );
 
   // Near-duplicates: keep the higher-scored (earlier wins a tie).

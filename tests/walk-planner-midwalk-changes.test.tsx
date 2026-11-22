@@ -463,3 +463,41 @@ describe("P17: 'back to the route' typed in the chat gets the walker back onto t
     expect(urls.some((u) => u.startsWith("/api/walk-options"))).toBe(false);
   });
 });
+
+describe("P15: a pace rebuild says what it did", () => {
+  async function slowWalkUntilCard() {
+    await startSimulatedWalk();
+    await advance(3_000);
+    fireEvent.click(screen.getByRole("button", { name: "Slow pace" }));
+    await flush();
+    await advance(50_000);
+  }
+
+  it("'Show shorter route' that drops stops says how many, and how long is left", async () => {
+    await slowWalkUntilCard();
+    planAnswer = () => planOf([MUSEUM], { totalMinutes: 38 });
+    fireEvent.click(screen.getByRole("button", { name: "Show shorter route" }));
+    await flush();
+    expect(screen.getByTestId("walk-notice").textContent).toBe("Shortened: 2 stops fewer · about 38 min left");
+  });
+
+  it("'Show shorter route' that comes back with the same stops says it could not shorten", async () => {
+    await slowWalkUntilCard();
+    fireEvent.click(screen.getByRole("button", { name: "Show shorter route" }));
+    await flush();
+    expect(screen.getByTestId("walk-notice").textContent).toContain("Couldn't shorten it further");
+  });
+
+  it("the Hebrew summary is Hebrew", async () => {
+    settingsStore["walk-settings"] = JSON.stringify({ deviationMode: "ask", routeOrderMode: "reorder", uiLanguage: "he" });
+    await startSimulatedWalk({ hebrew: true });
+    await advance(3_000);
+    fireEvent.click(screen.getByRole("button", { name: "Slow pace" }));
+    await flush();
+    await advance(50_000);
+    planAnswer = () => planOf([MUSEUM, CATHEDRAL], { totalMinutes: 50 });
+    fireEvent.click(screen.getByRole("button", { name: "להציג מסלול קצר יותר" }));
+    await flush();
+    expect(screen.getByTestId("walk-notice").textContent).toBe("קוצר: עצירה אחת פחות · נשארו כ-50 דק׳");
+  });
+});

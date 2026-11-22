@@ -161,6 +161,26 @@ describe("POST /api/walk-options", () => {
     expect(themes).toEqual(["back"]);
   });
 
+  // P16 of docs/PACE-AND-MIDWALK-REROUTE-REVIEW-2026-11-22.md: the way home is often the way out.
+  it("keeps a 'back' option that retraces the walked track (the walker asked to be taken back)", async () => {
+    mockGetDirections.mockResolvedValue(routeOf(BACK));
+    const res = await POST(
+      request({ ...base, endAnchor: at(0, -1000), options: [{ theme: "back", mode: "alternatives", stops: [], score: 0 }] }),
+    );
+    expect(res.status).toBe(200);
+    const [kept] = (await res.json()).options;
+    expect(kept.theme).toBe("back");
+    expect(kept.overlapWalked).toBeGreaterThan(0.9);
+  });
+
+  it("a 'short' option that retraces is still dropped", async () => {
+    mockGetDirections.mockResolvedValue(routeOf(BACK));
+    const res = await POST(
+      request({ ...base, endAnchor: at(0, -1000), options: [{ theme: "short", mode: "alternatives", stops: [], score: 0 }] }),
+    );
+    expect(res.status).toBe(422);
+  });
+
   it("uses one round-trip call with a green weighting, and picks the least-walked alternative", async () => {
     mockGetDirections.mockResolvedValueOnce(routeOf(WEST));
     await POST(

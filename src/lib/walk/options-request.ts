@@ -4,6 +4,7 @@ import type { Coordinates } from "@/lib/types";
 import type { DiscoveryItem } from "@/lib/types/discovery";
 import {
   buildDirectionOptions,
+  headBackOption,
   type DirectionOption,
 } from "./direction-options";
 import {
@@ -69,6 +70,20 @@ export function planDirectionOptions(ctx: OptionsContext): DirectionOption[] {
     items: ctx.items,
     excludeIds: ctx.excludeIds,
   });
+}
+
+/** The way straight back to the end anchor (or the start): empty when there is none. Whatever the time left. */
+export function planHeadBackOption(ctx: OptionsContext): DirectionOption[] {
+  const option = headBackOption({
+    origin: ctx.origin,
+    endAnchor: ctx.endAnchor,
+    walked: [],
+    remainingMin: ctx.remainingMin,
+    speedMpm: ctx.speedMpm,
+    items: [],
+    excludeIds: ctx.excludeIds,
+  });
+  return option === null ? [] : [option];
 }
 
 /**

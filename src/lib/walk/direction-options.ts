@@ -15,7 +15,7 @@ import {
   OPTIONS_TOP_PER_SECTOR,
 } from "./discovery-cadence";
 
-export type OptionTheme = "nature" | "food" | "short";
+export type OptionTheme = "nature" | "food" | "short" | "back";
 export type OptionMode = "via" | "roundtrip" | "alternatives";
 
 export interface DirectionOption {
@@ -54,6 +54,24 @@ const FOOD_CATEGORIES: AttractionCategory[] = [
   "landmark",
   "religious",
 ];
+
+/**
+ * The way straight home, for a walker who asked to head back: offered whatever the time left, because the walker
+ * who is late and far out is the one who needs it, and the "shorter" option (within 60% of the time left) is not
+ * made for them. Null when there is nowhere to go back to.
+ */
+export function headBackOption(input: DirectionInput): DirectionOption | null {
+  const anchor = input.endAnchor ?? input.startPoint ?? null;
+  if (anchor === null || !(input.speedMpm > 0)) return null;
+  return {
+    theme: "back",
+    mode: "alternatives",
+    stops: [],
+    sector: sectorOf(bearingBetween(input.origin, anchor)),
+    score: 0,
+    estMinutes: (haversineDistance(input.origin, anchor) * OPTIONS_REACH_DETOUR) / input.speedMpm,
+  };
+}
 
 export function sectorOf(bearingDeg: number): number {
   const b = ((bearingDeg % 360) + 360) % 360;
@@ -287,6 +305,6 @@ export function buildDirectionOptions(input: DirectionInput): DirectionOption[] 
     }
   }
 
-  const order: Record<OptionTheme, number> = { nature: 0, food: 1, short: 2 };
+  const order: Record<OptionTheme, number> = { nature: 0, food: 1, short: 2, back: 3 };
   return out.sort((a, b) => order[a.theme] - order[b.theme]).slice(0, OPTIONS_MAX);
 }

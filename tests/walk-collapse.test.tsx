@@ -430,6 +430,37 @@ describe("a walker who has gone a different way (collapse)", () => {
     expect(screen.queryByTestId("walk-hud")).not.toBeNull();
   });
 
+  // P16 of docs/PACE-AND-MIDWALK-REROUTE-REVIEW-2026-11-22.md: a walker who is late and far from the start, and asks
+  // to head back, used to get "Couldn't find a shorter way back" because the way home did not fit in 60% of the time left.
+  it("'Head back' from a late, far walker still takes them home, even over the way they came", async () => {
+    render(<WalkPlannerApp />);
+    await flush();
+    fireEvent.change(screen.getByPlaceholderText("Latitude"), { target: { value: String(ORIGIN.lat) } });
+    fireEvent.change(screen.getByPlaceholderText("Longitude"), { target: { value: String(ORIGIN.lng) } });
+    fireEvent.change(document.querySelector('input[type="number"][min="15"]') as HTMLInputElement, { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
+    await flush();
+    fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+    fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
+    await flush(3);
+    await advance(110_000); // about 18 simulated minutes: 1.2 km out, 20-minute walk used up
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
+    fireEvent.change(box, { target: { value: "head back" } });
+    fireEvent.submit(box.closest("form")!);
+    await flush();
+    fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: "Head back" }));
+    await flush(6);
+    await advance(1_000);
+
+    expect(screen.queryByTestId("walk-notice")?.textContent ?? "").not.toContain("shorter way back");
+    // The route the walker is on now ends at the start.
+    const end = mapRenders[mapRenders.length - 1].routeGeometry.at(-1)!;
+    expect(haversineDistance(end, ORIGIN)).toBeLessThan(30);
+    expect(optionsRequests.some((r) => (r.options as Array<{ theme: string }>).some((o) => o.theme === "back"))).toBe(true);
+  });
+
   it("never draws a straight line from the GPS dot to a route vertex", async () => {
     strayForever();
     await startSimulatedWalk();

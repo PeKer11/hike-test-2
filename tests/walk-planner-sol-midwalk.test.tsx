@@ -3,7 +3,7 @@
  * of a walk. The chat itself is stood in for by a component that hands the test its props; the walk is the real thing
  * (a SimulatedWalkTracker feeding the real planner), and `fetch` is the only fake.
  */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types";
@@ -70,6 +70,8 @@ const PLAN: WalkPlan = {
 
 type Body = Record<string, unknown>;
 let walkPlanCalls: Body[];
+/** What the walk chat's model answers (/api/walk-assistant). */
+let assistantAnswer: { reply: string; actions: unknown[] };
 let settingsStore: Record<string, string>;
 
 async function flush() {
@@ -101,6 +103,7 @@ beforeEach(() => {
   signedIn = false;
   chat = null;
   walkPlanCalls = [];
+  assistantAnswer = { reply: "ok", actions: [] };
   settingsStore = { "walk-settings": JSON.stringify({ ...DEFAULT_WALK_SETTINGS, deviationMode: "ask" }) };
   Object.defineProperty(window, "localStorage", {
     configurable: true,
@@ -115,9 +118,13 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       if (typeof url === "string" && url.startsWith("/api/walk-plan")) {
-        walkPlanCalls.push(JSON.parse(String(init?.body)) as Body);
-        return { ok: true, json: async () => PLAN };
+        const body = JSON.parse(String(init?.body)) as Body;
+        walkPlanCalls.push(body);
+        // A rebuild that is handed its stops answers with them (the planner keeps what it is asked to keep).
+        const kept = body.explicitAttractions as Attraction[] | undefined;
+        return { ok: true, json: async () => (kept?.length ? { ...PLAN, orderedAttractions: kept, segments: kept.map(segmentTo) } : PLAN) };
       }
+      if (url === "/api/walk-assistant") return { ok: true, status: 200, json: async () => assistantAnswer };
       if (url === "/api/nearby") return { ok: true, json: async () => ({ places: [] }) };
       return { ok: false, status: 404, json: async () => ({ error: "not stubbed here" }) };
     }),
@@ -174,5 +181,42 @@ describe("the planner chat changing a live walk", () => {
     // Budget 90 (the plan's 99 is longer): six minutes in, so about 84 left. The wall clock would have said 89.
     expect(current.remainingMin).toBeLessThan(87);
     expect(current.remainingMin).toBeGreaterThan(80);
+  });
+});
+
+describe("P21: a place added from the walk chat stays pinned", () => {
+  async function say(text: string) {
+    const ask = screen.queryByRole("button", { name: "Ask" });
+    if (ask) fireEvent.click(ask);
+    const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
+    fireEvent.change(box, { target: { value: text } });
+    fireEvent.submit(box.closest("form")!);
+    await flush();
+    await advance(500);
+  }
+
+  it("the next rebuild still pins it (it used to be pinned for the build that added it only)", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    const kiosk = { lat: 32.1, lng: 34.7805 };
+    assistantAnswer = { reply: "There is a kiosk ahead.", actions: [{ kind: "add-place", name: "Corner Kiosk", coordinates: kiosk }] };
+    await say("anything to drink ahead?");
+    fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: "Add Corner Kiosk" }));
+    await flush();
+    const id = `chat-${Math.round(kiosk.lat * 1e5)}-${Math.round(kiosk.lng * 1e5)}`;
+    const adding = walkPlanCalls[walkPlanCalls.length - 1];
+    expect((adding.explicitAttractions as Attraction[]).map((a) => a.id)).toContain(id);
+
+    // A later change of route, asked for separately: the kiosk is still one of the walker's pinned stops.
+    assistantAnswer = { reply: "Skip the museum?", actions: [{ kind: "skip-stop", stopIndex: 0 }] };
+    await advance(3_000); // the new leg's first fix: the chat has the walk in view again
+    const callsBefore = walkPlanCalls.length;
+    await say("skip the first one");
+    fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: /^Skip City Museum$/ }));
+    await flush();
+    expect(walkPlanCalls).toHaveLength(callsBefore + 1);
+    const later = walkPlanCalls[walkPlanCalls.length - 1];
+    expect((later.explicitAttractions as Attraction[]).map((a) => a.id)).not.toContain("a1"); // it is the skip
+    expect(later.pinnedAttractionIds as string[]).toContain(id);
   });
 });

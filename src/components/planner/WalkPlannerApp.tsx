@@ -214,6 +214,7 @@ import { foodAmenityItems } from "@/lib/walk/companion/habit-ticker";
 import { companionText } from "@/lib/walk/companion-copy";
 import {
   planDirectionOptions,
+  planHeadBackOption,
   routeDirectionOptions,
   type OfferTheme,
 } from "@/lib/walk/options-request";
@@ -1929,6 +1930,27 @@ export function WalkPlannerApp({
   const askForStopRef = useRef<(() => void) | null>(null);
   const addStopViaChat = () => addStopFromOffer();
 
+  // What a pace rebuild did, in one line on the walk sheet: the stops still ahead before and after. A route that came back
+  // with the same stops after "shorter" (or "longer") says so, instead of looking like nothing happened.
+  const stopsAheadIds = (): string[] => {
+    const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    return (walkPlanRef.current?.orderedAttractions ?? []).filter((a) => !visited.has(a.id)).map((a) => a.id);
+  };
+  const announcePaceRebuild = (reason: ReplanReason, plan: WalkPlan | null, beforeIds: string[]) => {
+    if (!plan) return; // a failed or superseded rebuild has already said so
+    const n = walkCopy.notice[uiLang === "he" ? "he" : "en"];
+    const delta = plan.orderedAttractions.length - beforeIds.length;
+    const minutes = Math.round(plan.totalMinutes);
+    if (replanPaceDirection(reason) === "slow") {
+      if (delta < 0) showWalkNotice(n.shortened(-delta, minutes), "ok");
+      else showWalkNotice(n.noShorterRoute, "warn");
+    } else if (delta > 0) {
+      showWalkNotice(n.lengthened(delta, minutes), "ok");
+    } else {
+      showWalkNotice(n.nothingFit, "warn");
+    }
+  };
+
   const runPaceTriggeredRebuild = (reason: ReplanReason, automatic = false, sizingPaceMinPerKm?: number) => {
     const baseState = midWalkRebuildState();
     if (!baseState) return;
@@ -1939,7 +1961,8 @@ export function WalkPlannerApp({
       ? headingMonitorRef.current?.recentHeading(lastFix.timestamp) ?? undefined
       : undefined;
     const { input, options } = buildPaceRebuildRequest(reason, state, heading);
-    void handleBuildWalk(input, automatic ? { ...options, automatic } : options);
+    const beforeIds = stopsAheadIds();
+    void handleBuildWalk(input, automatic ? { ...options, automatic } : options).then((plan) => announcePaceRebuild(reason, plan, beforeIds));
   };
 
   // The other answer to the slow-pace question: keep every stop and buy the
@@ -1949,6 +1972,17 @@ export function WalkPlannerApp({
     if (!state) return;
     const { input, options } = buildExtendedTimeRebuildRequest(state);
     void handleBuildWalk(input, options);
+  };
+
+  // A place the walker asked for from the chat stays pinned for the rest of the walk, like one added from a callout
+  // (`addPlaceToLiveWalk`): the build pinned it for that build only, so the next shorten could drop it.
+  const keepPinned = (ids: string[], plan: WalkPlan | null) => {
+    if (!plan) return;
+    const onWalk = ids.filter((id) => plan.orderedAttractions.some((a) => a.id === id));
+    if (onWalk.length === 0) return;
+    const next = [...new Set([...pinnedAttractionIdsRef.current, ...onWalk])];
+    pinnedAttractionIdsRef.current = next;
+    setPinnedAttractionIds(next);
   };
 
   // The assistant found a place and the walker tapped "Add": keep every stop,
@@ -1969,7 +2003,10 @@ export function WalkPlannerApp({
       pinnedIds: [...state.pinnedIds, id],
     });
     const undoable = previousPlan === null;
-    void handleBuildWalk(input, options).then((plan) => announceAdded(name, id, plan, added.avgVisitMinutes, undoable));
+    void handleBuildWalk(input, options).then((plan) => {
+      keepPinned([id], plan);
+      announceAdded(name, id, plan, added.avgVisitMinutes, undoable);
+    });
   };
 
   // After a rebuild that was meant to add one place: say what happened on the sheet.
@@ -2090,6 +2127,7 @@ export function WalkPlannerApp({
     });
     const undoable = previousPlan === null;
     void handleBuildWalk(input, options).then((plan) => {
+      keepPinned(added.map((a) => a.id), plan);
       if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added[0].id, plan, added.length * 20, undoable);
     });
   };
@@ -2251,7 +2289,8 @@ export function WalkPlannerApp({
       capMin !== undefined ? { ...state, capMin } : state,
       heading,
     );
-    void handleBuildWalk(input, options);
+    const beforeIds = stopsAheadIds();
+    void handleBuildWalk(input, options).then((plan) => announcePaceRebuild(reason, plan, beforeIds));
   };
 
   const runDropStopsRebuild = (dropStopIds: string[], capMin?: number) => {
@@ -2295,6 +2334,15 @@ export function WalkPlannerApp({
       }
     } catch {
       pick = undefined;
+    }
+    // "Head back" is a request, not a suggestion: with no shorter way inside the time left, the way straight back
+    // is still offered (it may retrace the walker's steps; they asked to go back).
+    if (!pick && theme === "short") {
+      try {
+        pick = (await routeDirectionOptions(ctx, planHeadBackOption(ctx))).find((o) => o.theme === "back");
+      } catch {
+        pick = undefined;
+      }
     }
     if (walkTrackerRef.current === null) return;
     if (!pick) {

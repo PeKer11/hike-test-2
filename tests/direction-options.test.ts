@@ -4,6 +4,7 @@ import { bearingBetween, angleDifference, haversineDistance } from "@/lib/utils/
 import {
   buildDirectionOptions,
   cameFromBearing,
+  headBackOption,
   sectorOf,
   sectorsAdjacent,
   type DirectionInput,
@@ -172,5 +173,25 @@ describe("buildDirectionOptions", () => {
 
   it("offers nothing with no time left", () => {
     expect(buildDirectionOptions(input({ remainingMin: 0 }))).toEqual([]);
+  });
+});
+
+describe("headBackOption (P16): the way straight home, whatever the time left", () => {
+  it("is offered where 'shorter' is not: a late, far walker (home is 23 min away, 5 min are left)", () => {
+    const far = input({ endAnchor: at(0, -1800), remainingMin: 5, speedMpm: 80, items: [] });
+    expect(buildDirectionOptions(far).some((o) => o.theme === "short")).toBe(false);
+    const back = headBackOption(far)!;
+    expect(back.theme).toBe("back");
+    expect(back.mode).toBe("alternatives");
+    expect(back.stops).toEqual([]);
+    // 1.8 km x 1.3 at 80 m/min.
+    expect(back.estMinutes).toBeCloseTo((1800 * 1.3) / 80, 0);
+  });
+
+  it("goes to the end anchor, else the start, and is null with neither (or no speed)", () => {
+    expect(headBackOption(input({ endAnchor: at(0, -900) }))).not.toBeNull();
+    expect(headBackOption(input({ endAnchor: null, startPoint: at(500, -300) }))).not.toBeNull();
+    expect(headBackOption(input({ endAnchor: null, startPoint: undefined }))).toBeNull();
+    expect(headBackOption(input({ endAnchor: at(0, -900), speedMpm: 0 }))).toBeNull();
   });
 });
