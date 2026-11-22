@@ -7,7 +7,7 @@
  * `docs/PACE-AND-MIDWALK-REROUTE-REVIEW-2026-11-22.md`.
  */
 
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types";
@@ -92,18 +92,38 @@ type WalkPlanBody = Record<string, unknown>;
 
 let walkPlanCalls: WalkPlanBody[];
 let settingsStore: Record<string, string>;
+/** While true, every /api/walk-plan call settles only when aborted or released through `releaseHeld`. */
+let hangRebuilds: boolean;
+let releaseHeld: Array<() => void>;
+let planAnswer: () => WalkPlan;
 
 function installFetch() {
   walkPlanCalls = [];
+  hangRebuilds = false;
+  releaseHeld = [];
+  planAnswer = () => planOf([MUSEUM, CATHEDRAL, MARKET]);
   vi.stubGlobal(
     "fetch",
     vi.fn((url: string, init?: RequestInit) => {
       if (typeof url === "string" && url.startsWith("/api/walk-plan")) {
         walkPlanCalls.push(init?.body ? (JSON.parse(String(init.body)) as WalkPlanBody) : {});
-        return Promise.resolve({ ok: true, json: async () => planOf([MUSEUM, CATHEDRAL, MARKET]) });
+        if (hangRebuilds && init?.signal) {
+          const signal = init.signal;
+          return new Promise((resolve, reject) => {
+            signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+            releaseHeld.push(() => resolve({ ok: true, json: async () => planAnswer() }));
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => planAnswer() });
       }
       if (url === "/api/directions") {
         return Promise.resolve({ ok: true, json: async () => ({ routes: [{ geometry: encodePolyline(SIDE_STREET) }] }) });
+      }
+      if (url === "/api/nearby") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ places: [{ ...CAFE, source: "osm", verification: "registered", kind: "poi" }] }),
+        });
       }
       return Promise.resolve({ ok: false, json: async () => ({ error: "not stubbed here" }) });
     }),
@@ -186,5 +206,78 @@ describe("P3: a loop walk keeps its real start after a mid-walk change", () => {
     expect(rebuild.maxEndDistanceFromOriginMeters).toBe(0);
     expect(rebuild.lng as number).toBeGreaterThan(ORIGIN.lng);
     expect(rebuild.returnTo).toEqual(ORIGIN);
+  });
+});
+
+const CAFE: Attraction = {
+  id: "osm-node-777",
+  name: "Café Ahead",
+  coordinates: { lat: 32.09, lng: 34.7806 }, // ~60 m east of the route, ahead of the start
+  category: "food",
+  avgVisitMinutes: 20,
+  tags: { name: "Café Ahead" },
+};
+
+/** A walk at a fast pace, where "Extend the hike" adds the café ahead. */
+async function startFastWalk() {
+  await startSimulatedWalk();
+  await advance(3_000);
+  fireEvent.click(screen.getByRole("button", { name: "Fast pace" }));
+  await flush();
+  await advance(45_000);
+}
+
+describe("P5: a change asked for while an update is running is not lost silently", () => {
+  it("tells the walker when a change from the walk chat cannot run yet", async () => {
+    await startFastWalk();
+    hangRebuilds = true;
+    fireEvent.click(screen.getByRole("button", { name: "Extend the hike" }));
+    await flush();
+    const callsWhileRunning = walkPlanCalls.length;
+    expect(screen.getByText("Updating your route…")).toBeTruthy();
+
+    // Another change, asked through the walk chat while the first answer has not come back.
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
+    fireEvent.change(box, { target: { value: "add a stop" } });
+    fireEvent.submit(box.closest("form")!);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Add a stop" }));
+    await flush();
+    expect(walkPlanCalls).toHaveLength(callsWhileRunning);
+    expect(screen.getByTestId("walk-notice").textContent).toContain("Still updating your route");
+  });
+
+  it("End walk during an update, then a new walk: a later change still runs", async () => {
+    await startSimulatedWalk();
+    await advance(2_000);
+    fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
+    await flush();
+    await advance(8_000);
+    hangRebuilds = true;
+    fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
+    await flush();
+    expect(screen.getByText("Updating your route…")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "End walk" }));
+    fireEvent.click(screen.getByRole("button", { name: "End walk?" }));
+    await flush();
+
+    // A fresh walk. The update that was cut short must not leave its "running" flag behind.
+    hangRebuilds = false;
+    fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
+    await flush();
+    await advance(2_000);
+    const callsBefore = walkPlanCalls.length;
+    fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
+    await flush();
+    await advance(8_000);
+    fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
+    await flush();
+
+    expect(walkPlanCalls.length).toBe(callsBefore + 1);
+    expect(screen.queryByTestId("walk-notice")?.textContent ?? "").not.toContain("Still updating");
   });
 });

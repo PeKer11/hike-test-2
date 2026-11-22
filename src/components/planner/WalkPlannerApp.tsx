@@ -1057,6 +1057,22 @@ export function WalkPlannerApp({
     };
   }, [walkMode, isSignedIn]);
 
+  // Give up on any mid-walk rebuild still in flight, and on a Sol build waiting behind it. A route the
+  // walker is swapping to (End walk, a fresh Start, "Head back", "Back to previous route") must not be
+  // overwritten later by an answer that was asked for before it, and the "update running" flag must
+  // not outlive the request that raised it (its `finally` skips once the request id has moved on).
+  const abandonMidWalkRebuild = () => {
+    cancelBuildRef.current?.();
+    buildWalkRequestIdRef.current += 1;
+    midWalkRebuildInFlightRef.current = false;
+    const queued = queuedMidWalkBuildRef.current;
+    queuedMidWalkBuildRef.current = null;
+    queued?.resolve(null);
+    setIsWalkPlanLoading(false);
+    setIsWalkPlanSlow(false);
+    setRebuildingMidWalk(false);
+  };
+
   const handleEndWalk = () => {
     clearActiveWalk();
     setFinishKeepWalking(false);
@@ -1089,12 +1105,8 @@ export function WalkPlannerApp({
     // Invalidate any in-flight (mid-walk) rebuild: its success and failure
     // paths both check the id before restarting tracking, and its `finally`
     // skips the loading flags once superseded.
-    cancelBuildRef.current?.();
-    buildWalkRequestIdRef.current += 1;
-    setIsWalkPlanLoading(false);
-    setIsWalkPlanSlow(false);
+    abandonMidWalkRebuild();
     stopWalkTracking();
-    setRebuildingMidWalk(false);
     lastLocalRejoinAtRef.current = Number.NEGATIVE_INFINITY;
     setPreviousPlan(null);
     setPinnedTimeWarning(null);
@@ -1440,6 +1452,8 @@ export function WalkPlannerApp({
       backfillGeometry?: SavedWalk;
       /** The stops were already chosen by the AI (the chat); skip the AI builder. */
       aiDecided?: boolean;
+      /** A trigger fired this, not the walker: when an update is already running it is dropped without a word. */
+      automatic?: boolean;
     },
   ): Promise<WalkPlan | null> => {
     // One mid-walk rebuild at a time. The walk keeps running on its old route while a
@@ -1447,7 +1461,11 @@ export function WalkPlannerApp({
     // automatic triggers simply fire again after their cooldown, but a route the
     // assistant built is the walker's own request, so the latest one waits its turn.
     if (options?.autoResume && midWalkRebuildInFlightRef.current) {
-      if (!options.aiDecided) return null;
+      if (!options.aiDecided) {
+        // Something the walker tapped must not vanish without a word; a trigger simply fires again later.
+        if (!options.automatic) showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].stillUpdating, "warn");
+        return null;
+      }
       return new Promise<WalkPlan | null>((resolve) => {
         queuedMidWalkBuildRef.current?.resolve(null);
         queuedMidWalkBuildRef.current = { input, options, resolve };
@@ -1618,12 +1636,12 @@ export function WalkPlannerApp({
           radiusMeters: input.radiusMeters,
           maxEndDistanceFromOriginMeters: input.maxEndDistanceFromOriginMeters,
           endAnchor: input.endAnchor,
-          preferredCategories: input.preferredCategories,
-          explicitAttractions: aiStops ?? keepAttractions,
-          fixedOrder: aiStops || options?.fixedOrder === true ? true : undefined,
           // A loop closes at the real start. Mid-walk `origin` is where the walker stands, so
           // without this a rebuild would end the walk at the spot it was rebuilt.
           returnTo: options?.autoResume ? input.endAnchor : undefined,
+          preferredCategories: input.preferredCategories,
+          explicitAttractions: aiStops ?? keepAttractions,
+          fixedOrder: aiStops || options?.fixedOrder === true ? true : undefined,
           presetGeometry: aiGeometry ?? options?.presetGeometry,
           ...routeRulesRef.current,
           pinnedAttractionIds: activePinnedIds,
@@ -1809,7 +1827,7 @@ export function WalkPlannerApp({
   const askForStopRef = useRef<(() => void) | null>(null);
   const addStopViaChat = () => addStopFromOffer();
 
-  const runPaceTriggeredRebuild = (reason: ReplanReason) => {
+  const runPaceTriggeredRebuild = (reason: ReplanReason, automatic = false) => {
     const state = midWalkRebuildState();
     if (!state) return;
     const lastFix = latestPaceUpdateRef.current;
@@ -1817,7 +1835,7 @@ export function WalkPlannerApp({
       ? headingMonitorRef.current?.recentHeading(lastFix.timestamp) ?? undefined
       : undefined;
     const { input, options } = buildPaceRebuildRequest(reason, state, heading);
-    void handleBuildWalk(input, options);
+    void handleBuildWalk(input, automatic ? { ...options, automatic } : options);
   };
 
   // The other answer to the slow-pace question: keep every stop and buy the
@@ -1869,6 +1887,11 @@ export function WalkPlannerApp({
     const state = midWalkRebuildState();
     if (!state) {
       showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].gone, "warn");
+      return;
+    }
+    // One update at a time: say so before pinning or marking anything, so a refused tap leaves no trace.
+    if (midWalkRebuildInFlightRef.current) {
+      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].stillUpdating, "warn");
       return;
     }
     const undoable = previousPlan === null;
@@ -2396,7 +2419,7 @@ export function WalkPlannerApp({
     // No explicit answer (an automatic rebuild): the walker's standing setting, else re-order as before.
     const keep = (order ?? (walkSettingsRef.current.routeOrderMode === "keep" ? "keep" : "reorder")) === "keep";
     const { input, options } = buildDeviationRebuildRequest(state, keep);
-    void handleBuildWalk(input, options);
+    void handleBuildWalk(input, order === undefined ? { ...options, automatic: true } : options);
   };
   // "Best route from here" / "Rebuild route from here": ask keep-or-re-order unless the walker's setting already says.
   const [routeOrderAsk, setRouteOrderAsk] = useState(false);
@@ -2572,7 +2595,7 @@ export function WalkPlannerApp({
       state,
       heading,
     );
-    void handleBuildWalk(input, options);
+    void handleBuildWalk(input, { ...options, automatic: true });
   };
 
   /**
@@ -2628,7 +2651,7 @@ export function WalkPlannerApp({
       paceConfirmTimeoutRef.current = null;
       setPaceConfirmation(null);
       if (replanPaceDirection(reason) === "slow" && !collapseFlow.isCollapsed()) {
-        runPaceTriggeredRebuild(reason);
+        runPaceTriggeredRebuild(reason, true);
       }
     }, PACE_CONFIRMATION_TIMEOUT_MS);
   };
@@ -2643,6 +2666,9 @@ export function WalkPlannerApp({
       setWalkPlanError("Build a walk plan before starting live tracking.");
       return;
     }
+    // A start the walker pressed (not the one a rebuild makes for itself) begins from a clean slate:
+    // an "update running" flag left behind by a walk that ended mid-update must not block this one.
+    if (!planOverride) abandonMidWalkRebuild();
     walkPlanRef.current = plan;
     // Give the map the whole screen for the walk.
     onRequestExpand?.(true);
@@ -3048,7 +3074,7 @@ export function WalkPlannerApp({
     const checker = new PaceChecker(walkSettingsRef.current, trigger, (reason, response) => {
       if (response === "auto") {
         if (collapseFlow.isCollapsed()) return;
-        runPaceTriggeredRebuild(reason);
+        runPaceTriggeredRebuild(reason, true);
         return;
       }
 
@@ -3076,6 +3102,7 @@ export function WalkPlannerApp({
       currentPosition ??
       snapshot.input.origin;
 
+    abandonMidWalkRebuild();
     stopWalkTracking();
     walkInputRef.current = { ...snapshot.input, origin: resumePosition };
     setLastWalkInput(walkInputRef.current);
@@ -3232,6 +3259,8 @@ export function WalkPlannerApp({
   const startFromOptionRoute = (option: OfferedOption) => {
     const state = midWalkRebuildState();
     if (!state) return;
+    // An update that is still running was asked for before this route: it must not overwrite it.
+    abandonMidWalkRebuild();
     const { input } = buildOptionRebuildRequest(state, []);
     if (walkPlanRef.current && walkInputRef.current) {
       const snapshot: PlanSnapshot = {
@@ -3269,6 +3298,11 @@ export function WalkPlannerApp({
     if (!option) return;
     const state = midWalkRebuildState();
     if (!state) return;
+    // A route with stops is a rebuild, and only one runs at a time: keep the sheet open and say so.
+    if (option.stops.length > 0 && midWalkRebuildInFlightRef.current) {
+      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].stillUpdating, "warn");
+      return;
+    }
     collapseFlow.resolve();
     if (option.stops.length === 0) {
       startFromOptionRoute(option);

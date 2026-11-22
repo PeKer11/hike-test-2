@@ -74,6 +74,7 @@ export const walkCopy = {
       replanFailed: "Couldn't update your route just now. Staying on the current one.",
       manualResume: "We reshaped your walk for your pace. Take a look, then press Start Walk.",
       noShorter: "Couldn't find a shorter way back from here.",
+      stillUpdating: "Still updating your route. Try again in a moment.",
       // "Back to my route": every way a tap can end says so on the sheet (rejoin.ts, RejoinOutcome).
       wayBackDrawn: (m: number) => `Way back drawn. Follow the green line (${m} m).`,
       wayBackDrawnFar: (m: number) => `Way back drawn (${m} m). Walk to the road first, then follow the green line.`,
@@ -92,6 +93,7 @@ export const walkCopy = {
       replanFailed: "לא הצלחנו לבנות מסלול מעודכן. ממשיכים במסלול הנוכחי.",
       manualResume: "התאמנו את ההליכה לקצב שלכם. הציצו, ולחצו על התחלה.",
       noShorter: "לא מצאנו דרך קצרה יותר חזרה מכאן.",
+      stillUpdating: "המסלול עדיין מתעדכן. נסו שוב בעוד רגע.",
       wayBackDrawn: (m: number) => `סימנו את הדרך חזרה. לכו לפי הקו הירוק (${m} מ׳).`,
       wayBackDrawnFar: (m: number) => `סימנו את הדרך חזרה (${m} מ׳). קודם לכו אל הכביש, ואז לפי הקו הירוק.`,
       wayBackBusy: "עדיין מחפשים דרך חזרה…",

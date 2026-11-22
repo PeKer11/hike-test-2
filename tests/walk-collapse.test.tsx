@@ -40,6 +40,30 @@ vi.mock("@/components/map", () => ({
   },
 }));
 
+/** When set, the planner offers one stop-less route (a loop from here) and nothing else. */
+let forceStoplessOption = false;
+vi.mock("@/lib/walk/direction-options", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/walk/direction-options")>();
+  return {
+    ...actual,
+    buildDirectionOptions: (input: Parameters<typeof actual.buildDirectionOptions>[0]) =>
+      forceStoplessOption
+        ? [
+            {
+              theme: "nature" as const,
+              mode: "roundtrip" as const,
+              stops: [],
+              sector: null,
+              score: 0,
+              estMinutes: 20,
+              seed: 0,
+              roundTripLengthM: 1500,
+            },
+          ]
+        : actual.buildDirectionOptions(input),
+  };
+});
+
 const mockGetDirections = vi.fn();
 vi.mock("@/lib/api/ors-client", () => ({
   getDirections: (...args: unknown[]) => mockGetDirections(...args),
@@ -132,6 +156,9 @@ let holdOptions: boolean;
 let heldOptions: (() => void) | null;
 let settingsStore: Record<string, string>;
 let rerouteMode: "ok" | "fail";
+/** While set, /api/walk-plan calls after the first settle only when released or aborted. */
+let holdWalkPlan: boolean;
+let heldWalkPlans: Array<() => void>;
 
 function installFetch() {
   walkPlanCalls = [];
@@ -141,11 +168,21 @@ function installFetch() {
   holdOptions = false;
   heldOptions = null;
   rerouteMode = "ok";
+  holdWalkPlan = false;
+  heldWalkPlans = [];
+  forceStoplessOption = false;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       if (url.startsWith("/api/walk-plan")) {
         walkPlanCalls.push(JSON.parse(String(init?.body)) as Json);
+        if (holdWalkPlan && init?.signal) {
+          const signal = init.signal;
+          return new Promise((resolve, reject) => {
+            signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+            heldWalkPlans.push(() => resolve({ ok: true, json: async () => planOf([MUSEUM, CATHEDRAL]) }));
+          });
+        }
         return { ok: true, json: async () => planOf([MUSEUM, CATHEDRAL]) };
       }
       if (url === "/api/directions") {
@@ -353,6 +390,44 @@ describe("a walker who has gone a different way (collapse)", () => {
       expect(walkPlanCalls).toHaveLength(1);
     }
     expect(chosen.overlapWalked).toBeLessThanOrEqual(0.25);
+  });
+
+  // P6 of docs/PACE-AND-MIDWALK-REROUTE-REVIEW-2026-11-22.md: a route with no stops (the way home, a loop) is
+  // swapped in directly. An update that was already running used to land afterwards and replace it.
+  it("a stop-less direction chosen while an update is still running stays the route", async () => {
+    forceStoplessOption = true; // a loop from here, with no stops, is what is offered
+    strayForever();
+    await startSimulatedWalk();
+    await clickStray();
+    await advance(3_000);
+    holdWalkPlan = true;
+    fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
+    await flush(3);
+    expect(walkPlanCalls).toHaveLength(2);
+    expect(heldWalkPlans).toHaveLength(1);
+
+    await advance(6_000);
+    const card = sheet();
+    expect(card).not.toBeNull();
+    const options = optionsResponses[0].options;
+    const index = options.findIndex((o) => o.stops.length === 0);
+    expect(index).toBeGreaterThanOrEqual(0);
+    const cardButtons = [...card!.querySelectorAll("button[aria-pressed]")] as HTMLButtonElement[];
+    fireEvent.click(cardButtons[index]);
+    await flush();
+    fireEvent.click(within(sheet()!).getByRole("button", { name: "Go this way" }));
+    await flush(4);
+    const endOf = () => mapRenders[mapRenders.length - 1].routeGeometry.at(-1)!;
+    const chosenEnd = endOf();
+    expect(chosenEnd).not.toEqual(ROUTE[ROUTE.length - 1]);
+    expect(walkPlanCalls).toHaveLength(2);
+
+    // The update that was asked for before the choice answers late: it must not replace the chosen route.
+    await act(async () => heldWalkPlans[0]());
+    await advance(1_000);
+    expect(endOf()).toEqual(chosenEnd);
+    expect(screen.queryByText("Updating your route…")).toBeNull();
+    expect(screen.queryByTestId("walk-hud")).not.toBeNull();
   });
 
   it("never draws a straight line from the GPS dot to a route vertex", async () => {
