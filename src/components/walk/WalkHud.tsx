@@ -99,6 +99,8 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
         {/* The logo, not a control: no box, no lip, nothing under it to tap (touches go through to the map). */}
         <TraikeLockup
           data-testid="walk-logo"
+          markSize={26}
+          textClassName="text-[20px]"
           className="pointer-events-none shrink-0 select-none text-[#FFF7EC] [text-shadow:0_0_3px_rgba(27,38,32,0.7),0_1px_8px_rgba(27,38,32,0.6)]"
         />
         {stopProgress && stopProgress.total > 0 ? (

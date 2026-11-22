@@ -9,11 +9,22 @@ export function TraikeMark({ size = 30, className = "" }: { size?: number; class
 }
 
 /** The mark and the "Traike" wordmark in the brand serif. Colour and shadow come from the surface it sits on. */
-export function TraikeLockup({ className = "", textClassName = "", "data-testid": testId }: { className?: string; textClassName?: string; "data-testid"?: string }) {
+export function TraikeLockup({
+  className = "",
+  markSize = 30,
+  textClassName = "text-[24px]",
+  "data-testid": testId,
+}: {
+  className?: string;
+  /** The mark's side in px; the words are sized to it by `textClassName`. */
+  markSize?: number;
+  textClassName?: string;
+  "data-testid"?: string;
+}) {
   return (
     <span data-testid={testId} className={`flex w-fit items-center gap-2 ${className}`.trim()}>
-      <TraikeMark />
-      <span className={`font-app-serif text-[24px] font-bold leading-none ${textClassName}`.trim()}>Traike</span>
+      <TraikeMark size={markSize} />
+      <span className={`font-app-serif font-bold leading-none ${textClassName}`.trim()}>Traike</span>
     </span>
   );
 }
