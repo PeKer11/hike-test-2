@@ -33,7 +33,7 @@ function QuotaIcon({ index }: { index: number }) {
     <path key="s" d="m12 4 2.4 5 5.6.8-4 3.9.9 5.6-4.9-2.6-4.9 2.6.9-5.6-4-3.9 5.6-.8z" />,
   ];
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0" aria-hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0" aria-hidden>
       {paths[index]}
     </svg>
   );
@@ -41,8 +41,8 @@ function QuotaIcon({ index }: { index: number }) {
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-cream font-brand text-charcoal">
-      <SiteHeader />
+    <div className="min-h-screen bg-cream font-app-sans text-charcoal">
+      <SiteHeader variant="app" />
 
       <section className="relative isolate overflow-hidden">
         <Image
@@ -56,19 +56,20 @@ export default function PricingPage() {
         />
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-cream/90 via-cream/55 to-cream" />
 
-        <div className="mx-auto max-w-[1200px] px-4 pb-24 pt-16 sm:px-6 md:pt-24">
-          <h1 className="text-center font-display text-5xl font-bold text-forest md:text-7xl">
+        <div className="tk-page px-4 pb-24 pt-16 sm:px-6 md:pt-24">
+          <h1 className="text-balance text-center font-app-serif text-[44px] font-semibold leading-[1.05] text-tk-ink [font-variation-settings:'SOFT'_100,'WONK'_1] md:text-[64px]">
             Walk first. Pay later.
           </h1>
 
-          <div className="mt-32 grid items-stretch gap-x-8 gap-y-24 md:grid-cols-3">
+          {/* One column up to a desktop (each card at most 480px wide), three from lg. */}
+          <div className="mx-auto mt-32 grid max-w-[480px] items-stretch gap-x-8 gap-y-24 lg:max-w-none lg:grid-cols-3">
             {PRICING_TIERS.map((tier) => (
               <div
                 key={tier.id}
-                className={`relative flex flex-col rounded-[28px] px-8 pb-8 pt-28 ${
+                className={`relative flex flex-col rounded-[6px] border-[1.5px] px-6 pb-6 pt-28 ${
                   tier.highlighted
-                    ? "bg-forest text-cream shadow-[0_24px_60px_rgba(30,61,47,0.45)] md:-translate-y-4"
-                    : "bg-white/90 text-charcoal shadow-[0_16px_44px_rgba(30,61,47,0.18)] backdrop-blur"
+                    ? "border-[var(--tk-lip)] bg-[var(--tk-sel)] text-[var(--tk-on-sel)] shadow-[0_6px_0_var(--tk-lip)] lg:-translate-y-4"
+                    : "border-[var(--tk-ctl)] bg-cream text-tk-ink shadow-[0_4px_0_var(--tk-lip)]"
                 }`}
               >
                 <Image
@@ -79,34 +80,27 @@ export default function PricingPage() {
                   aria-hidden
                   className="pointer-events-none absolute -top-20 left-1/2 h-44 w-44 -translate-x-1/2 object-contain drop-shadow-[0_18px_22px_rgba(0,0,0,0.28)]"
                 />
-                <h2 className={`text-center text-lg font-semibold ${tier.highlighted ? "text-cream/80" : "text-forest/70"}`}>
+                <h2 className={`text-center text-[18px] font-semibold ${tier.highlighted ? "opacity-80" : "text-tk-sage"}`}>
                   {tier.name}
                 </h2>
                 <p className="mt-2 text-center">
-                  <span className="font-sans text-6xl font-extralight">{tier.price}</span>
-                  <span className={`ml-2 text-sm ${tier.highlighted ? "text-cream/60" : "text-charcoal/50"}`}>
+                  <span className="font-app-serif text-[56px] font-semibold leading-none [font-variation-settings:'SOFT'_100,'WONK'_1]">{tier.price}</span>
+                  <span className={`ms-2 text-[14px] font-semibold ${tier.highlighted ? "opacity-70" : "text-tk-sage"}`}>
                     {tier.priceNote}
                   </span>
                 </p>
-                <ul className="mt-8 flex flex-col gap-4">
+                <ul className="mb-8 mt-8 flex flex-col gap-4">
                   {tier.quotas.map(([count, label], i) => (
                     <li key={label} className="flex items-center gap-3">
-                      <span className={tier.highlighted ? "text-skysoft" : "text-terra"}>
+                      <span className="text-[var(--tk-leather)]">
                         <QuotaIcon index={i} />
                       </span>
-                      <span className="font-sans text-3xl font-extralight">{count}</span>
-                      <span className={`text-sm ${tier.highlighted ? "text-cream/80" : "text-charcoal/70"}`}>{label}</span>
+                      <span className="font-app-serif text-[28px] font-semibold leading-none [font-variation-settings:'SOFT'_100,'WONK'_1]">{count}</span>
+                      <span className={`text-[15px] ${tier.highlighted ? "opacity-85" : "text-tk-body"}`}>{label}</span>
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href={tier.href}
-                  className={`mt-10 rounded-full px-6 py-3.5 text-center font-bold transition-colors ${
-                    tier.highlighted
-                      ? "bg-terra text-cream shadow-[0_8px_24px_rgba(193,95,60,0.5)] hover:bg-terra/90"
-                      : "bg-terra/10 text-terra hover:bg-terra/20"
-                  }`}
-                >
+                <Link href={tier.href} className={`${tier.highlighted ? "tk-btn tk-btn-primary" : "tk-btn tk-btn-secondary"} mt-auto w-full`}>
                   {tier.cta}
                 </Link>
               </div>
@@ -116,20 +110,20 @@ export default function PricingPage() {
       </section>
 
       <section className="pb-20">
-        <div className="mx-auto max-w-[640px] px-4 sm:px-6">
+        <div className="mx-auto max-w-[720px] px-4 sm:px-6">
           {FAQ.map((item) => (
-            <details key={item.q} className="group border-b border-forest/15 py-4">
-              <summary className="flex cursor-pointer list-none items-center justify-between font-semibold text-forest">
+            <details key={item.q} className="group border-b border-tk-hair py-3">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-[18px] font-semibold text-tk-ink">
                 {item.q}
-                <span className="text-terra transition-transform group-open:rotate-45">+</span>
+                <span aria-hidden className="text-[var(--tk-leather)] transition-transform group-open:rotate-45">+</span>
               </summary>
-              <p className="mt-3 leading-relaxed text-charcoal/75">{item.a}</p>
+              <p className="mt-2 text-[16px] leading-6 text-tk-body">{item.a}</p>
             </details>
           ))}
         </div>
       </section>
 
-      <SiteFooter />
+      <SiteFooter variant="app" />
     </div>
   );
 }

@@ -18,17 +18,22 @@ const ITEMS: { h: string; p: string }[] = [
 /** DRAFT for counsel review (round 2 plan section 3.9). Nothing social goes live with its flags on until counsel signs this. */
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto max-w-[640px] space-y-6 px-4 py-10 font-brand text-charcoal">
-      <p role="note" className="rounded-2xl bg-terra/15 p-3 text-[15px] font-medium text-terra">
-        Draft for legal review. Not final.
-      </p>
-      <h1 className="font-display text-[32px] leading-10 text-forest">Privacy</h1>
-      {ITEMS.map((i) => (
-        <section key={i.h} className="space-y-1">
-          <h2 className="text-[18px] font-semibold text-tk-ink">{i.h}</h2>
-          <p className="text-[16px] leading-6">{i.p}</p>
-        </section>
-      ))}
+    <main className="min-h-screen bg-cream font-app-sans text-charcoal">
+      {/* The app's type and rows (round 13): a serif title, tinted section bars, hairline rows. 720px on a tablet and a desktop. */}
+      <div className="mx-auto w-full max-w-[720px] pb-16 md:border-x md:border-tk-hair">
+        <header className="px-4 pb-4 pt-[max(28px,env(safe-area-inset-top))]">
+          <p role="note" className="inline-block rounded-[6px] border border-tk-hair bg-tk-bar px-3 py-2 text-[14px] font-semibold text-tk-check shadow-[0_2px_0_var(--tk-lip)]">
+            Draft for legal review. Not final.
+          </p>
+          <h1 className="mt-4 font-app-serif text-[36px] font-semibold leading-[1.1] text-tk-ink [font-variation-settings:'SOFT'_100,'WONK'_1]">Privacy</h1>
+        </header>
+        {ITEMS.map((i) => (
+          <section key={i.h}>
+            <h2 className="tk-bar !text-[15px]">{i.h}</h2>
+            <p className="px-4 py-3 text-[16px] leading-6 text-tk-body">{i.p}</p>
+          </section>
+        ))}
+      </div>
     </main>
   );
 }
