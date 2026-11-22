@@ -12,9 +12,10 @@ const LEATHER = `var(--tk-leather, ${WALKER_COLOR})`;
 const RING = "#f8f3ea";
 const INK = "#1b2620";
 /** The box the marker sits in; the disc is centred and the arrowhead reaches out of it on the leading edge. */
-export const WALKER_BOX_PX = 44;
-const DISC_PX = 28;
-const ARROW_PATH = "M22 1.5 30.5 13.5 22 10 13.5 13.5Z";
+export const WALKER_BOX_PX = 60;
+const DISC_PX = 26;
+// A chevron whose tip is 29 px from the centre: the disc and its rings reach out 17 px, so about 12 px of it shows beyond them.
+const ARROW_PATH = "M30 1 40 17 30 12.5 20 17Z";
 
 /** A heading the marker can draw: a real number of degrees (unwrapped is fine); anything else means no arrowhead. */
 export function validHeading(headingDeg: number | null | undefined): headingDeg is number {
@@ -38,7 +39,7 @@ export function WalkerMarkerShape({ headingDeg }: { headingDeg?: number | null }
           data-testid="walker-arrow"
           style={{ position: "absolute", inset: 0, transform: `rotate(${roundDeg(headingDeg)}deg)`, transition: "transform 400ms ease-out" }}
         >
-          <svg width={WALKER_BOX_PX} height={WALKER_BOX_PX} viewBox="0 0 44 44" aria-hidden>
+          <svg width={WALKER_BOX_PX} height={WALKER_BOX_PX} viewBox="0 0 60 60" aria-hidden>
             <path d={ARROW_PATH} fill={LEATHER} stroke={INK} strokeWidth="1.5" strokeLinejoin="round" />
           </svg>
         </span>
@@ -63,7 +64,7 @@ export function WalkerMarkerShape({ headingDeg }: { headingDeg?: number | null }
 export function walkerMarkerHtml(headingDeg?: number | null): string {
   const has = validHeading(headingDeg);
   const arrow = has
-    ? `<span data-testid="walker-arrow" style="position:absolute;inset:0;transform:rotate(${roundDeg(headingDeg)}deg);transition:transform 400ms ease-out;"><svg width="${WALKER_BOX_PX}" height="${WALKER_BOX_PX}" viewBox="0 0 44 44" aria-hidden="true"><path d="${ARROW_PATH}" fill="${LEATHER}" stroke="${INK}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`
+    ? `<span data-testid="walker-arrow" style="position:absolute;inset:0;transform:rotate(${roundDeg(headingDeg)}deg);transition:transform 400ms ease-out;"><svg width="${WALKER_BOX_PX}" height="${WALKER_BOX_PX}" viewBox="0 0 60 60" aria-hidden="true"><path d="${ARROW_PATH}" fill="${LEATHER}" stroke="${INK}" stroke-width="1.5" stroke-linejoin="round"/></svg></span>`
     : "";
   const offset = (WALKER_BOX_PX - DISC_PX) / 2;
   return (

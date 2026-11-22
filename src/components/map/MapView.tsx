@@ -10,6 +10,8 @@ import { useEffect } from "react";
 import { MapClickHandler } from "@/components/map/MapClickHandler";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
 import { walkedTrail } from "@/lib/map/route-colors";
+import { fitPadding, overviewBounds } from "@/lib/map/route-overview";
+import { boundsOf } from "@/lib/utils/geo";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import { useFollowPause } from "@/lib/hooks/useFollowPause";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
@@ -70,6 +72,8 @@ export interface MapViewProps {
   addedIds?: string[];
   /** Fit the view around this path once (a saved walk shown from the list). */
   fitPath?: Coordinates[];
+  /** The screen's language, for the labels on the map's own controls. */
+  lang?: "he" | "en";
 }
 
 function MapViewport({ center, zoom, focusTick = 0 }: { center: Coordinates; zoom: number; focusTick?: number }) {
@@ -118,18 +122,38 @@ function MapSizeInvalidator() {
   return null;
 }
 
+function FitPath({ path }: { path?: Coordinates[] }) {
+  const map = useMap();
+  useEffect(() => {
+    const b = path ? boundsOf(path) : null;
+    if (b) map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [48, 48] });
+  }, [map, path]);
+  return null;
+}
+
 function PositionFollower({
   currentPosition,
   followPosition = false,
   onLayers,
+  routeGeometry,
+  walkedGeometry,
+  hudInset = false,
+  isPhone = false,
+  lang = "en",
 }: {
   currentPosition?: Coordinates;
   followPosition?: boolean;
   onLayers?: () => void;
+  routeGeometry?: Coordinates[];
+  walkedGeometry?: Coordinates[];
+  hudInset?: boolean;
+  isPhone?: boolean;
+  lang?: "he" | "en";
 }) {
   const map = useMap();
   // The walker dragged the map: stop pulling it back for a while (or until they tap "re-centre").
-  const { paused, pause, scheduleResume, resume } = useFollowPause();
+  // The "whole route" glyph holds it off for a minute instead (`held`), and a second tap hands it back.
+  const { paused, held, pause, scheduleResume, hold, resume } = useFollowPause();
 
   useEffect(() => {
     map.on("dragstart", pause);
@@ -148,17 +172,36 @@ function PositionFollower({
     map.panTo([currentPosition.lat, currentPosition.lng]);
   }, [currentPosition, followPosition, map, paused]);
 
+  const recentre = () => {
+    resume();
+    if (currentPosition) map.panTo([currentPosition.lat, currentPosition.lng]);
+  };
+  const fitWholeRoute = () => {
+    if (held) return recentre();
+    const bounds = overviewBounds(routeGeometry, walkedGeometry, currentPosition);
+    if (!bounds) return;
+    hold();
+    const pad = fitPadding(hudInset, isPhone);
+    // Leaflet's map runs under the walk sheet (the sheet publishes its height as --hud-h), so the route must fit above it.
+    const sheetPx = hudInset ? Number.parseFloat(getComputedStyle(map.getContainer()).getPropertyValue("--hud-h")) || 0 : 0;
+    map.fitBounds([[bounds.south, bounds.west], [bounds.north, bounds.east]], {
+      paddingTopLeft: [pad.left, pad.top],
+      paddingBottomRight: [pad.right, pad.bottom + sheetPx],
+    });
+  };
+
   return (
     <MapGlyphs
       showFollow={followPosition}
       following={!paused}
-      onFollow={() => {
-        resume();
-        if (currentPosition) map.panTo([currentPosition.lat, currentPosition.lng]);
-      }}
+      onFollow={recentre}
+      onFitRoute={followPosition && (routeGeometry?.length ?? 0) > 1 ? fitWholeRoute : undefined}
+      fitting={held}
       onLayers={onLayers}
+      lang={lang}
     />
-  );}
+  );
+}
 
 export default function MapView({
   waypoints,
@@ -183,6 +226,8 @@ export default function MapView({
   extraAttribution,
   onAddToWalk,
   addedIds,
+  fitPath,
+  lang,
 }: MapViewProps) {
   const isPhone = useIsPhone();
   const theme = useResolvedTheme();
@@ -212,10 +257,16 @@ export default function MapView({
       <ExtraAttribution texts={credits} />
       <MapViewport center={center} zoom={zoom} focusTick={focusTick} />
       <MapSizeInvalidator />
+      <FitPath path={fitPath} />
       <PositionFollower
         currentPosition={currentPosition}
         followPosition={followPosition}
         onLayers={onOpenDetails}
+        routeGeometry={routeGeometry}
+        walkedGeometry={walkedGeometry}
+        hudInset={hudInset}
+        isPhone={isPhone}
+        lang={lang}
       />
       <MapMarkers
         waypoints={waypoints}

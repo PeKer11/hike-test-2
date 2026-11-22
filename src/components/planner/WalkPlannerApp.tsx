@@ -4972,6 +4972,7 @@ export function WalkPlannerApp({
           currentPosition={currentPosition ?? undefined}
           currentAccuracyM={walkMode ? currentAccuracyM ?? undefined : undefined}
           currentHeadingDeg={walkMode ? currentHeadingDeg : null}
+          lang={uiLang === "he" ? "he" : "en"}
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}
           onAddToWalk={walkPhase === "walking" ? undefined : addMapPlaceToWalk}

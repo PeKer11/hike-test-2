@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 
 import { MapGlyphs } from "@/components/map/MapGlyphs";
 import { routeColors, walkedTrail } from "@/lib/map/route-colors";
+import { fitPadding, overviewBounds } from "@/lib/map/route-overview";
 import { useFollowPause } from "@/lib/hooks/useFollowPause";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
 
@@ -83,10 +84,29 @@ function FitPath({ path }: { path?: Coordinates[] }) {
   return null;
 }
 
-function PositionFollower({ currentPosition, followPosition = false, onLayers }: { currentPosition?: Coordinates; followPosition?: boolean; onLayers?: () => void }) {
+function PositionFollower({
+  currentPosition,
+  followPosition = false,
+  onLayers,
+  routeGeometry,
+  walkedGeometry,
+  hudInset = false,
+  isPhone = false,
+  lang = "en",
+}: {
+  currentPosition?: Coordinates;
+  followPosition?: boolean;
+  onLayers?: () => void;
+  routeGeometry?: Coordinates[];
+  walkedGeometry?: Coordinates[];
+  hudInset?: boolean;
+  isPhone?: boolean;
+  lang?: "he" | "en";
+}) {
   const map = useMap();
   // The walker dragged the map: stop pulling it back for a while (or until they tap "re-centre").
-  const { paused, pause, scheduleResume, resume } = useFollowPause();
+  // The "whole route" glyph holds it off for a minute instead (`held`), and a second tap hands it back.
+  const { paused, held, pause, scheduleResume, hold, resume } = useFollowPause();
   useEffect(() => {
     if (!map) return;
     const start = map.addListener("dragstart", pause);
@@ -99,15 +119,26 @@ function PositionFollower({ currentPosition, followPosition = false, onLayers }:
   useEffect(() => {
     if (map && followPosition && currentPosition && !paused) map.panTo(currentPosition);
   }, [map, currentPosition, followPosition, paused]);
+  const recentre = () => {
+    resume();
+    if (map && currentPosition) map.panTo(currentPosition);
+  };
+  const fitWholeRoute = () => {
+    if (held) return recentre();
+    const bounds = overviewBounds(routeGeometry, walkedGeometry, currentPosition);
+    if (!map || !bounds) return;
+    hold();
+    map.fitBounds(bounds, fitPadding(hudInset, isPhone));
+  };
   return (
     <MapGlyphs
       showFollow={followPosition}
       following={!paused}
-      onFollow={() => {
-        resume();
-        if (map && currentPosition) map.panTo(currentPosition);
-      }}
+      onFollow={recentre}
+      onFitRoute={followPosition && (routeGeometry?.length ?? 0) > 1 ? fitWholeRoute : undefined}
+      fitting={held}
       onLayers={onLayers}
+      lang={lang}
     />
   );
 }
@@ -140,6 +171,7 @@ export default function GoogleMapView({
   onAddToWalk,
   addedIds,
   fitPath,
+  lang,
 }: MapViewProps) {
   const theme = useResolvedTheme();
   const isPhone = useIsPhone();
@@ -173,7 +205,16 @@ export default function GoogleMapView({
         >
           <Viewport center={center} zoom={zoom} focusTick={focusTick} />
           <FitPath path={fitPath} />
-          <PositionFollower currentPosition={currentPosition} followPosition={followPosition} onLayers={onOpenDetails} />
+          <PositionFollower
+            currentPosition={currentPosition}
+            followPosition={followPosition}
+            onLayers={onOpenDetails}
+            routeGeometry={routeGeometry}
+            walkedGeometry={walkedGeometry}
+            hudInset={hudInset}
+            isPhone={isPhone}
+            lang={lang}
+          />
           {walkedGeometry && walkedGeometry.length > 1 ? (
             <>
               {trail.casing ? <Line path={walkedGeometry} color={trail.casing.color} weight={trail.casing.weight} opacity={trail.casing.opacity} zIndex={0} /> : null}

@@ -14,6 +14,7 @@ vi.mock("react-leaflet", () => ({
 }));
 
 const { CurrentPositionMarker } = await import("@/components/map/CurrentPositionMarker");
+const { WALKER_BOX_PX } = await import("@/components/map/WalkerMarker");
 
 afterEach(cleanup);
 const POSITION = { lat: 32.08, lng: 34.78 };
@@ -37,10 +38,10 @@ describe("CurrentPositionMarker (Leaflet)", () => {
     }
   });
 
-  it("centres the dot on the position: the 44 px box is anchored at its middle", () => {
+  it("centres the dot on the position: the marker box is anchored at its middle", () => {
     render(<CurrentPositionMarker position={POSITION} headingDeg={0} />);
-    expect(screen.getByTestId("leaflet-marker").getAttribute("data-size")).toBe("44x44");
-    expect(screen.getByTestId("leaflet-marker").getAttribute("data-anchor")).toBe("22,22");
+    expect(screen.getByTestId("leaflet-marker").getAttribute("data-size")).toBe(`${WALKER_BOX_PX}x${WALKER_BOX_PX}`);
+    expect(screen.getByTestId("leaflet-marker").getAttribute("data-anchor")).toBe(`${WALKER_BOX_PX / 2},${WALKER_BOX_PX / 2}`);
   });
 
   it("recolours the accuracy halo to leather, not the old blue", () => {
