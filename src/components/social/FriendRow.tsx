@@ -20,8 +20,8 @@ export function FriendRow({
   const body = (
     <>
       <Avatar id={friend.avatar} size={40} seed={friend.friendId} />
-      <span dir="auto" className="min-w-0 flex-1 truncate text-start text-[17px] font-semibold text-tk-ink">
-        {friend.label}
+      <span className="min-w-0 flex-1 truncate text-start text-[17px] font-semibold text-tk-ink">
+        <bdi>{friend.label}</bdi>
       </span>
     </>
   );

@@ -19,7 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useHydrated } from "@/lib/hooks/useHydrated";
 import type { AssistantDefaults } from "@/lib/assistant/defaults";
 import type { CurrentWalk } from "@/lib/assistant/current-walk";
-import { AssistantSettings, PACE_PRESETS, useAssistantDefaults } from "./AssistantSettings";
+import { AssistantSettings, PACE_PRESETS, paceLabel, useAssistantDefaults, type AssistantLang } from "./AssistantSettings";
 import { StartLocationPicker } from "./StartLocationPicker";
 import type { Attraction, Coordinates } from "@/lib/types";
 import { ACCESS_PROFILES } from "@/lib/walk/access";
@@ -90,7 +90,99 @@ interface AssistantChatProps {
   onFocusArea?: (coordinates: Coordinates) => void;
   /** Text to put in the message box (e.g. "like my last walk, but here"); a new `tick` puts it there again. */
   prefill?: { text: string; tick: number } | null;
+  /** The words of the chat's own chrome (the planner's language). The assistant answers in the language it is written to. */
+  lang?: AssistantLang;
 }
+
+/** The chat's own labels. What is sent to the assistant (theme messages, the limits summary) stays in the walker's language or English. */
+const COPY = {
+  en: {
+    title: "Plan with Traike",
+    chats: (n: number) => `Chats (${n})`,
+    newChat: "New chat",
+    settingsTitle: "Settings",
+    settingsAria: "Assistant settings",
+    noChats: "No chats yet.",
+    deleteChat: "Delete chat",
+    clickToCopy: "Click to copy",
+    copied: "Copied",
+    readAloud: "Read aloud",
+    stopReading: "Stop reading",
+    startWalk: "Start walk",
+    simulate: "Simulate (10×)",
+    thinking: "Thinking…",
+    placeholder: "I want to see Habima Square, the Jaffa port, and a good market",
+    addImage: "📎 Add image",
+    removeImage: "Remove image",
+    customWalk: "Custom Walk",
+    dictate: "Dictate",
+    stopDictation: "Stop dictation",
+    dictHe: "Dictation language: Hebrew. Tap for English",
+    dictEn: "Dictation language: English. Tap for Hebrew",
+    building: "Building your walk…",
+    loading: "Loading…",
+    send: "Send",
+    stop: "Stop",
+    unreachable: "Could not reach the assistant. Check your connection.",
+    wrong: "Something went wrong. Try again.",
+    limits: {
+      timeMinutes: "Time available",
+      radiusKm: "Search radius from you",
+      endDistanceKm: "End at most this far from the start",
+      maxWalkKm: "Max walking distance",
+      min: "min",
+      km: "km",
+      backToStart: "Back to start",
+      noLimit: "No limit",
+      other: "other",
+      pace: "How fast do you usually walk? (once)",
+      confirm: "Confirm",
+    },
+  },
+  he: {
+    title: "תכנון עם טרייק",
+    chats: (n: number) => `שיחות (${n})`,
+    newChat: "שיחה חדשה",
+    settingsTitle: "הגדרות",
+    settingsAria: "הגדרות העוזר",
+    noChats: "אין שיחות עדיין.",
+    deleteChat: "מחיקת שיחה",
+    clickToCopy: "לחצו להעתקה",
+    copied: "הועתק",
+    readAloud: "הקראה",
+    stopReading: "עצירת הקראה",
+    startWalk: "התחלת הליכה",
+    simulate: "הדמיה (פי 10)",
+    thinking: "חושב…",
+    placeholder: "אני רוצה לעבור בכיכר הבימה, שוק טוב ולסיים בנמל יפו לקראת שקיעה",
+    addImage: "📎 הוספת תמונה",
+    removeImage: "הסרת תמונה",
+    customWalk: "הליכה משלי",
+    dictate: "הכתבה",
+    stopDictation: "עצירת הכתבה",
+    dictHe: "שפת ההכתבה: עברית. הקישו לאנגלית",
+    dictEn: "שפת ההכתבה: אנגלית. הקישו לעברית",
+    building: "בונה את המסלול…",
+    loading: "טוען…",
+    send: "שליחה",
+    stop: "עצירה",
+    unreachable: "לא הצלחתי להגיע לעוזר. בדקו את החיבור.",
+    wrong: "משהו השתבש. נסו שוב.",
+    limits: {
+      timeMinutes: "זמן פנוי",
+      radiusKm: "רדיוס חיפוש ממך",
+      endDistanceKm: "לסיים עד מרחק זה מההתחלה",
+      maxWalkKm: "מרחק הליכה מרבי",
+      min: "דק׳",
+      km: "ק״מ",
+      backToStart: "חזרה להתחלה",
+      noLimit: "ללא הגבלה",
+      other: "אחר",
+      pace: "באיזה קצב אתם הולכים בדרך כלל? (פעם אחת)",
+      confirm: "אישור",
+    },
+  },
+} as const;
 
 const MAX_IMAGES = 5;
 
@@ -181,17 +273,20 @@ function describeLimits(l: Limits): string {
 function LimitsBox({
   onConfirm,
   disabled,
+  lang,
   defaults,
   askPace,
   initial,
 }: {
   onConfirm: (l: Limits) => void;
   disabled: boolean;
+  lang: AssistantLang;
   defaults: AssistantDefaults;
   askPace: boolean;
   /** Limits the walker already stated in chat; they win over the saved defaults. */
   initial?: Partial<Limits>;
 }) {
+  const L = COPY[lang].limits;
   // Starts from the walker's saved defaults (the gear menu); anything unset is "no limit".
   const [limits, setLimits] = useState<Limits>({
     timeMinutes: initial?.timeMinutes ?? defaults.timeMinutes ?? null,
@@ -203,7 +298,7 @@ function LimitsBox({
     <div className="space-y-2 rounded-xl border border-charcoal/10 bg-paper p-3">
       {LIMIT_ROWS.map((row) => (
         <div key={row.key} className="space-y-1">
-          <p className="text-xs font-medium text-charcoal/70">{row.label}</p>
+          <p className="text-xs font-medium text-charcoal/70">{L[row.key]}</p>
           <div className="flex flex-wrap items-center gap-1">
             {row.options.map((o) => (
               <button
@@ -212,7 +307,7 @@ function LimitsBox({
                 onClick={() => setLimits((l) => ({ ...l, [row.key]: o }))}
                 className={chipCell(limits[row.key] === o)}
               >
-                {o === 0 ? "Back to start" : `${o} ${row.unit}`}
+                {o === 0 ? L.backToStart : `${o} ${row.unit === "min" ? L.min : L.km}`}
               </button>
             ))}
             <button
@@ -220,14 +315,14 @@ function LimitsBox({
               onClick={() => setLimits((l) => ({ ...l, [row.key]: null }))}
               className={chipCell(limits[row.key] === null)}
             >
-              No limit
+              {L.noLimit}
             </button>
             <input
               type="number"
               min={1}
               inputMode="decimal"
-              placeholder="other"
-              aria-label={`${row.label} (${row.unit})`}
+              placeholder={L.other}
+              aria-label={`${L[row.key]} (${row.unit === "min" ? L.min : L.km})`}
               className="w-16 rounded-full border border-charcoal/15 px-2 py-1 text-xs"
               value={limits[row.key] !== null && !row.options.includes(limits[row.key] as number) ? (limits[row.key] as number) : ""}
               onChange={(e) => {
@@ -240,7 +335,7 @@ function LimitsBox({
       ))}
       {askPace && (
         <div className="space-y-1">
-          <p className="text-xs font-medium text-charcoal/70">How fast do you usually walk? (once)</p>
+          <p className="text-xs font-medium text-charcoal/70">{L.pace}</p>
           <div className="flex flex-wrap gap-1">
             {PACE_PRESETS.map((p) => (
               <button
@@ -249,14 +344,14 @@ function LimitsBox({
                 onClick={() => setLimits((l) => ({ ...l, paceMinPerKm: p.value }))}
                 className={chipCell(limits.paceMinPerKm === p.value)}
               >
-                {p.label}
+                {paceLabel(p, lang, false)}
               </button>
             ))}
           </div>
         </div>
       )}
       <Button fullWidth disabled={disabled} onClick={() => onConfirm(limits)}>
-        Confirm
+        {L.confirm}
       </Button>
     </div>
   );
@@ -265,12 +360,13 @@ function LimitsBox({
 const BUSY_RETRIES = 75;
 const BUSY_RETRY_MS = 2000;
 
+/** The theme chips. `id` is the English label (what a picked chip is remembered by); `message` is what the assistant is sent. */
 const THEMES = [
-  { label: "Must-see Places", message: "Show me the must-see places", image: "/images/assistant/must-see.jpg" },
-  { label: "Food & Markets", message: "I want good food and markets", image: "/images/assistant/food.jpg" },
-  { label: "Viewpoints & Scenery", message: "I want viewpoints and scenery", image: "/images/assistant/viewpoints.jpg" },
-  { label: "Nature & Parks", message: "I want nature and parks", image: "/images/assistant/nature.jpg" },
-  { label: "Hidden Gems", message: "Show me hidden gems", image: "/images/assistant/hidden.jpg" },
+  { id: "Must-see Places", label: { en: "Must-see Places", he: "אתרי חובה" }, message: { en: "Show me the must-see places", he: "הראו לי את אתרי החובה" }, image: "/images/assistant/must-see.jpg" },
+  { id: "Food & Markets", label: { en: "Food & Markets", he: "אוכל ושווקים" }, message: { en: "I want good food and markets", he: "אני רוצה אוכל טוב ושווקים" }, image: "/images/assistant/food.jpg" },
+  { id: "Viewpoints & Scenery", label: { en: "Viewpoints & Scenery", he: "תצפיות ונוף" }, message: { en: "I want viewpoints and scenery", he: "אני רוצה תצפיות ונוף" }, image: "/images/assistant/viewpoints.jpg" },
+  { id: "Nature & Parks", label: { en: "Nature & Parks", he: "טבע ופארקים" }, message: { en: "I want nature and parks", he: "אני רוצה טבע ופארקים" }, image: "/images/assistant/nature.jpg" },
+  { id: "Hidden Gems", label: { en: "Hidden Gems", he: "פינות נסתרות" }, message: { en: "Show me hidden gems", he: "הראו לי פינות נסתרות" }, image: "/images/assistant/hidden.jpg" },
 ];
 
 function toAttraction(c: Candidate, params?: WalkParams): Attraction {
@@ -286,7 +382,8 @@ function toAttraction(c: Candidate, params?: WalkParams): Attraction {
   };
 }
 
-export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, getCurrentWalk, queuedPlaces, walking, onFocusPlace, walkReady, onStart, onSetOrigin, onFocusArea, prefill }: AssistantChatProps) {
+export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, getCurrentWalk, queuedPlaces, walking, onFocusPlace, walkReady, onStart, onSetOrigin, onFocusArea, prefill, lang = "en" }: AssistantChatProps) {
+  const t = COPY[lang];
   const getCurrentWalkRef = useRef(getCurrentWalk);
   getCurrentWalkRef.current = getCurrentWalk;
   const queuedRef = useRef(queuedPlaces ?? []);
@@ -422,7 +519,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
 
   const send = async (event: FormEvent | null, override?: { message: string; limits?: Limits }) => {
     event?.preventDefault();
-    const typed = override?.message ?? [...THEMES.filter((t) => themes.includes(t.label)).map((t) => t.message), text.trim()].filter(Boolean).join(". ");
+    const typed = override?.message ?? [...THEMES.filter((th) => themes.includes(th.id)).map((th) => th.message[lang]), text.trim()].filter(Boolean).join(". ");
     const sentImages = override ? [] : images;
     const message = typed || (sentImages.length ? "🖼" : "");
     if (!message || pending || isBuilding) return;
@@ -454,7 +551,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
       }
       if (!response.ok) {
         // Nothing was answered: take the message back out of the thread and put the draft back.
-        undoSend(data.error ?? "Something went wrong. Try again.");
+        undoSend(data.error ?? t.wrong);
         return;
       }
       setChatId(data.chatId);
@@ -506,7 +603,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
       void refreshChats();
     } catch {
       if (ctl.signal.aborted) return; // undone by the walker
-      setError("Could not reach the assistant. Check your connection.");
+      setError(t.unreachable);
     } finally {
       // Only the newest send may clear the waiting state; an undone one already did.
       if (inflight.current?.ctl === ctl) {
@@ -520,20 +617,20 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
     <div className={`@container relative overflow-hidden bg-cream font-app-sans ${walking ? "rounded-[14px] shadow-tk-soft" : "-mx-4 border-b border-tk-hair"}`}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-y border-tk-hair bg-tk-bar px-4 py-2">
         <span className="whitespace-nowrap text-[15px] font-semibold text-tk-ink">
-          Plan with Traike
+          {t.title}
         </span>
         <div className="flex grow items-center gap-[12px] whitespace-nowrap text-[14px] leading-none text-tk-body">
           <button type="button" className="underline decoration-1 underline-offset-[2px] hover:text-tk-ink" onClick={() => setShowChats((v) => !v)}>
-            Chats ({chats.length})
+            {t.chats(chats.length)}
           </button>
           <button type="button" className="underline decoration-1 underline-offset-[2px] hover:text-tk-ink" onClick={newChat}>
-            New chat
+            {t.newChat}
           </button>
           <button
             type="button"
-            aria-label="Assistant settings"
-            title="Settings"
-            className={`ml-auto flex h-[22px] w-[22px] items-center justify-center transition-colors ${
+            aria-label={t.settingsAria}
+            title={t.settingsTitle}
+            className={`ms-auto flex h-[22px] w-[22px] items-center justify-center transition-colors ${
               settingsOpen ? "text-tk-send" : "text-tk-body hover:text-tk-send"
             }`}
             onClick={() => setSettingsOpen((v) => !v)}
@@ -546,16 +643,16 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
       </div>
 
       <div className="pb-[13px]">
-        <StartLocationPicker origin={origin} onPick={onSetOrigin} onApproximate={onFocusArea} />
+        <StartLocationPicker origin={origin} onPick={onSetOrigin} onApproximate={onFocusArea} lang={lang} />
         {settingsOpen && (
           <div className="mx-[17px] mt-[8px]">
-            <AssistantSettings defaults={defaults} onChange={setDefaults} />
+            <AssistantSettings defaults={defaults} onChange={setDefaults} lang={lang} />
           </div>
         )}
 
         {showChats && (
           <ul className="mx-[17px] mt-[8px] max-h-40 space-y-1 overflow-y-auto rounded-[10px] border border-tk-line bg-tk-bubble p-1">
-            {chats.length === 0 && <li className="px-2 py-1 text-xs text-charcoal/50">No chats yet.</li>}
+            {chats.length === 0 && <li className="px-2 py-1 text-xs text-charcoal/50">{t.noChats}</li>}
             {chats.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-2 rounded-xl px-2 py-1 hover:bg-cream/70">
                 <button
@@ -568,7 +665,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 </button>
                 <button
                   type="button"
-                  aria-label="Delete chat"
+                  aria-label={t.deleteChat}
                   className="text-xs text-charcoal/50 hover:text-red-600"
                   onClick={() => void deleteChat(c.id)}
                 >
@@ -584,7 +681,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
             <div
               key={i}
               dir="auto"
-              title={copiedAt === i ? undefined : "Click to copy"}
+              title={copiedAt === i ? undefined : t.clickToCopy}
               onClick={(e) => {
                 // A drag-selection or a click on a place link keeps its own meaning; a plain click copies the message.
                 if (window.getSelection()?.toString() || (e.target as HTMLElement).closest("button, a")) return;
@@ -603,8 +700,8 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               {m.role === "assistant" && canSpeak && (
                 <button
                   type="button"
-                  aria-label={speakingIdx === i ? "Stop reading" : "Read aloud"}
-                  title={speakingIdx === i ? "Stop reading" : "Read aloud"}
+                  aria-label={speakingIdx === i ? t.stopReading : t.readAloud}
+                  title={speakingIdx === i ? t.stopReading : t.readAloud}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (speakingIdx === i) {
@@ -620,12 +717,13 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                   {speakingIdx === i ? "⏹" : "🔊"}
                 </button>
               )}
-              {copiedAt === i && <span className="absolute -top-2 end-2 rounded-full bg-tk-ink px-2 text-[10px] text-tk-card">Copied</span>}
+              {copiedAt === i && <span className="absolute -top-2 end-2 rounded-full bg-tk-ink px-2 text-[10px] text-tk-card">{t.copied}</span>}
             </div>
           ))}
           {limitsOpen && !pending && (
             <LimitsBox
               disabled={pending}
+              lang={lang}
               defaults={defaults}
               askPace={askPace}
               initial={statedLimits}
@@ -651,13 +749,13 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
           )}
           {walkReady && !pending && !isBuilding && (
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => onStart(false)}>Start walk</Button>
+              <Button onClick={() => onStart(false)}>{t.startWalk}</Button>
               <Button variant="secondary" onClick={() => onStart(true)}>
-                Simulate (10×)
+                {t.simulate}
               </Button>
             </div>
           )}
-          {pending && <p className="text-[13px] text-charcoal/60">Thinking…</p>}
+          {pending && <p className="text-[13px] text-charcoal/60">{t.thinking}</p>}
         </div>
 
         {(error || mic.error) && <p className="mx-[17px] mt-2 text-[13px] text-red-700">{error ?? mic.error}</p>}
@@ -683,7 +781,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
             }}
             rows={2}
             disabled={!hydrated}
-            placeholder="I want to see Habima Square, the Jaffa port, and a good market"
+            placeholder={t.placeholder}
             className="block min-h-[76px] w-full resize-y rounded-[10px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 py-2 text-[16px] leading-[1.5] text-tk-ink placeholder:text-charcoal/50 focus:outline-2 focus:outline-offset-1 focus:outline-forest"
           />
           <div className="flex flex-wrap items-center gap-[7px]">
@@ -704,7 +802,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               onClick={() => fileInputRef.current?.click()}
               className={BTN_ALT_SM}
             >
-              📎 Add image
+              {t.addImage}
             </button>
             {images.map((src, i) => (
               <span key={i} className="relative">
@@ -712,7 +810,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 <img src={src} alt="" className="h-[34px] w-[34px] rounded-[5px] object-cover" />
                 <button
                   type="button"
-                  aria-label="Remove image"
+                  aria-label={t.removeImage}
                   onClick={() => setImages((cur) => cur.filter((_, j) => j !== i))}
                   className="absolute -right-[5px] -top-[5px] flex h-[15px] w-[15px] items-center justify-center rounded-full bg-tk-ink text-[10px] leading-none text-on-accent"
                 >
@@ -751,16 +849,16 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               }}
               className="-mx-[17px] flex cursor-grab select-none gap-[7px] active:cursor-grabbing overflow-x-auto px-[17px] pb-[6px] [&::-webkit-scrollbar]:h-[6px] [&::-webkit-scrollbar-track]:mx-[17px] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-paper [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-tk-send"
             >
-              {THEMES.map((t) => (
+              {THEMES.map((th) => (
                 <button
-                  key={t.label}
+                  key={th.id}
                   type="button"
-                  aria-pressed={themes.includes(t.label)}
-                  onClick={() => setThemes((cur) => (cur.includes(t.label) ? cur.filter((l) => l !== t.label) : [...cur, t.label]))}
-                  className={`${chipCell(themes.includes(t.label))} shrink-0 gap-2 whitespace-nowrap pe-3 ps-1.5 text-[15px]`}>
+                  aria-pressed={themes.includes(th.id)}
+                  onClick={() => setThemes((cur) => (cur.includes(th.id) ? cur.filter((l) => l !== th.id) : [...cur, th.id]))}
+                  className={`${chipCell(themes.includes(th.id))} shrink-0 gap-2 whitespace-nowrap pe-3 ps-1.5 text-[15px]`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={t.image} alt="" aria-hidden className="h-[30px] w-[30px] rounded-[6px] object-cover" />
-                  {t.label}
+                  <img src={th.image} alt="" aria-hidden className="h-[30px] w-[30px] rounded-[6px] object-cover" />
+                  {th.label[lang]}
                 </button>
               ))}
               <button
@@ -768,7 +866,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 onClick={() => inputRef.current?.focus()}
                 className={`${chipCell(false)} shrink-0 gap-2 whitespace-nowrap !border-dashed bg-transparent text-[15px]`}
               >
-                <span aria-hidden>📍</span>Custom Walk
+                <span aria-hidden>📍</span>{t.customWalk}
               </button>
             </div>
           )}
@@ -781,9 +879,9 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                   dictationBase.current = text.trim();
                   mic.start();
                 }}
-                aria-label={mic.listening ? "Stop dictation" : "Dictate"}
+                aria-label={mic.listening ? t.stopDictation : t.dictate}
                 aria-pressed={mic.listening}
-                title={mic.listening ? "Stop dictation" : "Dictate"}
+                title={mic.listening ? t.stopDictation : t.dictate}
                 className={`${BTN_ALT} w-12 shrink-0 !px-0 ${mic.listening ? "animate-pulse !border-terra !bg-terra !text-on-accent" : ""}`}
               >
                 🎤
@@ -794,8 +892,8 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
                 type="button"
                 disabled={mic.listening}
                 onClick={() => setMicLang(shownMicLang === "he" ? "en" : "he")}
-                aria-label={shownMicLang === "he" ? "Dictation language: Hebrew. Tap for English" : "Dictation language: English. Tap for Hebrew"}
-                title={shownMicLang === "he" ? "Dictation language: Hebrew (tap for English)" : "Dictation language: English (tap for Hebrew)"}
+                aria-label={shownMicLang === "he" ? t.dictHe : t.dictEn}
+                title={shownMicLang === "he" ? t.dictHe : t.dictEn}
                 className={`${BTN_ALT} shrink-0 !px-3 !text-[14px]`}
               >
                 {shownMicLang === "he" ? "עב" : "EN"}
@@ -806,14 +904,14 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
               disabled={!hydrated || pending || isBuilding || (!text.trim() && images.length === 0 && themes.length === 0)}
               className="block h-12 min-w-0 flex-1 rounded-full bg-terra text-[16px] font-semibold leading-none text-on-accent shadow-[0_3px_0_var(--tk-lip)] transition-colors hover:bg-terra/90 active:translate-y-[2px] active:shadow-[0_1px_0_var(--tk-lip)] disabled:cursor-not-allowed disabled:bg-terra/40 disabled:shadow-none"
             >
-              {isBuilding ? "Building your walk…" : !hydrated ? "Loading…" : "Send"}
+              {isBuilding ? t.building : !hydrated ? t.loading : t.send}
             </button>
             {pending && (
               <button
                 type="button"
                 onClick={() => undoSend()}
-                aria-label="Stop"
-                title="Stop"
+                aria-label={t.stop}
+                title={t.stop}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-tk-ink text-tk-card transition-opacity hover:opacity-85"
               >
                 <span aria-hidden className="block h-[13px] w-[13px] rounded-[2px] bg-current" />

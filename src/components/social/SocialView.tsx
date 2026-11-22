@@ -260,11 +260,11 @@ export function SocialView({
                   <button type="button" disabled={!r.profileVisible} onClick={() => (r.friendId ? openProfile(r.friendId) : go(`&w=${r.token}`))} className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-start">
                     <Avatar id={r.avatar} size={40} seed={r.friendId ?? r.token} />
                     <span className="min-w-0">
-                      <span dir="auto" className="block truncate text-[17px] font-semibold text-tk-ink">
-                        {r.displayName}
+                      <span className="block truncate text-[17px] font-semibold text-tk-ink">
+                        <bdi>{r.displayName}</bdi>
                         {r.relation === "nearby" ? <span className="ms-2 rounded-full bg-skysoft/30 px-2 py-0.5 text-[13px] font-medium text-tk-ink">{t.nearby}</span> : null}
                       </span>
-                      <span dir="auto" className={`block truncate ${MUTED}`}>
+                      <span className={`block truncate ${MUTED}`}>
                         {[r.areaLabel, r.distance && r.distance !== "far" ? distanceCopy[lang][r.distance] : null, sinceCopy[lang][r.since]].filter(Boolean).join(" · ")}
                       </span>
                     </span>
@@ -390,8 +390,8 @@ export function SocialView({
           {walks.map((w) => (
             <article key={w.id} className="tk-row">
               <div className="min-w-0 flex-1">
-                <p dir="auto" className={`truncate ${MUTED}`}>{w.ownerLabel}</p>
-                <h3 dir="auto" className="text-[17px] font-semibold leading-6 text-tk-ink">{w.title}</h3>
+                <p className={`truncate ${MUTED}`}><bdi>{w.ownerLabel}</bdi></p>
+                <h3 className="text-[17px] font-semibold leading-6 text-tk-ink"><bdi>{w.title}</bdi></h3>
                 <p className={MUTED}>
                   {w.totalMin !== null ? `${Math.round(w.totalMin)} ${lang === "he" ? "דק׳" : "min"}` : ""}
                   {w.distanceM !== null ? ` · ${(w.distanceM / 1000).toFixed(1)} ${t.kmStat}` : ""}

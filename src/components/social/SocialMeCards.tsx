@@ -43,7 +43,7 @@ export function SocialMeCards({ lang, signedIn }: { lang: SocialLang; signedIn: 
           <div className="flex items-center gap-3">
             <Avatar id={mine.profile.avatar} size={56} seed={session.userId} />
             <div className="min-w-0 flex-1">
-              <p dir="auto" className="truncate text-[18px] font-semibold text-tk-ink">{mine.profile.displayName}</p>
+              <p className="truncate text-[18px] font-semibold text-tk-ink"><bdi>{mine.profile.displayName}</bdi></p>
               <span className="mt-1 inline-block rounded-full bg-forest/10 px-3 py-0.5 text-[15px] text-forest">{vLabel}</span>
               {presenceEnabled() ? (
                 <span className="ms-2 mt-1 inline-block rounded-full bg-charcoal/5 px-3 py-0.5 text-[15px] text-charcoal/80">
@@ -75,7 +75,7 @@ export function SocialMeCards({ lang, signedIn }: { lang: SocialLang; signedIn: 
             {blocks.map((b) => (
               <li key={b.userId} className="flex min-h-12 items-center gap-3">
                 <Avatar id={b.avatar} size={40} seed={b.userId} />
-                <span dir="auto" className="min-w-0 flex-1 truncate text-[16px]">{b.displayName ?? "…"}</span>
+                <span className="min-w-0 flex-1 truncate text-[16px]"><bdi>{b.displayName ?? "…"}</bdi></span>
                 <button type="button" onClick={() => void unblockUser(session.client, session.userId, b.userId).then(refresh)} className={BTN_ALT_SM}>
                   {t.unblock}
                 </button>

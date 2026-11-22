@@ -20,13 +20,17 @@ export type BandArt = keyof typeof SCENES | "sky";
 export function ScreenBand({ art, actions, tall = false, children }: { art: BandArt; /** Controls at the end of the brand row (the start chip, an avatar). */ actions?: ReactNode; /** The Walks / Friends band is 310px; Me is a compact band. */ tall?: boolean; children: ReactNode }) {
   return (
     <header className={`relative isolate overflow-hidden bg-cream ${tall ? "min-h-[310px]" : "min-h-[192px]"}`}>
-      {art === "sky" ? (
-        /* Me: the plain sunset sky, no scene ("pure sunset calm"). */
-        <div aria-hidden className="absolute inset-0 -z-10" style={{ background: "var(--tk-sky)" }} />
-      ) : (
+      {/* The painted sky is always behind the band; the scene sits on it. */}
+      <div aria-hidden className="absolute inset-0 -z-10" style={{ background: "var(--tk-sky)" }} />
+      {art === "sky" ? null : (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={SCENES[art]} alt="" aria-hidden className="absolute inset-0 -z-10 h-full w-full object-cover object-bottom rtl:-scale-x-100 dark:brightness-[0.55] dark:saturate-[0.85]" />
+          {/* The scene is a 390x300 composition with the sun and boat under the title. On a wide screen it keeps that size
+              at the start of the content column (never stretched to the viewport, which slid the sun and boat under the
+              text) and melts into the sky on its far side (and on its near side once the column no longer touches the screen edge). It is mirrored in Hebrew, so "start" follows the language. */}
+          <div aria-hidden className="absolute inset-x-0 inset-y-0 -z-10 mx-auto max-w-[560px]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={SCENES[art]} alt="" className="absolute inset-y-0 start-0 h-full w-full object-cover object-bottom rtl:-scale-x-100 min-[430px]:w-[403px] min-[430px]:[mask-image:linear-gradient(to_right,#000_82%,transparent)] min-[600px]:[mask-image:linear-gradient(to_right,transparent,#000_10%,#000_82%,transparent)] dark:brightness-[0.55] dark:saturate-[0.85]" />
+          </div>
           <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-[32%] bg-gradient-to-b from-transparent to-cream" />
         </>
       )}
@@ -47,7 +51,8 @@ export function ScreenBand({ art, actions, tall = false, children }: { art: Band
 }
 
 export function BandTitle({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <h1 dir="auto" className={`max-w-[230px] font-display text-[28px] font-normal leading-[1.12] ${ON_ART} ${className}`}>{children}</h1>;
+  // <bdi>, not dir="auto": the line keeps the language's direction (a Latin name in Hebrew still starts on the right).
+  return <h1 className={`max-w-[230px] font-display text-[28px] font-normal leading-[1.12] ${ON_ART} ${className}`}><bdi>{children}</bdi></h1>;
 }
 
 /** A designed number: soft Fraunces numerals, the label small beside it. */

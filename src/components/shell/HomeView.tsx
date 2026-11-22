@@ -32,6 +32,7 @@ const COPY = {
     recent: "Saved & recent walks",
     allWalks: "All walks",
     walk: "Walk",
+    route: "Route of",
     stopsWord: "stops",
     morning: "Good morning",
     afternoon: "Good afternoon",
@@ -67,6 +68,7 @@ const COPY = {
     recent: "מסלולים שמורים ואחרונים",
     allWalks: "לכל המסלולים",
     walk: "צא",
+    route: "מסלול",
     stopsWord: "תחנות",
     morning: "בוקר טוב",
     afternoon: "צהריים טובים",
@@ -110,7 +112,7 @@ function StopRow({ index, count, name, tag, current, past }: { index: number; co
           {current ? <span className="h-1.5 w-1.5 rounded-full bg-[var(--tk-leather)]" /> : null}
         </span>
       </span>
-      <span dir="auto" className={`text-[18px] font-semibold leading-[1.22] ${past ? "text-tk-sage" : ""}`}>{name}</span>
+      <span className={`text-[18px] font-semibold leading-[1.22] ${past ? "text-tk-sage" : ""}`}><bdi>{name}</bdi></span>
       <span className={`whitespace-nowrap text-[14px] font-semibold ${current ? "text-[var(--tk-on-sel)] opacity-80" : "text-tk-sage"}`}>{tag}</span>
     </li>
   );
@@ -212,7 +214,7 @@ export function HomeView({
 
   const contextRow = (text: string) => (
     <button type="button" onClick={() => onNavigate("social")} className="tk-row w-full text-start">
-      <span dir="auto" className="flex-1 text-[18px] font-semibold leading-[1.22]">{text}</span>
+      <span className="flex-1 text-[18px] font-semibold leading-[1.22]">{text}</span>
       <span aria-hidden className="text-charcoal/50 rtl:-scale-x-100">›</span>
     </button>
   );
@@ -324,9 +326,9 @@ export function HomeView({
           {signedIn
             ? recent.map((w) => (
                 <div key={w.id} className="grid grid-cols-[48px_1fr_auto] items-center gap-3 border-b border-tk-hair px-4 py-[10px]">
-                  <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
+                  <RouteSketch route={routeOf(w)} label={`${t.route} ${w.title}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
                   <div className="min-w-0">
-                    <p dir="auto" className="text-[18px] font-semibold leading-[1.22] text-tk-ink">{w.title}</p>
+                    <p className="text-[18px] font-semibold leading-[1.22] text-tk-ink"><bdi>{w.title}</bdi></p>
                     <p className="mt-0.5 text-[14px] text-tk-sage">
                       <bdi>
                         {[w.totalMin !== null ? `${Math.round(w.totalMin)} ${t.min}` : null, w.distanceM !== null ? `${(w.distanceM / 1000).toFixed(1)} ${t.km}` : null, w.stops.length > 0 ? `${w.stops.length} ${t.stopsWord}` : null].filter(Boolean).join(" · ")}

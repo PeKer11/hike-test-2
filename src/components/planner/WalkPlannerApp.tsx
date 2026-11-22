@@ -3818,6 +3818,7 @@ export function WalkPlannerApp({
       onTopRated={usesGoogleMap ? setTopRated : undefined}
       topRatedNote={topRatedNote}
       signedIn={isSignedIn}
+      lang={uiLang === "he" ? "he" : "en"}
     />
   );
   const directionSheet = optionsOffer ? (
@@ -4096,7 +4097,7 @@ export function WalkPlannerApp({
               {isSignedIn && !walkMode && view === "walks" && sideTab === "places" && (
                 <button type="button" onClick={() => chooseWalksTab(walksSegment)} className="tk-bar -mx-4 w-[calc(100%+2rem)] cursor-pointer">
                   <span>{uiLang === "he" ? "חזרה למסלולים" : "Back to walks"}</span>
-                  <span aria-hidden>‹</span>
+                  <span aria-hidden className="rtl:-scale-x-100">‹</span>
                 </button>
               )}
               {isSignedIn && !walkMode && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}
@@ -4104,7 +4105,7 @@ export function WalkPlannerApp({
                 <>
                   <button type="button" onClick={() => chooseWalksTab("places")} className="tk-bar -mx-4 w-[calc(100%+2rem)] cursor-pointer">
                     <span>{uiLang === "he" ? "מקומות שמורים" : "Saved places"}</span>
-                    <span aria-hidden>›</span>
+                    <span aria-hidden className="rtl:-scale-x-100">›</span>
                   </button>
                   <div className="-mx-4 px-4 pb-4 pt-[14px]">
                     <button type="button" onClick={() => { setSideTab("plan"); onNavigate?.("plan"); }} className={`${BTN} w-full`}>
@@ -4126,6 +4127,7 @@ export function WalkPlannerApp({
                   onToggle={(e) => { if (walkMode) setChatOpen(e.currentTarget.open); }}>
                 <summary className="cursor-pointer px-4 py-2.5 font-brand text-sm font-semibold text-tk-ink">Chat with Traike · re-plan</summary>
                 <AssistantChat
+                  lang={uiLang === "he" ? "he" : "en"}
                   prefill={chatPrefill}
                   origin={currentPosition ?? mapClickedCoords ?? null}
                   isBuilding={isWalkPlanLoading}
@@ -4220,7 +4222,7 @@ export function WalkPlannerApp({
                 </details>
                 </WalkSlot>
               )}
-              {isSignedIn && !walkMode && <SavedPlacePicker addedIds={wishlist.map((w) => w.id)} inWalkIds={(walkPlan?.orderedAttractions ?? []).map((a) => a.id)} onAdd={addSavedPlacesToWalk} />}
+              {isSignedIn && !walkMode && <SavedPlacePicker addedIds={wishlist.map((w) => w.id)} inWalkIds={(walkPlan?.orderedAttractions ?? []).map((a) => a.id)} onAdd={addSavedPlacesToWalk} lang={uiLang === "he" ? "he" : "en"} />}
               {feedbackAttractions && (
                 <WalkFeedbackCard
                   attractions={feedbackAttractions}
@@ -4661,10 +4663,10 @@ export function WalkPlannerApp({
                   <WalkSectionTitle walking order={50}>{walkCopy.hud.sheet[uiLang === "he" ? "he" : "en"].sections.display}</WalkSectionTitle>
                   <WalkSectionTitle walking order={80}>{walkCopy.hud.sheet[uiLang === "he" ? "he" : "en"].sections.about}</WalkSectionTitle>
                   <WalkSlot walking order={41}>
-                    <PlacesSection topRated={usesGoogleMap ? topRated : undefined} onTopRated={usesGoogleMap ? setTopRated : undefined} topRatedNote={topRatedNote} />
+                    <PlacesSection topRated={usesGoogleMap ? topRated : undefined} onTopRated={usesGoogleMap ? setTopRated : undefined} topRatedNote={topRatedNote} lang={uiLang === "he" ? "he" : "en"} />
                   </WalkSlot>
                   <WalkSlot walking order={51}>
-                    <DisplaySection mapType={mapType} onMapType={setMapType} showMapType={usesGoogleMap} />
+                    <DisplaySection mapType={mapType} onMapType={setMapType} showMapType={usesGoogleMap} lang={uiLang === "he" ? "he" : "en"} />
                   </WalkSlot>
                   <WalkSlot walking order={70}>
                     <WalkSettingsPanel settings={walkSettings} onChange={setWalkSettings} lang={uiLang === "he" ? "he" : "en"} />
@@ -4676,7 +4678,7 @@ export function WalkPlannerApp({
                     </div>
                   </WalkSlot>
                   <WalkSlot walking order={90}>
-                    <AccountRows signedIn={isSignedIn} />
+                    <AccountRows signedIn={isSignedIn} lang={uiLang === "he" ? "he" : "en"} />
                   </WalkSlot>
                 </>
               )}

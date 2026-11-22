@@ -30,7 +30,7 @@ const COPY = {
     changePassword: "Change password",
     display: "Display",
     dayNight: "Appearance",
-    kmh: "km/h",
+    minKm: "min/km",
     unitsValue: "km / m",
     themeLabels: { light: "Day", dark: "Night" },
     remembers: "What Traike remembers",
@@ -54,7 +54,7 @@ const COPY = {
     changePassword: "החלפת סיסמה",
     display: "תצוגה",
     dayNight: "מצב תצוגה",
-    kmh: "קמ״ש",
+    minKm: "דק׳/ק״מ",
     unitsValue: "ק״מ / מ׳",
     themeLabels: { light: "יום", dark: "לילה" },
     remembers: "מה Traike זוכר",
@@ -183,7 +183,7 @@ export function MeView({
                 <span className="block text-[14px] font-normal text-tk-sage">{t.paceLine}</span>
               </span>
               <span className="font-semibold">
-                <bdi>{(60 / suggestedPace).toFixed(1)}</bdi> {t.kmh}
+                <bdi>{Number(suggestedPace.toFixed(1))}</bdi> {t.minKm}
               </span>
             </div>
           ) : null}
@@ -242,8 +242,15 @@ export function MeView({
         </section>
 
         <section aria-label={t.credits} className="px-4 py-4">
+          {/* Each source name is isolated (<bdi>) so the full stops stay at the end of their sentence in Hebrew. */}
           <p className="text-[13px] leading-[18px] text-charcoal/70">
-            Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors. Weather: Open-Meteo. Maps: Google.
+            {lang === "he" ? (
+              <>
+                מסלולים: © <bdi>openrouteservice</bdi> מאת <bdi>HeiGIT</bdi> | נתונים מ-<bdi>OpenStreetMap</bdi>, © תורמי <bdi>OpenStreetMap</bdi>. מזג אוויר: <bdi className="whitespace-nowrap">Open-Meteo</bdi>. מפות: <bdi>Google</bdi>.
+              </>
+            ) : (
+              "Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors. Weather: Open-Meteo. Maps: Google."
+            )}
           </p>
         </section>
       </div>

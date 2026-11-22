@@ -197,6 +197,9 @@
     transition: background-color 150ms ease, color 150ms ease;
   }
   .tk-seg-cell:last-child { border-inline-end: 0; }
+  /* A label never wraps inside its cell ("Friends (3)" broke in two on a 360px phone); small phones trade padding and a point of type for it. */
+  .tk-seg-cell { white-space: nowrap; }
+  @media (max-width: 380px) { .tk-seg-cell { padding-inline: 4px; font-size: 15px; } }
   .tk-seg-cell:hover { background: var(--tk-bar); }
   .tk-seg-cell.is-on, .tk-seg-cell.is-on:hover { background: var(--tk-sel); color: var(--tk-on-sel); }
 

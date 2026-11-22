@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { LocationDeniedCard } from "@/components/assistant/LocationDeniedCard";
 import { GOOD_ACCURACY_M, geolocationSupported, locate, queryLocationPermission } from "@/lib/geo/locate";
-import { currentLocateLang, locateCopy } from "@/lib/geo/locate-copy";
+import { currentLocateLang, locateCopy, type LocateLang } from "@/lib/geo/locate-copy";
 import { loadSavedStart, saveStart } from "@/lib/start-location";
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
@@ -29,10 +29,18 @@ interface StartLocationPickerProps {
   origin?: Coordinates | null;
   /** Only a rough (IP-city) position is known: centre the map there, but it is not a start. */
   onApproximate?: (coordinates: Coordinates) => void;
+  /** The planner's language; without it, the page language. */
+  lang?: LocateLang;
 }
 
+const COPY = {
+  en: { placeholder: "Start from: city or address", unavailable: "Search is unavailable right now.", startingFrom: "Starting from:" },
+  he: { placeholder: "להתחיל מ: עיר או כתובת", unavailable: "החיפוש לא זמין כרגע.", startingFrom: "מתחילים מ:" },
+} as const;
+
 /** Lets the walker set where the walk starts: GPS, or a searched city/address. */
-export function StartLocationPicker({ onPick, origin, onApproximate }: StartLocationPickerProps) {
+export function StartLocationPicker({ onPick, origin, onApproximate, lang }: StartLocationPickerProps) {
+  const words = COPY[lang ?? "en"];
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StartOption[]>([]);
   const [label, setLabel] = useState<string | null>(null);
@@ -72,7 +80,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError")
           return;
-        setStatus("Search is unavailable right now.");
+        setStatus(words.unavailable);
       }
     }, 500);
     return () => {
@@ -83,7 +91,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
 
   function startLocating(silent: boolean) {
     locatorRef.current?.stop();
-    const t = locateCopy[currentLocateLang()];
+    const t = locateCopy[lang ?? currentLocateLang()];
     if (!geolocationSupported()) {
       if (!silent) setStatus(t.notSupported);
       return;
@@ -156,7 +164,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
           dir="auto"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Start from: city or address"
+          placeholder={words.placeholder}
           className="block min-h-11 min-w-0 flex-1 rounded-[10px] border-[1.5px] border-[var(--tk-ctl)] bg-cream px-3 py-2 text-[16px] text-tk-ink placeholder:text-charcoal/50 focus:outline-2 focus:outline-offset-1 focus:outline-forest"
         />
         <button
@@ -165,7 +173,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
           className="tk-champagne inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap px-4 font-app-sans text-[15px]"
         >
           <span aria-hidden className="tk-champagne-ring" />
-          My location
+          {locateCopy[lang ?? "en"].myLocation}
         </button>
       </div>
       {denied ? <LocationDeniedCard onSearch={() => inputRef.current?.focus()} /> : null}
@@ -195,7 +203,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate }: StartLoca
         <p dir="auto" className="mt-[4px] text-start text-[13px] text-charcoal/70">{status}</p>
       ) : label ? (
         <p dir="auto" className="mt-[4px] truncate text-[13px] text-tk-sage">
-          Starting from: {label}
+          {words.startingFrom} {label}
         </p>
       ) : null}
     </div>

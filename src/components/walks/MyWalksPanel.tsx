@@ -141,8 +141,8 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
   // The list rows speak the walker's language; the detail page below is still English.
   const L =
     lang === "he"
-      ? { again: "צא", cont: "המשך", start: "צא", draft: "טיוטה", status: { planned: "מתוכנן", saved: "שמור", completed: "הושלם" }, min: "דק׳", km: 'ק"מ', last: "הליכה אחרונה", open: "פתיחה", walked: "הושלם", stops: "תחנות" }
-      : { again: "Walk", cont: "Continue", start: "Walk", draft: "draft", status: { planned: "planned", saved: "saved", completed: "completed" }, min: "min", km: "km", last: "Last walked", open: "Open", walked: "Walked", stops: "stops" };
+      ? { again: "צא", cont: "המשך", start: "צא", draft: "טיוטה", status: { planned: "מתוכנן", saved: "שמור", completed: "הושלם" }, min: "דק׳", km: 'ק"מ', last: "הליכה אחרונה", open: "פתיחה", route: "מסלול", walked: "הושלם", stops: "תחנות" }
+      : { again: "Walk", cont: "Continue", start: "Walk", draft: "draft", status: { planned: "planned", saved: "saved", completed: "completed" }, min: "min", km: "km", last: "Last walked", open: "Open", route: "Route of", walked: "Walked", stops: "stops" };
 
   // The main button says what it will do: continue an interrupted walk, start one never walked, or walk a finished one again.
   // All three go through onWalkAgain, whose chooser already offers "continue from the last stop" when a run ended early.
@@ -167,9 +167,9 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
     ].filter(Boolean);
     return (
       <li key={w.id} className="grid grid-cols-[48px_1fr_auto] items-center gap-3 border-b border-tk-hair px-4 py-[10px] font-app-sans">
-        <RouteSketch route={routeOf(w)} label={`Route of ${w.title}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
+        <RouteSketch route={routeOf(w)} label={`${L.route} ${w.title}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
         <button type="button" aria-label={`${L.open} ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="min-w-0 cursor-pointer text-start">
-          <span dir="auto" className="block text-[18px] font-semibold leading-[1.22] text-tk-ink">{w.title}</span>
+          <span className="block text-[18px] font-semibold leading-[1.22] text-tk-ink"><bdi>{w.title}</bdi></span>
           <span className="mt-0.5 block text-[14px] text-tk-sage"><bdi>{meta.join(" · ")}</bdi></span>
         </button>
         <div className="shrink-0">{primaryButton(w, runs, runCount, true)}</div>
