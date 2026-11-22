@@ -1621,6 +1621,9 @@ export function WalkPlannerApp({
           preferredCategories: input.preferredCategories,
           explicitAttractions: aiStops ?? keepAttractions,
           fixedOrder: aiStops || options?.fixedOrder === true ? true : undefined,
+          // A loop closes at the real start. Mid-walk `origin` is where the walker stands, so
+          // without this a rebuild would end the walk at the spot it was rebuilt.
+          returnTo: options?.autoResume ? input.endAnchor : undefined,
           presetGeometry: aiGeometry ?? options?.presetGeometry,
           ...routeRulesRef.current,
           pinnedAttractionIds: activePinnedIds,
