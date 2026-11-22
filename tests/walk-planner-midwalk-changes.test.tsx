@@ -371,3 +371,25 @@ describe("P19: the simulator's fast clock does not make a rebuild's budget too l
     expect(walkPlanCalls[walkPlanCalls.length - 1].availableMinutes as number).toBeGreaterThan(78);
   });
 });
+
+describe("P4: discovery is told which places are already done", () => {
+  it("a mid-walk rebuild sends the visited stops as excludeIds", async () => {
+    await startSimulatedWalk();
+    fireEvent.click(screen.getByRole("button", { name: "Fast pace" })); // 0.6x pace: the museum, 1.1 km up, is reached in about a minute
+    await flush();
+    for (let i = 0; i < 8; i += 1) await advance(10_000);
+
+    const before = walkPlanCalls.length;
+    await addStopFromChat();
+    expect(walkPlanCalls.length).toBeGreaterThan(before);
+    const body = walkPlanCalls[walkPlanCalls.length - 1];
+    expect(body.excludeIds as string[]).toContain(MUSEUM.id);
+    // Not the stops still ahead.
+    expect(body.excludeIds as string[]).not.toContain(MARKET.id);
+  });
+
+  it("the very first build of a walk sends no exclusions", async () => {
+    await startSimulatedWalk();
+    expect(walkPlanCalls[0].excludeIds).toBeUndefined();
+  });
+});

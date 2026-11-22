@@ -612,6 +612,8 @@ export function WalkPlannerApp({
   // A change of route starts a new leg whose clock and distance start at zero (its budget is "what was left").
   // The walk as a whole is these totals plus the live leg: the finish card, the saved run and the learned pace read them.
   const walkStatsRef = useRef<WalkStatsData | null>(null);
+  // Stops the walker dropped from this walk (a "Skip" answer): discovery must not bring them back as filler.
+  const droppedStopIdsRef = useRef<Set<string>>(new Set());
   const walkLegsBeforeRef = useRef({ minutes: 0, meters: 0 });
   // Minutes already spent against the *current leg's* budget before its first fix (only after "back to previous route").
   const legElapsedOffsetMinRef = useRef(0);
@@ -1209,6 +1211,7 @@ export function WalkPlannerApp({
     walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
     legElapsedOffsetMinRef.current = 0;
     walkBeganAtRef.current = null;
+    droppedStopIdsRef.current = new Set();
     // Queued saved places belonged to that walk; the next one starts clean.
     setWishlist([]);
   };
@@ -1625,6 +1628,7 @@ export function WalkPlannerApp({
       walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
       legElapsedOffsetMinRef.current = 0;
       walkBeganAtRef.current = null;
+      droppedStopIdsRef.current = new Set();
     }
 
     // Attractions the walker already reached are done — never re-plan them back
@@ -1740,6 +1744,8 @@ export function WalkPlannerApp({
           pinnedAttractionIds: activePinnedIds,
           fillRemainingTime: options?.fillRemainingTime ?? false,
           heading: options?.heading,
+          // Mid-walk, what discovery turns up must not be a place the walker has already been to or dropped.
+          excludeIds: options?.autoResume ? [...new Set([...visitedIds, ...droppedStopIdsRef.current])] : undefined,
           stopCount: promptStopCount ?? undefined,
           notableOnly: promptNotableOnly,
           learnPreferences: walkSettings.preferenceLearningEnabled,
@@ -2076,6 +2082,7 @@ export function WalkPlannerApp({
       }))
       .filter((a, i, all) => !onWalk.has(a.id) && all.findIndex((b) => b.id === a.id) === i);
     const kept = (state.currentAttractions ?? []).filter((a) => !drop.has(a.id));
+    for (const id of dropStopIds) droppedStopIdsRef.current.add(id);
     const { input, options } = buildExtendedTimeRebuildRequest({
       ...state,
       currentAttractions: [...kept, ...added],
@@ -2236,9 +2243,13 @@ export function WalkPlannerApp({
   const runCappedPaceRebuild = (reason: ReplanReason, capMin?: number) => {
     const state = midWalkRebuildState();
     if (!state) return;
+    // A lengthen looks ahead of the walker, like "add a stop": never at places already walked past.
+    const lastFix = latestPaceUpdateRef.current;
+    const heading = lastFix ? headingMonitorRef.current?.recentHeading(lastFix.timestamp) ?? undefined : undefined;
     const { input, options } = buildPaceRebuildRequest(
       reason,
       capMin !== undefined ? { ...state, capMin } : state,
+      heading,
     );
     void handleBuildWalk(input, options);
   };
@@ -2246,6 +2257,7 @@ export function WalkPlannerApp({
   const runDropStopsRebuild = (dropStopIds: string[], capMin?: number) => {
     const state = midWalkRebuildState();
     if (!state) return;
+    for (const id of dropStopIds) droppedStopIdsRef.current.add(id);
     const { input, options } = buildDropStopsRebuildRequest(state, dropStopIds, capMin);
     void handleBuildWalk(input, options);
   };
@@ -3331,6 +3343,7 @@ export function WalkPlannerApp({
    * rebuild fails, the walker still has the offer in front of them.
    */
   const recallDroppedStop = (attractionId: string) => {
+    droppedStopIdsRef.current.delete(attractionId); // asked for back: discovery may offer it again
     const lost = lostStops.find((s) => s.attraction.id === attractionId);
     if (!lost) return;
     const state = midWalkRebuildState();

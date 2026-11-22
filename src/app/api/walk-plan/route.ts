@@ -101,9 +101,17 @@ interface WalkPlanApiRequest {
    * so a new stop is never one the walker has already walked past.
    */
   heading?: number;
+  /**
+   * Places the walker must not be offered again: stops already visited, or dropped or skipped on this
+   * walk. Applied to what discovery turns up (a lengthen would otherwise happily bring them back); the
+   * stops named in `explicitAttractions` are the client's own list and are never filtered here.
+   */
+  excludeIds?: string[];
 }
 
 const FORWARD_CONE_DEG = 90;
+/** Most excluded ids read from one request (a walk visits a handful; this is only a bound). */
+const MAX_EXCLUDE_IDS = 500;
 
 // A discovered POI this close to a named place is the same place under another
 // OSM id — keep it out of the filler so the stop isn't listed twice.
@@ -454,6 +462,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       typeof body.heading === "number" && Number.isFinite(body.heading)
         ? body.heading
         : undefined;
+    const excluded = new Set(
+      Array.isArray(body.excludeIds)
+        ? body.excludeIds.filter((id): id is string => typeof id === "string").slice(0, MAX_EXCLUDE_IDS)
+        : [],
+    );
+    const notExcluded = <T extends { id: string }>(list: T[]): T[] =>
+      excluded.size === 0 ? list : list.filter((c) => !excluded.has(c.id));
     const aheadOnly = <T extends { coordinates: Coordinates }>(
       list: T[],
       from: Coordinates,
@@ -534,7 +549,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           });
 
           const explicitIds = new Set(explicitAttractions.map((a) => a.id));
-          const filler = aheadOnly(ranked, origin).filter(
+          const filler = aheadOnly(notExcluded(ranked), origin).filter(
             (candidate) =>
               !explicitIds.has(candidate.id) &&
               !explicitAttractions.some(
@@ -590,7 +605,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         });
 
         selected = selectFeasibleAttractions(
-          aheadOnly(ranked, origin),
+          aheadOnly(notExcluded(ranked), origin),
           availableMinutes,
           walkingPaceMinPerKm,
           // On top of the time budget, not instead of it: three stops that do

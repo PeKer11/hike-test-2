@@ -1398,3 +1398,73 @@ describe("POST /api/walk-plan — forward-only add-a-stop", () => {
     expect(mockFetchAttractions.mock.calls.length).toBeGreaterThan(1);
   });
 });
+
+describe("POST /api/walk-plan — excludeIds (places already visited or dropped)", () => {
+  beforeEach(resetMocks);
+
+  const named = makeAttraction("named", 32.081, 34.78, 20);
+
+  it("a fill never brings back a place named in excludeIds", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("visited-one", 32.082, 34.78, 15),
+      makeAttraction("fresh-one", 32.083, 34.78, 15),
+    ]);
+
+    const response = await POST(
+      postRequest({ ...baseBody([named]), fillRemainingTime: true, excludeIds: ["visited-one"] }),
+    );
+    const plan = await response.json();
+    const seen = [
+      ...plan.orderedAttractions.map((a: Attraction) => a.id),
+      ...plan.droppedAttractions.map((a: Attraction) => a.id),
+    ];
+
+    expect(seen).not.toContain("visited-one");
+    expect(seen).toContain("fresh-one");
+    expect(seen).toContain("named");
+  });
+
+  it("without excludeIds the same place is offered (the filter is what removes it)", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([
+      makeAttraction("visited-one", 32.082, 34.78, 15),
+      makeAttraction("fresh-one", 32.083, 34.78, 15),
+    ]);
+
+    const response = await POST(postRequest({ ...baseBody([named]), fillRemainingTime: true }));
+    const plan = await response.json();
+    const seen = [
+      ...plan.orderedAttractions.map((a: Attraction) => a.id),
+      ...plan.droppedAttractions.map((a: Attraction) => a.id),
+    ];
+
+    expect(seen).toContain("visited-one");
+  });
+
+  it("open discovery skips them too, and a stop the client names itself is kept", async () => {
+    mockFetchAttractions.mockResolvedValue([
+      makeAttraction("visited-one", 32.082, 34.78, 15),
+      makeAttraction("fresh-one", 32.083, 34.78, 15),
+    ]);
+
+    const open = await POST(
+      postRequest({ lat: origin.lat, lng: origin.lng, availableMinutes: 90, walkingPaceMinPerKm: 15, excludeIds: ["visited-one"] }),
+    );
+    const openIds = (await open.json()).orderedAttractions.map((a: Attraction) => a.id);
+    expect(openIds).not.toContain("visited-one");
+    expect(openIds).toContain("fresh-one");
+
+    // The client's own explicit list is its decision, not discovery's.
+    const kept = await POST(
+      postRequest({ ...baseBody([makeAttraction("visited-one", 32.082, 34.78, 15)]), excludeIds: ["visited-one"] }),
+    );
+    expect((await kept.json()).orderedAttractions.map((a: Attraction) => a.id)).toContain("visited-one");
+  });
+
+  it("ignores a malformed excludeIds", async () => {
+    mockFetchAttractions.mockResolvedValueOnce([makeAttraction("fresh-one", 32.083, 34.78, 15)]);
+    const response = await POST(
+      postRequest({ ...baseBody([named]), fillRemainingTime: true, excludeIds: "visited-one" }),
+    );
+    expect(response.status).toBe(200);
+  });
+});
