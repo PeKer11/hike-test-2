@@ -249,7 +249,7 @@ export function MeView({
                 מסלולים: © <bdi>openrouteservice</bdi> מאת <bdi>HeiGIT</bdi> | נתונים מ-<bdi>OpenStreetMap</bdi>, © תורמי <bdi>OpenStreetMap</bdi>. מזג אוויר: <bdi className="whitespace-nowrap">Open-Meteo</bdi>. מפות: <bdi>Google</bdi>.
               </>
             ) : (
-              "Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors. Weather: Open-Meteo. Maps: Google."
+              "Route: © openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors. Weather: Open-Meteo. Maps: Google."
             )}
           </p>
         </section>

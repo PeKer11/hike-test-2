@@ -9,6 +9,8 @@ import { ConstraintPanel } from "@/components/constraints";
 import { DynamicMap } from "@/components/map";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { usesGoogleMap } from "@/components/map/DynamicMap";
+import { MapCredits } from "@/components/map/MapCredits";
+import { WORLDCOVER_ATTRIBUTION } from "@/lib/types/landcover";
 import { AccountRows, DisplaySection, MapOptionsCard, PlacesSection } from "@/components/map/MapOptionsCard";
 import { WalkSectionTitle, WalkSlot } from "@/components/walk/WalkDetails";
 import { WalkSettingsPanel } from "@/components/WalkSettingsPanel";
@@ -3831,6 +3833,14 @@ export function WalkPlannerApp({
     companionQuestionUpRef.current = companion.card !== null;
   });
   // On a phone the idle Plan is the form alone (round 13); the map shows once there is a route or places to see, or when opened.
+  // The other data credits that apply now, shown beside the routing credit below the map (the Google map draws none itself;
+  // the Leaflet map adds its own to its attribution control).
+  const mapCreditExtras = usesGoogleMap
+    ? [
+        ...(walkMode && callouts.some((a) => a.place.verification === "detected") ? [WORLDCOVER_ATTRIBUTION] : []),
+        ...(walkMode && companion.attribution ? [companion.attribution] : []),
+      ]
+    : [];
   const planMapHidden = !walkMode && !mapFull && !isAdvancedOpen && !walkPlan && !walkPreview && previewPlaces.length === 0 && !route?.geometry?.length && waypoints.length === 0;
   const mapOptionsCard = (
     <MapOptionsCard
@@ -4696,7 +4706,7 @@ export function WalkPlannerApp({
                   </WalkSlot>
                   <WalkSlot walking order={84}>
                     <div className="space-y-1 text-[13px] leading-[18px] text-charcoal/80">
-                      <p>Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors</p>
+                      <p>Route: © openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors</p>
                       {companion.attribution ? <p>{companion.attribution}</p> : null}
                     </div>
                   </WalkSlot>
@@ -4868,13 +4878,16 @@ export function WalkPlannerApp({
       {/* Percentage height, not viewport height: when stacked, the map takes a
           share of the frame it is in — a 45vh map inside a 560px frame would
           leave the sidebar nothing. */}
-      <section
-        className={`relative overflow-hidden @4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1 ${
+      {/* The wrapper is the flex item the map section used to be. Our routing credit sits in flow right under the map
+          (Plan) or at the bottom of the walk sheet (Live Walk), never on the map's edge. */}
+      <div
+        className={`flex-col @4xl:order-2 @4xl:h-full @4xl:min-h-0 @4xl:flex-1 ${
           walkMode || mapFull
             ? "order-1 h-full min-h-0 flex-1"
-            : "order-2 h-[26%] min-h-[170px] shrink-0 border-t-[1.5px] border-[var(--tk-ctl)] @4xl:border-t-0"
-        } ${hubTab ? "hidden" : ""} ${planMapHidden ? "hidden @4xl:block" : ""}`}
+            : "order-2 h-[26%] min-h-[200px] shrink-0 border-t-[1.5px] border-[var(--tk-ctl)] @4xl:border-t-0"
+        } ${planMapHidden ? "hidden @4xl:flex" : hubTab ? "hidden" : "flex"}`}
       >
+      <section className="relative min-h-0 flex-1 overflow-hidden">
         {walkMode && isOffRoute && routeOrderAsk ? (
           <div
             role="dialog"
@@ -5048,9 +5061,12 @@ export function WalkPlannerApp({
             lang={uiLang === "he" ? "he" : "en"}
             onDetails={() => setIsDetailsOpen(true)}
             onEndWalk={handleEndWalk}
+            creditExtras={mapCreditExtras}
           />
         )}
       </section>
+      {!walkMode ? <MapCredits extra={mapCreditExtras} className="shrink-0 bg-paper px-3 py-1" /> : null}
+      </div>
       </div>
     </div>
   );

@@ -1,36 +1,32 @@
 "use client";
 
-import { useState } from "react";
+/** The openstreetmap.org page OSM asks data credits to link: https://www.openstreetmap.org/copyright (ODbL). */
+export const OSM_COPYRIGHT_URL = "https://www.openstreetmap.org/copyright";
 
 /**
- * Our data credits as one quiet line: the openrouteservice credit in its required wording always visible (no pill, small,
- * lightly faded, with a paper halo so it still reads on satellite), the full lines on tap.
- * The wording is HeiGIT's and must stay exact; only its weight is ours to tune. Google's own logo and terms are never
- * covered — this line sits above them.
+ * The routing credit HeiGIT requires for every route line we draw, in its required wording (docs/data-source-terms.md):
+ * "© openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors". The words below are exact; only the
+ * place and weight are ours to choose. HeiGIT allows the credit "in the map image or elsewhere", and OSM wants it
+ * actively visible (no toggle, no "i" button) with "OpenStreetMap contributors" linking its copyright page.
+ *
+ * It is one quiet line below the map, never on its edge: under the map block on Plan, at the bottom of the sheet on
+ * Live Walk. Always on screen wherever the ORS-routed line is. Placing it away from the map edge is our own judgement,
+ * not something HeiGIT has confirmed. `extra` carries the other data credits that apply right now
+ * (ESA WorldCover while satellite finds are shown, Open-Meteo while the companion uses weather).
+ * Google's own logo and terms stay on the map, uncovered.
  */
-export function MapCredits({ lines, className = "" }: { lines: string[]; className?: string }) {
-  const [open, setOpen] = useState(false);
+export function MapCredits({ extra = [], className = "" }: { extra?: string[]; className?: string }) {
   return (
-    <div className={`pointer-events-auto absolute z-[400] ${className}`}>
-      {open ? (
-        <div role="dialog" aria-label="Map credits" className="mb-1 max-w-[min(280px,70vw)] rounded-[10px] bg-paper px-3 py-2 text-[11px] leading-[14px] text-charcoal shadow-tk-card">
-          {lines.map((line) => (
-            <p key={line} className="[&:not(:first-child)]:mt-1">
-              {line}
-            </p>
-          ))}
-        </div>
-      ) : null}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label="Map credits"
-        className="ms-auto flex max-w-[calc(100vw-1rem)] items-center gap-1 px-1 py-1 text-[10.5px] leading-[13px] text-charcoal/80 [text-shadow:0_0_3px_var(--tk-paper),0_0_3px_var(--tk-paper),0_0_6px_var(--tk-paper)]"
-      >
-        <span aria-hidden>ⓘ</span>
-        <span>© openrouteservice by HeiGIT | Data from OpenStreetMap</span>
-      </button>
-    </div>
+    <p data-testid="map-credits" lang="en" dir="ltr" className={`text-balance text-center text-[12px] leading-4 text-charcoal/70 ${className}`}>
+      <span data-testid="ors-credit">
+        © openrouteservice.org by HeiGIT | Map data ©{" "}
+        <a href={OSM_COPYRIGHT_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+          OpenStreetMap contributors
+        </a>
+      </span>
+      {extra.map((line) => (
+        <span key={line}> · {line}</span>
+      ))}
+    </p>
   );
 }

@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MapCredits } from "@/components/map/MapCredits";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
 import { MapOptionsCard } from "@/components/map/MapOptionsCard";
 
@@ -38,7 +37,7 @@ describe("map controls moved into Details", () => {
   });
 });
 
-describe("the two glyphs and the credits chip", () => {
+describe("the two glyphs", () => {
   it("shows follow (pressed while following) and layers", () => {
     const onLayers = vi.fn();
     render(<MapGlyphs showFollow following onFollow={vi.fn()} onLayers={onLayers} />);
@@ -46,13 +45,5 @@ describe("the two glyphs and the credits chip", () => {
     expect(screen.getByLabelText("Re-centre on me").getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByLabelText("Map layers"));
     expect(onLayers).toHaveBeenCalled();
-  });
-
-  it("keeps the openrouteservice credit visible and opens the full lines on tap", () => {
-    render(<MapCredits lines={["Route: © openrouteservice", "Weather by Open-Meteo"]} />);
-    expect(screen.getByText("© openrouteservice by HeiGIT | Data from OpenStreetMap")).toBeTruthy();
-    expect(screen.queryByText("Weather by Open-Meteo")).toBeNull();
-    fireEvent.click(screen.getByLabelText("Map credits"));
-    expect(screen.getByText("Weather by Open-Meteo")).toBeTruthy();
   });
 });

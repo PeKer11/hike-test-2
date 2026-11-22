@@ -348,6 +348,51 @@ describe("the live-walk HUD", () => {
   });
 });
 
+describe("the openrouteservice credit sits off the map (feedback 2026-11-22, item 4)", () => {
+  const CREDIT = "© openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors";
+  const creditText = () => screen.getByTestId("ors-credit").textContent?.replace(/\s+/g, " ").trim();
+
+  it("is one always-visible line under the map on Plan, outside the map itself", async () => {
+    render(<WalkPlannerApp />);
+    await flush();
+    fireEvent.change(screen.getByPlaceholderText(/^(Latitude|קו רוחב)$/), { target: { value: String(ORIGIN.lat) } });
+    fireEvent.change(screen.getByPlaceholderText(/^(Longitude|קו אורך)$/), { target: { value: String(ORIGIN.lng) } });
+    fireEvent.click(screen.getByRole("button", { name: /^(Build walking route|בנה מסלול הליכה)$/ }));
+    await flush();
+
+    expect(screen.getAllByTestId("ors-credit")).toHaveLength(1);
+    expect(creditText()).toBe(CREDIT);
+    const credit = screen.getByTestId("ors-credit");
+    // Not on the map's edge: neither inside the map nor inside its section, but right after it.
+    expect(screen.getByTestId("map").contains(credit)).toBe(false);
+    expect(credit.closest("section")).toBeNull();
+    const mapSection = screen.getByTestId("map").closest("section")!;
+    expect(mapSection.parentElement).toBe(credit.closest("[data-testid=map-credits]")!.parentElement);
+    expect(screen.queryByRole("button", { name: "Map credits" })).toBeNull();
+    // The link OSM asks for.
+    expect(screen.getByRole("link", { name: "OpenStreetMap contributors" }).getAttribute("href")).toBe("https://www.openstreetmap.org/copyright");
+  });
+
+  it("moves to the bottom of the walk sheet on Live Walk, still exactly once, still always visible", async () => {
+    await startSimulatedWalk();
+    await advance(2_000);
+    expect(screen.getAllByTestId("ors-credit")).toHaveLength(1);
+    expect(creditText()).toBe(CREDIT);
+    expect(screen.getByTestId("walk-hud").contains(screen.getByTestId("ors-credit"))).toBe(true);
+    expect(screen.getByTestId("map").contains(screen.getByTestId("ors-credit"))).toBe(false);
+    // The last thing in the sheet, under Ask / End walk.
+    const sheet = screen.getByTestId("walk-hud");
+    expect(sheet.lastElementChild).toBe(screen.getByTestId("map-credits"));
+  });
+
+  it("is on screen whenever the sheet is, whatever state it is in", async () => {
+    await startSimulatedWalk();
+    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek -> half
+    expect(screen.getByTestId("walk-hud").getAttribute("data-sheet")).toBe("half");
+    expect(creditText()).toBe(CREDIT);
+  });
+});
+
 describe("ending the walk during a mid-walk rebuild", () => {
   async function startRebuild() {
     await startSimulatedWalk();

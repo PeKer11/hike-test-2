@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { MapCredits } from "@/components/map/MapCredits";
 import { WalkAlertCard, type WalkAlert } from "@/components/walk/WalkAlertCard";
 import { WalkSheet } from "@/components/walk/WalkSheet";
 import { WalkStatsBar, type WalkStatsData } from "@/components/walk/WalkStatsBar";
@@ -41,6 +42,8 @@ interface WalkHudProps {
   /** Past HALF (or the layers glyph): the full Details. */
   onDetails: () => void;
   onEndWalk: () => void;
+  /** Other data credits that apply now (WorldCover, Open-Meteo), added to the routing credit at the bottom of the sheet. */
+  creditExtras?: string[];
 }
 
 /**
@@ -53,7 +56,7 @@ interface WalkHudProps {
  * map ends exactly above it (Google's logo and terms stay visible; Leaflet's
  * attribution is lifted clear of it).
  */
-export function WalkHud({ alert, notice = null, sharing = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, stopProgress = null, half, onDetails, onEndWalk }: WalkHudProps) {
+export function WalkHud({ alert, notice = null, sharing = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, stopProgress = null, half, onDetails, onEndWalk, creditExtras }: WalkHudProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -178,6 +181,8 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
             {confirmEnd ? t.endConfirm : t.endWalk}
           </button>
         </div>
+        {/* The route line is openrouteservice's: its credit is always on screen, here rather than on the map's edge. */}
+        <MapCredits extra={creditExtras} />
       </WalkSheet>
     </div>
   );

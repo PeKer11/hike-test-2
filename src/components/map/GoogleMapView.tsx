@@ -4,7 +4,6 @@ import { APIProvider, ColorScheme, ControlPosition, Map, useMap, useMapsLibrary 
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import { useEffect, useRef } from "react";
 
-import { MapCredits } from "@/components/map/MapCredits";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
 import { routeColors, walkedTrail } from "@/lib/map/route-colors";
 import { useFollowPause } from "@/lib/hooks/useFollowPause";
@@ -15,7 +14,6 @@ import { GoogleRecommendedLayer } from "@/components/map/GoogleRecommendedLayer"
 import type { MapViewProps } from "@/components/map/MapView";
 import type { Coordinates } from "@/lib/types";
 import { boundsOf } from "@/lib/utils/geo";
-import { WORLDCOVER_ATTRIBUTION } from "@/lib/types/landcover";
 
 const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? "";
 // AdvancedMarker needs a Map ID; Google's demo ID works for development only.
@@ -138,7 +136,6 @@ export default function GoogleMapView({
   callouts,
   onCalloutSelect,
   previewRoutes,
-  extraAttribution,
   onAddToWalk,
   addedIds,
   fitPath,
@@ -147,11 +144,6 @@ export default function GoogleMapView({
   const isPhone = useIsPhone();
   const colors = routeColors(theme === "dark" ? "dark" : "light");
   const trail = walkedTrail(theme === "dark" ? "dark" : "light", mapType);
-  const credits = [
-    "Route: © openrouteservice by HeiGIT | Data from OpenStreetMap, © OpenStreetMap contributors",
-    ...(callouts?.some((a) => a.place.verification === "detected") ? [WORLDCOVER_ATTRIBUTION] : []),
-    ...(extraAttribution ?? []),
-  ];
 
   return (
     // Google's logo and terms link must stay visible, so while the walk HUD is up the map ends above it.
@@ -199,8 +191,7 @@ export default function GoogleMapView({
           {callouts && onCalloutSelect ? <GoogleCallouts announcements={callouts} onSelect={onCalloutSelect} /> : null}
         </Map>
       </APIProvider>
-      {/* One small chip above Google's own logo and terms, which stay uncovered (its terms require them). */}
-      <MapCredits lines={credits} className="bottom-6 end-2" />
+      {/* Our data credits (openrouteservice, OpenStreetMap, WorldCover, Open-Meteo) are one line below the map, drawn by the planner: see MapCredits. */}
     </div>
   );
 }
