@@ -13,7 +13,7 @@ import { defaultParams, parseDefaults, tasteNote } from "@/lib/assistant/default
 import { tzOffsetMin } from "@/lib/walk/clock";
 import { EMPTY_STATE, type AssistantState } from "@/lib/assistant/state";
 import { asState, parseOrigin } from "@/lib/assistant/stored-state";
-import { currentWalkNote, parseCurrentWalk, seedCurrentWalk } from "@/lib/assistant/current-walk";
+import { currentWalkNote, parseCurrentWalk, seedCurrentWalk, seedWalkingParams } from "@/lib/assistant/current-walk";
 import { getPreferredCategoryWeights, getProfileDefaults } from "@/lib/preferences/preference-store";
 import { runAssistantTurn, TurnCancelledError, type TurnMessage } from "@/lib/assistant/turn";
 import { selectFactsForPrompt } from "@/lib/preferences/fact-extractor";
@@ -186,7 +186,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const facts = selectFactsForPrompt(await getStandingFacts(supabase, user.id), new Date());
   const savedPlaces = await listPlaces(supabase, user.id).catch(() => []);
   const currentWalk = parseCurrentWalk(body.current);
-  if (currentWalk) state = seedCurrentWalk(state, currentWalk);
+  if (currentWalk) state = seedWalkingParams(seedCurrentWalk(state, currentWalk), currentWalk);
   const memoryNote =
     (facts.length
       ? `\nWhat you already remember about this walker (use it, do not ask again): ${facts.map((f) => f.text).join("; ")}.`

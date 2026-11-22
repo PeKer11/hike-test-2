@@ -88,6 +88,21 @@ export function seedCurrentWalk(state: AssistantState, walk: CurrentWalk): Assis
   };
 }
 
+/**
+ * Mid-walk, the walk's own pace and the time left are what every estimate and build is priced at: the profile pace
+ * is deliberately not loaded for a live walk, and the chat's stored time limit is often the whole-walk value from
+ * before it started, so without this "fits" was judged at 15 min/km against the wrong clock and the client then built
+ * at the real pace. Seeded before the model's turn; a pace or time the walker states in it still wins (and is what
+ * marks `paceSetThisTurn` / `timeSetThisTurn`, which seeding never does).
+ */
+export function seedWalkingParams(state: AssistantState, walk: CurrentWalk): AssistantState {
+  if (walk.source !== "walking") return state;
+  const params = { ...state.params };
+  if (walk.pace) params.paceMinPerKm = walk.pace.plannedMinPerKm;
+  if (walk.remainingMin !== undefined) params.timeMinutes = walk.remainingMin;
+  return { ...state, params };
+}
+
 /** One line for the fenced background: what is on the map now, and what "extend" means. */
 export function currentWalkNote(state: AssistantState): string {
   const cur = state.current;

@@ -64,6 +64,8 @@ export interface AssistantBuild {
   geometry?: Coordinates[];
   /** The time limit was set in this turn: mid-walk, availableMinutes means minutes from now. */
   timeExplicit?: boolean;
+  /** An end limit was stated in this turn (0 is "back where I started"): mid-walk it applies to the rebuild. */
+  endExplicit?: boolean;
 }
 
 interface AssistantChatProps {
@@ -590,6 +592,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
           timeExplicit: data.action.timeStated === true,
           availableMinutes: params.timeMinutes ?? NO_LIMIT_MINUTES,
           paceExplicit: data.action.paceStated === true,
+          endExplicit: data.action.endStated === true,
           walkingPaceMinPerKm: (params.paceMinPerKm ?? DEFAULT_PACE) * (params.access ? ACCESS_PROFILES[params.access].paceFactor : 1),
           radiusMeters: (params.radiusKm ?? NO_LIMIT_RADIUS_KM) * 1000,
           maxEndDistanceFromOriginMeters:

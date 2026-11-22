@@ -884,7 +884,7 @@ export async function runTool(
       state.limitsSettled = true;
       if (t) state.params.timeMinutes = t;
       if (r) state.params.radiusKm = r;
-      if (e !== undefined) state.params.endDistanceKm = e;
+      if (e !== undefined) { state.params.endDistanceKm = e; state.endSetThisTurn = true; }
       if (p) { state.params.paceMinPerKm = p; state.paceSetThisTurn = true; }
       if (typeof args.no_repeat === "boolean") state.params.noRepeat = args.no_repeat;
       if (typeof args.avoid_dangerous === "boolean") state.params.avoidDangerous = args.avoid_dangerous;
@@ -1285,7 +1285,7 @@ export async function runTool(
       return {
         output: JSON.stringify({ built: true, building: stops.map((s) => s.name), ...(builtVerdict ? { verdict: builtVerdict } : {}), ...(notChecked.length ? { not_checked: notChecked } : {}) }),
         state,
-        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}), ...(builtGeometry ? { geometry: builtGeometry } : {}), ...(builtVerdict?.restMin ? { restMin: builtVerdict.restMin } : {}), ...(state.timeSetThisTurn ? { timeStated: true } : {}), ...(state.paceSetThisTurn ? { paceStated: true } : {}) },
+        action: { type: "build", origin, params: state.params, stops, ...(args.ordered === true ? { ordered: true } : {}), ...(builtGeometry ? { geometry: builtGeometry } : {}), ...(builtVerdict?.restMin ? { restMin: builtVerdict.restMin } : {}), ...(state.timeSetThisTurn ? { timeStated: true } : {}), ...(state.paceSetThisTurn ? { paceStated: true } : {}), ...(state.endSetThisTurn ? { endStated: true } : {}) },
       };
     }
   } catch (err) {

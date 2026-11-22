@@ -129,6 +129,8 @@ export interface AssistantState {
   timeSetThisTurn?: boolean;
   /** Set when the walker stated a pace/speed this turn; only then does a mid-walk build override the walk's own pace. Never stored. */
   paceSetThisTurn?: boolean;
+  /** Set when the walker stated an end limit this turn ("back where I started"); only then does a mid-walk build apply it. Never stored. */
+  endSetThisTurn?: boolean;
 }
 
 export const EMPTY_STATE: AssistantState = {
@@ -153,6 +155,8 @@ export interface BuildAction {
   /** The time limit was set this turn; mid-walk it means minutes from now. */
   timeStated?: boolean;
   paceStated?: boolean;
+  /** An end limit ("back where I started", "finish within 2 km") was set this turn: mid-walk it applies to the rebuild. */
+  endStated?: boolean;
 }
 
 /** The zone every clock rule reads: the place's own offset when Google gave one and it differs from the walker's browser zone. */

@@ -4386,10 +4386,19 @@ export function WalkPlannerApp({
                     // Mid-walk: rebuild from where the walker is, with the time that is left — not from the chat's first start.
                     const midWalk = walkPhaseRef.current === "walking" ? midWalkRebuildState() : null;
                     if (midWalk) {
-                      const { input, options } = buildOptionRebuildRequest(midWalk, [...stops, ...extraWishlist], build.timeExplicit ? { minutesFromNow: build.availableMinutes } : undefined);
+                      // Sol already holds the walk's stops (the queued saved places it was shown are in `stops` when it kept them):
+                      // adding the wishlist on top would bring back a place the walker just asked to drop.
+                      const { input, options } = buildOptionRebuildRequest(midWalk, stops, build.timeExplicit ? { minutesFromNow: build.availableMinutes } : undefined);
+                      // "I walk 2 km/h": Sol's stated pace re-times the walk. "End back where I started" (0) or "finish within N km" is
+                      // applied too (a loop also sends the real start as returnTo, see the build body).
+                      const sized: WalkCompanionInput = {
+                        ...input,
+                        ...(build.paceExplicit ? { walkingPaceMinPerKm: build.walkingPaceMinPerKm } : {}),
+                        ...(build.endExplicit && build.maxEndDistanceFromOriginMeters !== undefined ? { maxEndDistanceFromOriginMeters: build.maxEndDistanceFromOriginMeters } : {}),
+                      };
                       return handleBuildWalk(
-                        // "I walk 2 km/h": Sol's stated pace re-times the walk, and Sol's stops are pinned so the optimizer cannot drop them.
-                        build.paceExplicit ? { ...input, walkingPaceMinPerKm: build.walkingPaceMinPerKm } : input,
+                        // Sol's stops are pinned so the optimizer cannot drop them.
+                        sized,
                         {
                           ...options,
                           pinnedIds: Array.from(new Set([...(options.pinnedIds ?? []), ...stops.map((s) => s.id)])),

@@ -77,4 +77,13 @@ describe("the assistant chat mid-walk", () => {
     // a pace left in the chat's stored params is not a statement this turn
     expect((await sendOnce(reply({ paceMinPerKm: 30 }))).onBuild.mock.calls[0][0].paceExplicit).toBe(false);
   });
+
+  it("marks an end limit stated this turn as explicit, 0 included, and a stored one as not", async () => {
+    expect((await sendOnce(reply({ endDistanceKm: 0 }, { endStated: true }))).onBuild.mock.calls[0][0]).toMatchObject({
+      endExplicit: true,
+      maxEndDistanceFromOriginMeters: 0,
+    });
+    cleanup();
+    expect((await sendOnce(reply({ endDistanceKm: 0 }))).onBuild.mock.calls[0][0].endExplicit).toBe(false);
+  });
 });
