@@ -48,6 +48,9 @@
   /* Live walk: the pine-to-sunset deck under the map (mockup C) and the light text on it. */
   --tk-turn: linear-gradient(180deg, #89310e 0%, #a23f13 62%, #b64d18 100%);
   --tk-on-turn: #fff7ec;
+  /* Page columns (tablet / desktop pass): the phone column is 560px; tablet (md, 768) and desktop (lg, 1024) get these two. */
+  --tk-page-max-tablet: 860px;
+  --tk-page-max-desktop: 1120px;
 }
 
 /* Dark: warm forest night. Brand tokens swap as pairs, so text and fills that
@@ -248,6 +251,16 @@
     color: var(--tk-tk-ink);
     font-size: 16px;
   }
+
+  /* Page column of every full screen (Home, Walks, Friends, Me and their bands): the phone column up to md, then the
+     tablet and desktop widths above. Opt in by class; nothing else decides a screen's width. */
+  .tk-page { width: 100%; margin-inline: auto; max-width: 560px; }
+  @media (min-width: 768px) { .tk-page { max-width: var(--tk-page-max-tablet); } }
+  @media (min-width: 1024px) { .tk-page { max-width: var(--tk-page-max-desktop); } }
+  /* Two columns from md up, one under it. Children keep their own gutters (rows carry px-4); the gap is the gutter between the columns. */
+  .tk-grid-2 { display: block; }
+  @media (min-width: 768px) { .tk-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-items: start; } }
+  @media (min-width: 1024px) { .tk-grid-2 { column-gap: 40px; } }
 
   .tk-tab {
     position: relative;
