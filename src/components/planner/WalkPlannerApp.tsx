@@ -1936,7 +1936,10 @@ export function WalkPlannerApp({
         matchedRef.current?.point ??
         null,
       settings: walkSettingsRef.current,
-      currentAttractions: walkPlanRef.current?.orderedAttractions,
+      // Stops already reached are done: counting them let a last-stop drop pass and priced legs to them.
+      currentAttractions: walkPlanRef.current?.orderedAttractions
+        ? excludeVisited(walkPlanRef.current.orderedAttractions, visitTrackerRef.current?.visitedIds ?? new Set<string>())
+        : undefined,
       pinnedIds: pinnedAttractionIdsRef.current,
       currentPaceMinPerKm: sustained,
       sizingPaceMinPerKm: sustained,
