@@ -70,9 +70,9 @@ describe("the Plan map", () => {
     expect(map).not.toContain("order-2");
     expect(map).not.toContain("h-[26%]");
     expect(classes(aside())).toContain("order-2");
-    // A tablet and up: two panes, the form 320px at the start and the map taking the rest.
+    // A tablet and up: two panes, the form 360px at the start and the map taking the rest.
     for (const c of ["@3xl:order-2", "@3xl:h-full", "@3xl:flex-1", "@3xl:border-b-0"]) expect(map).toContain(c);
-    for (const c of ["@3xl:order-1", "@3xl:w-[320px]", "@3xl:border-r"]) expect(classes(aside())).toContain(c);
+    for (const c of ["@3xl:order-1", "@3xl:w-[360px]", "@3xl:border-r"]) expect(classes(aside())).toContain(c);
     // The map's own top-down border is the aside's (no double rule under it).
     expect(classes(aside())).not.toContain("border-t");
   });

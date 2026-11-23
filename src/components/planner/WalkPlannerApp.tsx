@@ -4161,7 +4161,7 @@ export function WalkPlannerApp({
         className={`isolate order-2 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain ${mapTop ? "" : "border-t"} border-charcoal/10 ${
           walkMode
             ? "@4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r"
-            : "@3xl:relative @3xl:order-1 @3xl:h-full @3xl:w-[320px] @3xl:flex-none @3xl:border-t-0 @3xl:border-r"
+            : "@3xl:relative @3xl:order-1 @3xl:h-full @3xl:w-[360px] @3xl:flex-none @3xl:border-t-0 @3xl:border-r"
         } @6xl:w-[400px] ${
           walkMode && !isDetailsOpen ? "hidden @4xl:block" : ""
         } ${mapFull && !walkMode ? "hidden @3xl:block" : ""} ${
