@@ -8,14 +8,11 @@ import { cleanUntrustedText, UNTRUSTED_SYSTEM_RULE, wrapUntrusted } from "@/lib/
 import { BilledFailureError } from "@/lib/llm/types";
 import type { AttractionCategory, Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
-import { parseIntent } from "@/lib/walk/chat/intent";
 import { parseToolArgs, WALK_TOOL_ARGS } from "./tool-schemas";
 
 const MAX_MODEL_CALLS = 5;
 /** Tool calls one turn may run in total, so a hijacked model cannot loop the paid map APIs. */
 const MAX_TOOL_CALLS = 8;
-/** Clearly ahead of time: a model-proposed skip is dropped unless the walker asked for one. */
-const AHEAD_NO_SKIP_MIN = 15;
 const MAX_OUTPUT_TOKENS = 1500;
 const TURN_TIMEOUT_MS = 30_000;
 const CATEGORIES: AttractionCategory[] = ["food", "nature", "park", "museum", "landmark", "viewpoint", "religious", "shopping", "entertainment", "other"];
@@ -27,6 +24,7 @@ export const WALK_SYSTEM = `You are Traike's companion for a walker who is walki
 - If they ask you to add or pick a stop, choose the best fit yourself (find_places, then propose_add_stop for ONE place) say in a few words why it suits them, and end by asking whether it fits or they want another. If they asked you to ask first, do not search yet: ask one short question about the kind of place they want.
 - Use what you know about the walker (below) to choose; never ask again for what you already know. When they tell you something lasting about themselves (diet, mobility, kids or a dog, strong likes or dislikes), call remember once. Never remember one-off requests.
 - Off route, or short on time (see Pace: behind means one stop to cut or more time; ahead means one stop to add or a longer loop): bring a first proposal and ask, never decide for them. If the time is over (see Time), say so, propose which ONE stop to cut and why, and ask; offer another candidate if they refuse. If a remaining stop is far or they say they dislike it but really want another, offer to drop the others instead. If the order of the stops may no longer suit them (hunger, closing time), ask before suggesting a new order. Always end with propose_skip_stop / propose_add_stop buttons for what you suggest.
+- Never tell the walker to make a change themselves, and never say the app cannot do it, when a propose_ button can. If a propose_ tool returns an error, fix the call as the error says and try once more; if it still fails, say in one short sentence what you could not set up.
 - You do not know opening hours, prices or crowds; say so rather than guess.`;
 
 const TOOLS: ToolDef[] = [
@@ -223,21 +221,13 @@ export async function runWalkTurn(
           if (p) {
             actions.push({ kind: "add-place", ...p });
             output = { ok: true };
-          } else output = { error: "unknown place_id" };
+          } else output = { error: "unknown place_id: call find_places first and use an id it returned" };
         } else if (name === "propose_skip_stop") {
           const idx = Number(args.stop_number) - 1;
-          const lastUser = [...input.history].reverse().find((m) => m.role === "user")?.content ?? "";
-          const aheadNoAsk =
-            typeof input.timing?.spareMin === "number" &&
-            input.timing.spareMin > AHEAD_NO_SKIP_MIN &&
-            parseIntent(lastUser, []).intent !== "skip" &&
-            parseIntent(lastUser, []).intent !== "shorter";
-          if (aheadNoAsk) {
-            output = { error: "the walker is ahead of time and did not ask to cut; offer adding a stop or a longer loop instead" };
-          } else if (Number.isInteger(idx) && idx >= 0 && idx < input.stops.length) {
+          if (Number.isInteger(idx) && idx >= 0 && idx < input.stops.length) {
             actions.push({ kind: "skip-stop", stopIndex: idx });
             output = { ok: true };
-          } else output = { error: "no such stop" };
+          } else output = { error: `no such stop: use a number from 1 to ${input.stops.length} from the list` };
         } else if (name === "propose_head_back") {
           actions.push({ kind: "head-back" });
           output = { ok: true };
