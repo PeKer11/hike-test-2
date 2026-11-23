@@ -106,6 +106,9 @@ import {
   LOCAL_REJOIN_MAX_DEVIATION_M,
 } from "@/lib/walk/walk-cadence";
 import { HeadingSmoother } from "@/lib/walk/heading-smoother";
+import { requestCompassPermission } from "@/lib/hooks/useCompassHeading";
+import { useWalkerHeading } from "@/lib/hooks/useWalkerHeading";
+import { GPS_HEADING_MIN_SPEED_MPS } from "@/lib/walk/heading-source";
 import { SpeedEstimator } from "@/lib/walk/speed-estimator";
 import { PaceAdvisor, type PaceAdvice } from "@/lib/walk/pace-advisor";
 import { PACE_MISMATCH_LENGTHEN_MIN_SPARE, PaceMismatchWatcher, type PaceMismatchOffer } from "@/lib/walk/pace-mismatch";
@@ -656,6 +659,11 @@ export function WalkPlannerApp({
   // Which way the walker faces (smoothed, degrees clockwise from north; null = no arrowhead): see `HeadingSmoother`.
   const [currentHeadingDeg, setCurrentHeadingDeg] = useState<number | null>(null);
   const headingSmootherRef = useRef(new HeadingSmoother());
+  // Whether the device reports walking speed (>= 1 m/s): then the GPS course beats the phone's compass for the beam.
+  const [gpsMoving, setGpsMoving] = useState(false);
+  // The beam's heading, Moovit style: the GPS course while walking briskly, the phone's compass when standing or slow,
+  // nothing when there is neither. A simulated walk takes its heading from the simulated path.
+  const walkerHeadingDeg = useWalkerHeading({ active: walkMode, gpsHeadingDeg: currentHeadingDeg, gpsMoving, simulated: isSimulating });
   const [attractionDistances, setAttractionDistances] = useState<Record<string, number>>({});
   const routeAnchor =
     route?.orderedWaypoints[0]?.coordinates ?? route?.geometry[0];
@@ -975,6 +983,7 @@ export function WalkPlannerApp({
     setCurrentAccuracyM(null);
     headingSmootherRef.current.reset();
     setCurrentHeadingDeg(null);
+    setGpsMoving(false);
     setGpsState("idle");
     setRemainingGeometry([]);
     markOffRoute(false);
@@ -2861,6 +2870,7 @@ export function WalkPlannerApp({
   // `planOverride` is passed by the auto-resume path, where `walkPlan` state has just
   // been set and this closure would still read the previous (null) value.
   const handleStartWalk = (planOverride?: WalkPlan) => {
+    if (!isSimulating) void requestCompassPermission(); // iOS asks on a tap; elsewhere it is a no-op. A simulated walk never reads the compass.
     // An in-flight rebuild can resolve after unmount; it must not start a GPS watch.
     if (isUnmountedRef.current) return;
     const plan = planOverride ?? walkPlan;
@@ -3043,6 +3053,7 @@ export function WalkPlannerApp({
       setCurrentPosition(update.currentPosition);
       setCurrentAccuracyM(update.accuracyMeters);
       setCurrentHeadingDeg(headingSmootherRef.current.current(update.timestamp));
+      setGpsMoving(update.speedMps !== undefined && update.speedMps >= GPS_HEADING_MIN_SPEED_MPS);
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
       walkedTrackRef.current.push(update.currentPosition);
@@ -4450,6 +4461,7 @@ export function WalkPlannerApp({
                   }}
                   onFocusArea={(coordinates) => focusOn(coordinates, 12)}
                   onStart={(simulate) => {
+                    if (!simulate) void requestCompassPermission(); // inside the tap: iOS only asks for the compass there
                     setIsSimulating(simulate);
                     setStartRequested(true);
                   }}
@@ -5232,7 +5244,7 @@ export function WalkPlannerApp({
           walkedGeometry={walkPhase === "walking" && showWalkedPath ? [...walkedTrackRef.current] : undefined}
           currentPosition={currentPosition ?? undefined}
           currentAccuracyM={walkMode ? currentAccuracyM ?? undefined : undefined}
-          currentHeadingDeg={walkMode ? currentHeadingDeg : null}
+          currentHeadingDeg={walkMode ? walkerHeadingDeg : null}
           lang={uiLang === "he" ? "he" : "en"}
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}
