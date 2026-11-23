@@ -18,34 +18,32 @@ const { WALKER_BOX_PX } = await import("@/components/map/WalkerMarker");
 
 afterEach(cleanup);
 const POSITION = { lat: 32.08, lng: 34.78 };
-const arrow = () => document.querySelector("[data-testid=walker-arrow]");
-const turn = () => /rotate\((-?[\d.]+)deg\)/.exec(arrow()?.getAttribute("style") ?? "")?.[1];
+const beam = () => document.querySelector("[data-testid=walker-beam]");
+const turn = () => /rotate\((-?[\d.]+)deg\)/.exec(beam()?.getAttribute("style") ?? "")?.[1];
 
 describe("CurrentPositionMarker (Leaflet)", () => {
-  it("draws the arrowhead with the right rotation when the walker has a heading", () => {
+  it("draws the beam with the right rotation when the walker has a heading", () => {
     render(<CurrentPositionMarker position={POSITION} headingDeg={212.4} />);
-    expect(arrow()).not.toBeNull();
+    expect(beam()).not.toBeNull();
     expect(turn()).toBe("212"); // rebuilt only per whole degree
     expect(document.querySelector("[data-testid=walker-marker]")!.getAttribute("data-heading")).toBe("212");
   });
 
-  it("draws no arrowhead without a heading (undefined, null or not a number)", () => {
+  it("draws no beam without a heading (undefined, null or not a number)", () => {
     for (const headingDeg of [undefined, null, Number.NaN]) {
       render(<CurrentPositionMarker position={POSITION} headingDeg={headingDeg} />);
-      expect(arrow()).toBeNull();
+      expect(beam()).toBeNull();
       expect(document.querySelector("[data-testid=walker-marker]")).not.toBeNull(); // the dot itself is always there
       cleanup();
     }
   });
 
-  it("draws the direction beam with the arrowhead, and none without a heading", () => {
+  it("turns the beam with the heading, and the accuracy halo is untouched by it", () => {
     const { rerender } = render(<CurrentPositionMarker position={POSITION} headingDeg={212.4} />);
-    const beam = () => document.querySelector("[data-testid=walker-beam]");
     expect(beam()).not.toBeNull();
-    expect(/rotate\((-?[\d.]+)deg\)/.exec(beam()!.getAttribute("style") ?? "")?.[1]).toBe("212");
     rerender(<CurrentPositionMarker position={POSITION} accuracyM={20} headingDeg={undefined} />);
     expect(beam()).toBeNull();
-    expect(screen.getByTestId("halo")).toBeTruthy(); // the accuracy halo is untouched by the beam
+    expect(screen.getByTestId("halo")).toBeTruthy();
   });
 
   it("centres the dot on the position: the marker box is anchored at its middle", () => {

@@ -126,7 +126,9 @@ export function GoogleCurrentPosition({ position, accuracyM, headingDeg }: { pos
     return () => halo.setMap(null);
   }, [map, maps, position, accuracyM]);
   return (
-    <AdvancedMarker position={position} zIndex={500}>
+    // Centred on the fix: an AdvancedMarker's default anchor is the bottom middle of its content, which would hang the
+    // dot half a box above where the walker is.
+    <AdvancedMarker position={position} zIndex={500} anchorLeft="-50%" anchorTop="-50%">
       <WalkerMarkerShape headingDeg={headingDeg} />
     </AdvancedMarker>
   );

@@ -16,7 +16,7 @@ function leafletMarker(heading?: number | null): HTMLElement {
 const rotation = (el: Element | null) => /rotate\((-?[\d.]+)deg\)/.exec(el?.getAttribute("style") ?? "")?.[1] ?? null;
 
 describe("the walker marker", () => {
-  it("draws a leather disc with a cream ring and an ink hairline, not the old blue dot", () => {
+  it("draws a small leather disc with a thin cream ring and an ink hairline, not the old blue dot", () => {
     const html = walkerMarkerHtml(null);
     expect(html).toContain("var(--tk-leather");
     expect(html).toContain("#f8f3ea"); // surface ring
@@ -26,25 +26,25 @@ describe("the walker marker", () => {
   });
 
   describe("Google version", () => {
-    it("shows the arrowhead, turned to the heading, once there is one", () => {
+    it("shows the beam, turned to the heading, once there is one", () => {
       render(<WalkerMarkerShape headingDeg={137.46} />);
       expect(screen.getByTestId("walker-marker").getAttribute("data-heading")).toBe("137.5");
-      expect(rotation(screen.getByTestId("walker-arrow"))).toBe("137.5");
-      expect(screen.getByTestId("walker-arrow").getAttribute("style")).toContain("transition: transform 400ms ease-out");
+      expect(rotation(screen.getByTestId("walker-beam"))).toBe("137.5");
+      expect(screen.getByTestId("walker-beam").getAttribute("style")).toContain("transition: transform 400ms ease-out");
     });
 
-    it.each([[undefined], [null], [Number.NaN], [Number.POSITIVE_INFINITY]])("shows no arrowhead without a real heading (%s)", (heading) => {
+    it.each([[undefined], [null], [Number.NaN], [Number.POSITIVE_INFINITY]])("shows no beam without a real heading (%s)", (heading) => {
       render(<WalkerMarkerShape headingDeg={heading} />);
       expect(screen.getByTestId("walker-marker").hasAttribute("data-heading")).toBe(false);
-      expect(screen.queryByTestId("walker-arrow")).toBeNull();
+      expect(screen.queryByTestId("walker-beam")).toBeNull();
     });
 
     it("keeps an unwrapped heading as is, so a turn through north is a short CSS rotation", () => {
       render(<WalkerMarkerShape headingDeg={365} />);
-      expect(rotation(screen.getByTestId("walker-arrow"))).toBe("365");
+      expect(rotation(screen.getByTestId("walker-beam"))).toBe("365");
       cleanup();
       render(<WalkerMarkerShape headingDeg={-12} />);
-      expect(rotation(screen.getByTestId("walker-arrow"))).toBe("-12");
+      expect(rotation(screen.getByTestId("walker-beam"))).toBe("-12");
     });
 
     it("is labelled for a screen reader", () => {
@@ -54,19 +54,19 @@ describe("the walker marker", () => {
   });
 
   describe("Leaflet version", () => {
-    it("agrees with the Google one: same arrowhead, same rotation, same absence", () => {
+    it("agrees with the Google one: same beam, same rotation, same absence", () => {
       for (const heading of [0, 45.04, 270, 365, -12]) {
         const leaflet = leafletMarker(heading);
         const { container } = render(<WalkerMarkerShape headingDeg={heading} />);
         expect(leaflet.querySelector("[data-testid=walker-marker]")!.getAttribute("data-heading")).toBe(
           container.querySelector("[data-testid=walker-marker]")!.getAttribute("data-heading"),
         );
-        expect(rotation(leaflet.querySelector("[data-testid=walker-arrow]"))).toBe(rotation(container.querySelector("[data-testid=walker-arrow]")));
+        expect(rotation(leaflet.querySelector("[data-testid=walker-beam]"))).toBe(rotation(container.querySelector("[data-testid=walker-beam]")));
         cleanup();
         leaflet.remove();
       }
       const none = leafletMarker(undefined);
-      expect(none.querySelector("[data-testid=walker-arrow]")).toBeNull();
+      expect(none.querySelector("[data-testid=walker-beam]")).toBeNull();
       expect(none.querySelector("[data-testid=walker-marker]")!.hasAttribute("data-heading")).toBe(false);
       none.remove();
     });
@@ -82,10 +82,9 @@ describe("the walker marker", () => {
   describe("the direction beam", () => {
     const beam = (root: ParentNode) => root.querySelector("[data-testid=walker-beam]");
 
-    it("comes out of the dot toward the heading, turned like the arrowhead, in both versions", () => {
+    it("comes out of the dot toward the heading, in both versions", () => {
       render(<WalkerMarkerShape headingDeg={137.46} />);
       expect(rotation(beam(document))).toBe("137.5");
-      expect(rotation(beam(document))).toBe(rotation(screen.getByTestId("walker-arrow")));
       const leaflet = leafletMarker(137.46);
       expect(rotation(beam(leaflet))).toBe("137.5");
       leaflet.remove();
@@ -99,16 +98,19 @@ describe("the walker marker", () => {
       leaflet.remove();
     });
 
-    it("sits under the arrowhead and the disc, which stay as they were", () => {
+    it("sits under the disc, which is always there", () => {
       const leaflet = leafletMarker(90);
       const kids = [...leaflet.querySelector("[data-testid=walker-marker]")!.children].map((c) => c.getAttribute("data-testid") ?? "disc");
-      expect(kids).toEqual(["walker-beam", "walker-arrow", "disc"]);
+      expect(kids).toEqual(["walker-beam", "disc"]);
       expect(leaflet.innerHTML).toContain("var(--tk-leather"); // the leather disc
-      expect(leaflet.innerHTML).toContain("0 0 0 2.5px #f8f3ea"); // its cream ring
+      expect(leaflet.innerHTML).toContain("0 0 0 2px #f8f3ea"); // its thin cream ring
       leaflet.remove();
       render(<WalkerMarkerShape headingDeg={90} />);
       const react = [...screen.getByTestId("walker-marker").children].map((c) => c.getAttribute("data-testid") ?? "disc");
-      expect(react).toEqual(["walker-beam", "walker-arrow", "disc"]);
+      expect(react).toEqual(["walker-beam", "disc"]);
+      cleanup();
+      render(<WalkerMarkerShape headingDeg={null} />);
+      expect([...screen.getByTestId("walker-marker").children].map((c) => c.getAttribute("data-testid") ?? "disc")).toEqual(["disc"]);
     });
 
     it("is a translucent leather wedge that fades to nothing outward, with softened sides", () => {
@@ -125,9 +127,9 @@ describe("the walker marker", () => {
       expect(svg.querySelector("path")!.getAttribute("filter")).toMatch(/^url\(#.+\)$/);
     });
 
-    it("reaches about 40 to 50 px from the dot, which is visible on satellite at normal zoom", () => {
-      expect(BEAM_RADIUS_PX).toBeGreaterThanOrEqual(40);
-      expect(BEAM_RADIUS_PX).toBeLessThanOrEqual(50);
+    it("reaches about 60 px from the dot, readable at a glance on satellite", () => {
+      expect(BEAM_RADIUS_PX).toBeGreaterThanOrEqual(55);
+      expect(BEAM_RADIUS_PX).toBeLessThanOrEqual(70);
       const svg = beam(leafletMarker(0))!.querySelector("svg")!;
       // The wedge's apex is the centre of the marker box, and its drawing box is centred on it (overflow visible).
       const box = Number(svg.getAttribute("width"));
@@ -146,6 +148,27 @@ describe("the walker marker", () => {
       expect(ids(container).some((i) => ids(leaflet).includes(i))).toBe(false);
       leaflet.remove();
     });
+  });
+
+  it("keeps the dot small: a 13 px core, about 19 px across with its ring and hairline, in both versions", () => {
+    const disc = (root: ParentNode) => root.querySelector("[data-testid=walker-marker] > span:last-child") as HTMLElement;
+    const leaflet = leafletMarker(90);
+    expect(disc(leaflet).style.width).toBe("13px");
+    expect(disc(leaflet).style.height).toBe("13px");
+    expect(disc(leaflet).style.boxShadow).toContain("0 0 0 3px #1b2620"); // 2 px ring + 1 px hairline: 19 px in all
+    leaflet.remove();
+    render(<WalkerMarkerShape headingDeg={90} />);
+    expect(disc(document).style.width).toBe("13px");
+    expect(disc(document).style.boxShadow).toContain("0 0 0 3px #1b2620");
+  });
+
+  it("draws a beam about 76 degrees wide", () => {
+    const d = leafletMarker(0).querySelector("[data-testid=walker-beam] path")!.getAttribute("d")!;
+    const [, ax, ay, bx, by, cx] = /^M([\d.]+) ([\d.]+) L([\d.]+) ([\d.]+) A[\d.]+ [\d.]+ 0 0 1 ([\d.]+)/.exec(d)!.map(Number) as number[];
+    const left = Math.atan2(ax - bx, ay - by);
+    const right = Math.atan2(cx - ax, ay - by);
+    expect(((left + right) * 180) / Math.PI).toBeGreaterThan(70);
+    expect(((left + right) * 180) / Math.PI).toBeLessThan(80);
   });
 
   it("knows a drawable heading when it sees one", () => {
