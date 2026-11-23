@@ -265,9 +265,11 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           for (const a of data.actions ?? []) {
             if (a.kind === "add-place" && a.name && a.coordinates) {
               actions.push({ kind: "add-place", name: a.name, coordinates: a.coordinates, label: lang === "he" ? `להוסיף את ${a.name}` : `Add ${a.name}` });
-            } else if (a.kind === "skip-stop" && typeof a.stopIndex === "number" && fresh.stops[a.stopIndex]) {
-              const st = fresh.stops[a.stopIndex];
-              actions.push({ kind: "drop", stopId: st.id, label: lang === "he" ? `לדלג על ${st.name}` : `Skip ${st.name}` });
+            } else if (a.kind === "skip-stop" && typeof a.stopIndex === "number" && ctx.stops[a.stopIndex]) {
+              // The index points into the stops sent with the message; a stop reached meanwhile must not shift it.
+              const sent = ctx.stops[a.stopIndex];
+              const st = fresh.stops.find((x) => x.id === sent.id);
+              if (st) actions.push({ kind: "drop", stopId: st.id, label: lang === "he" ? `לדלג על ${st.name}` : `Skip ${st.name}` });
             } else if (a.kind === "head-back") {
               actions.push({ kind: "head-back", label: lang === "he" ? "חזרה להתחלה" : "Head back" });
             }
