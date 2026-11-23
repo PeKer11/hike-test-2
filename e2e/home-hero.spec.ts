@@ -8,17 +8,20 @@ import { expect, test, type Page } from "@playwright/test";
  * width the picture is really drawn at (object-cover draws it at least as wide as the band is tall x 2.4).
  */
 
+// The scene pictures only: the Traike mark (traike-icon.png) is also an aria-hidden img inside the header since the icon round.
+const HERO = "header img[aria-hidden=true]:not([src*='traike-icon'])";
+
 async function drawnHeroPictures(page: Page) {
   await page.goto("/app");
   await page.locator("[data-view=home] header h1").first().waitFor();
   // The wide picture is lazy: let it arrive.
   await page.waitForLoadState("load");
   await expect
-    .poll(() => page.evaluate(() => [...document.querySelectorAll<HTMLImageElement>("header img[aria-hidden=true]")].filter((i) => i.getBoundingClientRect().width > 0 && i.complete).length))
+    .poll(() => page.evaluate((sel) => [...document.querySelectorAll<HTMLImageElement>(sel)].filter((i) => i.getBoundingClientRect().width > 0 && i.complete).length, HERO))
     .toBeGreaterThan(0);
-  return page.evaluate(async () => {
+  return page.evaluate(async (sel) => {
     const out: { file: string; decodedW: number; drawnW: number }[] = [];
-    for (const img of document.querySelectorAll<HTMLImageElement>("header img[aria-hidden=true]")) {
+    for (const img of document.querySelectorAll<HTMLImageElement>(sel)) {
       const r = img.getBoundingClientRect();
       if (r.width === 0) continue;
       const u = new URL(img.currentSrc);
@@ -29,7 +32,7 @@ async function drawnHeroPictures(page: Page) {
       out.push({ file: decodeURIComponent(u.searchParams.get("url") ?? u.pathname).split("/").pop() ?? "", decodedW: bmp.width, drawnW });
     }
     return out;
-  });
+  }, HERO);
 }
 
 for (const vp of [
