@@ -206,7 +206,10 @@ export function SocialView({
   const band = (
     <>
       <WalksBand lang={lang} summary={summary} actions={headerActions} />
-      <WalksTabs lang={lang} value="friends" summary={summary ? { ...summary, friends: accepted.length } : ready ? { saved: 0, walked: 0, km: 0, friends: accepted.length } : null} onChange={openWalks} />
+      {/* From md the tabs sit in the page column, inset like the Walks screen's, instead of running edge to edge of the page. */}
+      <div className="tk-page md:px-4">
+        <WalksTabs lang={lang} value="friends" summary={summary ? { ...summary, friends: accepted.length } : ready ? { saved: 0, walked: 0, km: 0, friends: accepted.length } : null} onChange={openWalks} />
+      </div>
     </>
   );
 

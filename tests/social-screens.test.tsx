@@ -31,6 +31,19 @@ describe("Social screen", () => {
     expect(await screen.findByRole("button", { name: "Create a profile" })).toBeTruthy();
   });
 
+  it("lays its sections out in the page column, two columns from md, with the tab row inset like the Walks screen's", async () => {
+    const f = fakeSupabase({ rpc: { list_friends: { data: [] }, friends_walks: { data: [] }, my_friend_code: { data: "ABCDEFGH" } }, tables: { social_profiles: { data: null } } });
+    session.current = { client: f.client, userId: "u1" };
+    render(<SocialView lang="en" bridge={new PlannerBridge()} signedIn profileId={null} addCode={null} />);
+    const create = await screen.findByRole("button", { name: "Create a profile" });
+    // The sections are in one two-column flow inside the page column (the media rules live in globals.css).
+    expect(create.closest(".tk-cols-2")?.parentElement?.className).toContain("tk-page");
+    // Tablet and desktop only: the Saved / Walked / Friends row sits in the same column, inset 16px; a phone keeps it as approved.
+    const tabs = screen.getByRole("tablist", { name: "Filter walks" }).closest(".tk-page") as HTMLElement;
+    expect(tabs.className.split(/\s+/)).toContain("md:px-4");
+    expect(tabs.className.split(/\s+/)).not.toContain("px-4");
+  });
+
   it("with the flag off, shows today's friends features only and never reads profiles", async () => {
     vi.stubEnv("NEXT_PUBLIC_SOCIAL_PROFILES", "");
     const f = fakeSupabase({ rpc: { list_friends: { data: [] }, friends_walks: { data: [] }, my_friend_code: { data: "ABCDEFGH" } } });
