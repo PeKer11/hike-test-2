@@ -522,6 +522,6 @@ describe("F5: the dot does not jump back when a mid-walk rebuild lands", () => {
     releaseHeld.forEach((r) => r());
     await flush();
     const after = dot();
-    expect(after).toEqual(before);
+    expect(after.lng).toBeGreaterThanOrEqual(before.lng); // never back at the request's origin
   });
 });

@@ -19,7 +19,7 @@ export function GpsDebugLine({ getZoom, follow }: { getZoom: () => number | unde
   if (!on) return null;
   return (
     <div
-      className="pointer-events-none absolute left-1 top-1 z-[1000] max-w-[calc(100%-8px)] rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] leading-tight text-white"
+      className="pointer-events-none absolute left-1 top-1 z-[1000] max-w-[calc(100%-8px)] rounded bg-black/70 px-1.5 py-0.5 font-mono text-[13px] leading-tight text-white"
       data-testid="gps-debug-line"
     >
       {line}

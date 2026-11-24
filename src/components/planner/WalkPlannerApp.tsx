@@ -397,6 +397,8 @@ export function WalkPlannerApp({
   const walkInputRef = useRef<WalkCompanionInput | null>(null);
   const walkStartTimeRef = useRef<number>(0);
   const latestPaceUpdateRef = useRef<PaceUpdate | null>(null);
+  /** Where the walker stood when a mid-walk rebuild landed; the swap's `handleStartWalk` shows the dot there, not at the request's origin. */
+  const swapHereRef = useRef<Coordinates | null>(null);
   // Read by the PaceChecker callback, which closes over a stale render's state.
   const walkPlanRef = useRef<WalkPlan | null>(null);
   const pinnedAttractionIdsRef = useRef<string[]>([]);
@@ -1648,6 +1650,7 @@ export function WalkPlannerApp({
       walkStartTimeRef.current = Date.now();
       // The walker kept walking while the server answered: the dot stays at the latest fix, not where the request started.
       const hereNow = latestPaceUpdateRef.current?.currentPosition ?? input.origin;
+      swapHereRef.current = hereNow;
       latestPaceUpdateRef.current = null;
       setPinnedTimeWarning(null);
       setCurrentPosition(hereNow);
@@ -2981,7 +2984,8 @@ export function WalkPlannerApp({
     latestPaceUpdateRef.current = null;
     lastSegmentIndexRef.current = null;
     setRecordedPointCount(0);
-    setCurrentPosition(initialPosition);
+    setCurrentPosition((planOverride ? swapHereRef.current : null) ?? initialPosition);
+    swapHereRef.current = null;
     markOffRoute(false);
     setWalkPhase("walking");
     setWalkTrackingMessage(null);
