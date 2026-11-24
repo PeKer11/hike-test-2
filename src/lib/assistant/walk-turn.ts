@@ -198,12 +198,13 @@ export async function runWalkTurn(
             : category
               ? await searchNearbyPlaces(category, input.position, radius, 6)
               : [];
+          const base = found.size;
           output = places
             .map((p) => ({ p, d: Math.round(haversineDistance(input.position, p.coordinates)) }))
             .sort((a, b) => a.d - b.d)
             .slice(0, 5)
             .map(({ p, d }, n) => {
-              const id = `p${found.size + n + 1}`;
+              const id = `p${base + n + 1}`;
               const name = cleanUntrustedText(p.name, 120);
               found.set(id, { name, coordinates: p.coordinates });
               return { id, name, dist_m: d };
