@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Button } from "@/components/ui/Button";
 import { ChatIcon, ChevronDownIcon } from "@/components/ui/icons";
 import type { WalkChat } from "@/lib/hooks/useWalkChat";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
@@ -72,17 +73,18 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
               >
                 {m.text}
               </p>
-              {!m.used && m.actions.length > 0 && (
+              {!m.used && !m.superseded && m.actions.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-2">
                   {m.actions.map((action, i) => (
-                    <button
+                    <Button
                       key={i}
                       type="button"
+                      variant={m.actions.some((a) => a.kind === "apply-changes") && action.kind !== "apply-changes" ? "secondary" : "primary"}
                       onClick={() => chat.runAction(m.id, i)}
-                      className="min-h-9 rounded-full bg-terra px-3 text-[13px] font-semibold text-on-accent transition hover:bg-terra/90"
+                      className="min-h-9 px-3 text-[13px]"
                     >
                       {action.label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}

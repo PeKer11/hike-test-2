@@ -217,7 +217,7 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
     await advance(5_000);
     assistantAnswer = { reply: "Two places ahead.", actions: [add("Alush Garden", A), add("Haruv Garden", B)] };
     await say("anything nice ahead?");
-    fireEvent.click(chatButton("לבצע הכול (2 הוספות, 0 דילוגים)"));
+    fireEvent.click(chatButton("להוסיף: Alush Garden + Haruv Garden"));
     await flush();
     expect(screen.getByTestId("walk-notice").textContent).toContain("נוסף: Alush Garden, Haruv Garden");
   }
@@ -244,7 +244,7 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
     assistantAnswer = { reply: "Two places ahead.", actions: [add("Alush Garden", A), add("Haruv Garden", B)] };
     await say("anything nice ahead?");
     omitIds = [idOf(A)]; // the first did not fit, the second did
-    fireEvent.click(chatButton("לבצע הכול (2 הוספות, 0 דילוגים)"));
+    fireEvent.click(chatButton("להוסיף: Alush Garden + Haruv Garden"));
     await flush();
     const text = screen.getByTestId("walk-notice").textContent ?? "";
     expect(text).not.toContain("לא נמצא מקום שנכנס");
@@ -256,7 +256,7 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
     await advance(5_000);
     assistantAnswer = { reply: "Swap?", actions: [add("Alush Garden", A), { kind: "skip-stop", stopIndex: 0 }] };
     await say("swap the museum");
-    fireEvent.click(chatButton(/^לבצע הכול/));
+    fireEvent.click(chatButton(/^להוסיף: Alush Garden/));
     await flush();
     expect(last().excludeIds as string[]).toContain("a1");
     fireEvent.click(within(screen.getByTestId("walk-notice")).getByRole("button", { name: "ביטול" }));

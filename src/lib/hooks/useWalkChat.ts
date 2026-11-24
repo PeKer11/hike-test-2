@@ -30,6 +30,21 @@ export interface ChatMessage {
   actions: ChatAction[];
   /** True once the walker tapped one of the actions; the buttons are then gone. */
   used: boolean;
+  /** A newer reply brought its own buttons: these ones are stale and are hidden. */
+  superseded?: boolean;
+}
+
+const COMBINED_LABEL_MAX = 60;
+
+/** The combined chip's text: the places by name, drops with a minus, a count when the names run long. */
+function combinedLabel(lang: ChatLang, addNames: string[], dropNames: string[]): string {
+  const items = [...(addNames.length > 0 ? [addNames.join(" + ")] : []), ...dropNames.map((n) => `−${n}`)];
+  const head = addNames.length > 0 ? (lang === "he" ? "להוסיף" : "Add") : lang === "he" ? "להסיר" : "Remove";
+  const named = `${head}: ${items.join(", ")}`;
+  if (named.length <= COMBINED_LABEL_MAX) return named;
+  const n = addNames.length + dropNames.length;
+  if (dropNames.length === 0) return lang === "he" ? `להוסיף את ${n} המקומות` : n === 2 ? "Add both places" : `Add ${n} places`;
+  return lang === "he" ? `לבצע ${n} שינויים` : `Apply ${n} changes`;
 }
 
 export interface WalkChatDeps {
@@ -85,12 +100,16 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
 
   const push = useCallback((role: ChatMessage["role"], text: string, actions: ChatAction[] = []) => {
     const id = nextId.current++;
-    setMessages((prev) => [...prev, { id, role, text, actions, used: false }].slice(-MAX_MESSAGES));
+    setMessages((prev) =>
+      [...prev.map((m) => (actions.length > 0 && m.actions.length > 0 ? { ...m, superseded: true } : m)), { id, role, text, actions, used: false }].slice(-MAX_MESSAGES),
+    );
     return id;
   }, []);
 
   const replace = useCallback((id: number, text: string, actions: ChatAction[] = []) => {
-    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, text, actions } : m)));
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, text, actions } : actions.length > 0 && m.actions.length > 0 ? { ...m, superseded: true } : m)),
+    );
   }, []);
 
   const runAction = useCallback((messageId: number, actionIndex: number) => {
@@ -277,12 +296,13 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           // Several proposals in one reply: one extra button that applies them all in a single rebuild.
           const adds = actions.flatMap((a) => (a.kind === "add-place" ? [{ name: a.name, coordinates: a.coordinates }] : []));
           const dropStopIds = actions.flatMap((a) => (a.kind === "drop" ? [a.stopId] : []));
+          const dropNames = dropStopIds.map((id) => fresh.stops.find((x) => x.id === id)?.name ?? "");
           if (adds.length + dropStopIds.length > 1) {
             actions.unshift({
               kind: "apply-changes",
               adds,
               dropStopIds,
-              label: lang === "he" ? `לבצע הכול (${adds.length} הוספות, ${dropStopIds.length} דילוגים)` : `Apply all (+${adds.length}, −${dropStopIds.length})`,
+              label: combinedLabel(lang, adds.map((a) => a.name), dropNames),
             });
           }
           replace(thinkingId, data.reply || (lang === "he" ? "לא הצלחתי לענות, נסו שוב." : "I couldn't answer, try again."), actions);

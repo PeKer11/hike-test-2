@@ -46,6 +46,24 @@ describe("WalkChatBox", () => {
     expect(screen.queryByRole("button", { name: "Skip Stop b" })).toBeNull();
   });
 
+  it("hides the buttons of a superseded reply, and outlines the singles next to a combined chip", () => {
+    const messages = [
+      { id: 1, role: "app" as const, text: "old", actions: [{ kind: "drop" as const, stopId: "b", label: "Skip old" }], used: false, superseded: true },
+      {
+        id: 2, role: "app" as const, text: "new", used: false,
+        actions: [
+          { kind: "apply-changes" as const, adds: [], dropStopIds: ["a", "b"], label: "Apply both" },
+          { kind: "drop" as const, stopId: "a", label: "Skip a" },
+        ],
+      },
+    ];
+    render(<WalkChatBox chat={chatWith({ messages })} lang="en" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    expect(screen.queryByRole("button", { name: "Skip old" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Apply both" }).className).toContain("tk-btn-primary");
+    expect(screen.getByRole("button", { name: "Skip a" }).className).toContain("tk-btn-secondary");
+  });
+
   it("renders in the HUD between the alert and the pills", () => {
     render(
       <WalkHud alert={null} stats={null} onDetails={vi.fn()} onEndWalk={vi.fn()} chat={<WalkChatBox chat={chatWith()} lang="he" />} />,
