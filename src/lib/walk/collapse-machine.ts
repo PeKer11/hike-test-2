@@ -47,6 +47,8 @@ export interface CollapseFix {
   /** Metres from the (old) planned route. */
   deviationM: number;
   accuracyM: number;
+  /** The walker answered "all OK, continue": the long-time trigger waits; the distance trigger still works. */
+  timeTriggerSuppressed?: boolean;
 }
 
 export function initialCollapseState(): CollapseState {
@@ -140,7 +142,7 @@ export function stepCollapse(prev: CollapseState, fix: CollapseFix): CollapseSte
   const shouldCollapse =
     (farSinceMs !== null && atMs - farSinceMs >= COLLAPSE_SUSTAIN_MS) ||
     next.rejoinFailures >= COLLAPSE_REJOIN_FAILURES ||
-    atMs - offSinceMs > COLLAPSE_OFF_ROUTE_MAX_MS;
+    (!fix.timeTriggerSuppressed && atMs - offSinceMs > COLLAPSE_OFF_ROUTE_MAX_MS);
   if (shouldCollapse && collapseAllowed(next, atMs)) return collapse(next, atMs);
 
   if (prev.phase === "OFF_ROUTE") {

@@ -94,6 +94,7 @@ import { PACE_CONFIRMATION_TIMEOUT_MS } from "@/components/walk/PaceConfirmation
 import { DEVIATION_CONFIRMATION_TIMEOUT_MS } from "@/components/walk/DeviationConfirmationNotification";
 import { PaceChecker } from "@/lib/walk/pace-checker";
 import { DeviationMonitor } from "@/lib/walk/deviation-monitor";
+import { OffRouteDismissal } from "@/lib/walk/off-route-dismissal";
 import { HeadingMonitor } from "@/lib/walk/heading-monitor";
 import {
   detectDeviation,
@@ -442,6 +443,9 @@ export function WalkPlannerApp({
   // Written in the same place as the state they mirror, so the per-fix gate sees an
   // off-route / ask card on the very fix that raises it (before the next render).
   const offRouteDismissedRef = useRef(false);
+  // "All OK, continue": lifts only on a real rejoin, a clearly further stray, or 15 minutes (never one jittery fix).
+  const dismissalRef = useRef(new OffRouteDismissal());
+  const lastDeviationRef = useRef({ atMs: 0, deviationM: 0 });
   const deviationConfirmationRef = useRef(false);
   // The ONE "While you're here" line the off-route card may carry.
   const [whileHereNote, setWhileHereNote] = useState<string | null>(null);
@@ -972,6 +976,7 @@ export function WalkPlannerApp({
     walkStatsRef.current = null;
     setOffRouteHint(null);
     offRouteDismissedRef.current = false;
+    dismissalRef.current.clear();
     setOffRouteDismissed(false);
     setIsFindingWayBack(false);
     setIsDetailsOpen(false);
@@ -2789,6 +2794,7 @@ export function WalkPlannerApp({
       // router snapped them, not at their feet), so without this the same card would stay up and a drawn
       // line would look like nothing happened. It re-arms once they are back on a line, as after "I know where I'm going".
       collapseFlow.rejoinSucceeded(fix.timestamp);
+      dismissalRef.current.dismiss({ atMs: fix.timestamp, deviationM: lastDeviationRef.current.deviationM });
       offRouteDismissedRef.current = true;
       setOffRouteDismissed(true);
       const connectorM = Math.max(10, Math.round(pathLengthM(data.geometry) / 10) * 10);
@@ -3144,12 +3150,24 @@ export function WalkPlannerApp({
       markOffRoute(offRoute);
 
       deviationMonitorRef.current?.record(offRoute, update.timestamp);
+      lastDeviationRef.current = { atMs: update.timestamp, deviationM: deviation.deviationMeters };
+      dismissalRef.current.feed({
+        atMs: update.timestamp,
+        offRoute,
+        deviationM: deviation.deviationMeters,
+        accuracyM: update.accuracyMeters,
+      });
+      if (offRouteDismissedRef.current && !dismissalRef.current.active(update.timestamp)) {
+        offRouteDismissedRef.current = false;
+        setOffRouteDismissed(false);
+      }
       // Fix timestamps only. A walker 400 m+ away for 60 s, two failed rejoins or
       // 8 minutes off route collapse into direction options.
       collapseFlow.feed({
         atMs: update.timestamp,
         deviationM: deviation.deviationMeters,
         accuracyM: update.accuracyMeters,
+        timeTriggerSuppressed: dismissalRef.current.active(update.timestamp),
       });
 
       // What to tell a walker who is off the line: a turn if their recent
@@ -3170,11 +3188,7 @@ export function WalkPlannerApp({
         const rounded = Math.max(10, Math.round(deviation.deviationMeters / 10) * 10);
         setOffRouteMeters((prev) => (Math.abs(rounded - prev) >= 10 ? rounded : prev));
       }
-      if (!offRoute) {
-        offRouteDismissedRef.current = false;
-        setOffRouteDismissed(false);
-        setRouteOrderAsk(false);
-      }
+      if (!offRoute) setRouteOrderAsk(false);
       refreshWalkStats();
 
       // Places ahead / left / right. Local only: the collection was scanned once
@@ -3364,6 +3378,8 @@ export function WalkPlannerApp({
     headingMonitorRef.current = new HeadingMonitor();
 
     deviationMonitorRef.current = new DeviationMonitor(walkSettingsRef.current, () => {
+      // "All OK, continue" was answered: do not ask again until the dismissal lifts.
+      if (dismissalRef.current.active()) return;
       // Ask first, in every mode: redraw from here (a fresh route to the stops still ahead), or let the walker walk.
       askBeforeRedrawing();
     });
@@ -4143,6 +4159,7 @@ export function WalkPlannerApp({
         }
         onDismiss={() => {
           if (offRouteMode === "ask") clearDeviationConfirmation();
+          dismissalRef.current.dismiss({ atMs: lastDeviationRef.current.atMs || Date.now(), deviationM: lastDeviationRef.current.deviationM });
           offRouteDismissedRef.current = true;
           setOffRouteDismissed(true);
         }}

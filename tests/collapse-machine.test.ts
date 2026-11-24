@@ -93,6 +93,16 @@ describe("collapse machine", () => {
     expect(stepCollapse(s, fix(T0 + 8 * 60_000 + 1000, 120)).effect).toBe("collapse");
   });
 
+  it("the 8 minute time trigger waits while the walker said all OK, but the 400 m trigger does not", () => {
+    let s = stepCollapse(initialCollapseState(), fix(T0, 120)).state;
+    s = { ...s, phase: "OFF_ROUTE", lastRejoinAttemptMs: T0 + 8 * 60_000 };
+    const late = T0 + 8 * 60_000 + 1000;
+    expect(stepCollapse(s, { ...fix(late, 120), timeTriggerSuppressed: true }).effect).not.toBe("collapse");
+    let far = stepCollapse(initialCollapseState(), fix(T0, 450)).state;
+    far = { ...far, lastRejoinAttemptMs: T0 + 120_000 };
+    expect(stepCollapse(far, { ...fix(T0 + 61_000, 450), timeTriggerSuppressed: true }).effect).toBe("collapse");
+  });
+
   it("enforces a 10 minute cooldown between collapses", () => {
     const first = drive(initialCollapseState(), T0, 61, 450).state;
     const resolved = resolveCollapse(first);
