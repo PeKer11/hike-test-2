@@ -3,7 +3,7 @@
 import { useConsentSync, useServerConsent } from "@/lib/hooks/useConsentSync";
 import { setActiveAccess, accessBody } from "@/lib/walk/active-access";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ConstraintPanel } from "@/components/constraints";
 import { DynamicMap } from "@/components/map";
@@ -429,6 +429,8 @@ export function WalkPlannerApp({
   // Every accepted fix of this walk (the track the direction options must not
   // retrace) and where the walk began (the anchor when nothing else is).
   const walkedTrackRef = useRef<Coordinates[]>([]);
+  // Bumped when the track gains a point (at most once a second), so the map gets a new array only then.
+  const [walkedVersion, setWalkedVersion] = useState(0);
   const walkStartPointRef = useRef<Coordinates | null>(null);
   // Mirrors "a card is up" for the per-fix callout gate, which runs in a closure.
   const cardVisibleRef = useRef(false);
@@ -661,6 +663,10 @@ export function WalkPlannerApp({
   // The beam's heading as a store the marker turns from in the DOM (no planner render per compass tick): the phone's
   // compass while it is fresh, else the GPS course, nothing when there is neither. A simulated walk follows its path.
   const walkerHeading = useWalkerHeading({ active: walkMode, simulated: isSimulating });
+  // The walked trail as the map gets it: a new array only when a point was added (or the phase changed), so the map's
+  // polylines are updated in place and not rebuilt on every unrelated render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const walkedPath = useMemo(() => [...walkedTrackRef.current], [walkedVersion, walkPhase]);
   const [attractionDistances, setAttractionDistances] = useState<Record<string, number>>({});
   const routeAnchor =
     route?.orderedWaypoints[0]?.coordinates ?? route?.geometry[0];
@@ -3084,6 +3090,7 @@ export function WalkPlannerApp({
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
       walkedTrackRef.current.push(update.currentPosition);
+      setWalkedVersion((v) => v + 1);
       if (walkedTrackRef.current.length > 5_000) {
         // Keep the whole walk's shape at half the resolution rather than only its tail.
         walkedTrackRef.current = walkedTrackRef.current.filter((_, i) => i % 2 === 0);
@@ -5315,7 +5322,7 @@ export function WalkPlannerApp({
           focusTick={focusTick}
           zoom={zoom}
           onMapClick={handleMapClick}
-          walkedGeometry={walkPhase === "walking" && showWalkedPath ? [...walkedTrackRef.current] : undefined}
+          walkedGeometry={walkPhase === "walking" && showWalkedPath ? walkedPath : undefined}
           currentPosition={currentPosition ?? undefined}
           currentAccuracyM={walkMode ? currentAccuracyM ?? undefined : undefined}
           headingStore={walkMode ? walkerHeading.store : undefined}

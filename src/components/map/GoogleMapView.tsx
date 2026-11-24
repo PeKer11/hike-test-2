@@ -31,34 +31,60 @@ interface LineProps {
   arrows?: boolean;
 }
 
-/** `@vis.gl/react-google-maps` ships no Polyline, so this wraps `google.maps.Polyline`. */
-function Line({ path, color, weight, opacity, zIndex, dashed = false, arrows = false }: LineProps) {
+/** The style options of a line, as one object so creating it and restyling it can never disagree. */
+function lineOptions({ color, weight, opacity, zIndex, dashed = false, arrows = false }: Omit<LineProps, "path">): google.maps.PolylineOptions {
+  return {
+    zIndex,
+    // A dashed Google line is a transparent stroke with a repeated dash symbol.
+    strokeColor: color,
+    strokeOpacity: dashed ? 0 : opacity,
+    strokeWeight: dashed ? 0 : weight,
+    icons: [
+      ...(dashed
+        ? [{ icon: { path: "M 0,-1 0,1", strokeColor: color, strokeOpacity: opacity, strokeWeight: weight, scale: 1 }, offset: "0", repeat: `${weight * 4}px` }]
+        : []),
+      // Direction: a white arrow with the route's colour as its outline, repeated along the line.
+      ...(arrows
+        ? [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.6, strokeColor: color, strokeOpacity: 1, strokeWeight: 1.5, fillColor: "#ffffff", fillOpacity: 1 }, offset: "40px", repeat: "160px" }]
+        : []),
+    ],
+  };
+}
+
+/**
+ * `@vis.gl/react-google-maps` ships no Polyline, so this wraps `google.maps.Polyline`. The Polyline is built once and
+ * then updated in place (`setPath`, `setOptions`): the walked trail has up to 5,000 points and the planner re-renders
+ * often, and a rebuilt overlay per render is CPU and a flicker. Only a change of `dashed` or `arrows` rebuilds it.
+ */
+export function Line(props: LineProps) {
+  const { path, dashed = false, arrows = false } = props;
   const map = useMap();
   const maps = useMapsLibrary("maps");
+  const latest = useRef(props);
+  useEffect(() => {
+    latest.current = props;
+  });
+  const line = useRef<google.maps.Polyline | null>(null);
 
   useEffect(() => {
-    if (!map || !maps || path.length < 2) return;
-    const line = new maps.Polyline({
-      map,
-      path,
-      zIndex,
-      geodesic: false,
-      // A dashed Google line is a transparent stroke with a repeated dash symbol.
-      strokeColor: color,
-      strokeOpacity: dashed ? 0 : opacity,
-      strokeWeight: dashed ? 0 : weight,
-      icons: [
-        ...(dashed
-          ? [{ icon: { path: "M 0,-1 0,1", strokeColor: color, strokeOpacity: opacity, strokeWeight: weight, scale: 1 }, offset: "0", repeat: `${weight * 4}px` }]
-          : []),
-        // Direction: a white arrow with the route's colour as its outline, repeated along the line.
-        ...(arrows
-          ? [{ icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.6, strokeColor: color, strokeOpacity: 1, strokeWeight: 1.5, fillColor: "#ffffff", fillOpacity: 1 }, offset: "40px", repeat: "160px" }]
-          : []),
-      ],
-    });
-    return () => line.setMap(null);
-  }, [map, maps, path, color, weight, opacity, zIndex, dashed, arrows]);
+    if (!map || !maps) return;
+    const { path: initial, ...style } = latest.current;
+    const created = new maps.Polyline({ map, path: initial, geodesic: false, ...lineOptions({ ...style, dashed, arrows }) });
+    line.current = created;
+    return () => {
+      created.setMap(null);
+      line.current = null;
+    };
+  }, [map, maps, dashed, arrows]);
+
+  useEffect(() => {
+    line.current?.setPath(path);
+  }, [path, map, maps, dashed, arrows]);
+
+  const { color, weight, opacity, zIndex } = props;
+  useEffect(() => {
+    line.current?.setOptions(lineOptions({ color, weight, opacity, zIndex, dashed, arrows }));
+  }, [color, weight, opacity, zIndex, dashed, arrows, map, maps]);
 
   return null;
 }
