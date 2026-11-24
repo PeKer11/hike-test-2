@@ -9,6 +9,7 @@ import { SocialView } from "@/components/social/SocialView";
 import { Rail } from "@/components/shell/Rail";
 import { TabBar } from "@/components/shell/TabBar";
 import { shellLang } from "@/components/shell/useShellLang";
+import { ScreenBoundary } from "@/components/ui/ScreenBoundary";
 import { PlannerFrame } from "@/components/planner/PlannerFrame";
 import { PlannerBridge, parseView, parseWalksTab, type AppView } from "@/lib/shell/planner-bridge";
 import type { AttractionCategory } from "@/lib/types";
@@ -70,23 +71,34 @@ function Shell({ greetingName, suggestedPace, suggestedCategories }: AppShellPro
 
   return (
     <div data-view={view} className="font-app-sans text-charcoal">
-      <PlannerFrame
-        suggestedPace={suggestedPace}
-        suggestedCategories={suggestedCategories}
-        view={view}
-        walksTab={walksTab}
-        bridge={bridge}
-        onNavigate={navigate}
-        active={plannerShown}
-        bottomBar
-      />
+      {/* Outermost net only: if the planner itself throws it unmounts (the walk is saved and offered again on Home). */}
+      <ScreenBoundary name="planner" lang={lang} onBack={view === "home" ? undefined : () => navigate("home")}>
+        <PlannerFrame
+          suggestedPace={suggestedPace}
+          suggestedCategories={suggestedCategories}
+          view={view}
+          walksTab={walksTab}
+          bridge={bridge}
+          onNavigate={navigate}
+          active={plannerShown}
+          bottomBar
+        />
+      </ScreenBoundary>
       {view === "home" ? (
-        <HomeView greetingName={greetingName} lang={lang} bridge={bridge} walkLive={live.walkLive} signedIn={live.signedIn} requests={live.walkRequests} onNavigate={navigate} />
+        <ScreenBoundary name="home" lang={lang} walkLive={live.walkLive}>
+          <HomeView greetingName={greetingName} lang={lang} bridge={bridge} walkLive={live.walkLive} signedIn={live.signedIn} requests={live.walkRequests} onNavigate={navigate} />
+        </ScreenBoundary>
       ) : null}
       {view === "social" ? (
-        <SocialView lang={lang === "he" ? "he" : "en"} bridge={bridge} signedIn={live.signedIn} profileId={profileId} nearbyToken={nearbyToken} addCode={addCode} requests={live.walkRequests} requestsAvailable={live.requestsAvailable} walkLive={live.walkLive} />
+        <ScreenBoundary name="social" lang={lang} walkLive={live.walkLive} onBack={() => navigate(live.walkLive ? "walk" : "home")}>
+          <SocialView lang={lang === "he" ? "he" : "en"} bridge={bridge} signedIn={live.signedIn} profileId={profileId} nearbyToken={nearbyToken} addCode={addCode} requests={live.walkRequests} requestsAvailable={live.requestsAvailable} walkLive={live.walkLive} />
+        </ScreenBoundary>
       ) : null}
-      {view === "me" ? <MeView lang={lang} settings={live.settings} bridge={bridge} signedIn={live.signedIn} walkLive={live.walkLive} suggestedPace={suggestedPace} /> : null}
+      {view === "me" ? (
+        <ScreenBoundary name="me" lang={lang} walkLive={live.walkLive} onBack={() => navigate(live.walkLive ? "walk" : "home")}>
+          <MeView lang={lang} settings={live.settings} bridge={bridge} signedIn={live.signedIn} walkLive={live.walkLive} suggestedPace={suggestedPace} />
+        </ScreenBoundary>
+      ) : null}
 
       <TabBar view={view} lang={lang} friendBadge={live.friendRequests} walkLive={live.walkLive} onNavigate={navigate} />
       <Rail view={view} lang={lang} friendBadge={live.friendRequests} walkLive={live.walkLive} onNavigate={navigate} />

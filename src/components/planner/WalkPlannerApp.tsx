@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { ConstraintPanel } from "@/components/constraints";
 import { DynamicMap } from "@/components/map";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ScreenBoundary } from "@/components/ui/ScreenBoundary";
 import { usesGoogleMap } from "@/components/map/DynamicMap";
 import { MapCredits } from "@/components/map/MapCredits";
 import { WORLDCOVER_ATTRIBUTION } from "@/lib/types/landcover";
@@ -2178,6 +2179,12 @@ export function WalkPlannerApp({
           layoutLangRef.current,
           typeof navigator !== "undefined" ? navigator.language : null,
         );
+  // What every panel's error fallback needs: its language, whether a walk is live, and a way back (not on the walk's own screen).
+  const guard = {
+    lang: (uiLang === "he" ? "he" : "en") as "he" | "en",
+    walkLive: walkMode,
+    onBack: view === "walk" || !onNavigate ? undefined : () => onNavigate(walkMode ? "walk" : "home"),
+  };
   useEffect(() => {
     document.documentElement.lang = uiLang;
     document.documentElement.dir = uiLang === "he" ? "rtl" : "ltr";
@@ -4392,7 +4399,7 @@ export function WalkPlannerApp({
                 />
               )}
               {isSignedIn && !walkMode && sideTab === "walks" && (
-                <MyWalksPanel
+                <ScreenBoundary name="my-walks" {...guard}><MyWalksPanel
                   segment={view === "walks" ? walksSegment : undefined}
                   lang={uiLang === "he" ? "he" : "en"}
                   onNewRoute={() => {
@@ -4417,7 +4424,7 @@ export function WalkPlannerApp({
                     onNavigate?.("plan");
                     void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, routeRules: routeRules as AssistantBuild["routeRules"] });
                   }}
-                />
+                /></ScreenBoundary>
               )}
               {isSignedIn && !walkMode && view === "walks" && sideTab === "places" && (
                 <button type="button" onClick={() => chooseWalksTab(walksSegment)} className="tk-bar -mx-4 w-[calc(100%+2rem)] cursor-pointer">
@@ -4425,7 +4432,7 @@ export function WalkPlannerApp({
                   <span aria-hidden className="rtl:-scale-x-100">‹</span>
                 </button>
               )}
-              {isSignedIn && !walkMode && sideTab === "places" && <SavedPlacesTab isSignedIn={isSignedIn} />}
+              {isSignedIn && !walkMode && sideTab === "places" && <ScreenBoundary name="saved-places" {...guard}><SavedPlacesTab isSignedIn={isSignedIn} /></ScreenBoundary>}
               {isSignedIn && !walkMode && view === "walks" && sideTab === "walks" && (
                 <>
                   <button type="button" onClick={() => chooseWalksTab("places")} className="tk-bar -mx-4 w-[calc(100%+2rem)] cursor-pointer">
@@ -4439,10 +4446,10 @@ export function WalkPlannerApp({
                   </div>
                 </>
               )}
-              {isSignedIn && !walkMode && sideTab === "friends" && <FriendsPanel
+              {isSignedIn && !walkMode && sideTab === "friends" && <ScreenBoundary name="friends" {...guard}><FriendsPanel
                   expanded
                   onPlan={planSharedWalk}
-                />}
+                /></ScreenBoundary>}
               {/* "contents" keeps the plan column's layout; hidden keeps the chat and form mounted. */}
               <div className={sideTab === "plan" || !isSignedIn || walkMode ? "contents" : "hidden"}>
               {isSignedIn && (
@@ -4451,7 +4458,7 @@ export function WalkPlannerApp({
                 <details className={walkMode ? "rounded-tk-card bg-tk-card shadow-tk-card" : "[&>summary]:hidden"} open={!walkMode || chatOpen}
                   onToggle={(e) => { if (walkMode) setChatOpen(e.currentTarget.open); }}>
                 <summary className="cursor-pointer px-4 py-2.5 font-brand text-sm font-semibold text-tk-ink">Chat with Traike · re-plan</summary>
-                <AssistantChat
+                <ScreenBoundary name="assistant-chat" {...guard}><AssistantChat
                   lang={uiLang === "he" ? "he" : "en"}
                   prefill={chatPrefill}
                   origin={currentPosition ?? mapClickedCoords ?? null}
@@ -4553,7 +4560,7 @@ export function WalkPlannerApp({
                     }
                     return { source: "plan", start: input.origin, stops: plan.orderedAttractions.map(toStop), totalMin: Math.round(plan.totalMinutes) };
                   }}
-                />
+                /></ScreenBoundary>
                 </details>
                 </WalkSlot>
               )}
@@ -5184,7 +5191,7 @@ export function WalkPlannerApp({
                     else chooseWalksTab(id === "walked" ? "history" : "saved");
                   }}
                 />
-                <MyWalksPanel
+                <ScreenBoundary name="my-walks" {...guard}><MyWalksPanel
                   segment={walksSegment}
                   lang={uiLang === "he" ? "he" : "en"}
                   onNewRoute={() => onNavigate?.("walk")}
@@ -5200,7 +5207,7 @@ export function WalkPlannerApp({
                       void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, routeRules: routeRules as AssistantBuild["routeRules"] });
                     })
                   }
-                />
+                /></ScreenBoundary>
               </>
             ) : null}
           </div>
@@ -5288,7 +5295,7 @@ export function WalkPlannerApp({
             {PLAN_COPY[uiLang === "he" ? "he" : "en"][mapFull ? "backToPlan" : "fullMap"]}
           </button>
         ) : null}
-        <DynamicMap
+        <ScreenBoundary name="map" {...guard}><DynamicMap
           waypoints={walkPreview?.waypoints ?? waypoints}
           routeGeometry={
             walkPreview ? [] : walkPhase === "walking" ? remainingGeometry : (route?.geometry ?? [])
@@ -5340,7 +5347,7 @@ export function WalkPlannerApp({
                 geometry: o.geometry,
                 highlighted: i === collapseFlow.highlight,
               }))}
-        />
+        /></ScreenBoundary>
         {walkPreview && (
           <div className="pointer-events-none absolute inset-x-0 bottom-10 z-[800] flex justify-center gap-2 px-4">
             {walkPreview.walk && (
@@ -5355,7 +5362,7 @@ export function WalkPlannerApp({
           </div>
         )}
         {walkMode && (
-          <WalkHud
+          <ScreenBoundary name="walk-hud" {...guard}><WalkHud
             alert={offRouteCard ? null : walkAlert}
             center={offRouteCard}
             sharing={
@@ -5409,7 +5416,7 @@ export function WalkPlannerApp({
             onDetails={() => setIsDetailsOpen(true)}
             onEndWalk={handleEndWalk}
             creditExtras={mapCreditExtras}
-          />
+          /></ScreenBoundary>
         )}
       </section>
       {!walkMode ? <MapCredits extra={mapCreditExtras} className="shrink-0 bg-paper px-3 py-1" /> : null}
