@@ -1526,11 +1526,11 @@ export function WalkPlannerApp({
   const [walkBookmarked, setWalkBookmarked] = useState(false);
 
   // The result line on the walk sheet (visible on a phone, unlike the Details log).
-  const [walkNotice, setWalkNotice] = useState<(Omit<WalkNotice, "action"> & { undo?: boolean; placeId?: string }) | null>(null);
+  const [walkNotice, setWalkNotice] = useState<(Omit<WalkNotice, "action"> & { undo?: boolean; placeIds?: string[]; dropIds?: string[] }) | null>(null);
   const noticeSeqRef = useRef(0);
-  const showWalkNotice = (text: string, tone: "ok" | "warn", undo = false, placeId?: string) => {
+  const showWalkNotice = (text: string, tone: "ok" | "warn", undo = false, placeIds?: string[], dropIds?: string[]) => {
     noticeSeqRef.current += 1;
-    setWalkNotice({ id: noticeSeqRef.current, text, tone, undo, placeId });
+    setWalkNotice({ id: noticeSeqRef.current, text, tone, undo, placeIds, dropIds });
   };
   useEffect(() => {
     if (!walkNotice) return;
@@ -2036,7 +2036,7 @@ export function WalkPlannerApp({
     const undoable = previousPlan === null;
     void handleBuildWalk(input, options).then((plan) => {
       keepPinned([id], plan);
-      announceAdded(name, id, plan, added.avgVisitMinutes, undoable);
+      announceAdded(name, [id], plan, added.avgVisitMinutes, undoable);
     });
   };
 
@@ -2044,14 +2044,16 @@ export function WalkPlannerApp({
   // A failed rebuild has already said so (reportReplanFailed), so `null` stays quiet here.
   // "+n min" is the place's own cost (detour + visit), not a difference of two clocks that
   // run at different paces. Undo is offered only when this add started the undo chain.
-  const announceAdded = (name: string, id: string, plan: WalkPlan | null, extraMin: number, undoable: boolean) => {
+  const announceAdded = (name: string, ids: string[], plan: WalkPlan | null, extraMin: number, undoable: boolean, dropIds?: string[]) => {
     if (!plan) return;
     const t = walkCopy.notice[uiLang === "he" ? "he" : "en"];
-    if (!plan.orderedAttractions.some((a) => a.id === id)) {
+    // Any of the places making it onto the walk counts; "nothing fit" is for none of them.
+    const made = ids.filter((id) => plan.orderedAttractions.some((a) => a.id === id));
+    if (made.length === 0) {
       showWalkNotice(t.nothingFit, "warn");
       return;
     }
-    showWalkNotice(t.added(name, Math.round(extraMin)), "ok", undoable, id);
+    showWalkNotice(t.added(name, Math.round(extraMin)), "ok", undoable, ids, dropIds);
   };
 
   // "Yes, add that place": the exact place, pinned, with the clock grown to fit. No discovery, no model.
@@ -2084,7 +2086,7 @@ export function WalkPlannerApp({
       }
       return;
     }
-    announceAdded(attraction.name, attraction.id, plan, (detourMin ?? 0) + attraction.avgVisitMinutes, undoable);
+    announceAdded(attraction.name, [attraction.id], plan, (detourMin ?? 0) + attraction.avgVisitMinutes, undoable);
   };
 
   // The best registered place ahead that the walker can still afford, or null.
@@ -2150,6 +2152,13 @@ export function WalkPlannerApp({
       }))
       .filter((a, i, all) => !onWalk.has(a.id) && all.findIndex((b) => b.id === a.id) === i);
     const kept = (state.currentAttractions ?? []).filter((a) => !drop.has(a.id));
+    // One update at a time: say so before marking anything, so a refused tap leaves no trace.
+    if (midWalkRebuildInFlightRef.current) {
+      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].stillUpdating, "warn");
+      return;
+    }
+    // Only the ids this change newly marks: undoing it forgets exactly those.
+    const newlyDropped = dropStopIds.filter((id) => !droppedStopIdsRef.current.has(id));
     for (const id of dropStopIds) droppedStopIdsRef.current.add(id);
     const { input, options } = buildExtendedTimeRebuildRequest({
       ...state,
@@ -2159,7 +2168,7 @@ export function WalkPlannerApp({
     const undoable = previousPlan === null;
     void handleBuildWalk(input, options).then((plan) => {
       keepPinned(added.map((a) => a.id), plan);
-      if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added[0].id, plan, added.length * 20, undoable);
+      if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added.map((a) => a.id), plan, added.length * 20, undoable, newlyDropped);
     });
   };
 
@@ -2333,6 +2342,10 @@ export function WalkPlannerApp({
   const runDropStopsRebuild = (dropStopIds: string[], capMin?: number) => {
     const state = midWalkRebuildState();
     if (!state) return;
+    if (midWalkRebuildInFlightRef.current) {
+      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].stillUpdating, "warn");
+      return;
+    }
     for (const id of dropStopIds) droppedStopIdsRef.current.add(id);
     const { input, options } = buildDropStopsRebuildRequest(state, dropStopIds, capMin);
     void handleBuildWalk(input, options);
@@ -5391,13 +5404,15 @@ export function WalkPlannerApp({
                             onClick: () => {
                               handleRevertPlan();
                               // Undo takes this add out for good: unpin it and let it be offered again.
-                              const placeId = walkNotice.placeId;
-                              if (placeId) {
-                                const pins = pinnedAttractionIdsRef.current.filter((p) => p !== placeId);
+                              const placeIds = walkNotice.placeIds ?? [];
+                              if (placeIds.length > 0) {
+                                const pins = pinnedAttractionIdsRef.current.filter((p) => !placeIds.includes(p));
                                 pinnedAttractionIdsRef.current = pins;
                                 setPinnedAttractionIds(pins);
-                                discoveryRef.current?.setState(placeId, "new");
+                                for (const id of placeIds) discoveryRef.current?.setState(id, "new");
                               }
+                              // The stops this change dropped are back on the walk: let discovery offer them again too.
+                              for (const id of walkNotice.dropIds ?? []) droppedStopIdsRef.current.delete(id);
                               setWalkNotice(null);
                             },
                           }
