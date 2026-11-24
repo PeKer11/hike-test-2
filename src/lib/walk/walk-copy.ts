@@ -69,6 +69,7 @@ export const walkCopy = {
     en: {
       added: (name: string, min: number) => `Added: ${name}${min > 0 ? ` · +${min} min` : ""}`,
       undo: "Undo",
+      removed: (names: string) => `Removed: ${names}`,
       carryOn: "Carrying on your way",
       nothingFit: "No place fits the time that is left",
       shortened: (n: number, min: number) => `Shortened: ${n} stop${n === 1 ? "" : "s"} fewer · about ${min} min left`,
@@ -92,6 +93,7 @@ export const walkCopy = {
     he: {
       added: (name: string, min: number) => `נוסף: ${name}${min > 0 ? ` · +${min} דק׳` : ""}`,
       undo: "ביטול",
+      removed: (names: string) => `הוסר: ${names}`,
       carryOn: "ממשיכים בדרך שלכם",
       nothingFit: "לא נמצא מקום שנכנס בזמן שנשאר",
       shortened: (n: number, min: number) => `קוצר: ${n === 1 ? "עצירה אחת פחות" : `${n} עצירות פחות`} · נשארו כ-${min} דק׳`,

@@ -269,6 +269,33 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
     expect((last().excludeIds as string[]) ?? []).not.toContain("a1");
   });
 
+  it("U5: a second chat edit in the same walk can still be undone", async () => {
+    await applyAllTwoAdds(); // the first edit starts the undo chain
+    await advance(9_000); // its notice is gone
+    assistantAnswer = { reply: "One more.", actions: [add("Corner Kiosk", C)] };
+    await say("and a drink?");
+    fireEvent.click(chatButton("להוסיף את Corner Kiosk"));
+    await flush();
+    const notice = screen.getByTestId("walk-notice");
+    expect(notice.textContent).toContain("Corner Kiosk");
+    fireEvent.click(within(notice).getByRole("button", { name: "ביטול" }));
+    await flush();
+    expect(screen.queryByTestId("walk-notice")).toBeNull();
+  });
+
+  it("U6: a typed remove command runs at once, names the stop, and can be undone", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    assistantAnswer = { reply: "הוא רחוק.", actions: [{ kind: "skip-stop", stopIndex: 0 }] };
+    await say("תוריד את המוזיאון");
+    const notice = screen.getByTestId("walk-notice");
+    expect(notice.textContent).toContain("הוסר: City Museum");
+    expect(last().excludeIds as string[]).toContain("a1");
+    fireEvent.click(within(notice).getByRole("button", { name: "ביטול" }));
+    await flush();
+    expect(screen.queryByTestId("walk-notice")).toBeNull();
+  });
+
   it("U3: a change refused while an update is running marks nothing as dropped", async () => {
     await startSimulatedWalk();
     await advance(5_000);

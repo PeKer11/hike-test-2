@@ -95,6 +95,7 @@ import { DEVIATION_CONFIRMATION_TIMEOUT_MS } from "@/components/walk/DeviationCo
 import { PaceChecker } from "@/lib/walk/pace-checker";
 import { DeviationMonitor } from "@/lib/walk/deviation-monitor";
 import { OffRouteDismissal } from "@/lib/walk/off-route-dismissal";
+import { undoTargetFor } from "@/lib/walk/undo-target";
 import { HeadingMonitor } from "@/lib/walk/heading-monitor";
 import {
   detectDeviation,
@@ -1538,11 +1539,11 @@ export function WalkPlannerApp({
   const [walkBookmarked, setWalkBookmarked] = useState(false);
 
   // The result line on the walk sheet (visible on a phone, unlike the Details log).
-  const [walkNotice, setWalkNotice] = useState<(Omit<WalkNotice, "action"> & { undo?: boolean; onUndo?: () => void; placeIds?: string[]; dropIds?: string[] }) | null>(null);
+  const [walkNotice, setWalkNotice] = useState<(Omit<WalkNotice, "action"> & { undo?: boolean; onUndo?: () => void; placeIds?: string[]; dropIds?: string[]; snapshot?: PlanSnapshot | null }) | null>(null);
   const noticeSeqRef = useRef(0);
-  const showWalkNotice = (text: string, tone: "ok" | "warn", undo = false, placeIds?: string[], dropIds?: string[]) => {
+  const showWalkNotice = (text: string, tone: "ok" | "warn", undo = false, placeIds?: string[], dropIds?: string[], snapshot?: PlanSnapshot | null) => {
     noticeSeqRef.current += 1;
-    setWalkNotice({ id: noticeSeqRef.current, text, tone, undo, placeIds, dropIds });
+    setWalkNotice({ id: noticeSeqRef.current, text, tone, undo, placeIds, dropIds, snapshot });
   };
   useEffect(() => {
     if (!walkNotice) return;
@@ -2048,10 +2049,11 @@ export function WalkPlannerApp({
       currentAttractions: [...(state.currentAttractions ?? []), added],
       pinnedIds: [...state.pinnedIds, id],
     });
-    const undoable = previousPlan === null;
+    // A chat edit can always be undone, even a second one in the same walk.
+    const before = captureChatEditSnapshot();
     void handleBuildWalk(input, options).then((plan) => {
       keepPinned([id], plan);
-      announceAdded(name, [id], plan, added.avgVisitMinutes, undoable);
+      announceAdded(name, [id], plan, added.avgVisitMinutes, true, undefined, before);
     });
   };
 
@@ -2059,7 +2061,7 @@ export function WalkPlannerApp({
   // A failed rebuild has already said so (reportReplanFailed), so `null` stays quiet here.
   // "+n min" is the place's own cost (detour + visit), not a difference of two clocks that
   // run at different paces. Undo is offered only when this add started the undo chain.
-  const announceAdded = (name: string, ids: string[], plan: WalkPlan | null, extraMin: number, undoable: boolean, dropIds?: string[]) => {
+  const announceAdded = (name: string, ids: string[], plan: WalkPlan | null, extraMin: number, undoable: boolean, dropIds?: string[], snapshot?: PlanSnapshot | null) => {
     if (!plan) return;
     const t = walkCopy.notice[uiLang === "he" ? "he" : "en"];
     // Any of the places making it onto the walk counts; "nothing fit" is for none of them.
@@ -2068,8 +2070,21 @@ export function WalkPlannerApp({
       showWalkNotice(t.nothingFit, "warn");
       return;
     }
-    showWalkNotice(t.added(name, Math.round(extraMin)), "ok", undoable, ids, dropIds);
+    showWalkNotice(t.added(name, Math.round(extraMin)), "ok", undoable, ids, dropIds, snapshot);
   };
+
+  // The walk exactly as it is now, built like the snapshot a rebuild takes: what a chat edit's Undo goes back to.
+  const captureChatEditSnapshot = (): PlanSnapshot | null =>
+    walkPlanRef.current && walkInputRef.current
+      ? {
+          plan: walkPlanRef.current,
+          input: walkInputRef.current,
+          geometry: walkGeometryRef.current,
+          startTime: walkStartTimeRef.current,
+          routeRules: routeRulesRef.current,
+          banked: { ...walkLegsBeforeRef.current },
+        }
+      : null;
 
   // "Yes, add that place": the exact place, pinned, with the clock grown to fit. No discovery, no model.
   const addPlaceToLiveWalk = async (attraction: Attraction, detourMin?: number) => {
@@ -2180,10 +2195,14 @@ export function WalkPlannerApp({
       currentAttractions: [...kept, ...added],
       pinnedIds: [...state.pinnedIds.filter((id) => !drop.has(id)), ...added.map((a) => a.id)],
     });
-    const undoable = previousPlan === null;
+    const before = captureChatEditSnapshot();
     void handleBuildWalk(input, options).then((plan) => {
       keepPinned(added.map((a) => a.id), plan);
-      if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added.map((a) => a.id), plan, added.length * 20, undoable, newlyDropped);
+      if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added.map((a) => a.id), plan, added.length * 20, true, newlyDropped, before);
+      else if (plan && newlyDropped.length > 0) {
+        const names = (state.currentAttractions ?? []).filter((a) => drop.has(a.id)).map((a) => a.name).join(", ");
+        showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].removed(names), "ok", true, undefined, newlyDropped, before);
+      }
     });
   };
 
@@ -2354,16 +2373,21 @@ export function WalkPlannerApp({
     void handleBuildWalk(input, options).then((plan) => announcePaceRebuild(reason, plan, beforeIds));
   };
 
-  const runDropStopsRebuild = (dropStopIds: string[], capMin?: number) => {
+  const runDropStopsRebuild = (dropStopIds: string[], capMin?: number, announceRemoval = false) => {
     const state = midWalkRebuildState();
     if (!state) return;
     if (midWalkRebuildInFlightRef.current) {
       showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].stillUpdating, "warn");
       return;
     }
+    const newlyDropped = dropStopIds.filter((id) => !droppedStopIdsRef.current.has(id));
     for (const id of dropStopIds) droppedStopIdsRef.current.add(id);
     const { input, options } = buildDropStopsRebuildRequest(state, dropStopIds, capMin);
-    void handleBuildWalk(input, options);
+    const before = announceRemoval ? captureChatEditSnapshot() : null;
+    const names = (state.currentAttractions ?? []).filter((a) => dropStopIds.includes(a.id)).map((a) => a.name).join(", ");
+    void handleBuildWalk(input, options).then((plan) => {
+      if (announceRemoval && plan) showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].removed(names), "ok", true, undefined, newlyDropped, before);
+    });
   };
 
   // A direction the walker did not pick from the sheet: only used for "head
@@ -4064,7 +4088,7 @@ export function WalkPlannerApp({
       if (action.kind === "detour") {
         void runAmenityDetour(action.item.kind, getCompanionSnapshot(), action.item);
       } else if (action.kind === "drop") {
-        runDropStopsRebuild([action.stopId]);
+        runDropStopsRebuild([action.stopId], undefined, true);
       } else if (action.kind === "add-stop") {
         void addBestStopOrFill();
       } else if (action.kind === "apply-changes") {
@@ -5448,11 +5472,12 @@ export function WalkPlannerApp({
                     action:
                       walkNotice.onUndo
                         ? { label: walkCopy.notice[uiLang === "he" ? "he" : "en"].undo, onClick: walkNotice.onUndo }
-                        : walkNotice.undo && previousPlan
+                        : walkNotice.undo && undoTargetFor(previousPlan, walkNotice.snapshot)
                         ? {
                             label: walkCopy.notice[uiLang === "he" ? "he" : "en"].undo,
                             onClick: () => {
-                              handleRevertPlan();
+                              const target = undoTargetFor(previousPlan, walkNotice.snapshot);
+                              if (target) revertToSnapshot(target);
                               // Undo takes this add out for good: unpin it and let it be offered again.
                               const placeIds = walkNotice.placeIds ?? [];
                               if (placeIds.length > 0) {
