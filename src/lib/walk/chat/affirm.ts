@@ -6,8 +6,9 @@ const AFFIRM = new Set([
   // he
   "כן", "כן בבקשה", "כן תודה", "בטח", "סבבה", "יאללה", "אוקיי", "אוקי", "בסדר", "מתאים", "מתאים לי",
   "נשמע טוב", "קדימה", "בכיף", "תוסיף", "תוסיף אותו", "תוסיף אותה", "להוסיף",
+  "תוסיף אותם", "תוסיף אותן", "תוסיף את שניהם", "תוסיף את שתיהן", "את שניהם", "שניהם", "שתיהן",
   // en
-  "yes", "yes please", "yeah", "yep", "sure", "ok", "okay", "add it", "do it", "sounds good", "go ahead",
+  "yes", "yes please", "yeah", "yep", "sure", "ok", "okay", "add it", "add them", "add both", "both", "do it", "sounds good", "go ahead",
   "please do", "perfect",
 ]);
 

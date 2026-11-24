@@ -88,6 +88,19 @@ describe("a typed yes after a proposal", () => {
     expect(h.onAction.mock.calls[0][0]).toMatchObject({ kind: "apply-changes" });
   });
 
+  it("a plural yes applies both proposals with no fetch", async () => {
+    for (const phrase of ["תוסיף אותם", "תוסיף את שניהם", "שניהם", "add them", "add both", "both"]) {
+      const h = setup([CAFE, BAKERY]);
+      await propose(h);
+      const fetches = vi.mocked(h.doFetch).mock.calls.length;
+      act(() => h.result.current.send(phrase));
+      expect(h.onAction, phrase).toHaveBeenCalledTimes(1);
+      expect(h.onAction.mock.calls[0][0]).toMatchObject({ kind: "apply-changes" });
+      expect(vi.mocked(h.doFetch).mock.calls.length).toBe(fetches);
+      cleanup();
+    }
+  });
+
   it("asks which one when several actions have no apply-all", async () => {
     const h = setup([{ kind: "head-back" }, { kind: "skip-stop", stopIndex: 0 }]);
     await propose(h);
