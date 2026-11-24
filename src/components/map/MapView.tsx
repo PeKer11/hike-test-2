@@ -26,6 +26,7 @@ import { RoutePolyline } from "@/components/map/RoutePolyline";
 import { WORLDCOVER_ATTRIBUTION } from "@/lib/types/landcover";
 import { getTileAttribution, getTileUrl } from "@/lib/map/tile-config";
 import type { Attraction, Coordinates, Waypoint } from "@/lib/types";
+import type { HeadingStore } from "@/lib/walk/heading-store";
 import type { Announcement } from "@/lib/walk/poi-announcer";
 
 export interface MapViewProps {
@@ -42,6 +43,8 @@ export interface MapViewProps {
   currentAccuracyM?: number;
   /** Which way the walker faces, degrees clockwise from north; the dot shows an arrowhead only while there is one. */
   currentHeadingDeg?: number | null;
+  /** The live heading store: the beam turns from it in the DOM, with no React render (see `useWalkerHeading`). */
+  headingStore?: HeadingStore;
   followPosition?: boolean;
   /** Places found from free text but not accepted into a walk yet. */
   previewPlaces?: Attraction[];
@@ -214,6 +217,7 @@ export default function MapView({
   currentPosition,
   currentAccuracyM,
   currentHeadingDeg,
+  headingStore,
   followPosition,
   previewPlaces,
   pinnedIds,
@@ -275,7 +279,7 @@ export default function MapView({
       />
       <PreviewMarkers places={previewPlaces ?? []} />
       <RecommendedLayer onAddToWalk={onAddToWalk} addedIds={addedIds} />
-      {currentPosition ? <CurrentPositionMarker position={currentPosition} accuracyM={currentAccuracyM} headingDeg={currentHeadingDeg} /> : null}
+      {currentPosition ? <CurrentPositionMarker position={currentPosition} accuracyM={currentAccuracyM} headingDeg={currentHeadingDeg} headingStore={headingStore} /> : null}
       {walkedGeometry && walkedGeometry.length > 1 ? (
         <Polyline
           positions={walkedGeometry.map((p) => [p.lat, p.lng])}

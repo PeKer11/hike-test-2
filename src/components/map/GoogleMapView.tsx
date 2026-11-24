@@ -177,6 +177,7 @@ export default function GoogleMapView({
   currentPosition,
   currentAccuracyM,
   currentHeadingDeg,
+  headingStore,
   followPosition,
   previewPlaces,
   pinnedIds,
@@ -251,7 +252,7 @@ export default function GoogleMapView({
           <GoogleStopMarkers waypoints={waypoints} pinnedIds={pinnedIds} onTogglePin={onTogglePin} nextStopId={nextStopId} />
           <GooglePreviewMarkers places={previewPlaces ?? []} />
           <GoogleRecommendedLayer enabled={topRated} onNote={onTopRatedNote} onAddToWalk={onAddToWalk} addedIds={addedIds} />
-          {currentPosition ? <GoogleCurrentPosition position={currentPosition} accuracyM={currentAccuracyM} headingDeg={currentHeadingDeg} /> : null}
+          {currentPosition ? <GoogleCurrentPosition position={currentPosition} accuracyM={currentAccuracyM} headingDeg={currentHeadingDeg} headingStore={headingStore} /> : null}
           {callouts && onCalloutSelect ? <GoogleCallouts announcements={callouts} onSelect={onCalloutSelect} /> : null}
         </Map>
       </APIProvider>

@@ -1,12 +1,13 @@
 "use client";
 
 import { AdvancedMarker, InfoWindow, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { calloutHtml } from "@/components/map/PoiCallouts";
 import { markerIconHtml } from "@/components/map/MapMarkers";
 import { HALO_FILL_OPACITY, HALO_MIN_ACCURACY_M, HALO_STROKE_OPACITY, WalkerMarkerShape, WALKER_COLOR } from "@/components/map/WalkerMarker";
 import type { Attraction, Coordinates, Waypoint } from "@/lib/types";
+import type { HeadingStore } from "@/lib/walk/heading-store";
 import type { Announcement } from "@/lib/walk/poi-announcer";
 
 const OFFSET = { width: 0, height: -14 } as const;
@@ -105,12 +106,15 @@ export function GooglePreviewMarkers({ places }: { places: Attraction[] }) {
   );
 }
 
-export function GoogleCurrentPosition({ position, accuracyM, headingDeg }: { position: Coordinates; accuracyM?: number; headingDeg?: number | null }) {
+export function GoogleCurrentPosition({ position, accuracyM, headingDeg, headingStore }: { position: Coordinates; accuracyM?: number; headingDeg?: number | null; headingStore?: HeadingStore }) {
   const map = useMap();
   const maps = useMapsLibrary("maps");
-  // A soft halo as wide as the fix is uncertain, so a coarse first fix reads as "somewhere around here".
+  // A soft halo as wide as the fix is uncertain, so a coarse first fix reads as "somewhere around here". Built once
+  // and then moved: a new Circle per fix (a second apart) is a flicker and a leak of map overlays.
+  const wantHalo = !!accuracyM && accuracyM > HALO_MIN_ACCURACY_M;
+  const haloRef = useRef<google.maps.Circle | null>(null);
   useEffect(() => {
-    if (!map || !maps || !accuracyM || accuracyM <= HALO_MIN_ACCURACY_M) return;
+    if (!map || !maps || !wantHalo) return;
     const halo = new maps.Circle({
       map,
       center: position,
@@ -123,13 +127,23 @@ export function GoogleCurrentPosition({ position, accuracyM, headingDeg }: { pos
       fillOpacity: HALO_FILL_OPACITY,
       zIndex: 400,
     });
-    return () => halo.setMap(null);
-  }, [map, maps, position, accuracyM]);
+    haloRef.current = halo;
+    return () => {
+      halo.setMap(null);
+      haloRef.current = null;
+    };
+    // The position and radius are applied by the effect below, so they are deliberately not dependencies here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, maps, wantHalo]);
+  useEffect(() => {
+    haloRef.current?.setCenter(position);
+    if (accuracyM) haloRef.current?.setRadius(accuracyM);
+  }, [position, accuracyM]);
   return (
     // Centred on the fix: an AdvancedMarker's default anchor is the bottom middle of its content, which would hang the
     // dot half a box above where the walker is.
     <AdvancedMarker position={position} zIndex={500} anchorLeft="-50%" anchorTop="-50%">
-      <WalkerMarkerShape headingDeg={headingDeg} />
+      <WalkerMarkerShape headingDeg={headingDeg} headingStore={headingStore} />
     </AdvancedMarker>
   );
 }

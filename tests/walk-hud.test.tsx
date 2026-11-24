@@ -18,18 +18,25 @@ vi.mock("@/components/map", () => ({
     pinnedIds = [],
     onTogglePin,
     routeGeometry,
-    currentHeadingDeg,
+    headingStore,
   }: {
     waypoints: { id: string; name: string }[];
     pinnedIds?: string[];
     onTogglePin?: (id: string) => void;
     routeGeometry?: { lat: number; lng: number }[];
-    currentHeadingDeg?: number | null;
+    headingStore?: { get(): number | null; subscribe(fn: () => void): () => void };
   }) => (
     <div
       data-testid="map"
+      ref={(el) => {
+        // The live heading arrives through a store (the beam turns without React): mirror it into an attribute.
+        if (!el || !headingStore) return;
+        const show = () => el.setAttribute("data-heading", String(headingStore.get() ?? ""));
+        show();
+        (el as HTMLElement & { _off?: () => void })._off?.();
+        (el as HTMLElement & { _off?: () => void })._off = headingStore.subscribe(show);
+      }}
       data-pinned={pinnedIds.join(",")}
-      data-heading={currentHeadingDeg ?? ""}
       data-route-first={routeGeometry?.[0] ? `${routeGeometry[0].lat.toFixed(5)},${routeGeometry[0].lng.toFixed(5)}` : ""}
     >
       {waypoints.map((waypoint) => (

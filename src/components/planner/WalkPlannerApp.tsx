@@ -109,7 +109,6 @@ import {
 import { HeadingSmoother } from "@/lib/walk/heading-smoother";
 import { requestCompassPermission } from "@/lib/hooks/useCompassHeading";
 import { useWalkerHeading } from "@/lib/hooks/useWalkerHeading";
-import { GPS_HEADING_MIN_SPEED_MPS } from "@/lib/walk/heading-source";
 import { SpeedEstimator } from "@/lib/walk/speed-estimator";
 import { PaceAdvisor, type PaceAdvice } from "@/lib/walk/pace-advisor";
 import { PACE_MISMATCH_LENGTHEN_MIN_SPARE, PaceMismatchWatcher, type PaceMismatchOffer } from "@/lib/walk/pace-mismatch";
@@ -657,14 +656,11 @@ export function WalkPlannerApp({
   // Where the GPS is in its lock-on, for the chip in the walk HUD; and how sure the dot is.
   const [gpsState, setGpsState] = useState<LocateState>("idle");
   const [currentAccuracyM, setCurrentAccuracyM] = useState<number | null>(null);
-  // Which way the walker faces (smoothed, degrees clockwise from north; null = no arrowhead): see `HeadingSmoother`.
-  const [currentHeadingDeg, setCurrentHeadingDeg] = useState<number | null>(null);
+  // Which way the walker faces (smoothed GPS course, degrees clockwise from north): see `HeadingSmoother`.
   const headingSmootherRef = useRef(new HeadingSmoother());
-  // Whether the device reports walking speed (>= 1 m/s): then the GPS course beats the phone's compass for the beam.
-  const [gpsMoving, setGpsMoving] = useState(false);
-  // The beam's heading, Moovit style: the GPS course while walking briskly, the phone's compass when standing or slow,
-  // nothing when there is neither. A simulated walk takes its heading from the simulated path.
-  const walkerHeadingDeg = useWalkerHeading({ active: walkMode, gpsHeadingDeg: currentHeadingDeg, gpsMoving, simulated: isSimulating });
+  // The beam's heading as a store the marker turns from in the DOM (no planner render per compass tick): the phone's
+  // compass while it is fresh, else the GPS course, nothing when there is neither. A simulated walk follows its path.
+  const walkerHeading = useWalkerHeading({ active: walkMode, simulated: isSimulating });
   const [attractionDistances, setAttractionDistances] = useState<Record<string, number>>({});
   const routeAnchor =
     route?.orderedWaypoints[0]?.coordinates ?? route?.geometry[0];
@@ -983,8 +979,7 @@ export function WalkPlannerApp({
     setCurrentPosition(null);
     setCurrentAccuracyM(null);
     headingSmootherRef.current.reset();
-    setCurrentHeadingDeg(null);
-    setGpsMoving(false);
+    walkerHeading.setGps(null);
     setGpsState("idle");
     setRemainingGeometry([]);
     markOffRoute(false);
@@ -3031,6 +3026,8 @@ export function WalkPlannerApp({
         headingDeg: update.headingDeg,
         speedMps: update.speedMps,
       });
+      // Every accepted fix, outside the 1 s throttle below: the beam's lag is the sum of the delays, so none is added here.
+      walkerHeading.setGps(headingSmootherRef.current.current(update.timestamp));
       if (firstFixAtRef.current === null) {
         firstFixAtRef.current = resumedStartRef.current ?? update.timestamp;
         // A cooldown armed on the previous leg's clock (the simulator's runs 10x ahead) must not outlast its length here.
@@ -3084,8 +3081,6 @@ export function WalkPlannerApp({
 
       setCurrentPosition(update.currentPosition);
       setCurrentAccuracyM(update.accuracyMeters);
-      setCurrentHeadingDeg(headingSmootherRef.current.current(update.timestamp));
-      setGpsMoving(update.speedMps !== undefined && update.speedMps >= GPS_HEADING_MIN_SPEED_MPS);
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
       walkedTrackRef.current.push(update.currentPosition);
@@ -5321,7 +5316,7 @@ export function WalkPlannerApp({
           walkedGeometry={walkPhase === "walking" && showWalkedPath ? [...walkedTrackRef.current] : undefined}
           currentPosition={currentPosition ?? undefined}
           currentAccuracyM={walkMode ? currentAccuracyM ?? undefined : undefined}
-          currentHeadingDeg={walkMode ? walkerHeadingDeg : null}
+          headingStore={walkMode ? walkerHeading.store : undefined}
           lang={uiLang === "he" ? "he" : "en"}
           followPosition={walkPhase === "walking"}
           previewPlaces={plannerMode === "walk-companion" ? previewPlaces : []}

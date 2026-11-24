@@ -1,26 +1,30 @@
-/** At or above this device speed (m/s) the direction of travel beats the compass: a phone in a pocket or swung in a hand lies, the GPS course does not. */
-export const GPS_HEADING_MIN_SPEED_MPS = 1;
+/** A compass reading older than this (ms) is stale: the sensor stopped, was refused or lost calibration. */
+export const COMPASS_FRESH_MS = 1500;
 
 export interface HeadingSources {
   /** The smoothed GPS / movement heading (`HeadingSmoother`), degrees clockwise from north; null when it has none. */
   gps: number | null;
-  /** The smoothed compass heading of the phone, degrees clockwise from north; null with no compass (desktop, refused, uncalibrated). */
+  /** The phone's last calibrated compass heading, degrees clockwise from north; null with no compass (desktop, refused, uncalibrated). */
   compass: number | null;
-  /** The device's own speed is at least `GPS_HEADING_MIN_SPEED_MPS`. */
-  gpsMoving: boolean;
+  /** When that compass reading arrived (ms, `Date.now()` clock). */
+  compassAt: number | null;
+  /** Now (ms, same clock as `compassAt`). */
+  now: number;
   /** The walk is simulated: its path bearing is the truth, and the real phone's compass says nothing about it. */
   simulated: boolean;
 }
 
 /**
- * Which way the walker's marker faces. Walking briskly: the GPS course. Standing or slow: the compass, the only thing that
- * knows which way the phone is turned. Either source alone is used when the other has nothing; with neither there is no
- * heading and the marker draws no beam (never a made-up direction). A simulated walk never reads the compass.
+ * Which way the walker's marker faces. The beam is only ever seen with the phone in the hand and the screen on, and
+ * then the compass is the truth (it is how Google Maps' own blue dot works), and it has none of the 1 to 3 s lag of the
+ * GPS course. So: a calibrated compass reading at most `COMPASS_FRESH_MS` old wins. Without one the GPS course is used;
+ * with neither, the last (stale) compass reading is better than a vanished beam on a phone lying still, whose sensor only
+ * reports changes. No source at all is no heading (never a made-up direction). A simulated walk never reads the compass.
  */
-export function chooseHeading({ gps, compass, gpsMoving, simulated }: HeadingSources): number | null {
+export function chooseHeading({ gps, compass, compassAt, now, simulated }: HeadingSources): number | null {
   if (simulated) return gps;
-  if (gps !== null && gpsMoving) return gps;
-  return compass ?? gps;
+  if (compass !== null && compassAt !== null && now - compassAt <= COMPASS_FRESH_MS) return compass;
+  return gps ?? compass;
 }
 
 /**

@@ -7,6 +7,12 @@
  * Leaflet divIcon. Keep the two in step (tests/walker-marker.test.tsx pins that they agree).
  */
 
+"use client";
+
+import { useLayoutEffect, useRef } from "react";
+
+import type { HeadingStore } from "@/lib/walk/heading-store";
+
 /** Leather as a literal, for the accuracy halo (map libraries want colours, not CSS variables). */
 export const WALKER_COLOR = "#d2602f";
 /** The accuracy halo is quiet (it must not merge with the beam into one blob) and absent for a good fix. */
@@ -52,7 +58,25 @@ export function validHeading(headingDeg: number | null | undefined): headingDeg 
 
 const roundDeg = (deg: number) => Math.round(deg * 10) / 10;
 
-export function WalkerMarkerShape({ headingDeg }: { headingDeg?: number | null }) {
+/**
+ * Writes a heading to a beam element straight in the DOM: this is how the live marker turns without React rendering
+ * (the beam element is always present once a store is in play, and shown or hidden here).
+ */
+export function applyBeamHeading(el: HTMLElement | null | undefined, heading: number | null): void {
+  if (!el) return;
+  if (validHeading(heading)) {
+    el.style.display = "";
+    el.style.transform = `rotate(${roundDeg(heading)}deg)`;
+  } else el.style.display = "none";
+}
+
+export function WalkerMarkerShape({ headingDeg, headingStore }: { headingDeg?: number | null; headingStore?: HeadingStore }) {
+  const beamRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    if (!headingStore) return;
+    applyBeamHeading(beamRef.current, headingStore.get());
+    return headingStore.subscribe((v) => applyBeamHeading(beamRef.current, v));
+  }, [headingStore]);
   const has = validHeading(headingDeg);
   return (
     <span
@@ -62,10 +86,13 @@ export function WalkerMarkerShape({ headingDeg }: { headingDeg?: number | null }
       aria-label="Your position"
       style={{ position: "relative", display: "block", width: WALKER_BOX_PX, height: WALKER_BOX_PX }}
     >
-      {has ? (
+      {headingStore ? (
+        // Always rendered, so React never replaces it; the store's rotation is written to its style.
+        <span ref={beamRef} data-testid="walker-beam" style={{ position: "absolute", inset: 0, pointerEvents: "none" }} dangerouslySetInnerHTML={{ __html: beamSvg("tk-beam") }} />
+      ) : has ? (
         <span
           data-testid="walker-beam"
-          style={{ position: "absolute", inset: 0, transform: `rotate(${roundDeg(headingDeg)}deg)`, transition: "transform 400ms ease-out", pointerEvents: "none" }}
+          style={{ position: "absolute", inset: 0, transform: `rotate(${roundDeg(headingDeg)}deg)`, pointerEvents: "none" }}
           dangerouslySetInnerHTML={{ __html: beamSvg("tk-beam") }}
         />
       ) : null}
@@ -86,11 +113,14 @@ export function WalkerMarkerShape({ headingDeg }: { headingDeg?: number | null }
 }
 
 /** The same marker as an HTML string, for a Leaflet divIcon. */
-export function walkerMarkerHtml(headingDeg?: number | null): string {
+export function walkerMarkerHtml(headingDeg?: number | null, opts: { liveBeam?: boolean } = {}): string {
   const has = validHeading(headingDeg);
+  // liveBeam: the beam is always in the markup, hidden until `applyBeamHeading` turns it (the icon is built once).
   const beam = has
-    ? `<span data-testid="walker-beam" style="position:absolute;inset:0;transform:rotate(${roundDeg(headingDeg)}deg);transition:transform 400ms ease-out;pointer-events:none;">${beamSvg("tk-beam-l")}</span>`
-    : "";
+    ? `<span data-testid="walker-beam" style="position:absolute;inset:0;transform:rotate(${roundDeg(headingDeg)}deg);pointer-events:none;">${beamSvg("tk-beam-l")}</span>`
+    : opts.liveBeam
+      ? `<span data-testid="walker-beam" style="position:absolute;inset:0;display:none;pointer-events:none;">${beamSvg("tk-beam-l")}</span>`
+      : "";
   const offset = (WALKER_BOX_PX - DISC_PX) / 2;
   return (
     `<span data-testid="walker-marker"${has ? ` data-heading="${roundDeg(headingDeg)}"` : ""} role="img" aria-label="Your position" style="position:relative;display:block;width:${WALKER_BOX_PX}px;height:${WALKER_BOX_PX}px;">` +

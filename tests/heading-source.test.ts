@@ -1,46 +1,43 @@
 import { describe, expect, it } from "vitest";
 
-import { chooseHeading, GPS_HEADING_MIN_SPEED_MPS, nearestEquivalent } from "@/lib/walk/heading-source";
+import { chooseHeading, COMPASS_FRESH_MS, nearestEquivalent } from "@/lib/walk/heading-source";
 
-const base = { gps: null, compass: null, gpsMoving: false, simulated: false };
+const NOW = 1_000_000;
+const base = { gps: null, compass: null, compassAt: null, now: NOW, simulated: false };
+/** A compass reading taken `ageMs` ago. */
+const compass = (deg: number, ageMs = 100) => ({ compass: deg, compassAt: NOW - ageMs });
 
 describe("chooseHeading", () => {
-  it("takes the GPS course while walking briskly, even with a compass", () => {
-    expect(chooseHeading({ ...base, gps: 90, compass: 200, gpsMoving: true })).toBe(90);
+  it("prefers a fresh compass over the GPS course while walking", () => {
+    expect(chooseHeading({ ...base, gps: 90, ...compass(200) })).toBe(200);
   });
 
-  it("takes the compass when standing or slow, even with a (held) GPS heading", () => {
-    expect(chooseHeading({ ...base, gps: 90, compass: 200, gpsMoving: false })).toBe(200);
-    expect(chooseHeading({ ...base, compass: 200 })).toBe(200);
+  it("falls back to the GPS course when the compass is stale (> 1.5 s)", () => {
+    expect(COMPASS_FRESH_MS).toBe(1500);
+    expect(chooseHeading({ ...base, gps: 90, ...compass(200, 1500) })).toBe(200); // exactly 1.5 s is still fresh
+    expect(chooseHeading({ ...base, gps: 90, ...compass(200, 1501) })).toBe(90);
   });
 
-  it("falls back to the GPS heading when there is no compass, standing or not", () => {
+  it("falls back to the GPS course when there is no compass at all", () => {
     expect(chooseHeading({ ...base, gps: 90 })).toBe(90);
-    expect(chooseHeading({ ...base, gps: 90, gpsMoving: true })).toBe(90);
   });
 
-  it("falls back to the compass when moving but the GPS has no heading yet", () => {
-    expect(chooseHeading({ ...base, compass: 200, gpsMoving: true })).toBe(200);
+  it("keeps the last compass reading when it is stale and the GPS has no course, so a phone lying still keeps its beam", () => {
+    expect(chooseHeading({ ...base, ...compass(200, 60_000) })).toBe(200);
   });
 
   it("has no heading at all when there is no source: no fake direction", () => {
     expect(chooseHeading(base)).toBeNull();
-    expect(chooseHeading({ ...base, gpsMoving: true })).toBeNull();
   });
 
   it("keeps a heading of 0 (north) as a heading", () => {
-    expect(chooseHeading({ ...base, compass: 0 })).toBe(0);
-    expect(chooseHeading({ ...base, gps: 0, compass: 90, gpsMoving: true })).toBe(0);
+    expect(chooseHeading({ ...base, ...compass(0) })).toBe(0);
+    expect(chooseHeading({ ...base, gps: 0 })).toBe(0);
   });
 
   it("in a simulated walk uses the simulated path only and never the phone's compass", () => {
-    expect(chooseHeading({ ...base, gps: 45, compass: 200, simulated: true })).toBe(45);
-    expect(chooseHeading({ ...base, gps: 45, compass: 200, gpsMoving: true, simulated: true })).toBe(45);
-    expect(chooseHeading({ ...base, compass: 200, simulated: true })).toBeNull();
-  });
-
-  it("calls 1 m/s brisk", () => {
-    expect(GPS_HEADING_MIN_SPEED_MPS).toBe(1);
+    expect(chooseHeading({ ...base, gps: 45, ...compass(200), simulated: true })).toBe(45);
+    expect(chooseHeading({ ...base, ...compass(200), simulated: true })).toBeNull();
   });
 });
 

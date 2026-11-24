@@ -30,7 +30,7 @@ describe("the walker marker", () => {
       render(<WalkerMarkerShape headingDeg={137.46} />);
       expect(screen.getByTestId("walker-marker").getAttribute("data-heading")).toBe("137.5");
       expect(rotation(screen.getByTestId("walker-beam"))).toBe("137.5");
-      expect(screen.getByTestId("walker-beam").getAttribute("style")).toContain("transition: transform 400ms ease-out");
+      expect(screen.getByTestId("walker-beam").getAttribute("style")).not.toContain("transition");
     });
 
     it.each([[undefined], [null], [Number.NaN], [Number.POSITIVE_INFINITY]])("shows no beam without a real heading (%s)", (heading) => {
