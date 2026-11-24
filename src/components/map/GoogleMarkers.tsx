@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { calloutHtml } from "@/components/map/PoiCallouts";
 import { markerIconHtml } from "@/components/map/MapMarkers";
-import { WalkerMarkerShape, WALKER_COLOR } from "@/components/map/WalkerMarker";
+import { HALO_FILL_OPACITY, HALO_MIN_ACCURACY_M, HALO_STROKE_OPACITY, WalkerMarkerShape, WALKER_COLOR } from "@/components/map/WalkerMarker";
 import type { Attraction, Coordinates, Waypoint } from "@/lib/types";
 import type { Announcement } from "@/lib/walk/poi-announcer";
 
@@ -110,17 +110,17 @@ export function GoogleCurrentPosition({ position, accuracyM, headingDeg }: { pos
   const maps = useMapsLibrary("maps");
   // A soft halo as wide as the fix is uncertain, so a coarse first fix reads as "somewhere around here".
   useEffect(() => {
-    if (!map || !maps || !accuracyM) return;
+    if (!map || !maps || !accuracyM || accuracyM <= HALO_MIN_ACCURACY_M) return;
     const halo = new maps.Circle({
       map,
       center: position,
       radius: accuracyM,
       clickable: false,
       strokeColor: WALKER_COLOR,
-      strokeOpacity: 0.4,
+      strokeOpacity: HALO_STROKE_OPACITY,
       strokeWeight: 1,
       fillColor: WALKER_COLOR,
-      fillOpacity: 0.12,
+      fillOpacity: HALO_FILL_OPACITY,
       zIndex: 400,
     });
     return () => halo.setMap(null);

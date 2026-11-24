@@ -64,4 +64,12 @@ describe("CurrentPositionMarker (Leaflet)", () => {
     render(<CurrentPositionMarker position={POSITION} headingDeg={90} />);
     expect(screen.queryByTestId("halo")).toBeNull();
   });
+
+  it("skips the accuracy halo for a good fix (10 m or better) so the dot and beam stay clean", () => {
+    render(<CurrentPositionMarker position={POSITION} accuracyM={10} headingDeg={90} />);
+    expect(screen.queryByTestId("halo")).toBeNull();
+    cleanup();
+    render(<CurrentPositionMarker position={POSITION} accuracyM={25} headingDeg={90} />);
+    expect(screen.getByTestId("halo")).toBeTruthy();
+  });
 });

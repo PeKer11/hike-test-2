@@ -127,9 +127,9 @@ describe("the walker marker", () => {
       expect(svg.querySelector("path")!.getAttribute("filter")).toMatch(/^url\(#.+\)$/);
     });
 
-    it("reaches about 60 px from the dot, readable at a glance on satellite", () => {
-      expect(BEAM_RADIUS_PX).toBeGreaterThanOrEqual(55);
-      expect(BEAM_RADIUS_PX).toBeLessThanOrEqual(70);
+    it("reaches 36-44 px from the dot (about 2x the dot), small enough not to hide the street", () => {
+      expect(BEAM_RADIUS_PX).toBeGreaterThanOrEqual(36);
+      expect(BEAM_RADIUS_PX).toBeLessThanOrEqual(44);
       const svg = beam(leafletMarker(0))!.querySelector("svg")!;
       // The wedge's apex is the centre of the marker box, and its drawing box is centred on it (overflow visible).
       const box = Number(svg.getAttribute("width"));
@@ -162,13 +162,20 @@ describe("the walker marker", () => {
     expect(disc(document).style.boxShadow).toContain("0 0 0 3px #1b2620");
   });
 
-  it("draws a beam about 76 degrees wide", () => {
+  it("the beam is at most 2.3x the dot's 19 px", () => {
+    expect(BEAM_RADIUS_PX).toBeLessThanOrEqual(2.3 * 19);
+    const d = leafletMarker(0).querySelector("[data-testid=walker-beam] path")!.getAttribute("d")!;
+    const [, , , bx, , cx] = /^M([\d.]+) ([\d.]+) L([\d.]+) ([\d.]+) A[\d.]+ [\d.]+ 0 0 1 ([\d.]+)/.exec(d)!.map(Number) as number[];
+    expect(cx - bx).toBeLessThanOrEqual(2.3 * 19);
+  });
+
+  it("draws a beam about 60 degrees wide", () => {
     const d = leafletMarker(0).querySelector("[data-testid=walker-beam] path")!.getAttribute("d")!;
     const [, ax, ay, bx, by, cx] = /^M([\d.]+) ([\d.]+) L([\d.]+) ([\d.]+) A[\d.]+ [\d.]+ 0 0 1 ([\d.]+)/.exec(d)!.map(Number) as number[];
     const left = Math.atan2(ax - bx, ay - by);
     const right = Math.atan2(cx - ax, ay - by);
-    expect(((left + right) * 180) / Math.PI).toBeGreaterThan(70);
-    expect(((left + right) * 180) / Math.PI).toBeLessThan(80);
+    expect(((left + right) * 180) / Math.PI).toBeGreaterThan(55);
+    expect(((left + right) * 180) / Math.PI).toBeLessThan(65);
   });
 
   it("knows a drawable heading when it sees one", () => {

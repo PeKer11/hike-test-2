@@ -9,6 +9,10 @@
 
 /** Leather as a literal, for the accuracy halo (map libraries want colours, not CSS variables). */
 export const WALKER_COLOR = "#d2602f";
+/** The accuracy halo is quiet (it must not merge with the beam into one blob) and absent for a good fix. */
+export const HALO_FILL_OPACITY = 0.07;
+export const HALO_STROKE_OPACITY = 0.25;
+export const HALO_MIN_ACCURACY_M = 10;
 const LEATHER = `var(--tk-leather, ${WALKER_COLOR})`;
 const RING = "#f8f3ea";
 const INK = "#1b2620";
@@ -24,14 +28,14 @@ const DOT_SHADOW = `0 0 0 ${RING_PX}px ${RING}, 0 0 0 ${RING_PX + HAIRLINE_PX}px
 
 /**
  * The direction beam, as in Moovit and Google Maps: a translucent wedge of leather coming out of the dot toward the
- * heading, `BEAM_RADIUS_PX` long and 76 degrees wide, solid-ish at the dot and fading to nothing outward. The sides
+ * heading, `BEAM_RADIUS_PX` long and 60 degrees wide, solid-ish at the dot and fading to nothing outward. The sides
  * are blurred a little so there is no hard edge. It sits under the disc and exists only once a heading is known; it
  * is drawn pointing up and the heading rotates it. It is the walker's own marker only:
  * the route's direction arrows (RouteArrows) are a different thing and stay as they are.
  */
-export const BEAM_RADIUS_PX = 62;
-const BEAM_PX = 160;
-const BEAM_HALF_ANGLE = (38 * Math.PI) / 180;
+export const BEAM_RADIUS_PX = 40;
+const BEAM_PX = 96;
+const BEAM_HALF_ANGLE = (30 * Math.PI) / 180;
 const BEAM_C = BEAM_PX / 2;
 const BEAM_PATH = (() => {
   const dx = BEAM_RADIUS_PX * Math.sin(BEAM_HALF_ANGLE);
@@ -39,7 +43,7 @@ const BEAM_PATH = (() => {
   return `M${BEAM_C} ${BEAM_C} L${(BEAM_C - dx).toFixed(1)} ${(BEAM_C - dy).toFixed(1)} A${BEAM_RADIUS_PX} ${BEAM_RADIUS_PX} 0 0 1 ${(BEAM_C + dx).toFixed(1)} ${(BEAM_C - dy).toFixed(1)}Z`;
 })();
 const beamSvg = (id: string) =>
-  `<svg width="${BEAM_PX}" height="${BEAM_PX}" viewBox="0 0 ${BEAM_PX} ${BEAM_PX}" aria-hidden="true" style="position:absolute;left:${-(BEAM_PX - WALKER_BOX_PX) / 2}px;top:${-(BEAM_PX - WALKER_BOX_PX) / 2}px;overflow:visible"><defs><radialGradient id="${id}-g" cx="${BEAM_C}" cy="${BEAM_C}" r="${BEAM_RADIUS_PX}" gradientUnits="userSpaceOnUse"><stop offset="0.25" stop-color="${WALKER_COLOR}" stop-opacity="0.9"/><stop offset="0.6" stop-color="${WALKER_COLOR}" stop-opacity="0.55"/><stop offset="1" stop-color="${WALKER_COLOR}" stop-opacity="0"/></radialGradient><filter id="${id}-b" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4"/></filter></defs><path d="${BEAM_PATH}" fill="url(#${id}-g)" filter="url(#${id}-b)"/></svg>`;
+  `<svg width="${BEAM_PX}" height="${BEAM_PX}" viewBox="0 0 ${BEAM_PX} ${BEAM_PX}" aria-hidden="true" style="position:absolute;left:${-(BEAM_PX - WALKER_BOX_PX) / 2}px;top:${-(BEAM_PX - WALKER_BOX_PX) / 2}px;overflow:visible"><defs><radialGradient id="${id}-g" cx="${BEAM_C}" cy="${BEAM_C}" r="${BEAM_RADIUS_PX}" gradientUnits="userSpaceOnUse"><stop offset="0.15" stop-color="${WALKER_COLOR}" stop-opacity="0.75"/><stop offset="0.55" stop-color="${WALKER_COLOR}" stop-opacity="0.35"/><stop offset="1" stop-color="${WALKER_COLOR}" stop-opacity="0"/></radialGradient><filter id="${id}-b" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.2"/></filter></defs><path d="${BEAM_PATH}" fill="url(#${id}-g)" filter="url(#${id}-b)"/></svg>`;
 
 /** A heading the marker can draw: a real number of degrees (unwrapped is fine); anything else means no beam. */
 export function validHeading(headingDeg: number | null | undefined): headingDeg is number {

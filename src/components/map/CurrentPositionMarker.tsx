@@ -4,7 +4,7 @@ import L from "leaflet";
 import { useMemo } from "react";
 import { Circle, Marker } from "react-leaflet";
 
-import { WALKER_BOX_PX, WALKER_COLOR, walkerMarkerHtml } from "@/components/map/WalkerMarker";
+import { HALO_FILL_OPACITY, HALO_MIN_ACCURACY_M, HALO_STROKE_OPACITY, WALKER_BOX_PX, WALKER_COLOR, walkerMarkerHtml } from "@/components/map/WalkerMarker";
 import type { Coordinates } from "@/lib/types";
 
 interface CurrentPositionMarkerProps {
@@ -33,12 +33,12 @@ export function CurrentPositionMarker({
   const icon = useMemo(() => walkerIcon(rounded), [rounded]);
   return (
     <>
-      {accuracyM ? (
+      {accuracyM && accuracyM > HALO_MIN_ACCURACY_M ? (
         <Circle
           center={[position.lat, position.lng]}
           radius={accuracyM}
           interactive={false}
-          pathOptions={{ color: WALKER_COLOR, weight: 1, opacity: 0.4, fillColor: WALKER_COLOR, fillOpacity: 0.12 }}
+          pathOptions={{ color: WALKER_COLOR, weight: 1, opacity: HALO_STROKE_OPACITY, fillColor: WALKER_COLOR, fillOpacity: HALO_FILL_OPACITY }}
         />
       ) : null}
       <Marker position={[position.lat, position.lng]} icon={icon} />
