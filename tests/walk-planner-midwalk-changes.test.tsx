@@ -15,10 +15,12 @@ import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types
 vi.mock("@/components/map", () => ({
   DynamicMap: ({
     waypoints,
+    currentPosition,
   }: {
     waypoints: { id: string; name: string }[];
+    currentPosition?: { lat: number; lng: number };
   }) => (
-    <div data-testid="map">
+    <div data-testid="map" data-dot-lat={currentPosition?.lat} data-dot-lng={currentPosition?.lng}>
       {waypoints.map((waypoint) => (
         <span key={waypoint.id} aria-label={`Map marker ${waypoint.name}`} />
       ))}
@@ -499,5 +501,27 @@ describe("P15: a pace rebuild says what it did", () => {
     fireEvent.click(screen.getByRole("button", { name: "להציג מסלול קצר יותר" }));
     await flush();
     expect(screen.getByTestId("walk-notice").textContent).toBe("קוצר: עצירה אחת פחות · נשארו כ-50 דק׳");
+  });
+});
+
+describe("F5: the dot does not jump back when a mid-walk rebuild lands", () => {
+  it("stays where the walker is, not where the request started", async () => {
+    await startSimulatedWalk();
+    await advance(2_000);
+    fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
+    await flush();
+    await advance(8_000);
+    hangRebuilds = true;
+    fireEvent.click(screen.getByRole("button", { name: "Best route from here" }));
+    await flush();
+    const dot = () => ({ lat: Number(screen.getByTestId("map").getAttribute("data-dot-lat")), lng: Number(screen.getByTestId("map").getAttribute("data-dot-lng")) });
+    const atRequest = dot();
+    await advance(20_000); // the walker keeps walking while the server thinks
+    const before = dot();
+    expect(before.lng).not.toBe(atRequest.lng); // the dot really did move on
+    releaseHeld.forEach((r) => r());
+    await flush();
+    const after = dot();
+    expect(after).toEqual(before);
   });
 });

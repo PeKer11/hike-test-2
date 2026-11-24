@@ -1646,9 +1646,11 @@ export function WalkPlannerApp({
       walkInputRef.current = input;
       setLastWalkInput(input);
       walkStartTimeRef.current = Date.now();
+      // The walker kept walking while the server answered: the dot stays at the latest fix, not where the request started.
+      const hereNow = latestPaceUpdateRef.current?.currentPosition ?? input.origin;
       latestPaceUpdateRef.current = null;
       setPinnedTimeWarning(null);
-      setCurrentPosition(input.origin);
+      setCurrentPosition(hereNow);
     };
     if (snapshot) {
       midWalkRebuildInFlightRef.current = true;
