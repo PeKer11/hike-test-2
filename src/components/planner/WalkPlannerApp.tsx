@@ -111,6 +111,7 @@ import {
 import { HeadingSmoother } from "@/lib/walk/heading-smoother";
 import { requestCompassPermission } from "@/lib/hooks/useCompassHeading";
 import { useWalkerHeading } from "@/lib/hooks/useWalkerHeading";
+import { LiveSpeed } from "@/lib/walk/live-speed";
 import { SpeedEstimator } from "@/lib/walk/speed-estimator";
 import { TrailFilter, withLiveTail } from "@/lib/walk/trail-filter";
 import { PaceAdvisor, type PaceAdvice } from "@/lib/walk/pace-advisor";
@@ -608,6 +609,8 @@ export function WalkPlannerApp({
   // Live-walk instruments. Refs, not state: they are fed on every fix, and only
   // the numbers that reach the screen go through setState (once a second).
   const speedEstimatorRef = useRef<SpeedEstimator | null>(null);
+  // The speed the walker sees (Doppler only, seconds); the estimator above is the sustained one for ETA and questions.
+  const liveSpeedRef = useRef<LiveSpeed | null>(null);
   const paceAdvisorRef = useRef<PaceAdvisor | null>(null);
   // "You walk much faster than the plan assumes": asked once, answered with a tap (`PaceMismatchWatcher`).
   const paceMismatchRef = useRef<PaceMismatchWatcher | null>(null);
@@ -813,6 +816,12 @@ export function WalkPlannerApp({
   const fixClockNow = (fixTimestamp: number) =>
     fixTimestamp + (Date.now() - lastFixWallRef.current);
 
+  // The sustained speed (not the live cell), so a question asked at a red light does not send 0.
+  const sustainedKmh = (): number | null => {
+    const fix = latestPaceUpdateRef.current;
+    return speedEstimatorRef.current?.current(fix ? fixClockNow(fix.timestamp) : Date.now()).kmh ?? null;
+  };
+
   // The walker's pace over the last few minutes (min/km), for sizing a lengthen or shorten and for the
   // pace questions' numbers. Not the 4-second fix reading by itself: that one is null at a red light.
   const sustainedPace = (): number | null => {
@@ -835,10 +844,13 @@ export function WalkPlannerApp({
     if (!fix || !input || !matched || firstFixAt === null) return;
 
     const now = fixClockNow(fix.timestamp);
-    const speed = speedEstimatorRef.current?.current(now) ?? {
+    const sustained = speedEstimatorRef.current?.current(now) ?? {
       kmh: null,
       state: "unknown" as const,
     };
+    // The cell and the distance hold follow the live speed; with no Doppler it is the sustained one, as before.
+    const live = liveSpeedRef.current?.current(now);
+    const speed = live && live.state !== "unknown" ? live : sustained;
     const projected = progressAlong(
       walkGeometryRef.current,
       matched.segmentIndex,
@@ -853,7 +865,7 @@ export function WalkPlannerApp({
       .reduce((sum, a) => sum + a.avgVisitMinutes, 0);
     const toFinish = timeToFinishMin({
       remainingM,
-      kmh: speed.kmh,
+      kmh: sustained.kmh,
       plannedPace: input.walkingPaceMinPerKm,
       remainingVisitMin,
     });
@@ -968,6 +980,7 @@ export function WalkPlannerApp({
   const stopWalkTracking = () => {
     shortcut.clear();
     speedEstimatorRef.current = null;
+    liveSpeedRef.current = null;
     // A card taken down by the route changing under it was not answered: the question stays open for the next leg.
     if (paceMismatchShownAtRef.current !== null) paceMismatchRef.current?.reopen();
     paceCarryRef.current = {
@@ -3049,6 +3062,7 @@ export function WalkPlannerApp({
 
     const planInput = walkInputRef.current;
     speedEstimatorRef.current = new SpeedEstimator();
+    liveSpeedRef.current = new LiveSpeed();
     paceAdvisorRef.current = planInput
       ? new PaceAdvisor(planInput.walkingPaceMinPerKm)
       : null;
@@ -3104,6 +3118,7 @@ export function WalkPlannerApp({
         paceMismatchRef.current?.startLeg(update.timestamp);
       }
 
+      liveSpeedRef.current?.record({ timestamp: update.timestamp, speedMps: update.speedMps });
       speedEstimatorRef.current?.record({
         coordinates: update.currentPosition,
         timestamp: update.timestamp,
@@ -4651,7 +4666,7 @@ export function WalkPlannerApp({
                         remainingMin: Math.max(0, Math.round(Math.min(input.availableMinutes, plan.totalMinutes) - elapsed)),
                         pace: {
                           plannedMinPerKm: input.walkingPaceMinPerKm,
-                          ...(walkStats?.kmh != null ? { measuredKmh: walkStats.kmh } : {}),
+                          ...(sustainedKmh() != null ? { measuredKmh: sustainedKmh() as number } : {}),
                           ...(walkStats?.timeToFinishMin != null && input.availableMinutes < 480 ? { spareMin: input.availableMinutes - (walkStats.elapsedMin + walkStats.timeToFinishMin) } : {}),
                         },
                       };
