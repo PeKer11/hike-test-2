@@ -33,6 +33,8 @@ export const SPEED_MAX_JUMP_MPS = 3.5;
 export const SPEED_SMOOTHING_ALPHA = 0.35;
 export const PAUSED_WINDOW_MS = 20_000;
 export const PAUSED_MIN_MOVE_M = 8;
+/** The paused threshold never grows past this, however poor the fix: 20 s of walking at 1.4 m/s is 28 m. */
+export const PAUSED_MAX_MOVE_M = 15;
 
 // --- Walked trail (the gold line) --------------------------------------------
 /** A fix worse than this never becomes a trail point. */

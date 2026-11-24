@@ -1,6 +1,7 @@
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
 import {
+  PAUSED_MAX_MOVE_M,
   PAUSED_MIN_MOVE_M,
   PAUSED_WINDOW_MS,
   SPEED_DOPPLER_WINDOW_MS,
@@ -112,7 +113,7 @@ export class SpeedEstimator {
     for (const s of window) {
       maxMove = Math.max(maxMove, haversineDistance(first.coordinates, s.coordinates));
     }
-    const threshold = Math.max(PAUSED_MIN_MOVE_M, last.accuracyMeters);
+    const threshold = Math.min(PAUSED_MAX_MOVE_M, Math.max(PAUSED_MIN_MOVE_M, last.accuracyMeters));
     return maxMove < threshold;
   }
 

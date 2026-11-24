@@ -100,4 +100,12 @@ describe("SpeedEstimator", () => {
     const now = walkNorth(est, 20, 1.2);
     expect(est.current(now + 60_000).state).toBe("unknown");
   });
+
+  it("a steady walker at 30 m accuracy is never called paused", () => {
+    const est = new SpeedEstimator();
+    for (let sec = 0; sec <= 40; sec += 1) {
+      est.record({ coordinates: northOf(START, 1.4 * sec), timestamp: T0 + sec * 1000, accuracyMeters: 30 });
+      expect(est.current(T0 + sec * 1000).state, `at ${sec}s`).not.toBe("paused");
+    }
+  });
 });
