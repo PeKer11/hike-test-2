@@ -49,4 +49,15 @@ describe("gps debug counters", () => {
     expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("pub 1");
     expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("z 17");
   });
+
+  it("shows the device speed and how many fixes carry one", () => {
+    gpsDebug.received("watch", 12, Date.now(), 1.34);
+    let line = formatGpsDebug(gpsDebug.snapshot(), 17, true);
+    expect(line).toContain("dop 1.3");
+    expect(line).toContain("dop% 100");
+    gpsDebug.received("watch", 12, Date.now());
+    line = formatGpsDebug(gpsDebug.snapshot(), 17, true);
+    expect(line).toContain("dop -");
+    expect(line).toContain("dop% 50");
+  });
 });

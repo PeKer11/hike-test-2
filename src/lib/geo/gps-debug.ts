@@ -21,6 +21,10 @@ export interface GpsDebugSnapshot {
   lastAccuracyM: number | null;
   /** `Date.now() - fix.timestamp` of the last fix, ms. */
   lastAgeMs: number | null;
+  /** Fixes that carried a device (Doppler) speed. */
+  withSpeed: number;
+  /** `coords.speed` of the last fix, m/s (null when the device sent none). */
+  lastSpeedMps: number | null;
   errors: number;
   lastError: string | null;
 }
@@ -36,6 +40,8 @@ const EMPTY: GpsDebugSnapshot = {
   published: 0,
   lastAccuracyM: null,
   lastAgeMs: null,
+  withSpeed: 0,
+  lastSpeedMps: null,
   errors: 0,
   lastError: null,
 };
@@ -49,13 +55,16 @@ export const gpsDebug = {
   snapshot(): GpsDebugSnapshot {
     return { ...state };
   },
-  received(kind: GpsFixKind, accuracyM: number, fixTimestamp: number): void {
+  received(kind: GpsFixKind, accuracyM: number, fixTimestamp: number, speedMps?: number | null): void {
     state.received += 1;
     if (kind === "watch") state.receivedWatch += 1;
     else if (kind === "quick") state.receivedQuick += 1;
     else state.receivedRearm += 1;
     state.lastAccuracyM = accuracyM;
     state.lastAgeMs = Date.now() - fixTimestamp;
+    const hasSpeed = typeof speedMps === "number" && Number.isFinite(speedMps);
+    if (hasSpeed) state.withSpeed += 1;
+    state.lastSpeedMps = hasSpeed ? (speedMps as number) : null;
   },
   droppedOrder(deltaMs: number): void {
     state.droppedOrder += 1;
@@ -104,6 +113,8 @@ export function formatGpsDebug(s: GpsDebugSnapshot, zoom: number | undefined, fo
     `pub ${s.published}`,
     `acc ${n(s.lastAccuracyM)}m`,
     `age ${s.lastAgeMs === null ? "-" : Math.round(s.lastAgeMs / 100) / 10}s`,
+    `dop ${n(s.lastSpeedMps, 1)}`,
+    `dop% ${s.received === 0 ? "-" : Math.round((100 * s.withSpeed) / s.received)}`,
     `err ${s.errors}`,
     `z ${zoom === undefined ? "-" : Math.round(zoom * 10) / 10}`,
     `follow ${follow ? "on" : "off"}`,
