@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WalkHud } from "@/components/walk/WalkHud";
-import type { WalkStatsData } from "@/components/walk/WalkStatsBar";
+import { WalkStatsBar, type WalkStatsData } from "@/components/walk/WalkStatsBar";
 
 const stats: WalkStatsData = {
   kmh: 4.6,
@@ -178,5 +178,19 @@ describe("the walk sheet on a tablet and a desktop", () => {
     expect(hudHost().style.getPropertyValue("--hud-h")).toBe("0px");
     expect(hudHost().style.getPropertyValue("--hud-o")).toBe("0px");
     expect(hudHost().style.getPropertyValue("--hud-w")).toBe("432px");
+  });
+});
+
+describe("the speed dot", () => {
+  const dot = (c: HTMLElement) => c.querySelector("span[aria-hidden].rounded-full");
+  it("is grey, not red, when the walker has stopped", () => {
+    const { container } = render(<WalkStatsBar stats={{ ...stats, speedState: "paused", kmh: 0 }} lang="en" />);
+    expect(dot(container)).not.toBeNull();
+    expect(dot(container)!.className).not.toContain("bg-terra");
+    expect(dot(container)!.className).toContain("bg-charcoal/30");
+  });
+  it("is still red when walking far slower than the plan", () => {
+    const { container } = render(<WalkStatsBar stats={{ ...stats, speedState: "moving", kmh: 2, plannedPaceMinPerKm: 12 }} lang="en" />);
+    expect(dot(container)!.className).toContain("bg-terra");
   });
 });

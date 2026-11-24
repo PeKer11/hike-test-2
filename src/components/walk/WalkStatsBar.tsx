@@ -26,6 +26,9 @@ const TONE_DOT: Record<PaceTone, string> = {
   bad: "bg-terra",
 };
 
+/** A stop is not "too slow": grey, never the red of the pace tone. */
+const STOPPED_DOT = "bg-charcoal/30";
+
 function Stat({
   label,
   value,
@@ -83,7 +86,7 @@ export function WalkStatsBar({ stats, lang = "en" }: { stats: WalkStatsData; lan
           unit={stats.timeToFinishMin === null ? undefined : t.timeUnit}
           tone={stats.overBudget ? "text-terra" : undefined}
         />
-        <Stat label={t.pace} value={paceValue} unit={showPaceUnit ? t.paceUnit : undefined} dot={TONE_DOT[tone]} />
+        <Stat label={t.pace} value={paceValue} unit={showPaceUnit ? t.paceUnit : undefined} dot={stats.speedState === "paused" ? STOPPED_DOT : TONE_DOT[tone]} />
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-charcoal/10" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
         <div className="h-full rounded-full bg-forest" style={{ width: `${pct}%` }} />
