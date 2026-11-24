@@ -145,4 +145,41 @@ describe("off-route card and the jittery fix", () => {
       expect(screen.queryByTestId("off-route-card"), `second ${k}`).toBeNull();
     }
   });
+
+  async function offRouteAndDismiss() {
+    walkOnUpdate = null;
+    render(<WalkPlannerApp />);
+    await flush();
+    fireEvent.change(screen.getByPlaceholderText("Latitude"), { target: { value: String(ORIGIN.lat) } });
+    fireEvent.change(screen.getByPlaceholderText("Longitude"), { target: { value: String(ORIGIN.lng) } });
+    fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
+    await flush();
+    const t0 = Date.now();
+    for (let k = 0; k < 6; k++) {
+      await act(async () => walkOnUpdate!(fixAt(300 + k, 55, t0 + k * 1000)));
+      await advance(1_000);
+    }
+    fireEvent.click(screen.getByRole("button", { name: /I know where I'm going/ }));
+  }
+
+  it("the tap shows 'Carrying on your way' with Undo for 10 s, and Undo brings the card back", async () => {
+    await offRouteAndDismiss();
+    expect(screen.queryByTestId("off-route-card")).toBeNull();
+    expect(screen.getByTestId("walk-notice").textContent).toContain("Carrying on your way");
+    await advance(9_000);
+    expect(screen.queryByTestId("walk-notice")).not.toBeNull();
+    fireEvent.click(within(screen.getByTestId("walk-notice")).getByRole("button", { name: "Undo" }));
+    expect(screen.queryByTestId("walk-notice")).toBeNull();
+    expect(screen.queryByTestId("off-route-card")).not.toBeNull();
+  });
+
+  it("the notice goes away on its own, and the pill then reopens the card", async () => {
+    await offRouteAndDismiss();
+    await advance(11_000);
+    expect(screen.queryByTestId("walk-notice")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Off route/ }));
+    expect(screen.queryByTestId("off-route-card")).not.toBeNull();
+  });
 });

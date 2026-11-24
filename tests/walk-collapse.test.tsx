@@ -685,13 +685,16 @@ describe("what the collection adds on the way", () => {
     expect(idsFrom(firstOffRouteIdx).has("placeB")).toBe(false);
 
     // "I know where I'm going" lets the walker walk: no re-plan, the card goes away, and a
-    // "Rebuild route from here" button stays for when they want one.
+    // "Off route" pill stays; it reopens the card, where "Best route from here" rebuilds.
     const plansBefore = walkPlanCalls.length;
     fireEvent.click(knowButton()!);
     await flush(3);
     expect(walkPlanCalls.length).toBe(plansBefore);
-    expect(screen.queryByRole("button", { name: /Rebuild route from here/ })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Rebuild route from here/ }));
+    expect(screen.queryByRole("button", { name: /Off route · / })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Off route · / }));
+    await flush(3);
+    expect(walkPlanCalls.length).toBe(plansBefore);
+    fireEvent.click(screen.getByRole("button", { name: /Best route from here/ }));
     await flush(3);
     expect(walkPlanCalls.length).toBe(plansBefore + 1);
     expect(knowButton()).toBeNull();
@@ -783,7 +786,7 @@ describe("what the collection adds on the way", () => {
   });
   // Walk-feedback 2026-11, issue 3: the rebuild pill is always there while off route and no card is up.
   describe("rebuild pill and the 4-minute re-ask", () => {
-    const pill = () => screen.queryByRole("button", { name: /Rebuild route from here/ });
+    const pill = () => screen.queryByRole("button", { name: /Off route · / });
     const straySmall = () =>
       vi.spyOn(SimulatedWalkTracker.prototype, "strayOffRoute").mockImplementation(async function (
         this: SimulatedWalkTracker,

@@ -619,10 +619,10 @@ describe("Back to my route: every tap shows what happened (feedback 2026-11-22, 
     expect(noticeText()).toContain("Way back drawn");
     expect(backButton()).toBeNull();
 
-    // Back on a line (the on-route fix re-arms the card), then straying again.
+    // Back on a line for half a minute (a real rejoin re-arms the card), then straying again.
     fireEvent.click(screen.getByRole("button", { name: "Rejoin the route" }));
     await flush();
-    await advance(3_000);
+    for (let i = 0; i < 8; i++) await advance(4_000);
     fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));
     await flush();
     await waitForCard();

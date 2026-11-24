@@ -1538,7 +1538,7 @@ export function WalkPlannerApp({
   const [walkBookmarked, setWalkBookmarked] = useState(false);
 
   // The result line on the walk sheet (visible on a phone, unlike the Details log).
-  const [walkNotice, setWalkNotice] = useState<(Omit<WalkNotice, "action"> & { undo?: boolean; placeIds?: string[]; dropIds?: string[] }) | null>(null);
+  const [walkNotice, setWalkNotice] = useState<(Omit<WalkNotice, "action"> & { undo?: boolean; onUndo?: () => void; placeIds?: string[]; dropIds?: string[] }) | null>(null);
   const noticeSeqRef = useRef(0);
   const showWalkNotice = (text: string, tone: "ok" | "warn", undo = false, placeIds?: string[], dropIds?: string[]) => {
     noticeSeqRef.current += 1;
@@ -1546,7 +1546,7 @@ export function WalkPlannerApp({
   };
   useEffect(() => {
     if (!walkNotice) return;
-    const timer = window.setTimeout(() => setWalkNotice(null), 8_000);
+    const timer = window.setTimeout(() => setWalkNotice(null), walkNotice.onUndo ? 10_000 : 8_000);
     return () => window.clearTimeout(timer);
   }, [walkNotice]);
   const reportReplanFailed = () => {
@@ -4162,6 +4162,19 @@ export function WalkPlannerApp({
           dismissalRef.current.dismiss({ atMs: lastDeviationRef.current.atMs || Date.now(), deviationM: lastDeviationRef.current.deviationM });
           offRouteDismissedRef.current = true;
           setOffRouteDismissed(true);
+          // Ten seconds to take it back: the card returns as a notice, with no new countdown.
+          noticeSeqRef.current += 1;
+          setWalkNotice({
+            id: noticeSeqRef.current,
+            text: walkCopy.notice[uiLang === "he" ? "he" : "en"].carryOn,
+            tone: "ok",
+            onUndo: () => {
+              dismissalRef.current.clear();
+              offRouteDismissedRef.current = false;
+              setOffRouteDismissed(false);
+              setWalkNotice(null);
+            },
+          });
         }}
       />
     ) : null;
@@ -5321,13 +5334,15 @@ export function WalkPlannerApp({
           <button
             type="button"
             onClick={() => {
+              // Reopen the card with all three answers; it rebuilds only if they choose to.
+              dismissalRef.current.clear();
               offRouteDismissedRef.current = false;
               setOffRouteDismissed(false);
-              requestBestRoute();
+              setWalkNotice(null);
             }}
             className="absolute left-1/2 top-3 z-[700] flex h-11 -translate-x-1/2 items-center rounded-full border border-forest/20 bg-paper px-4 text-sm font-semibold text-forest shadow-tk-card"
           >
-            {walkCopy.offRouteCard[uiLang === "he" ? "he" : "en"].rebuildPill}
+            {walkCopy.offRouteCard[uiLang === "he" ? "he" : "en"].pill(offRouteMeters)}
           </button>
         ) : null}
         {!walkMode ? (
@@ -5431,7 +5446,9 @@ export function WalkPlannerApp({
                     text: walkNotice.text,
                     tone: walkNotice.tone,
                     action:
-                      walkNotice.undo && previousPlan
+                      walkNotice.onUndo
+                        ? { label: walkCopy.notice[uiLang === "he" ? "he" : "en"].undo, onClick: walkNotice.onUndo }
+                        : walkNotice.undo && previousPlan
                         ? {
                             label: walkCopy.notice[uiLang === "he" ? "he" : "en"].undo,
                             onClick: () => {
