@@ -40,11 +40,44 @@ const IMAGERY: Record<string, string> = {
 };
 
 describe("walked trail colours", () => {
-  it("keeps the muted warm-stone trail, with no casing, on the painted roadmap", () => {
-    expect(walkedTrail("light", "map")).toEqual({ core: { color: "#b9ad9c", weight: 5, opacity: 0.9 }, casing: null });
-    expect(walkedTrail("dark", "map")).toEqual({ core: { color: "#6e655a", weight: 5, opacity: 0.9 }, casing: null });
-    // The roadmap is the default, so a caller that does not know the base map keeps the approved look.
+  it("is brand gold, quieter than the route, on the roadmap in both themes (it was warm grey)", () => {
+    expect(walkedTrail("light", "map")).toEqual({
+      core: { color: "#f6b81c", weight: 4, opacity: 0.85 },
+      casing: { color: "#9a6b00", weight: 6, opacity: 0.65 },
+    });
+    expect(walkedTrail("dark", "map")).toEqual({ core: { color: "#f6b81c", weight: 4, opacity: 0.6 }, casing: null });
+    // The roadmap is the default, so a caller that does not know the base map gets the same trail.
     expect(walkedTrail("light")).toEqual(walkedTrail("light", "map"));
+  });
+
+  it("the walked trail is gold on every base map and theme", () => {
+    for (const theme of ["light", "dark"] as MapTheme[]) {
+      for (const mapType of ["map", "satellite"] as BaseMap[]) expect(walkedTrail(theme, mapType).core.color).toBe("#f6b81c");
+    }
+  });
+
+  it("is thinner than the 5 px route on every base map, so it reads as behind you", () => {
+    for (const theme of ["light", "dark"] as MapTheme[]) {
+      for (const mapType of ["map", "satellite"] as BaseMap[]) expect(walkedTrail(theme, mapType).core.weight).toBeLessThan(5);
+    }
+  });
+
+  // ASSUMED roadmap colours: Google's standard (light) and night (dark) styles as commonly published, not measured from
+  // phone screenshots. The owner must sign off by looking at the real roadmap, light and dark, and satellite.
+  const ROADMAP_LIGHT: Record<string, string> = { land: "#f5f5f5", road: "#ffffff", highway: "#f8c967", park: "#c8e6c9", water: "#aadaff", building: "#ebe8e3" };
+  const ROADMAP_DARK: Record<string, string> = { land: "#242f3e", road: "#38414e", highway: "#746855", park: "#263c3f", water: "#17263c" };
+
+  it.each([
+    ["light", ROADMAP_LIGHT, "#25604b", 0.95],
+    ["dark", ROADMAP_DARK, "#7fc4a0", 0.95],
+  ] as const)("on the %s roadmap it is weak but visible: at least 1.8:1 and below the route's own contrast", (theme, backgrounds, route, routeOpacity) => {
+    const trail = walkedTrail(theme, "map");
+    for (const [name, bg] of Object.entries(backgrounds)) {
+      const visible = trailContrast(trail, bg);
+      const routeContrast = contrast(over(route, bg, routeOpacity), bg);
+      expect(visible, `${theme} ${name}`).toBeGreaterThanOrEqual(1.8);
+      expect(visible, `${theme} ${name}`).toBeLessThan(routeContrast);
+    }
   });
 
   it("is brand gold with a dark casing on satellite, the same in both themes", () => {

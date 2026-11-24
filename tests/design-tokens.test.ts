@@ -28,8 +28,17 @@ describe("anti-slop guards on the walk, map, ui and planner components", () => {
 });
 
 describe("route colours", () => {
-  it("are the deep green route and warm stone trail, per theme", () => {
-    expect(routeColors("light")).toMatchObject({ route: "#25604b", walked: "#b9ad9c" });
-    expect(routeColors("dark")).toMatchObject({ route: "#7fc4a0", walked: "#6e655a" });
+  it("are the deep green route and the gold trail, per theme", () => {
+    expect(routeColors("light")).toMatchObject({ route: "#25604b", walked: "#f6b81c" });
+    expect(routeColors("dark")).toMatchObject({ route: "#7fc4a0", walked: "#f6b81c" });
+  });
+});
+
+describe("walked-trail toggle copy", () => {
+  it("names no colour (the trail is gold, not gray) and is localized", () => {
+    const planner = sources().find(({ file }) => file.endsWith("WalkPlannerApp.tsx"))!.text;
+    expect(planner).not.toMatch(/path I walked \(gray\)/);
+    expect(planner).toContain("הסתר את הדרך שהלכתי");
+    expect(planner).toContain("הצג את הדרך שהלכתי");
   });
 });

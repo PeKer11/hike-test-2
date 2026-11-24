@@ -4808,7 +4808,9 @@ export function WalkPlannerApp({
               {walkPhase === "walking" && (
                 <WalkSlot walking={walkMode} order={53}>
                   <Button variant="secondary" fullWidth onClick={() => setShowWalkedPath((v) => !v)}>
-                    {showWalkedPath ? "Hide the path I walked" : "Show the path I walked (gray)"}
+                    {uiLang === "he"
+                      ? showWalkedPath ? "הסתר את הדרך שהלכתי" : "הצג את הדרך שהלכתי"
+                      : showWalkedPath ? "Hide the path I walked" : "Show the path I walked"}
                   </Button>
                 </WalkSlot>
               )}

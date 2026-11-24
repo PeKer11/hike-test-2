@@ -7,8 +7,8 @@ export type MapTheme = "light" | "dark";
 export type BaseMap = "map" | "satellite";
 
 const COLORS = {
-  light: { route: "#25604b", walked: "#b9ad9c", casing: "#ffffff" },
-  dark: { route: "#7fc4a0", walked: "#6e655a", casing: "#1f1d19" },
+  light: { route: "#25604b", walked: "#f6b81c", casing: "#ffffff" },
+  dark: { route: "#7fc4a0", walked: "#f6b81c", casing: "#1f1d19" },
 } as const;
 
 export const routeColors = (theme: MapTheme) => COLORS[theme];
@@ -37,8 +37,21 @@ export const SATELLITE_TRAIL: WalkedTrail = {
   casing: { color: "#1b2620", weight: 7, opacity: 0.7 },
 };
 
-/** The painted roadmap keeps the muted warm-stone "route-past" trail (the approved paper-map look). */
+/**
+ * The painted roadmap: the same brand gold, quieter than the route (4 px against 5, lower opacity). Gold alone is only
+ * about 1.8:1 on a white road, so on the light map a thin dark-gold casing carries the contrast; on the dark map the gold
+ * is bright enough alone and is drawn at 0.6 to stay behind the route. The values are a first pass tuned against assumed
+ * Google roadmap colours (tests/route-colors.test.ts, 1.8:1 up to the route's own contrast); the owner signs off by looking.
+ */
+export const ROADMAP_TRAIL: Record<MapTheme, WalkedTrail> = {
+  light: {
+    core: { color: "#f6b81c", weight: 4, opacity: 0.85 },
+    casing: { color: "#9a6b00", weight: 6, opacity: 0.65 },
+  },
+  dark: { core: { color: "#f6b81c", weight: 4, opacity: 0.6 }, casing: null },
+};
+
+/** The walked trail for this theme and base map: gold everywhere, tuned per base map. */
 export function walkedTrail(theme: MapTheme, mapType: BaseMap = "map"): WalkedTrail {
-  if (mapType === "satellite") return SATELLITE_TRAIL;
-  return { core: { color: COLORS[theme].walked, weight: 5, opacity: 0.9 }, casing: null };
+  return mapType === "satellite" ? SATELLITE_TRAIL : ROADMAP_TRAIL[theme];
 }
