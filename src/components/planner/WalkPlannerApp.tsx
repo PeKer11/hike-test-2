@@ -138,6 +138,7 @@ import {
 } from "@/lib/walk/rejoin";
 import { walkCopy } from "@/lib/walk/walk-copy";
 import { WalkRecorder } from "@/lib/walk/walk-recorder";
+import { gpsDebug } from "@/lib/geo/gps-debug";
 import type { LocateState } from "@/lib/geo/locate";
 import { clearActiveWalk, saveActiveWalk, type ActiveWalkSnapshot } from "@/lib/walk/active-walk-store";
 import { locateOnce } from "@/lib/geo/here";
@@ -3061,6 +3062,7 @@ export function WalkPlannerApp({
         const poorNow = Date.now();
         if (poorNow - lastGpsUpdateRef.current >= POSITION_PUBLISH_MS) {
           lastGpsUpdateRef.current = poorNow;
+          gpsDebug.published();
           setCurrentPosition(update.currentPosition);
           setCurrentAccuracyM(update.accuracyMeters);
         }
@@ -3129,6 +3131,7 @@ export function WalkPlannerApp({
       if (now - lastGpsUpdateRef.current < POSITION_PUBLISH_MS) return;
       lastGpsUpdateRef.current = now;
 
+      gpsDebug.published();
       setCurrentPosition(update.currentPosition);
       setCurrentAccuracyM(update.accuracyMeters);
       setAttractionDistances(update.attractionDistances);

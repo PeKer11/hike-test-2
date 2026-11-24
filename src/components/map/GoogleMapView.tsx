@@ -2,8 +2,9 @@
 
 import { APIProvider, ColorScheme, ControlPosition, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
+import { GpsDebugLine } from "@/components/map/GpsDebugLine";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
 import { routeColors, walkedTrail } from "@/lib/map/route-colors";
 import { fitPadding, overviewBounds } from "@/lib/map/route-overview";
@@ -178,16 +179,20 @@ function PositionFollower({
     hold();
     map.fitBounds(bounds, fitPadding(hudInset, isPhone));
   };
+  const getZoom = useCallback(() => map?.getZoom(), [map]);
   return (
-    <MapGlyphs
-      showFollow={followPosition}
-      following={!paused}
-      onFollow={recentre}
-      onFitRoute={followPosition && (routeGeometry?.length ?? 0) > 1 ? fitWholeRoute : undefined}
-      fitting={held}
-      onLayers={onLayers}
-      lang={lang}
-    />
+    <>
+      <GpsDebugLine getZoom={getZoom} follow={followPosition && !paused} />
+      <MapGlyphs
+        showFollow={followPosition}
+        following={!paused}
+        onFollow={recentre}
+        onFitRoute={followPosition && (routeGeometry?.length ?? 0) > 1 ? fitWholeRoute : undefined}
+        fitting={held}
+        onLayers={onLayers}
+        lang={lang}
+      />
+    </>
   );
 }
 

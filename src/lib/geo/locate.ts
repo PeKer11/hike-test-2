@@ -1,3 +1,4 @@
+import { gpsDebug, type GpsFixKind } from "@/lib/geo/gps-debug";
 import type { Coordinates } from "@/lib/types";
 
 /**
@@ -169,12 +170,16 @@ export function locate(options: LocateOptions): { stop(): void } {
     }
   };
 
-  const handleFix = (fix: LocateFix) => {
+  const handleFix = (fix: LocateFix, kind: GpsFixKind = "watch") => {
     if (stopped) return;
+    if (fix.source === "gps") gpsDebug.received(kind, fix.accuracyMeters, fix.timestamp);
     if (purpose === "walk" && fix.source === "gps") {
       // No wall-clock age check: a device fix is stamped by the GPS/OS clock, and a phone clock a few seconds off
       // used to discard every fix. Only out-of-order fixes are dropped; a clock jump back recovers.
-      if (fix.timestamp < lastWalkFixTs && lastWalkFixTs - fix.timestamp < WALK_MAX_FIX_AGE_MS) return;
+      if (fix.timestamp < lastWalkFixTs && lastWalkFixTs - fix.timestamp < WALK_MAX_FIX_AGE_MS) {
+        gpsDebug.droppedOrder(lastWalkFixTs - fix.timestamp);
+        return;
+      }
       lastWalkFixTs = fix.timestamp;
     }
     if (fix.source === "gps") {
@@ -222,7 +227,7 @@ export function locate(options: LocateOptions): { stop(): void } {
   const quickFix = () => {
     if (!geo || typeof geo.getCurrentPosition !== "function") return;
     geo.getCurrentPosition(
-      (pos) => handleFix(toFix(pos)),
+      (pos) => handleFix(toFix(pos), "quick"),
       (err) => {
         handleError(err);
         if (stopped || err.code === PERMISSION_DENIED || hasLiveFix) return;
@@ -270,7 +275,7 @@ export function locate(options: LocateOptions): { stop(): void } {
     clearWatch();
     startWatch();
     geo.getCurrentPosition?.(
-      (pos) => handleFix(toFix(pos)),
+      (pos) => handleFix(toFix(pos), "rearm"),
       handleError,
       { enableHighAccuracy: true, maximumAge: WATCH_MAX_AGE_MS, timeout: REARM_FIX_TIMEOUT_MS },
     );

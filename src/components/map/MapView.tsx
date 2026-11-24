@@ -5,9 +5,10 @@ import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility
 import "leaflet-defaulticon-compatibility";
 
 import { AttributionControl, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 import { MapClickHandler } from "@/components/map/MapClickHandler";
+import { GpsDebugLine } from "@/components/map/GpsDebugLine";
 import { MapGlyphs } from "@/components/map/MapGlyphs";
 import { walkedTrail } from "@/lib/map/route-colors";
 import { fitPadding, overviewBounds } from "@/lib/map/route-overview";
@@ -193,16 +194,20 @@ function PositionFollower({
     });
   };
 
+  const getZoom = useCallback(() => map.getZoom(), [map]);
   return (
-    <MapGlyphs
-      showFollow={followPosition}
-      following={!paused}
-      onFollow={recentre}
-      onFitRoute={followPosition && (routeGeometry?.length ?? 0) > 1 ? fitWholeRoute : undefined}
-      fitting={held}
-      onLayers={onLayers}
-      lang={lang}
-    />
+    <>
+      <GpsDebugLine getZoom={getZoom} follow={followPosition && !paused} />
+      <MapGlyphs
+        showFollow={followPosition}
+        following={!paused}
+        onFollow={recentre}
+        onFitRoute={followPosition && (routeGeometry?.length ?? 0) > 1 ? fitWholeRoute : undefined}
+        fitting={held}
+        onLayers={onLayers}
+        lang={lang}
+      />
+    </>
   );
 }
 

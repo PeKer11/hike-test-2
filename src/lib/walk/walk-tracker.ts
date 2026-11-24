@@ -1,5 +1,6 @@
 import type { Attraction, Coordinates } from "@/lib/types";
 import { haversineDistance, routeDistanceBetween } from "@/lib/utils/geo";
+import { gpsDebug } from "@/lib/geo/gps-debug";
 import { geolocationSupported, locate, type LocateFix, type LocateState } from "@/lib/geo/locate";
 import { DOT_MAX_ACCURACY_M, ENGINE_MAX_ACCURACY_M } from "@/lib/walk/walk-cadence";
 
@@ -110,7 +111,10 @@ export class WalkTracker {
     // The dot takes any fix up to DOT_MAX_ACCURACY_M (with a halo of that size); the first fix
     // may be coarser. Pace, bearing and everything built on them only trust ENGINE_MAX_ACCURACY_M.
     const tooPoor = accuracy > DOT_MAX_ACCURACY_M;
-    if (tooPoor && (this.hasEmitted || accuracy > FIRST_FIX_MAX_ACCURACY_METERS)) return;
+    if (tooPoor && (this.hasEmitted || accuracy > FIRST_FIX_MAX_ACCURACY_METERS)) {
+      gpsDebug.droppedTracker();
+      return;
+    }
     this.hasEmitted = true;
 
     const engineGrade = accuracy <= ENGINE_MAX_ACCURACY_M;
