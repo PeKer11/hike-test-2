@@ -174,4 +174,25 @@ describe("a walk streamed through the real planner", () => {
     expect(trail.length).toBeGreaterThan(2);
     expect(trail[trail.length - 1]).toEqual(last.currentPosition);
   });
+
+  it("a fix that arrives 150 ms early (850 ms after the last one) still moves the dot", async () => {
+    await startRealWalk();
+    const t0 = Date.now();
+    const shown = new Set<string>();
+    const key = (c: Coordinates) => `${c.lat.toFixed(7)},${c.lng.toFixed(7)}`;
+    const sent: string[] = [];
+    for (let i = 0; i < 60; i++) {
+      const coordinates = { lat: ORIGIN.lat + (1.4 * i) / M_PER_DEG, lng: ORIGIN.lng };
+      sent.push(key(coordinates));
+      await act(async () => {
+        walkOnUpdate!({ coordinates, accuracyMeters: 10, timestamp: t0 + i * 1000, source: "gps" });
+      });
+      const dot = mapCalls.at(-1)?.currentPosition as Coordinates | undefined;
+      if (dot) shown.add(key(dot));
+      // every 10th fix comes 150 ms early: 850 ms after the previous one
+      await advance((i + 1) % 10 === 0 ? 850 : 1_000);
+    }
+    const missed = sent.filter((k) => !shown.has(k));
+    expect(missed.length, `dot never showed ${missed.length} of ${sent.length} fixes`).toBe(0);
+  });
 });

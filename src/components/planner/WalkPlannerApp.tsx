@@ -231,8 +231,8 @@ import { readTtsOptIn, ttsSupported, writeTtsOptIn } from "@/lib/walk/tts";
 
 /** A GPS fix older than this is stale: nothing re-routes automatically from it. */
 const STALE_FIX_MS = 20_000;
-/** Real 1 Hz GPS arrives 1000 +- 40 ms; a 1000 ms gate dropped a third of the fixes and the dot jumped every ~1.4 s. */
-const POSITION_PUBLISH_MS = 900;
+/** Real 1 Hz GPS arrives 1000 +- 40 ms (late fixes bunch up); a 1000 ms gate dropped a third of the fixes and a 900 ms one still dropped 4-16 %. 500 ms caps a fast simulator at 2 Hz. */
+const POSITION_PUBLISH_MS = 500;
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
