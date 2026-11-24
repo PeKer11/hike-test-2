@@ -30,6 +30,12 @@ export const SPEED_SMOOTHING_ALPHA = 0.35;
 export const PAUSED_WINDOW_MS = 20_000;
 export const PAUSED_MIN_MOVE_M = 8;
 
+// --- Walked trail (the gold line) --------------------------------------------
+/** A fix worse than this never becomes a trail point. */
+export const TRAIL_MAX_ACCURACY_M = 25;
+/** A trail point is at least this far (or the fix accuracy, if larger) from the last one. */
+export const TRAIL_MIN_STEP_M = 8;
+
 // --- Pace advisory (cards only; never rebuilds on its own) ------------------
 export const PACE_ADVISOR_WINDOW_MS = 5 * 60_000;
 export const ADVISOR_SLOW_RATIO = 1.3;
