@@ -11,8 +11,8 @@ export const HEADING_MAX_ACCURACY_M = 25;
 export const HEADING_HOLD_MS = 20_000;
 /** Below this device speed the walker is standing: GPS jitter must not turn the arrow. */
 const STANDING_SPEED_MPS = 0.3;
-/** Weight of each new heading; about three fixes to cover most of a turn. */
-const ALPHA = 0.35;
+/** Weight of each new heading; two fixes cover most of a turn (0.35 took three to five seconds and read as lag). */
+const ALPHA = 0.5;
 
 export interface HeadingSample {
   position: Coordinates;

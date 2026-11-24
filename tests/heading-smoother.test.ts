@@ -31,6 +31,14 @@ describe("HeadingSmoother: where the device gives a heading", () => {
     expect(h.current(clock)).toBeCloseTo(90, 5);
   });
 
+  it("follows a 90 degree turn to within 25 degrees in two fixes (alpha 0.5)", () => {
+    const h = fresh();
+    h.push(sample({ position: at(0, 0), headingDeg: 0, speedMps: 1.3 }));
+    h.push(sample({ position: at(0, 1), headingDeg: 90, speedMps: 1.3 }));
+    h.push(sample({ position: at(0, 2), headingDeg: 90, speedMps: 1.3 }));
+    expect(90 - h.current(clock)!).toBeLessThanOrEqual(25);
+  });
+
   it("ignores coords.heading when the device is nearly still (the OS reports noise)", () => {
     const h = fresh();
     h.push(sample({ position: at(0, 0), headingDeg: 90, speedMps: 0.2 }));
@@ -116,8 +124,8 @@ describe("HeadingSmoother: smoothing and the 0/360 seam", () => {
     h.push(sample({ position: at(0, 0), headingDeg: 0, speedMps: 1.3 }));
     h.push(sample({ position: at(0, 1), headingDeg: 90, speedMps: 1.3 }));
     const first = h.current(clock)!;
-    expect(first).toBeGreaterThan(20);
-    expect(first).toBeLessThan(45);
+    expect(first).toBeGreaterThan(30);
+    expect(first).toBeLessThan(60);
     for (let i = 0; i < 12; i += 1) h.push(sample({ position: at(i, 1), headingDeg: 90, speedMps: 1.3 }));
     expect(h.current(clock)!).toBeCloseTo(90, 0);
   });
