@@ -347,4 +347,34 @@ describe("walk fixes stamped by a device clock that disagrees with the browser's
     watches[0].ok(at(50_000));
     expect(fixes).toHaveLength(2);
   });
+
+  for (const lead of [3_000, 8_000, 14_000]) {
+    it(`delivers every watch fix after a quick fix stamped on a clock ${lead / 1000} s ahead of GPS time`, () => {
+      const { quick, watches } = fakeGeo();
+      const { fixes } = run("walk");
+      const t0 = 1_000_000;
+      const at = (t: number, lat: number) => ({ ...pos(8, lat), timestamp: t }) as GeolocationPosition;
+      quick[0].ok(at(t0 + lead, 32.08)); // system-clock stamp, ahead of the GPS-stamped watch
+      for (let i = 1; i <= 10; i += 1) watches[0].ok(at(t0 + i * 1000, 32.08 + i * 1e-5));
+      expect(fixes).toHaveLength(11);
+    });
+  }
+
+  it("still drops a stale quick read that arrives after a newer watch fix", () => {
+    const { quick, watches } = fakeGeo();
+    const { fixes } = run("walk");
+    const at = (t: number) => ({ ...pos(30), timestamp: t }) as GeolocationPosition;
+    watches[0].ok(at(100_000));
+    quick[0].ok(at(95_000)); // a cached fix, older than the watch fix that got there first
+    expect(fixes).toHaveLength(1);
+  });
+
+  it("accepts a quick read older than the last watch fix when it was answered before any watch fix", () => {
+    const { quick, watches } = fakeGeo();
+    const { fixes } = run("walk");
+    const at = (t: number) => ({ ...pos(30), timestamp: t }) as GeolocationPosition;
+    quick[0].ok(at(95_000));
+    watches[0].ok(at(100_000));
+    expect(fixes).toHaveLength(2);
+  });
 });

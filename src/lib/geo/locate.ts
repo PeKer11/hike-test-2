@@ -141,7 +141,9 @@ export function locate(options: LocateOptions): { stop(): void } {
   let lastErrorCode: number | null = null;
   let watchId: number | null = null;
   let retries = 0;
-  let lastWalkFixTs = 0;
+  // A walk compares timestamps only within the watch (one clock). A one-shot read may be stamped on another clock.
+  let lastWatchFixTs = 0;
+  let watchFixSeq = 0;
   const timers = new Set<ReturnType<typeof setTimeout>>();
   let removeVisibility: (() => void) | null = null;
   // A walk's liveness: when a usable fix last got through, when the watch was last re-armed.
@@ -170,17 +172,29 @@ export function locate(options: LocateOptions): { stop(): void } {
     }
   };
 
-  const handleFix = (fix: LocateFix, kind: GpsFixKind = "watch") => {
+  /** `seqAtCall` is the watch-fix count when a one-shot read was asked for. */
+  const handleFix = (fix: LocateFix, kind: GpsFixKind = "watch", seqAtCall = 0) => {
     if (stopped) return;
     if (fix.source === "gps") gpsDebug.received(kind, fix.accuracyMeters, fix.timestamp);
     if (purpose === "walk" && fix.source === "gps") {
       // No wall-clock age check: a device fix is stamped by the GPS/OS clock, and a phone clock a few seconds off
-      // used to discard every fix. Only out-of-order fixes are dropped; a clock jump back recovers.
-      if (fix.timestamp < lastWalkFixTs && lastWalkFixTs - fix.timestamp < WALK_MAX_FIX_AGE_MS) {
-        gpsDebug.droppedOrder(lastWalkFixTs - fix.timestamp);
+      // used to discard every fix. The watch delivers in order, so a watch fix is only compared with the previous
+      // watch fix (a clock jump back recovers). A one-shot read (quick, re-arm) can be stamped on the system clock
+      // while the watch carries GPS time, so it is dropped only when a watch fix arrived after it was asked for and
+      // is newer than it: a genuinely stale cached read.
+      const lastTs = lastWatchFixTs;
+      const stale = fix.timestamp < lastTs && lastTs - fix.timestamp < WALK_MAX_FIX_AGE_MS;
+      if (kind === "watch") {
+        if (stale) {
+          gpsDebug.droppedOrder(lastTs - fix.timestamp);
+          return;
+        }
+        lastWatchFixTs = fix.timestamp;
+        watchFixSeq += 1;
+      } else if (watchFixSeq > seqAtCall && stale) {
+        gpsDebug.droppedOrder(lastTs - fix.timestamp);
         return;
       }
-      lastWalkFixTs = fix.timestamp;
     }
     if (fix.source === "gps") {
       hasLiveFix = true;
@@ -226,8 +240,9 @@ export function locate(options: LocateOptions): { stop(): void } {
 
   const quickFix = () => {
     if (!geo || typeof geo.getCurrentPosition !== "function") return;
+    const seqAtCall = watchFixSeq;
     geo.getCurrentPosition(
-      (pos) => handleFix(toFix(pos), "quick"),
+      (pos) => handleFix(toFix(pos), "quick", seqAtCall),
       (err) => {
         handleError(err);
         if (stopped || err.code === PERMISSION_DENIED || hasLiveFix) return;
@@ -274,8 +289,9 @@ export function locate(options: LocateOptions): { stop(): void } {
     lastRearmAt = Date.now();
     clearWatch();
     startWatch();
+    const seqAtCall = watchFixSeq;
     geo.getCurrentPosition?.(
-      (pos) => handleFix(toFix(pos), "rearm"),
+      (pos) => handleFix(toFix(pos), "rearm", seqAtCall),
       handleError,
       { enableHighAccuracy: true, maximumAge: WATCH_MAX_AGE_MS, timeout: REARM_FIX_TIMEOUT_MS },
     );
