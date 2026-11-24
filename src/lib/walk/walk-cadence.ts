@@ -87,3 +87,13 @@ export const ANNOUNCE_EXPIRE_BEHIND_M = 60;
 export const SCENERY_COOLDOWN_MS = 10 * 60_000;
 
 export * from "./discovery-cadence";
+
+// --- Live speed (what the walker sees; Doppler only) ----------------------------
+/** The live reading is the median of the device speeds in this window. */
+export const SPEED_LIVE_WINDOW_MS = 3_000;
+/** Moving → paused below this (1.3 km/h)... */
+export const SPEED_STOP_BELOW_MPS = 0.35;
+/** ...and paused → moving at or above this (2.2 km/h). */
+export const SPEED_MOVE_ABOVE_MPS = 0.6;
+/** Time constant of the shown value's smoothing. */
+export const SPEED_LIVE_TAU_MS = 2_000;
