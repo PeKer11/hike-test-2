@@ -460,6 +460,10 @@ body {
 .walk-hud .leaflet-bottom {
   margin-bottom: var(--hud-h, 9rem);
 }
+/* The map is its own stacking layer: its pills and buttons (z-index 1000) never paint over the walk sheet (z 600). */
+.walk-hud .leaflet-container {
+  isolation: isolate;
+}
 
 /* The OSM credit sits in the page's bottom-right corner, not the map's. It is
    still always visible, which is what the licence needs. */

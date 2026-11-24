@@ -229,7 +229,7 @@ export default function GoogleMapView({
 
   return (
     // Google's logo and terms link must stay visible, so while the walk HUD is up the map ends above it.
-    <div className="absolute inset-x-0 top-0" style={{ bottom: hudInset ? "var(--hud-h, 9rem)" : 0 }}>
+    <div className="absolute inset-x-0 top-0 isolate" style={{ bottom: hudInset ? "var(--hud-h, 9rem)" : 0 }}>
       <APIProvider apiKey={KEY}>
         <Map
           mapId={MAP_ID}

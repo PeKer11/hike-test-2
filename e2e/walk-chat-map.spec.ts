@@ -66,4 +66,8 @@ test("the open walk chat never covers the whole map, and minimizing it gives the
   expect(closed!.y).toBeGreaterThan(open!.y);
 
   expect(appErrors(watch)).toEqual([]);
+
+  // Whatever the map draws (its pills and buttons carry z-index 1000) stays under the sheet: the map is its own stacking layer.
+  const mapLayer = await page.locator(".leaflet-container").evaluate((el) => getComputedStyle(el).isolation);
+  expect(mapLayer).toBe("isolate");
 });
