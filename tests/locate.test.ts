@@ -323,3 +323,28 @@ describe("locate: the device heading", () => {
     expect("headingDeg" in fix && fix.headingDeg !== undefined).toBe(false);
   });
 });
+
+describe("walk fixes stamped by a device clock that disagrees with the browser's", () => {
+  it("keeps every fix stamped 20 s behind and asks the quick read for a fresh one", () => {
+    const { quick, watches } = fakeGeo();
+    const { fixes } = run("walk");
+    expect(quick[0].opts.maximumAge).toBe(5_000);
+    for (let i = 0; i < 10; i += 1) {
+      const p = pos(8, 32.08 + i * 1e-4);
+      (p as { timestamp: number }).timestamp = Date.now() - 20_000 + i * 1000;
+      watches[0].ok(p);
+    }
+    expect(fixes).toHaveLength(10);
+  });
+
+  it("drops an out-of-order fix but accepts a clock that jumped back by more than 15 s", () => {
+    const { watches } = fakeGeo();
+    const { fixes } = run("walk");
+    const at = (t: number) => ({ ...pos(8), timestamp: t }) as GeolocationPosition;
+    watches[0].ok(at(100_000));
+    watches[0].ok(at(95_000));
+    expect(fixes).toHaveLength(1);
+    watches[0].ok(at(50_000));
+    expect(fixes).toHaveLength(2);
+  });
+});

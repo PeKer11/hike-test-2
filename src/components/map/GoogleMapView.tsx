@@ -118,9 +118,24 @@ function PositionFollower({
     if (!map) return;
     const start = map.addListener("dragstart", pause);
     const end = map.addListener("dragend", scheduleResume);
+    // Pinch, wheel and double-tap zoom fire no dragstart; without these the next GPS fix pulled the map back mid-gesture.
+    const div = map.getDiv();
+    const onWheel = () => { pause(); scheduleResume(); };
+    const onTouchStart = (e: TouchEvent) => { if (e.touches.length > 1) pause(); };
+    const onTouchEnd = (e: TouchEvent) => { if (e.touches.length === 0) scheduleResume(); };
+    div.addEventListener("wheel", onWheel, { passive: true });
+    div.addEventListener("dblclick", onWheel);
+    div.addEventListener("touchstart", onTouchStart, { passive: true });
+    div.addEventListener("touchend", onTouchEnd, { passive: true });
+    div.addEventListener("touchcancel", onTouchEnd, { passive: true });
     return () => {
       start.remove();
       end.remove();
+      div.removeEventListener("wheel", onWheel);
+      div.removeEventListener("dblclick", onWheel);
+      div.removeEventListener("touchstart", onTouchStart);
+      div.removeEventListener("touchend", onTouchEnd);
+      div.removeEventListener("touchcancel", onTouchEnd);
     };
   }, [map, pause, scheduleResume]);
   useEffect(() => {

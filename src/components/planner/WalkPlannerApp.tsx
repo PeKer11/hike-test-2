@@ -3658,6 +3658,8 @@ export function WalkPlannerApp({
     }
 
     if (plannerMode === "walk-companion") {
+      // A tap must not move the walker's dot during a live walk.
+      if (walkPhase === "walking") return;
       setMapClickedCoords(coordinates);
       setCurrentPosition(coordinates);
       focusOn(coordinates, 16);

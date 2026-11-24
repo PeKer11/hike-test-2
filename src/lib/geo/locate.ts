@@ -172,7 +172,9 @@ export function locate(options: LocateOptions): { stop(): void } {
   const handleFix = (fix: LocateFix) => {
     if (stopped) return;
     if (purpose === "walk" && fix.source === "gps") {
-      if (Date.now() - fix.timestamp > WALK_MAX_FIX_AGE_MS || fix.timestamp < lastWalkFixTs) return;
+      // No wall-clock age check: a device fix is stamped by the GPS/OS clock, and a phone clock a few seconds off
+      // used to discard every fix. Only out-of-order fixes are dropped; a clock jump back recovers.
+      if (fix.timestamp < lastWalkFixTs && lastWalkFixTs - fix.timestamp < WALK_MAX_FIX_AGE_MS) return;
       lastWalkFixTs = fix.timestamp;
     }
     if (fix.source === "gps") {
@@ -229,7 +231,7 @@ export function locate(options: LocateOptions): { stop(): void } {
         retries += 1;
         later(delay, quickFix);
       },
-      { enableHighAccuracy: false, maximumAge: COARSE_MAX_AGE_MS, timeout: COARSE_TIMEOUT_MS },
+      { enableHighAccuracy: false, maximumAge: purpose === "walk" ? WATCH_MAX_AGE_MS : COARSE_MAX_AGE_MS, timeout: COARSE_TIMEOUT_MS },
     );
   };
 
