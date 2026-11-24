@@ -8,6 +8,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types";
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 
+// A fake GPS for the stationary-jitter test; every other locate() caller gets an inert one.
+type Fix = { coordinates: Coordinates; accuracyMeters: number; timestamp: number; source: "gps" };
+let walkOnUpdate: ((fix: Fix) => void) | null = null;
+vi.mock("@/lib/geo/locate", async (orig) => ({
+  ...(await orig<typeof import("@/lib/geo/locate")>()),
+  geolocationSupported: () => true,
+  locate: (o: { purpose: string; onUpdate: (f: Fix) => void }) => {
+    if (o.purpose === "walk") walkOnUpdate = o.onUpdate;
+    return { stop: () => {} };
+  },
+}));
+
 const mapCalls: { walkedGeometry?: unknown[] }[] = [];
 vi.mock("@/components/map", () => ({
   DynamicMap: (props: { walkedGeometry?: unknown[] }) => {
@@ -118,5 +130,28 @@ describe("walkedGeometry handed to the map", () => {
     await advance(2_000); // a new fix
     expect(last()).not.toBe(before);
     expect(last().length).toBeGreaterThan(before.length);
+  });
+
+  it("a phone standing still with jittering fixes adds no trail", async () => {
+    walkOnUpdate = null;
+    render(<WalkPlannerApp />);
+    await flush();
+    fireEvent.change(screen.getByPlaceholderText("Latitude"), { target: { value: String(ORIGIN.lat) } });
+    fireEvent.change(screen.getByPlaceholderText("Longitude"), { target: { value: String(ORIGIN.lng) } });
+    fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
+    await flush();
+    expect(walkOnUpdate).not.toBeNull();
+    const t0 = Date.now();
+    for (let i = 0; i < 90; i++) {
+      const wobble = (i % 2 ? 1 : -1) * (3 + (i % 3)) / 111_320; // 3-5 m either side of the start, inside the 12 m accuracy
+      await act(async () => {
+        walkOnUpdate!({ coordinates: { lat: ORIGIN.lat + wobble, lng: ORIGIN.lng + wobble / 2 }, accuracyMeters: 12, timestamp: t0 + i * 1000, source: "gps" });
+      });
+      await advance(1_000);
+    }
+    const last = mapCalls.filter((c) => Array.isArray(c.walkedGeometry)).at(-1)?.walkedGeometry ?? [];
+    expect(last.length).toBeLessThanOrEqual(2);
   });
 });

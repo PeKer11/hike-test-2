@@ -110,6 +110,7 @@ import { HeadingSmoother } from "@/lib/walk/heading-smoother";
 import { requestCompassPermission } from "@/lib/hooks/useCompassHeading";
 import { useWalkerHeading } from "@/lib/hooks/useWalkerHeading";
 import { SpeedEstimator } from "@/lib/walk/speed-estimator";
+import { TrailFilter } from "@/lib/walk/trail-filter";
 import { PaceAdvisor, type PaceAdvice } from "@/lib/walk/pace-advisor";
 import { PACE_MISMATCH_LENGTHEN_MIN_SPARE, PaceMismatchWatcher, type PaceMismatchOffer } from "@/lib/walk/pace-mismatch";
 import {
@@ -431,6 +432,8 @@ export function WalkPlannerApp({
   // Every accepted fix of this walk (the track the direction options must not
   // retrace) and where the walk began (the anchor when nothing else is).
   const walkedTrackRef = useRef<Coordinates[]>([]);
+  // Decides which fixes become trail, so a phone standing still draws no scribble.
+  const trailFilterRef = useRef(new TrailFilter());
   // Bumped when the track gains a point (at most once a second), so the map gets a new array only then.
   const [walkedVersion, setWalkedVersion] = useState(0);
   const walkStartPointRef = useRef<Coordinates | null>(null);
@@ -1221,6 +1224,7 @@ export function WalkPlannerApp({
     collapseFlow.endWalk();
     shortcut.endWalk();
     walkedTrackRef.current = [];
+    trailFilterRef.current.reset();
     walkStartPointRef.current = null;
     walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
     legElapsedOffsetMinRef.current = 0;
@@ -1656,7 +1660,10 @@ export function WalkPlannerApp({
       shortcut.endWalk();
       walkChat.reset();
       // A re-plan in the middle of a walk keeps the gray trail: it is still where the walker has been.
-      if (walkPhase !== "walking") walkedTrackRef.current = [];
+      if (walkPhase !== "walking") {
+        walkedTrackRef.current = [];
+        trailFilterRef.current.reset();
+      }
       walkStartPointRef.current = input.origin;
       walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
       legElapsedOffsetMinRef.current = 0;
@@ -3092,11 +3099,13 @@ export function WalkPlannerApp({
       setCurrentAccuracyM(update.accuracyMeters);
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
-      walkedTrackRef.current.push(update.currentPosition);
-      setWalkedVersion((v) => v + 1);
-      if (walkedTrackRef.current.length > 5_000) {
-        // Keep the whole walk's shape at half the resolution rather than only its tail.
-        walkedTrackRef.current = walkedTrackRef.current.filter((_, i) => i % 2 === 0);
+      if (trailFilterRef.current.accept(update.currentPosition, update.timestamp, update.accuracyMeters)) {
+        walkedTrackRef.current.push(update.currentPosition);
+        setWalkedVersion((v) => v + 1);
+        if (walkedTrackRef.current.length > 5_000) {
+          // Keep the whole walk's shape at half the resolution rather than only its tail.
+          walkedTrackRef.current = walkedTrackRef.current.filter((_, i) => i % 2 === 0);
+        }
       }
 
       // Recorded on and off the route alike. Where the walker is going is a
