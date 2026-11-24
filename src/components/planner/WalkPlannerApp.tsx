@@ -3056,20 +3056,29 @@ export function WalkPlannerApp({
       : null;
     firstFixAtRef.current = null;
 
+    // The dot is published first, so nothing the engine does can freeze it; a throw in the engine is logged, not fatal.
     const onPositionUpdate = (update: PaceUpdate) => {
-      // The dot accepts any fix the tracker lets through (<=100 m); speed,
-      // deviation and visits only trust fixes this good. A poor fix still moves
-      // the dot, but never changes what the engine believes.
-      if (update.accuracyMeters > ENGINE_MAX_ACCURACY_M) {
-        const poorNow = Date.now();
-        if (poorNow - lastGpsUpdateRef.current >= POSITION_PUBLISH_MS) {
-          lastGpsUpdateRef.current = poorNow;
-          gpsDebug.published();
-          setCurrentPosition(update.currentPosition);
-          setCurrentAccuracyM(update.accuracyMeters);
-        }
-        return;
+      // The dot accepts any fix the tracker lets through (<=150 m); speed, deviation and visits only trust fixes this
+      // good. A poor fix still moves the dot, but never changes what the engine believes.
+      const now = Date.now();
+      const due = now - lastGpsUpdateRef.current >= POSITION_PUBLISH_MS;
+      if (due) {
+        lastGpsUpdateRef.current = now;
+        gpsDebug.published();
+        setCurrentPosition(update.currentPosition);
+        setCurrentAccuracyM(update.accuracyMeters);
       }
+      if (update.accuracyMeters > ENGINE_MAX_ACCURACY_M) return;
+      try {
+        runEngine(update, due);
+      } catch (e) {
+        gpsDebug.error(e);
+        console.error("walk engine error", e);
+      }
+    };
+
+    // Throttle setState calls to at most once per second (LOW-2): `due` says the dot was published on this fix.
+    const runEngine = (update: PaceUpdate, due: boolean) => {
       latestPaceUpdateRef.current = update;
       lastFixWallRef.current = Date.now();
       headingSmootherRef.current.push({
@@ -3128,14 +3137,7 @@ export function WalkPlannerApp({
         ]);
       }
 
-      // Throttle setState calls to at most once per second (LOW-2)
-      const now = Date.now();
-      if (now - lastGpsUpdateRef.current < POSITION_PUBLISH_MS) return;
-      lastGpsUpdateRef.current = now;
-
-      gpsDebug.published();
-      setCurrentPosition(update.currentPosition);
-      setCurrentAccuracyM(update.accuracyMeters);
+      if (!due) return;
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
       if (trailFilterRef.current.accept(update.currentPosition, update.timestamp, update.accuracyMeters)) {
