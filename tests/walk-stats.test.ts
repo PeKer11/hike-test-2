@@ -9,6 +9,7 @@ import {
   paceBarTone,
   progressAlong,
   spareMinAtPace,
+  steadyWalkedM,
   timeToFinishMin,
 } from "@/lib/walk/walk-stats";
 import type { Coordinates } from "@/lib/types";
@@ -138,5 +139,17 @@ describe("spareMinAtPace", () => {
   it("the planned-2-km/h walker at 4.5 km/h has time to lengthen", () => {
     // Plan: 2 km/h (30 min/km). 1 h set, 15 min in, 2 km left.
     expect(spareMinAtPace({ availableMin: 60, elapsedMin: 15, remainingM: 2000, remainingVisitMin: 0, paceMinPerKm: 13.3 })).toBeGreaterThan(10);
+  });
+});
+
+describe("steadyWalkedM (distance holds while the walker is paused)", () => {
+  it("holds the last distance while paused and the new fix is only jitter", () => {
+    expect(steadyWalkedM(500, 512, "paused")).toBe(500);
+    expect(steadyWalkedM(500, 478, "paused")).toBe(500);
+  });
+  it("moves normally when walking, with no earlier value, or when the route itself was swapped", () => {
+    expect(steadyWalkedM(500, 512, "moving")).toBe(512);
+    expect(steadyWalkedM(null, 512, "paused")).toBe(512);
+    expect(steadyWalkedM(900, 20, "paused")).toBe(20);
   });
 });

@@ -33,6 +33,15 @@ export function progressAlong(
   return { walkedM, remainingM: Math.max(0, total - walkedM) };
 }
 
+/** A jump bigger than this while "paused" is a swapped route or a real move, not jitter. */
+const STEADY_MAX_JUMP_M = 60;
+
+/** Distance walked, held still while the walker is paused so GPS wobble does not make it tick up and down. */
+export function steadyWalkedM(prev: number | null, next: number, speedState: string): number {
+  if (speedState !== "paused" || prev === null) return next;
+  return Math.abs(next - prev) <= STEADY_MAX_JUMP_M ? prev : next;
+}
+
 /**
  * Minutes left. The measured speed is believed whenever it is a plausible human
  * walking speed (1.5-10 km/h), symmetric for faster and slower than plan: a walker

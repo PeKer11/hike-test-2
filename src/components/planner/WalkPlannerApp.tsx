@@ -120,6 +120,7 @@ import {
   isNearAnyStop,
   nextStopAlongM,
   progressAlong,
+  steadyWalkedM,
   routeDirectionDeg,
   spareMinAtPace,
   timeToFinishMin,
@@ -833,11 +834,14 @@ export function WalkPlannerApp({
       kmh: null,
       state: "unknown" as const,
     };
-    const { walkedM, remainingM } = progressAlong(
+    const projected = progressAlong(
       walkGeometryRef.current,
       matched.segmentIndex,
       matched.point,
     );
+    // Standing still: hold the distance (and what is left) instead of letting GPS wobble move them.
+    const walkedM = steadyWalkedM(walkStatsRef.current?.walkedM ?? null, projected.walkedM, speed.state);
+    const remainingM = walkedM === projected.walkedM ? projected.remainingM : Math.max(0, projected.remainingM + projected.walkedM - walkedM);
     const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
     const remainingVisitMin = (walkPlanRef.current?.orderedAttractions ?? [])
       .filter((a) => !visited.has(a.id))
