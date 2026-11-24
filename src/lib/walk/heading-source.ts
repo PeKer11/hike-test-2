@@ -1,5 +1,5 @@
-/** A compass reading older than this (ms) is stale: the sensor stopped, was refused or lost calibration. */
-export const COMPASS_FRESH_MS = 1500;
+/** A compass reading older than this (ms) is stale. Phones only report CHANGES, so a held-still phone is quiet: keep this long, or the beam swings to the GPS course while the compass is fine. */
+export const COMPASS_FRESH_MS = 10_000;
 
 export interface HeadingSources {
   /** The smoothed GPS / movement heading (`HeadingSmoother`), degrees clockwise from north; null when it has none. */

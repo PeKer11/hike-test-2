@@ -12,10 +12,10 @@ describe("chooseHeading", () => {
     expect(chooseHeading({ ...base, gps: 90, ...compass(200) })).toBe(200);
   });
 
-  it("falls back to the GPS course when the compass is stale (> 1.5 s)", () => {
-    expect(COMPASS_FRESH_MS).toBe(1500);
-    expect(chooseHeading({ ...base, gps: 90, ...compass(200, 1500) })).toBe(200); // exactly 1.5 s is still fresh
-    expect(chooseHeading({ ...base, gps: 90, ...compass(200, 1501) })).toBe(90);
+  it("falls back to the GPS course when the compass is stale (> 10 s)", () => {
+    expect(COMPASS_FRESH_MS).toBe(10_000);
+    expect(chooseHeading({ ...base, gps: 90, ...compass(200, 10_000) })).toBe(200); // exactly 10 s is still fresh
+    expect(chooseHeading({ ...base, gps: 90, ...compass(200, 10_001) })).toBe(90);
   });
 
   it("falls back to the GPS course when there is no compass at all", () => {

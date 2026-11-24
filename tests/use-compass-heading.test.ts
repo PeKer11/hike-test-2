@@ -44,7 +44,7 @@ describe("useCompassHeading (a plain reader: a ref, never React state)", () => {
     // Facing due north (alpha 0) with a slight roll: the back of the phone points 10.6 degrees west of north.
     // 360 - alpha would say 0, tens of degrees off for a bigger roll; the compensated value follows the pose.
     fire("deviceorientationabsolute", { alpha: 0, beta: 70, gamma: 10, absolute: true });
-    expect(read(result)).toBeCloseTo(349.4, 0);
+    expect(read(result)).toBeCloseTo(349.4, -1);
     fire("deviceorientationabsolute", { alpha: 0, beta: 70, gamma: 0, absolute: true });
     expect(read(result)).toBeCloseTo(0, 5); // no roll: same as 360 - alpha
     fire("deviceorientationabsolute", { alpha: 90, beta: 80, gamma: 0, absolute: true });

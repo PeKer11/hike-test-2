@@ -7,7 +7,7 @@ import { chooseHeading } from "@/lib/walk/heading-source";
 import { createHeadingStore, type HeadingStore } from "@/lib/walk/heading-store";
 
 /** Time constant of the beam's easing, ms: 63 % of a turn in 90 ms, 95 % in 270 ms. */
-export const HEADING_TAU_MS = 90;
+export const HEADING_TAU_MS = 60;
 /** Within this many degrees of the target the loop goes idle. */
 const SETTLED_DEG = 0.2;
 /** The store is written only when the shown value moved this much. */

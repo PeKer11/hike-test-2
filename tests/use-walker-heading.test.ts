@@ -77,7 +77,7 @@ describe("useWalkerHeading (a store the beam turns from, no React value)", () =>
     compass(80);
     run(600);
     expect(m.shown()).toBeCloseTo(80, 0);
-    run(1600); // the compass sends nothing for over 1.5 s
+    run(10_500); // the compass sends nothing for over 10 s
     expect(m.shown()).toBeCloseTo(135, 0);
     compass(80);
     run(600);

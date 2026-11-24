@@ -47,6 +47,7 @@ export class HeadingSmoother {
     const standing = sample.speedMps !== undefined && Number.isFinite(sample.speedMps) && sample.speedMps < STANDING_SPEED_MPS;
     const accurate = sample.accuracyM <= HEADING_MAX_ACCURACY_M;
     let target: number | null = null;
+    let directFromDevice = false;
 
     const deviceHeading = sample.headingDeg;
     if (
@@ -59,6 +60,7 @@ export class HeadingSmoother {
       sample.speedMps >= HEADING_MIN_SPEED_MPS
     ) {
       target = normalise(deviceHeading);
+      directFromDevice = true;
       if (accurate) this.anchor = sample;
     } else if (!accurate || standing) {
       // A loose fix says nothing about direction, and a standing walker has none: never start a chord from either.
@@ -77,7 +79,8 @@ export class HeadingSmoother {
     if (target === null) return;
     // After a long gap the old heading is history, not something to blend with.
     if (this.smoothed !== null && sample.timestamp - this.lastValidAt > HEADING_HOLD_MS) this.smoothed = null;
-    this.smoothed = this.smoothed === null ? target : this.smoothed + ALPHA * turn(normalise(this.smoothed), target);
+    // The phone's own heading is already filtered, and the marker eases it every frame: blending it here only added lag.
+    this.smoothed = this.smoothed === null ? target : this.smoothed + (directFromDevice ? 1 : ALPHA) * turn(normalise(this.smoothed), target);
     this.lastValidAt = sample.timestamp;
   }
 

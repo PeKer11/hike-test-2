@@ -105,9 +105,8 @@ describe("HeadingSmoother: smoothing and the 0/360 seam", () => {
     h.push(sample({ position: at(0, 1), headingDeg: 10, speedMps: 1.3 }));
     const v = h.current(clock)!;
     // Unwrapped and between the two: a CSS rotation from 350 to here is a few degrees, never a spin through 180.
-    expect(v).toBeGreaterThan(350);
-    expect(v).toBeLessThan(370);
-    expect(Math.abs(v - 350)).toBeLessThan(20);
+    // The phone's own heading is taken as is (the marker eases it): 370 is 10, reached the short way from 350.
+    expect(v).toBeCloseTo(370, 5);
   });
 
   it("takes the short way the other way round too: 10 to 350", () => {
@@ -115,17 +114,14 @@ describe("HeadingSmoother: smoothing and the 0/360 seam", () => {
     h.push(sample({ position: at(0, 0), headingDeg: 10, speedMps: 1.3 }));
     h.push(sample({ position: at(0, 1), headingDeg: 350, speedMps: 1.3 }));
     const v = h.current(clock)!;
-    expect(v).toBeLessThan(10);
-    expect(v).toBeGreaterThan(-10);
+    expect(v).toBeCloseTo(-10, 5);
   });
 
-  it("converges on a steady heading and moves only part of the way each step", () => {
+  it("takes the phone's own heading at once (no blend), and blends only chord bearings", () => {
     const h = fresh();
     h.push(sample({ position: at(0, 0), headingDeg: 0, speedMps: 1.3 }));
     h.push(sample({ position: at(0, 1), headingDeg: 90, speedMps: 1.3 }));
-    const first = h.current(clock)!;
-    expect(first).toBeGreaterThan(30);
-    expect(first).toBeLessThan(60);
+    expect(h.current(clock)!).toBeCloseTo(90, 5);
     for (let i = 0; i < 12; i += 1) h.push(sample({ position: at(i, 1), headingDeg: 90, speedMps: 1.3 }));
     expect(h.current(clock)!).toBeCloseTo(90, 0);
   });

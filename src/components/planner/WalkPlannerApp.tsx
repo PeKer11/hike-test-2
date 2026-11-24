@@ -225,6 +225,8 @@ import { readTtsOptIn, ttsSupported, writeTtsOptIn } from "@/lib/walk/tts";
 
 /** A GPS fix older than this is stale: nothing re-routes automatically from it. */
 const STALE_FIX_MS = 20_000;
+/** Real 1 Hz GPS arrives 1000 +- 40 ms; a 1000 ms gate dropped a third of the fixes and the dot jumped every ~1.4 s. */
+const POSITION_PUBLISH_MS = 900;
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -3016,7 +3018,7 @@ export function WalkPlannerApp({
       // the dot, but never changes what the engine believes.
       if (update.accuracyMeters > ENGINE_MAX_ACCURACY_M) {
         const poorNow = Date.now();
-        if (poorNow - lastGpsUpdateRef.current >= 1000) {
+        if (poorNow - lastGpsUpdateRef.current >= POSITION_PUBLISH_MS) {
           lastGpsUpdateRef.current = poorNow;
           setCurrentPosition(update.currentPosition);
           setCurrentAccuracyM(update.accuracyMeters);
@@ -3033,7 +3035,8 @@ export function WalkPlannerApp({
         speedMps: update.speedMps,
       });
       // Every accepted fix, outside the 1 s throttle below: the beam's lag is the sum of the delays, so none is added here.
-      walkerHeading.setGps(headingSmootherRef.current.current(update.timestamp));
+      // A simulated walk steers the beam by its raw path bearing; the smoother would add seconds of lag.
+      walkerHeading.setGps(isSimulating && update.headingDeg != null ? update.headingDeg : headingSmootherRef.current.current(update.timestamp));
       if (firstFixAtRef.current === null) {
         firstFixAtRef.current = resumedStartRef.current ?? update.timestamp;
         // A cooldown armed on the previous leg's clock (the simulator's runs 10x ahead) must not outlast its length here.
@@ -3082,7 +3085,7 @@ export function WalkPlannerApp({
 
       // Throttle setState calls to at most once per second (LOW-2)
       const now = Date.now();
-      if (now - lastGpsUpdateRef.current < 1000) return;
+      if (now - lastGpsUpdateRef.current < POSITION_PUBLISH_MS) return;
       lastGpsUpdateRef.current = now;
 
       setCurrentPosition(update.currentPosition);

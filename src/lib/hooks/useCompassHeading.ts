@@ -53,8 +53,16 @@ const MIN_BACK_REACH = 0.5;
 function androidHeading(alpha: number, beta: unknown, gamma: unknown): number {
   if (typeof beta === "number" && typeof gamma === "number" && Number.isFinite(beta) && Number.isFinite(gamma)) {
     const d = Math.PI / 180;
-    const reach = Math.hypot(Math.sin(gamma * d), Math.cos(gamma * d) * Math.sin(beta * d));
-    if (reach >= MIN_BACK_REACH) return tiltCompensatedHeading(alpha, beta, gamma);
+    // Blend the back-of-phone heading and the top-of-screen heading, each weighted by how much of its vector lies in
+    // the horizontal plane. A hard switch made the beam jump at ~30 degrees of pitch and amplify the hand's roll.
+    const cb = Math.cos(beta * d);
+    const ta = alpha * d;
+    const tx = -Math.sin(ta) * cb, ty = Math.cos(ta) * cb, nt = Math.abs(cb);
+    const back = tiltCompensatedHeading(alpha, beta, gamma) * d;
+    const bnorm = Math.hypot(Math.sin(gamma * d), Math.cos(gamma * d) * Math.sin(beta * d));
+    const bx = Math.sin(back) * bnorm, by = Math.cos(back) * bnorm;
+    const x = tx * nt + bx * bnorm, y = ty * nt + by * bnorm;
+    if (Math.hypot(x, y) > 1e-6) return (((Math.atan2(x, y) / d) % 360) + 360) % 360;
   }
   // Flat on a table or in a palm: the top of the screen is what points, and alpha is exactly its heading.
   return 360 - alpha;
