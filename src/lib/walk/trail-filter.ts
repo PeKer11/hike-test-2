@@ -1,42 +1,73 @@
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
-import { SPEED_MAX_JUMP_MPS, TRAIL_MAX_ACCURACY_M, TRAIL_MIN_STEP_M } from "@/lib/walk/walk-cadence";
+import {
+  ENGINE_MAX_ACCURACY_M,
+  SPEED_MAX_JUMP_MPS,
+  TRAIL_MAX_ACCURACY_M,
+  TRAIL_MAX_STEP_M,
+  TRAIL_MIN_STEP_M,
+  TRAIL_SMOOTH_ABOVE_ACCURACY_M,
+  TRAIL_SMOOTH_FIXES,
+  TRAIL_SMOOTH_WINDOW_MS,
+} from "@/lib/walk/walk-cadence";
 
 /** Same rule as the speed estimator: this many consistent rejected jumps in a row mean the walker really moved. */
 const MAX_CONSECUTIVE_REJECTS = 3;
 
+/** How far from the last kept point a fix must be to become a trail point. */
+const stepFor = (accuracyM: number) => Math.max(TRAIL_MIN_STEP_M, Math.min(accuracyM, TRAIL_MAX_STEP_M));
+
 /**
  * Decides which GPS fixes become points of the walked trail, so a phone standing
  * still draws no scribble. Time is the fix timestamp, never the wall clock.
+ *
+ * A fix worse than TRAIL_SMOOTH_ABOVE_ACCURACY_M is judged by the average of the last few fixes, because with a
+ * step smaller than the reported accuracy a single noisy fix would otherwise draw points while standing still.
  */
 export class TrailFilter {
   private last: { coordinates: Coordinates; timestamp: number } | null = null;
   private rejectAnchor: Coordinates | null = null;
   private rejects = 0;
+  private recent: Array<{ coordinates: Coordinates; timestamp: number }> = [];
 
   reset(): void {
     this.last = null;
     this.rejectAnchor = null;
     this.rejects = 0;
+    this.recent = [];
+  }
+
+  /** The fix itself when it is good; otherwise the mean of the recent fixes (including it). */
+  private reference(coordinates: Coordinates, timestamp: number, accuracyM: number): Coordinates {
+    this.recent.push({ coordinates, timestamp });
+    this.recent = this.recent.filter((r) => timestamp - r.timestamp <= TRAIL_SMOOTH_WINDOW_MS).slice(-TRAIL_SMOOTH_FIXES);
+    if (accuracyM <= TRAIL_SMOOTH_ABOVE_ACCURACY_M || this.recent.length < 2) return coordinates;
+    const n = this.recent.length;
+    return {
+      lat: this.recent.reduce((s, r) => s + r.coordinates.lat, 0) / n,
+      lng: this.recent.reduce((s, r) => s + r.coordinates.lng, 0) / n,
+    };
   }
 
   /** True when the fix should be added to the trail. */
   accept(coordinates: Coordinates, timestamp: number, accuracyM: number): boolean {
     if (!(accuracyM <= TRAIL_MAX_ACCURACY_M)) return false;
-    if (!this.last) return this.keep(coordinates, timestamp);
+    const ref = this.reference(coordinates, timestamp, accuracyM);
+    if (!this.last) return this.keep(ref, timestamp);
+
+    const step = stepFor(accuracyM);
+    if (haversineDistance(this.last.coordinates, ref) < step) return false;
 
     const dist = haversineDistance(this.last.coordinates, coordinates);
-    if (dist < Math.max(TRAIL_MIN_STEP_M, accuracyM)) return false;
-
     const dtSec = (timestamp - this.last.timestamp) / 1000;
     const jumpMps = dtSec > 0 ? dist / dtSec : Infinity;
     if (jumpMps > SPEED_MAX_JUMP_MPS) {
-      const consistent = this.rejectAnchor !== null && haversineDistance(this.rejectAnchor, coordinates) <= Math.max(TRAIL_MIN_STEP_M, accuracyM);
+      const consistent = this.rejectAnchor !== null && haversineDistance(this.rejectAnchor, coordinates) <= step;
       this.rejects = consistent ? this.rejects + 1 : 1;
       this.rejectAnchor = coordinates;
       if (this.rejects < MAX_CONSECUTIVE_REJECTS) return false;
     }
-    return this.keep(coordinates, timestamp);
+    return this.keep(ref, timestamp);
   }
 
   private keep(coordinates: Coordinates, timestamp: number): true {
@@ -45,4 +76,17 @@ export class TrailFilter {
     this.rejects = 0;
     return true;
   }
+}
+
+/**
+ * The walked trail as it is drawn: the kept points plus the dot as the last vertex, so the gold line always meets the
+ * dot instead of ending up to a step behind it. Pure. A trail with no point yet, a dot that is not engine-grade, or a
+ * dot already on the last point leave the trail untouched (same array).
+ */
+export function withLiveTail(walked: Coordinates[], dot: Coordinates | undefined | null, accuracyM: number | null | undefined): Coordinates[] {
+  if (!dot || walked.length === 0) return walked;
+  if (!(typeof accuracyM === "number" && accuracyM <= ENGINE_MAX_ACCURACY_M)) return walked;
+  const end = walked[walked.length - 1];
+  if (end.lat === dot.lat && end.lng === dot.lng) return walked;
+  return [...walked, dot];
 }

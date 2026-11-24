@@ -36,9 +36,15 @@ export const PAUSED_MIN_MOVE_M = 8;
 
 // --- Walked trail (the gold line) --------------------------------------------
 /** A fix worse than this never becomes a trail point. */
-export const TRAIL_MAX_ACCURACY_M = 25;
-/** A trail point is at least this far (or the fix accuracy, if larger) from the last one. */
+export const TRAIL_MAX_ACCURACY_M = ENGINE_MAX_ACCURACY_M;
+/** A trail point is at least this far from the last one... */
 export const TRAIL_MIN_STEP_M = 8;
+/** ...or the fix accuracy, if larger, up to this cap (a 30 m phone still draws a line while walking). */
+export const TRAIL_MAX_STEP_M = 15;
+/** A fix worse than this is judged against the average of the last few, so its noise alone cannot draw a point. */
+export const TRAIL_SMOOTH_ABOVE_ACCURACY_M = 15;
+export const TRAIL_SMOOTH_FIXES = 4;
+export const TRAIL_SMOOTH_WINDOW_MS = 6_000;
 
 // --- Pace advisory (cards only; never rebuilds on its own) ------------------
 export const PACE_ADVISOR_WINDOW_MS = 5 * 60_000;

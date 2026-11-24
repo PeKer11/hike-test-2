@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { TrailFilter } from "@/lib/walk/trail-filter";
+import { TrailFilter, withLiveTail } from "@/lib/walk/trail-filter";
 import { haversineDistance } from "@/lib/utils/geo";
 import type { Coordinates } from "@/lib/types";
 
@@ -55,12 +55,59 @@ describe("TrailFilter", () => {
     expect(f.accept(at(515), 12_000, 10)).toBe(true);
   });
 
-  it("ignores fixes worse than 25 m and reset forgets the last point", () => {
+  it("ignores fixes worse than 50 m and reset forgets the last point", () => {
     const f = new TrailFilter();
-    expect(f.accept(at(0), 0, 30)).toBe(false);
+    expect(f.accept(at(0), 0, 60)).toBe(false);
     expect(f.accept(at(0), 1000, 10)).toBe(true);
     expect(f.accept(at(0), 2000, 10)).toBe(false);
     f.reset();
     expect(f.accept(at(0), 3000, 10)).toBe(true);
+  });
+
+  it("walking at 1.4 m/s with steady 30 m accuracy still adds a point at least every 20 s (noisy fixes)", () => {
+    const f = new TrailFilter();
+    let seed = 11;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    const keptAt: number[] = [];
+    for (let i = 0; i < 180; i += 1) {
+      const c = at(i * 1.4 + (rnd() * 30) / 2.2, (rnd() * 30) / 2.2);
+      if (f.accept(c, i * 1000, 30)) keptAt.push(i);
+    }
+    expect(keptAt.length).toBeGreaterThan(5);
+    const gaps = keptAt.slice(1).map((t, k) => t - keptAt[k]);
+    expect(Math.max(...gaps, 180 - keptAt[keptAt.length - 1])).toBeLessThanOrEqual(20);
+  });
+
+  it("at 12 m accuracy the trail end stays within 12 m of the dot", () => {
+    const f = new TrailFilter();
+    let end = at(0);
+    let worst = 0;
+    for (let i = 0; i <= 200; i += 1) {
+      const c = at(i * 1.4);
+      if (f.accept(c, i * 1000, 12)) end = c;
+      worst = Math.max(worst, haversineDistance(end, c));
+    }
+    expect(worst).toBeLessThanOrEqual(12);
+  });
+
+  it("standing still with 30-40 m accuracy and 15 m wobble keeps at most 2 points", () => {
+    const f = new TrailFilter();
+    let seed = 5;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    let kept = 0;
+    for (let i = 0; i < 300; i += 1) {
+      if (f.accept(at(rnd() * 15, rnd() * 15), i * 1000, 30 + Math.abs(rnd()) * 10)) kept += 1;
+    }
+    expect(kept).toBeLessThanOrEqual(2);
+  });
+
+  it("withLiveTail ends the line at the dot, and leaves an empty trail or a poor dot alone", () => {
+    const walked = [at(0), at(20)];
+    expect(withLiveTail(walked, at(31), 12)).toEqual([at(0), at(20), at(31)]);
+    expect(withLiveTail(walked, at(31), 80)).toBe(walked);
+    expect(withLiveTail(walked, undefined, 12)).toBe(walked);
+    const empty: Coordinates[] = [];
+    expect(withLiveTail(empty, at(31), 12)).toBe(empty);
+    expect(withLiveTail(walked, at(20), 12)).toBe(walked);
   });
 });
