@@ -1355,11 +1355,20 @@ export function WalkPlannerApp({
   const walksSummary = useWalksSummary(isSignedIn && view === "walks", walksVersion);
   // Walks is a sheet under a sunset band (round 13), not the sand-wall sidebar.
   const walksScreen = view === "walks";
+  // The Walks tab opened over a live walk: the aside is hidden and the map column too, so it gets a column of its own.
+  const walksDuringWalk = walksScreen && walkMode;
   // Plan and Walks sit under a painted band on one cream sheet (the live walk and the legacy hub tabs keep the old column).
   const bandScreen = walksScreen || (!walkMode && !hubTab);
   // Walk again, from wherever the walker is: find them, decide what to offer, and either just start or ask once.
   const [againFlow, setAgainFlow] = useState<{ walk: SavedWalk; here: Coordinates | null; decision: WalkAgainDecision } | null>(null);
   const [chatPrefill, setChatPrefill] = useState<{ text: string; tick: number } | null>(null);
+  // Starting another walk over a live one replaces it: ask first, and end the live walk only on a yes.
+  const confirmEndWalkThen = (go: () => void) => {
+    const text = uiLang === "he" ? "לסיים את ההליכה הנוכחית ולהתחיל את זו?" : "End the current walk and start this one?";
+    if (!window.confirm(text)) return;
+    handleEndWalk();
+    go();
+  };
   const walkAgainFromSaved = (walk: SavedWalk) => {
     void (async () => {
       const here = await locateOnce(6000);
@@ -4179,7 +4188,7 @@ export function WalkPlannerApp({
             ? "@4xl:relative @4xl:order-1 @4xl:h-full @4xl:w-[320px] @4xl:flex-none @4xl:border-t-0 @4xl:border-r"
             : "@3xl:relative @3xl:order-1 @3xl:h-full @3xl:w-[360px] @3xl:flex-none @3xl:border-t-0 @3xl:border-r"
         } @6xl:w-[400px] ${
-          walkMode && !isDetailsOpen ? "hidden @4xl:block" : ""
+          walksDuringWalk ? "hidden" : walkMode && !isDetailsOpen ? "hidden @4xl:block" : ""
         } ${mapFull && !walkMode ? "hidden @3xl:block" : ""} ${
           walkMode && isDetailsOpen
             ? "absolute inset-x-0 bottom-0 z-[700] max-h-[70%] flex-none rounded-t-2xl shadow-[0_-4px_20px_rgba(30,61,47,0.18)] @4xl:static @4xl:max-h-none @4xl:flex-1 @4xl:rounded-none @4xl:shadow-none"
@@ -5154,6 +5163,49 @@ export function WalkPlannerApp({
         {!walkMode && !hubTab && ((isSignedIn && walkPhase === "idle") || (isAdvancedOpen && plannerMode !== "walk-companion")) && mapOptionsCard}
         </div>
       </aside>
+
+      {walksDuringWalk && (
+        <div data-testid="walks-during-walk" className="order-1 min-h-0 w-full flex-1 overflow-y-auto overscroll-contain bg-cream">
+          <WalksBand lang={uiLang === "he" ? "he" : "en"} summary={walksSummary} />
+          <div className="sticky top-0 z-20 flex justify-center bg-cream/90 px-4 py-2 backdrop-blur">
+            <button type="button" onClick={() => onNavigate?.("walk")} className={`${BTN} w-full max-w-[440px]`}>
+              {uiLang === "he" ? "חזרה להליכה" : "Back to your walk"}
+            </button>
+          </div>
+          <div className="tk-page space-y-[15px] px-4 pb-6">
+            {isSignedIn ? (
+              <>
+                <WalksTabs
+                  lang={uiLang === "he" ? "he" : "en"}
+                  value={walksSegment === "history" ? "walked" : "saved"}
+                  summary={walksSummary}
+                  onChange={(id) => {
+                    if (id === "friends") onNavigate?.("social");
+                    else chooseWalksTab(id === "walked" ? "history" : "saved");
+                  }}
+                />
+                <MyWalksPanel
+                  segment={walksSegment}
+                  lang={uiLang === "he" ? "he" : "en"}
+                  onNewRoute={() => onNavigate?.("walk")}
+                  isSignedIn={isSignedIn}
+                  refreshKey={walksVersion}
+                  previewId={null}
+                  onWalkAgain={(walk) => confirmEndWalkThen(() => walkAgainFromSaved(walk))}
+                  onEditAsNew={(walk) =>
+                    confirmEndWalkThen(() => {
+                      const { input, attractions, routeRules } = rebuildFromSaved(walk);
+                      setSideTab("plan");
+                      onNavigate?.("plan");
+                      void handleBuildWalk(input, { keepAttractions: attractions, fixedOrder: true, routeRules: routeRules as AssistantBuild["routeRules"] });
+                    })
+                  }
+                />
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {againFlow && (
         <WalkAgainSheet
