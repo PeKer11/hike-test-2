@@ -211,7 +211,7 @@ describe("P21: a place added from the walk chat stays pinned", () => {
     assistantAnswer = { reply: "Skip the museum?", actions: [{ kind: "skip-stop", stopIndex: 0 }] };
     await advance(3_000); // the new leg's first fix: the chat has the walk in view again
     const callsBefore = walkPlanCalls.length;
-    await say("skip the first one");
+    await say("is the first one worth it?");
     fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: /^Skip City Museum$/ }));
     await flush();
     expect(walkPlanCalls).toHaveLength(callsBefore + 1);
