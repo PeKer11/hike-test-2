@@ -9,6 +9,7 @@ import { MapGlyphs } from "@/components/map/MapGlyphs";
 import { routeColors, walkedTrail } from "@/lib/map/route-colors";
 import { fitPadding, overviewBounds } from "@/lib/map/route-overview";
 import { useFollowPause } from "@/lib/hooks/useFollowPause";
+import { WALK_FOLLOW_ZOOM } from "@/lib/walk/walk-cadence";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
 
 import { GoogleCallouts, GoogleCurrentPosition, GooglePreviewMarkers, GoogleStopMarkers } from "@/components/map/GoogleMarkers";
@@ -118,7 +119,7 @@ function FitPath({ path }: { path?: Coordinates[] }) {
   return null;
 }
 
-function PositionFollower({
+export function PositionFollower({
   currentPosition,
   followPosition = false,
   onLayers,
@@ -165,12 +166,25 @@ function PositionFollower({
       div.removeEventListener("touchcancel", onTouchEnd);
     };
   }, [map, pause, scheduleResume]);
+  // Following starts (a walk begins): come in to street level once, so walking visibly moves the map.
+  const zoomedForFollow = useRef(false);
+  useEffect(() => {
+    if (!followPosition) {
+      zoomedForFollow.current = false;
+      return;
+    }
+    if (!map || !currentPosition || zoomedForFollow.current) return;
+    zoomedForFollow.current = true;
+    if ((map.getZoom() ?? 0) < WALK_FOLLOW_ZOOM) map.moveCamera({ center: currentPosition, zoom: WALK_FOLLOW_ZOOM });
+  }, [map, currentPosition, followPosition]);
   useEffect(() => {
     if (map && followPosition && currentPosition && !paused) map.panTo(currentPosition);
   }, [map, currentPosition, followPosition, paused]);
   const recentre = () => {
     resume();
-    if (map && currentPosition) map.panTo(currentPosition);
+    if (!map || !currentPosition) return;
+    if ((map.getZoom() ?? 0) < WALK_FOLLOW_ZOOM) map.moveCamera({ center: currentPosition, zoom: WALK_FOLLOW_ZOOM });
+    else map.panTo(currentPosition);
   };
   const fitWholeRoute = () => {
     if (held) return recentre();

@@ -5,7 +5,7 @@ import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility
 import "leaflet-defaulticon-compatibility";
 
 import { AttributionControl, MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { MapClickHandler } from "@/components/map/MapClickHandler";
 import { GpsDebugLine } from "@/components/map/GpsDebugLine";
@@ -15,6 +15,7 @@ import { fitPadding, overviewBounds } from "@/lib/map/route-overview";
 import { boundsOf } from "@/lib/utils/geo";
 import { useResolvedTheme } from "@/lib/theme/useResolvedTheme";
 import { useFollowPause } from "@/lib/hooks/useFollowPause";
+import { WALK_FOLLOW_ZOOM } from "@/lib/walk/walk-cadence";
 import { useIsPhone } from "@/lib/hooks/useIsPhone";
 import { CurrentPositionMarker } from "@/components/map/CurrentPositionMarker";
 import { MapMarkers } from "@/components/map/MapMarkers";
@@ -168,6 +169,18 @@ function PositionFollower({
     };
   }, [map, pause, scheduleResume]);
 
+  // Following starts (a walk begins): come in to street level once, so walking visibly moves the map.
+  const zoomedForFollow = useRef(false);
+  useEffect(() => {
+    if (!followPosition) {
+      zoomedForFollow.current = false;
+      return;
+    }
+    if (!currentPosition || zoomedForFollow.current) return;
+    zoomedForFollow.current = true;
+    if (map.getZoom() < WALK_FOLLOW_ZOOM) map.setView([currentPosition.lat, currentPosition.lng], WALK_FOLLOW_ZOOM);
+  }, [currentPosition, followPosition, map]);
+
   useEffect(() => {
     if (!followPosition || !currentPosition || paused) {
       return;
@@ -178,7 +191,9 @@ function PositionFollower({
 
   const recentre = () => {
     resume();
-    if (currentPosition) map.panTo([currentPosition.lat, currentPosition.lng]);
+    if (!currentPosition) return;
+    if (map.getZoom() < WALK_FOLLOW_ZOOM) map.setView([currentPosition.lat, currentPosition.lng], WALK_FOLLOW_ZOOM);
+    else map.panTo([currentPosition.lat, currentPosition.lng]);
   };
   const fitWholeRoute = () => {
     if (held) return recentre();

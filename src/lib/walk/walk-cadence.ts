@@ -18,6 +18,10 @@ export const ENGINE_MAX_ACCURACY_M = 50;
 /** UI state is pushed at most this often. */
 export const UI_UPDATE_MIN_INTERVAL_MS = 1_000;
 
+// --- Camera ----------------------------------------------------------------
+/** Following the walker, the map is at least this close (street level: about 1 m per pixel). */
+export const WALK_FOLLOW_ZOOM = 17;
+
 // --- Ticker ----------------------------------------------------------------
 export const WALK_TICK_MS = 5_000;
 
