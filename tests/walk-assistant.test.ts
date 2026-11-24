@@ -54,6 +54,15 @@ describe("POST /api/walk-assistant", () => {
     expect(learnFactsFromText).not.toHaveBeenCalled();
   });
 
+  it("passes autoApply only when the walker's own words are that command", async () => {
+    await post({ ...base, history: [{ role: "user", content: "תוסיף שני מקומות" }], autoApply: "add" });
+    expect((runWalkTurn.mock.calls[0][0] as { autoApply?: string }).autoApply).toBe("add");
+    await post({ ...base, history: [{ role: "user", content: "what is nice?" }], autoApply: "add" });
+    expect((runWalkTurn.mock.calls[1][0] as { autoApply?: string }).autoApply).toBeUndefined();
+    await post({ ...base, history: [{ role: "user", content: "תוסיף שני מקומות" }], autoApply: "drop" });
+    expect((runWalkTurn.mock.calls[2][0] as { autoApply?: string }).autoApply).toBeUndefined();
+  });
+
   it("refuses an oversized body", async () => {
     expect((await post(base, { "content-length": "200000" })).status).toBe(413);
   });

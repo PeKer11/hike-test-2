@@ -26,7 +26,7 @@ function setup(actions: unknown[]) {
 }
 
 async function propose(h: ReturnType<typeof setup>) {
-  act(() => h.result.current.send("add a stop"));
+  act(() => h.result.current.send("anything nice nearby?"));
   await waitFor(() => expect(h.result.current.messages.at(-1)?.actions.length ?? 0).toBeGreaterThan(0));
 }
 

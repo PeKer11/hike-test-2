@@ -38,7 +38,7 @@ const AMENITY_WORDS: Record<AmenityKind, string[]> = {
 };
 
 // Unambiguous: always a skip.
-const SKIP_WORDS = [
+export const SKIP_WORDS = [
   "skip", "remove", "forget", "cancel", "דלג", "דלגו", "תדלג", "תדלגו", "הסר", "תוריד", "הורד", "בטל", "וותר",
 ];
 // "drop by a cafe", "לא רוצה ללכת עוד": only a skip when they point at a stop.
@@ -86,7 +86,7 @@ function wordRegex(word: string, flags = ""): RegExp {
   return new RegExp(`(^|[^a-z])${body}[a-z]*`, flags);
 }
 
-function normalize(text: string): string {
+export function normalize(text: string): string {
   return text.toLowerCase().replace(/['’`"״׳]/g, "").replace(/\s+/g, " ").trim();
 }
 
@@ -97,7 +97,7 @@ function hasWord(text: string, word: string): boolean {
   return new RegExp(`(^|[^a-z])${body}${end}`).test(text);
 }
 
-const hasAny = (text: string, words: string[]) => words.some((w) => hasWord(text, w));
+export const hasAny = (text: string, words: string[]) => words.some((w) => hasWord(text, w));
 
 function amenityIn(text: string): AmenityKind | undefined {
   for (const kind of Object.keys(AMENITY_WORDS) as AmenityKind[]) {

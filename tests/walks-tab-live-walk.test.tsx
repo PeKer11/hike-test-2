@@ -272,9 +272,6 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
   it("U3: a change refused while an update is running marks nothing as dropped", async () => {
     await startSimulatedWalk();
     await advance(5_000);
-    assistantAnswer = { reply: "Skip the museum?", actions: [{ kind: "skip-stop", stopIndex: 0 }] };
-    await say("skip it");
-    const skip = chatButton(/^לדלג על City Museum/);
     assistantAnswer = { reply: "A kiosk.", actions: [add("Corner Kiosk", C)] };
     await say("a drink?");
     let release!: () => void;
@@ -282,7 +279,9 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
     fireEvent.click(chatButton("להוסיף את Corner Kiosk")); // a rebuild now running
     await flush();
     const before = walkPlanCalls.length;
-    fireEvent.click(skip); // refused: "still updating"
+    // A typed command runs at once, and is refused while the update is still running.
+    assistantAnswer = { reply: "Skipping the museum.", actions: [{ kind: "skip-stop", stopIndex: 0 }] };
+    await say("תוריד את המוזיאון");
     await flush();
     expect(walkPlanCalls).toHaveLength(before);
     holdPlan = null;
