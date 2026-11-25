@@ -205,6 +205,14 @@ describe("TrailFilter", () => {
     });
   });
 
+  it("a one-shot read (quick or re-arm) never enters the trail, and never starts it", () => {
+    const f = new TrailFilter();
+    expect(f.accept(at(120), 0, 12, undefined, "quick")).toBeNull();
+    expect(f.accept(at(0), 1000, 10, 0.1, "watch")).not.toBeNull();
+    for (let s = 2; s < 8; s += 1) f.accept(at(s * 1.4), s * 1000, 10, 1.4, "watch");
+    expect(f.accept(at(12), 8000, 10, 1.4, "rearm")).toBeNull();
+  });
+
   it("the live tail is allowed only for a dot the filter believes and that is near the trail's end", () => {
     const f = new TrailFilter();
     expect(f.tailAllowed(at(5), 10)).toBe(false); // nothing kept yet

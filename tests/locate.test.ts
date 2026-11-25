@@ -181,6 +181,14 @@ describe("locate", () => {
     expect(walk.fixes).toEqual([]);
   });
 
+  it("labels each fix with how it was read, so a one-shot read never seeds the walked trail", () => {
+    const { quick, watches } = fakeGeo();
+    const r = run("walk");
+    quick[0].ok(pos(40));
+    watches[0].ok(pos(8));
+    expect(r.fixes.map((f) => f.kind)).toEqual(["quick", "watch"]);
+  });
+
   it("does not use the IP city when a real fix has already answered", async () => {
     const { quick } = fakeGeo();
     const fetchMock = vi.fn();
@@ -242,6 +250,7 @@ describe("locate: a walk keeps its watch alive (back from another app, or silent
     quick.at(-1)?.ok(pos(7, 32.091));
     expect(r.fixes.at(-1)?.coordinates.lat).toBe(32.091);
     expect(r.fixes).toHaveLength(3);
+    expect(r.fixes.at(-1)?.kind).toBe("rearm");
   });
 
   it("re-arms a watch that has been silent for 30 s with the page visible, once per silence", () => {

@@ -37,6 +37,8 @@ export interface LocateFix {
   /** The device's own heading (`coords.heading`), degrees clockwise from north; only when it is a real number. */
   headingDeg?: number;
   source: "cache" | "gps" | "ip";
+  /** How the fix was read: the watch, or a one-shot read (quick, re-arm) that can be a Wi-Fi/cell fix on another clock. */
+  kind?: GpsFixKind;
   /** The city, for an IP fix ("roughly in {city}"). */
   city?: string;
 }
@@ -206,7 +208,7 @@ export function locate(options: LocateOptions): { stop(): void } {
     if (!best || fix.accuracyMeters <= best.accuracyMeters) best = fix;
     if (fix.source === "gps") saveLastFix(fix);
     setState(fix.accuracyMeters <= GOOD_ACCURACY_M ? "good" : "coarse");
-    onUpdate(fix);
+    onUpdate(fix.source === "gps" ? { ...fix, kind } : fix);
     if (purpose === "start" && fix.source === "gps" && fix.accuracyMeters <= GOOD_ACCURACY_M) clearWatch();
   };
 

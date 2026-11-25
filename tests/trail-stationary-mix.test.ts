@@ -58,7 +58,7 @@ function run(fixes: Fix[]) {
       dotAcc = x.acc;
     }
     if (x.acc <= ENGINE_MAX_ACCURACY_M && due) {
-      const point = filter.accept(x.c, x.t, x.acc, x.v);
+      const point = filter.accept(x.c, x.t, x.acc, x.v, x.quick ? "quick" : "watch");
       if (point) trail.push(point);
     }
     const drawn = withLiveTail(trail, dot, dotAcc, filter.tailAllowed(dot, dotAcc));
@@ -84,7 +84,7 @@ describe("a standing phone with network fixes mixed into the GPS stream draws no
       return xs;
     }],
     ["C: the walk's first fix is a network fix 120 m away, then GPS", 7, () => {
-      const xs: Fix[] = [{ ...net(0, 120, 300, 40), quick: true }];
+      const xs: Fix[] = [{ ...net(0, 120, 300, 14), quick: true }];
       for (let s = 1; s < T; s++) xs.push(gps(s * 1000));
       return xs;
     }],

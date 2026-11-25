@@ -1,6 +1,6 @@
 import type { Attraction, Coordinates } from "@/lib/types";
 import { haversineDistance, routeDistanceBetween } from "@/lib/utils/geo";
-import { gpsDebug } from "@/lib/geo/gps-debug";
+import { gpsDebug, type GpsFixKind } from "@/lib/geo/gps-debug";
 import { geolocationSupported, locate, type LocateFix, type LocateState } from "@/lib/geo/locate";
 import { DOT_MAX_ACCURACY_M, ENGINE_MAX_ACCURACY_M } from "@/lib/walk/walk-cadence";
 
@@ -35,6 +35,8 @@ export interface PaceUpdate {
   speedMps?: number;
   /** The device's own heading (`coords.heading`), degrees clockwise from north, when it reports a real one. */
   headingDeg?: number;
+  /** How the fix was read (the watch or a one-shot read). Only watch fixes may enter the walked trail. */
+  kind?: GpsFixKind;
 }
 
 export type PaceUpdateHandler = (update: PaceUpdate) => void;
@@ -146,6 +148,7 @@ export class WalkTracker {
       bearing,
       speedMps: fix.speedMps,
       headingDeg: fix.headingDeg,
+      kind: fix.kind,
     });
   }
 

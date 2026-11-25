@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/lib/types";
+import type { GpsFixKind } from "@/lib/geo/gps-debug";
 import { haversineDistance } from "@/lib/utils/geo";
 import {
   ENGINE_MAX_ACCURACY_M,
@@ -101,8 +102,16 @@ export class TrailFilter {
    * The point to add to the trail, or null when the fix adds nothing. That is the filter's own point (the mean of
    * the recent fixes for a poor fix), never the raw fix: the smoothing only protects the line when that is drawn.
    */
-  accept(coordinates: Coordinates, timestamp: number, accuracyM: number, speedMps?: number): Coordinates | null {
+  accept(
+    coordinates: Coordinates,
+    timestamp: number,
+    accuracyM: number,
+    speedMps?: number,
+    kind: GpsFixKind = "watch",
+  ): Coordinates | null {
     if (!(accuracyM <= TRAIL_MAX_ACCURACY_M)) return null;
+    // A one-shot read (quick, re-arm) may be a Wi-Fi/cell fix, and it can be stamped on another clock: dot only.
+    if (kind !== "watch") return null;
     const step = stepFor(accuracyM);
     this.seen = this.seen.filter((x) => timestamp - x.timestamp <= PROVIDER_WINDOW_MS);
     const withSpeed = this.seen.filter((x) => x.hasSpeed).length;
