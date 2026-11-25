@@ -14,6 +14,12 @@ import type { Announcement } from "@/lib/walk/poi-announcer";
 import { haversineDistance } from "@/lib/utils/geo";
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 
+/** Opens Details: the button is in the sheet's half state, so raise the sheet first if it is at peek. */
+function openDetails() {
+  if (!screen.queryByRole("button", { name: "Details" })) fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
+  fireEvent.click(screen.getByRole("button", { name: "Details" }));
+}
+
 interface MapProps {
   routeGeometry: Coordinates[];
   previewRoutes?: Array<{ id: string; geometry: Coordinates[]; highlighted: boolean }>;
@@ -575,8 +581,7 @@ describe("Show me something different", () => {
     await startSimulatedWalk();
     await advance(3_000);
 
-    fireEvent.click(screen.getByRole("button", { name: "Details" }));
-    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek, half, details
+    openDetails();
     fireEvent.click(screen.getByRole("button", { name: "Show me something different" }));
     await flush(6);
 
@@ -598,15 +603,13 @@ describe("Show me something different while a collapse is pending (A7)", () => {
   it("is disabled once the options are up, so a second request cannot replace the sheet", async () => {
     await startSimulatedWalk();
     await advance(3_000);
-    fireEvent.click(screen.getByRole("button", { name: "Details" }));
-    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek, half, details
+    openDetails();
     const different = () => screen.getByRole("button", { name: "Show me something different" }) as HTMLButtonElement;
     expect(different().disabled).toBe(false);
     fireEvent.click(different());
     await flush(6);
     expect(sheet()).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Details" }));
-    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek, half, details
+    openDetails();
     expect(different().disabled).toBe(true);
   });
 });

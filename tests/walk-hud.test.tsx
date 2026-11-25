@@ -11,6 +11,12 @@ import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 
+/** Opens Details: the button is in the sheet's half state, so raise the sheet first if it is at peek. */
+function openDetails() {
+  if (!screen.queryByRole("button", { name: "Details" })) fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
+  fireEvent.click(screen.getByRole("button", { name: "Details" }));
+}
+
 // Same stand-in, and the same reason, as `tests/walk-planner-app.test.tsx`.
 vi.mock("@/components/map", () => ({
   DynamicMap: ({
@@ -318,8 +324,7 @@ describe("the live-walk HUD", () => {
     await startSimulatedWalk();
     const aside = document.querySelector("aside") as HTMLElement;
     expect(aside.className).toContain("hidden");
-    fireEvent.click(screen.getByRole("button", { name: "Details" }));
-    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek, half, details
+    openDetails();
     expect(aside.className).not.toMatch(/(^| )hidden( |$)/);
     expect(aside.className).toContain("z-[700]");
   });
@@ -397,7 +402,7 @@ describe("the openrouteservice credit sits off the map (feedback 2026-11-22, ite
 
   it("is on screen whenever the sheet is, whatever state it is in", async () => {
     await startSimulatedWalk();
-    fireEvent.click(screen.getByRole("button", { name: "Details" })); // peek -> half
+    fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" })); // peek -> half
     expect(screen.getByTestId("walk-hud").getAttribute("data-sheet")).toBe("half");
     expect(creditText()).toBe(CREDIT);
   });

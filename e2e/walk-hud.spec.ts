@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { appErrors, watchConsole } from "./support/console-watch";
+import { openWalkDetails } from "./support/open-walk-details";
 import { openMore } from "./support/open-more";
 
 /**
@@ -180,8 +181,7 @@ test("the OSM attribution stays above the HUD while an alert card is showing", a
   await expect(page.getByTestId("walk-hud")).toBeVisible();
 
   // The stray control lives in the Details sheet; open it, send the walker off, close it.
-  await page.getByRole("button", { name: "Details" }).click();
-  await page.getByRole("button", { name: "Details" }).click();
+  await openWalkDetails(page);
   await page.getByRole("button", { name: /Stray \d+ m off route/ }).click();
   await page.getByRole("button", { name: "Back to walk" }).click();
 
@@ -241,8 +241,7 @@ test("the direction options sheet stays out of the account-pill corner and above
   // The stats bar appears with the first GPS fix; options need a position.
   await expect(page.getByTestId("walk-stats")).toBeVisible();
 
-  await page.getByRole("button", { name: "Details" }).click();
-  await page.getByRole("button", { name: "Details" }).click();
+  await openWalkDetails(page);
   await page.getByRole("button", { name: "Show me something different" }).click();
 
   const sheet = page.getByTestId("direction-options");
@@ -299,8 +298,7 @@ test("the off-route card is centred in the map area, wide, with tall actions", a
   await page.getByLabel(/Simulate this walk/).check();
   await page.getByRole("button", { name: "Start Walk" }).click();
   await expect(page.getByTestId("walk-hud")).toBeVisible();
-  await page.getByRole("button", { name: "Details" }).click();
-  await page.getByRole("button", { name: "Details" }).click();
+  await openWalkDetails(page);
   await page.getByRole("button", { name: /Stray \d+ m off route/ }).click();
   // The Details sheet's close control is named differently from the older spec above; any of its names will do.
   await page.getByRole("button", { name: /Close|Back to walk/ }).first().click().catch(() => {});

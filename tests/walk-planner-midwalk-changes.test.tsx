@@ -12,6 +12,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types";
 
+/** Opens Details: the button is in the sheet's half state, so raise the sheet first if it is at peek. */
+function openDetails() {
+  if (!screen.queryByRole("button", { name: "Details" })) fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
+  fireEvent.click(screen.getByRole("button", { name: "Details" }));
+}
+
 vi.mock("@/components/map", () => ({
   DynamicMap: ({
     waypoints,
@@ -354,8 +360,7 @@ describe("P9: Back to previous route keeps the clock", () => {
     await advance(5_000);
     await redrawFromHere(); // change 1
     await advance(30_000); // five more minutes of walking on the new route
-    fireEvent.click(screen.getByRole("button", { name: "Details" }));
-    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    openDetails();
     fireEvent.click(screen.getByRole("button", { name: "Back to previous plan" }));
     await flush();
     await advance(1_000);

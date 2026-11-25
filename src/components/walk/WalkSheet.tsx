@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode, type Ref } from "react";
 
-export type SheetState = "peek" | "half";
+export type SheetState = "peek" | "half" | "full";
 
 /**
  * From md the sheet no longer runs edge to edge. It floats over the map with the map's own bottom strip left clear (Google's
@@ -13,36 +13,35 @@ const FLOAT =
   "md:inset-x-0 md:bottom-8 md:mx-auto md:max-h-[calc(100%-96px)] md:w-[560px] md:max-w-[calc(100%-32px)] md:rounded-[6px] md:border-[1.5px] md:shadow-[0_8px_24px_rgba(30,20,10,0.28)] lg:inset-x-auto lg:start-4 lg:mx-0 lg:w-[400px]";
 
 /**
- * The walk's bottom sheet: one opaque surface with a drag handle. On a phone it is capped at 62% of the map section and
- * scrolls inside that, so an open chat can never push it past the top and leave the map no height (the map ends where it starts). PEEK is the default; HALF adds
- * the "coming up" content; one more step up (drag or tap) opens the full Details. Pointer events
- * only, no gesture library. Tapping the handle cycles peek, half, details.
+ * The walk's bottom sheet: one opaque surface with a drag handle, in three states held by the owner (WalkHud). PEEK is the
+ * default (deck and numbers, the map keeps the screen); HALF adds Ask, End walk and the "coming up" content; FULL is the
+ * chat open, capped at 62% of the map section and scrolling inside that, so an open chat can never push the sheet past the
+ * top. A tap on the handle toggles peek and half (full steps down to half); a drag moves one step. Pointer events only,
+ * no gesture library.
  */
 export function WalkSheet({
   sheetRef,
-  half,
-  onFull,
+  state,
+  onState,
   label,
   deck,
   children,
 }: {
   sheetRef?: Ref<HTMLDivElement>;
-  /** Extra content shown only in the HALF state. */
-  half?: ReactNode;
-  /** Past HALF: the walker asked for everything. */
-  onFull: () => void;
+  state: SheetState;
+  onState: (next: SheetState) => void;
   /** Accessible name of the handle. */
   label: string;
   /** The sunset deck (round 13) at the very top; the handle floats over it. */
   deck?: ReactNode;
   children: ReactNode;
 }) {
-  const [state, setState] = useState<SheetState>("peek");
   const startY = useRef<number | null>(null);
   const dragged = useRef(false);
 
-  const up = () => (state === "peek" ? setState("half") : onFull());
-  const down = () => setState("peek");
+  const up = () => onState(state === "peek" ? "half" : "full");
+  const down = () => onState(state === "full" ? "half" : "peek");
+  const tap = () => onState(state === "peek" ? "half" : state === "half" ? "peek" : "half");
 
   return (
     <div
@@ -75,7 +74,7 @@ export function WalkSheet({
               dragged.current = false;
               return;
             }
-            up();
+            tap();
           }}
           className={`mx-auto flex h-6 w-24 shrink-0 touch-none items-center justify-center ${deck ? "absolute inset-x-0 top-1 z-10" : ""}`}
         >
@@ -84,7 +83,6 @@ export function WalkSheet({
       </div>
       <div data-testid="walk-sheet-body" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-2">
         {children}
-        {state === "half" ? half : null}
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import { MapCredits } from "@/components/map/MapCredits";
 import { WalkAlertCard, type WalkAlert } from "@/components/walk/WalkAlertCard";
 import { CheckIcon, StopIcon, WarnIcon } from "@/components/ui/icons";
 import { TraikeLockup } from "@/components/ui/TraikeMark";
-import { WalkSheet } from "@/components/walk/WalkSheet";
+import { WalkSheet, type SheetState } from "@/components/walk/WalkSheet";
 import { WalkStatsBar, type WalkStatsData } from "@/components/walk/WalkStatsBar";
 import { WalkTurnDeck, etaClock } from "@/components/walk/WalkTurnDeck";
 import type { LocateState } from "@/lib/geo/locate";
@@ -29,8 +29,10 @@ interface WalkHudProps {
   center?: ReactNode;
   /** The direction options after a collapse; takes the alert's slot (one card, never two). */
   sheet?: ReactNode;
-  /** The in-walk chat (the "Ask" pill); shares the bottom row with End walk. */
-  chat?: ReactNode;
+  /** The in-walk chat (the "Ask" pill); shares the bottom row with End walk. A function gets the sheet's say: the chat is open exactly when the sheet is full. */
+  chat?: ReactNode | ((sheet: { open: boolean; setOpen: (open: boolean) => void }) => ReactNode);
+  /** Bumps when the chat is opened from outside the sheet (the off-route card's Talk): the sheet goes to full. */
+  openTick?: number;
   stats: WalkStatsData | null;
   /** Lock-on state of the real GPS; the chip shows while it is searching or weak, and is hidden once good. */
   gpsState?: LocateState;
@@ -58,7 +60,14 @@ interface WalkHudProps {
  * map ends exactly above it (Google's logo and terms stay visible; Leaflet's
  * attribution is lifted clear of it).
  */
-export function WalkHud({ alert, notice = null, sharing = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, stopProgress = null, half, onDetails, onEndWalk, creditExtras }: WalkHudProps) {
+export function WalkHud({ alert, notice = null, sharing = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, stopProgress = null, half, openTick = 0, onDetails, onEndWalk, creditExtras }: WalkHudProps) {
+  const [sheetState, setSheetState] = useState<SheetState>("peek");
+  const seenTick = useRef(openTick);
+  useEffect(() => {
+    if (openTick === seenTick.current) return;
+    seenTick.current = openTick;
+    setSheetState("full");
+  }, [openTick]);
   const outerRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -132,9 +141,9 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
       {center}
       <WalkSheet
         sheetRef={stackRef}
-        half={half}
-        onFull={onDetails}
-        label={t.details}
+        state={sheetState}
+        onState={setSheetState}
+        label={t.handle}
         deck={nextStop ? <WalkTurnDeck label={t.nextStop} name={nextStop.name} minutes={nextStop.minutes} minUnit={t.minUnit} /> : undefined}
       >
         {sheet ?? (alert ? <WalkAlertCard key={alert.id} alert={alert} /> : null)}
@@ -180,7 +189,7 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
         ) : null}
         {stats ? <WalkStatsBar stats={stats} lang={lang} /> : null}
         <div className="flex flex-wrap items-center gap-2">
-          {chat}
+          {typeof chat === "function" ? chat({ open: sheetState === "full", setOpen: (open) => setSheetState(open ? "full" : "half") }) : chat}
           <button
             type="button"
             onClick={() => {
@@ -199,6 +208,14 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
         </div>
         {/* The route line is openrouteservice's: its credit is always on screen, here rather than on the map's edge. */}
         <MapCredits extra={creditExtras} />
+        {sheetState === "half" ? (
+          <>
+            {half}
+            <button type="button" onClick={onDetails} className="tk-btn tk-btn-secondary min-h-[44px] self-start">
+              {t.details}
+            </button>
+          </>
+        ) : null}
       </WalkSheet>
     </div>
   );

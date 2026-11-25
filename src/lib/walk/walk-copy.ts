@@ -35,6 +35,7 @@ export const walkCopy = {
     sheet: {
       en: {
         details: "Details",
+        handle: "Expand or collapse",
         endWalk: "End walk",
         endConfirm: "End walk?",
         nextStop: "Next stop",
@@ -47,6 +48,7 @@ export const walkCopy = {
       },
       he: {
         details: "פרטים",
+        handle: "הרחבה או כיווץ",
         endWalk: "סיום הליכה",
         endConfirm: "לסיים את ההליכה?",
         nextStop: "התחנה הבאה",

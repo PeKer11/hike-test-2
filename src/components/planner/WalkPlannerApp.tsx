@@ -5714,7 +5714,8 @@ export function WalkPlannerApp({
                   }
                 : null
             }
-            chat={<WalkChatBox chat={walkChat} lang={uiLang === "he" ? "he" : "en"} />}
+            chat={(c) => <WalkChatBox chat={walkChat} lang={uiLang === "he" ? "he" : "en"} open={c.open} onOpenChange={c.setOpen} />}
+            openTick={walkChat.openTick}
             sheet={directionSheet}
             stats={walkStats}
             nextStop={nextStopInfo}

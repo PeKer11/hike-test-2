@@ -13,13 +13,26 @@ import type { ChatLang } from "@/lib/walk/chat/reply";
 const SHOWN_MESSAGES = 20;
 const NEAR_BOTTOM_PX = 48;
 
-/** The in-walk "Ask" pill: expands to one input and the last few replies. Lives in the HUD stack. */
-export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) {
+/**
+ * The in-walk "Ask" pill: expands to one input and the last few replies. Lives in the HUD stack. With `open` / `onOpenChange`
+ * the sheet owns the open state (open = the sheet's full state); without them the box keeps its own.
+ */
+export function WalkChatBox({ chat, lang, open: openProp, onOpenChange }: { chat: WalkChat; lang: ChatLang; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const copy = CHAT_COPY[lang];
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : localOpen;
+  const setOpen = (next: boolean) => (controlled ? onOpenChange?.(next) : setLocalOpen(next));
   const [text, setText] = useState("");
+  // A controlled box is mounted fresh each time the sheet comes up, so only a tick that arrives while it is mounted counts.
+  const seenTick = useRef(chat.openTick);
   useEffect(() => {
-    if (chat.openTick > 0) setOpen(true);
+    if (controlled) {
+      if (chat.openTick === seenTick.current) return;
+      seenTick.current = chat.openTick;
+      onOpenChange?.(true);
+    } else if (chat.openTick > 0) setLocalOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat.openTick]);
 
   const listRef = useRef<HTMLUListElement>(null);

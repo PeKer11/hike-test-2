@@ -1,7 +1,9 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { WalkChatBox } from "@/components/walk/WalkChatBox";
 import { WalkHud } from "@/components/walk/WalkHud";
+import type { WalkChat } from "@/lib/hooks/useWalkChat";
 import { WalkStatsBar, type WalkStatsData } from "@/components/walk/WalkStatsBar";
 
 const stats: WalkStatsData = {
@@ -23,24 +25,123 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("the walk sheet", () => {
-  it("steps peek, half, details with the handle", () => {
+function chatWith(over: Partial<WalkChat> = {}): WalkChat {
+  return { messages: [], pending: false, llmUsed: 0, send: vi.fn(), openTick: 0, openWith: vi.fn(), runAction: vi.fn(), decline: vi.fn(), reset: vi.fn(), ...over };
+}
+const withChat = (chat: WalkChat) => (
+  <WalkHud
+    alert={null}
+    stats={stats}
+    nextStop={{ name: "Bauhaus Center", minutes: 6 }}
+    half={<p>half content</p>}
+    openTick={chat.openTick}
+    onDetails={vi.fn()}
+    onEndWalk={vi.fn()}
+    chat={(c) => <WalkChatBox chat={chat} lang="en" open={c.open} onOpenChange={c.setOpen} />}
+  />
+);
+const sheetState = () => screen.getByTestId("walk-hud").getAttribute("data-sheet");
+const handle = () => screen.getByRole("button", { name: "Expand or collapse" });
+const drag = (el: Element, from: number, to: number) => {
+  fireEvent.pointerDown(el, { clientY: from });
+  fireEvent.pointerUp(el, { clientY: to });
+};
+
+// One owner holds the sheet's state, and the chat's open state is derived from it.
+describe("the three sheet states", () => {
+  it("opens the chat (full) from Ask, and the chevron goes back to half with the chat hidden", () => {
+    render(withChat(chatWith()));
+    fireEvent.click(handle());
+    expect(sheetState()).toBe("half");
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    expect(sheetState()).toBe("full");
+    expect(screen.getByTestId("walk-chat")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Minimize" }));
+    expect(sheetState()).toBe("half");
+    expect(screen.queryByTestId("walk-chat")).toBeNull();
+  });
+
+  it("drags down one step at a time: full, half, peek", () => {
+    render(withChat(chatWith()));
+    fireEvent.click(handle());
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    expect(sheetState()).toBe("full");
+    drag(handle(), 300, 380);
+    expect(sheetState()).toBe("half");
+    expect(screen.queryByTestId("walk-chat")).toBeNull();
+    drag(handle(), 300, 380);
+    expect(sheetState()).toBe("peek");
+  });
+
+  it("drags up one step at a time: peek, half, full", () => {
+    render(withChat(chatWith()));
+    drag(handle(), 400, 330);
+    expect(sheetState()).toBe("half");
+    drag(handle(), 400, 330);
+    expect(sheetState()).toBe("full");
+    expect(screen.getByTestId("walk-chat")).toBeTruthy();
+  });
+
+  it("a tap on the handle toggles peek and half, and steps full back to half", () => {
+    render(withChat(chatWith()));
+    expect(sheetState()).toBe("peek");
+    fireEvent.click(handle());
+    expect(sheetState()).toBe("half");
+    fireEvent.click(handle());
+    expect(sheetState()).toBe("peek");
+    fireEvent.click(handle());
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(handle());
+    expect(sheetState()).toBe("half");
+  });
+
+  it("goes to full when the chat is opened from outside (openTick), even from peek", () => {
+    const view = render(withChat(chatWith()));
+    expect(sheetState()).toBe("peek");
+    view.rerender(withChat(chatWith({ openTick: 1 })));
+    expect(sheetState()).toBe("full");
+    expect(screen.getByTestId("walk-chat")).toBeTruthy();
+  });
+
+  it("does not reopen the chat on its own when the sheet comes back up after an earlier open", () => {
+    render(withChat(chatWith({ openTick: 1 })));
+    expect(sheetState()).toBe("peek");
+    fireEvent.click(handle());
+    expect(sheetState()).toBe("half");
+    expect(screen.queryByTestId("walk-chat")).toBeNull();
+  });
+
+  it("leaves the sheet at peek when an app message arrives", () => {
+    const view = render(withChat(chatWith()));
+    const messages = [{ id: 1, role: "app" as const, text: "Found a cafe", actions: [], used: false }];
+    view.rerender(withChat(chatWith({ messages })));
+    expect(sheetState()).toBe("peek");
+    expect(screen.queryByTestId("walk-chat")).toBeNull();
+  });
+
+  it("opens Details from the Details button in half, not from another tap on the handle", () => {
     const onDetails = vi.fn();
     render(<WalkHud alert={null} stats={stats} half={<p>half content</p>} onDetails={onDetails} onEndWalk={vi.fn()} />);
-    expect(screen.queryByText("half content")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Details" }));
-    expect(screen.getByText("half content")).toBeTruthy();
+    fireEvent.click(handle());
     expect(onDetails).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
     expect(onDetails).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the walk sheet", () => {
+  it("shows the half content after one tap on the handle", () => {
+    render(<WalkHud alert={null} stats={stats} half={<p>half content</p>} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(screen.queryByText("half content")).toBeNull();
+    fireEvent.click(handle());
+    expect(screen.getByText("half content")).toBeTruthy();
   });
 
   it("keeps the handle and the deck in a header that never scrolls; only the body scrolls", () => {
     render(<WalkHud alert={null} stats={stats} nextStop={{ name: "Bauhaus Center", minutes: 6 }} half={<p>half content</p>} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
     const header = screen.getByTestId("walk-sheet-header");
     const body = screen.getByTestId("walk-sheet-body");
-    const handle = screen.getByRole("button", { name: "Details" });
-    expect(header.contains(handle)).toBe(true);
+    expect(header.contains(handle())).toBe(true);
     expect(header.contains(screen.getByTestId("walk-turn-deck"))).toBe(true);
     expect(header.className.split(/\s+/)).toContain("flex-none");
     expect(header.closest(".overflow-y-auto")).toBeNull();
@@ -50,14 +151,11 @@ describe("the walk sheet", () => {
 
   it("drags up to half and back down to peek", () => {
     render(<WalkHud alert={null} stats={stats} half={<p>half content</p>} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
-    const handle = screen.getByRole("button", { name: "Details" });
-    fireEvent.pointerDown(handle, { clientY: 400 });
-    fireEvent.pointerUp(handle, { clientY: 340 });
-    fireEvent.click(handle); // the click that follows a drag is not a tap
+    drag(handle(), 400, 340);
+    fireEvent.click(handle()); // the click that follows a drag is not a tap
     expect(screen.getByText("half content")).toBeTruthy();
-    fireEvent.pointerDown(handle, { clientY: 340 });
-    fireEvent.pointerUp(handle, { clientY: 400 });
-    fireEvent.click(handle);
+    drag(handle(), 340, 400);
+    fireEvent.click(handle());
     expect(screen.queryByText("half content")).toBeNull();
   });
 
