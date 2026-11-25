@@ -144,3 +144,37 @@ export function nextOffRouteState(
   if (deviationM < offM) return false;
   return prev;
 }
+
+/** Fixes in a row that must be over the threshold before the off-route pill switches on. */
+const OFF_ROUTE_CONFIRM_FIXES = 2;
+
+/**
+ * Wraps `nextOffRouteState` so one bad fix cannot latch the pill on: only fixes the trail filter believed count, it
+ * takes two such fixes in a row over the threshold to switch on, and a standing phone needs more than twice its own
+ * accuracy. Switching off keeps the plain hysteresis.
+ */
+export class OffRouteGate {
+  private over = 0;
+
+  reset(): void {
+    this.over = 0;
+  }
+
+  next(
+    prev: boolean,
+    deviationM: number,
+    accuracyM: number,
+    onM: number,
+    fix: { trusted: boolean; stopped: boolean },
+  ): boolean {
+    if (!fix.trusted || accuracyM > OFF_ROUTE_MAX_ACCURACY_M) return prev;
+    const threshold = fix.stopped ? Math.max(onM, 2 * accuracyM) : onM;
+    if (deviationM > threshold && deviationM > accuracyM) {
+      if (prev) return true;
+      this.over += 1;
+      return this.over >= OFF_ROUTE_CONFIRM_FIXES;
+    }
+    this.over = 0;
+    return prev ? nextOffRouteState(prev, deviationM, accuracyM, onM) : false;
+  }
+}

@@ -99,7 +99,7 @@ import { undoTargetFor } from "@/lib/walk/undo-target";
 import { HeadingMonitor } from "@/lib/walk/heading-monitor";
 import {
   detectDeviation,
-  nextOffRouteState,
+  OffRouteGate,
   remainingRoute,
 } from "@/lib/walk/deviation-detector";
 import {
@@ -441,6 +441,7 @@ export function WalkPlannerApp({
   const walkedTrackRef = useRef<Coordinates[]>([]);
   // Decides which fixes become trail, so a phone standing still draws no scribble.
   const trailFilterRef = useRef(new TrailFilter());
+  const offRouteGateRef = useRef(new OffRouteGate());
   // Bumped when the track gains a point (at most once a second), so the map gets a new array only then.
   const [walkedVersion, setWalkedVersion] = useState(0);
   const walkStartPointRef = useRef<Coordinates | null>(null);
@@ -1253,6 +1254,7 @@ export function WalkPlannerApp({
     shortcut.endWalk();
     walkedTrackRef.current = [];
     trailFilterRef.current.reset();
+    offRouteGateRef.current.reset();
     walkStartPointRef.current = null;
     walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
     legElapsedOffsetMinRef.current = 0;
@@ -1694,6 +1696,7 @@ export function WalkPlannerApp({
       if (walkPhase !== "walking") {
         walkedTrackRef.current = [];
         trailFilterRef.current.reset();
+    offRouteGateRef.current.reset();
       }
       walkStartPointRef.current = input.origin;
       walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
@@ -3198,11 +3201,15 @@ export function WalkPlannerApp({
       // the offer, never the badge.
       // Hysteresis (off >50 m, on <30 m) and an accuracy gate, so a walker
       // hovering around the line does not flicker the state.
-      const offRoute = nextOffRouteState(
+      const offRoute = offRouteGateRef.current.next(
         isOffRouteRef.current,
         deviation.deviationMeters,
         update.accuracyMeters,
         walkSettingsRef.current.deviationDistanceM,
+        {
+          trusted: (update.kind ?? "watch") === "watch" && trailFilterRef.current.judgedGood(update.timestamp),
+          stopped: trailFilterRef.current.isStopped(update.timestamp),
+        },
       );
       markOffRoute(offRoute);
 

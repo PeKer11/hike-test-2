@@ -79,6 +79,15 @@ export class TrailFilter {
     return w.length >= 3 && w[Math.floor(w.length / 2)] < STOPPED_MPS;
   }
 
+  /** The fix at this timestamp was judged by the filter and believed (not a jump, not a suspect, a watch fix). */
+  judgedGood(timestamp: number): boolean {
+    return this.good !== null && this.good.timestamp === timestamp && !this.lastWasJump;
+  }
+
+  isStopped(timestamp: number): boolean {
+    return this.stopped(timestamp);
+  }
+
   /** Whether the live tail may be drawn from the trail's end to the dot. */
   tailAllowed(dot: Coordinates | undefined | null, accuracyM: number | null | undefined): boolean {
     if (!dot || !this.last || this.lastWasJump) return false;
