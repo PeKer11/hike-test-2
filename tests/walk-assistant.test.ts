@@ -66,4 +66,11 @@ describe("POST /api/walk-assistant", () => {
   it("refuses an oversized body", async () => {
     expect((await post(base, { "content-length": "200000" })).status).toBe(413);
   });
+
+  it("answers 502 {code:llm_unavailable} when the model turn fails", async () => {
+    runWalkTurn.mockRejectedValueOnce(new Error("credit balance too low"));
+    const res = await post(base);
+    expect(res.status).toBe(502);
+    expect((await res.json()).code).toBe("llm_unavailable");
+  });
 });

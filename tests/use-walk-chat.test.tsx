@@ -75,6 +75,33 @@ describe("useWalkChat", () => {
     expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ kind: "ask-planner", text: "I want a quiet walk by the sea instead" }));
   });
 
+  it("a provider failure (503) says the assistant is down, in Hebrew, and never offers the planner", async () => {
+    const onAction = vi.fn();
+    const doFetch = reply(503, { code: "llm_unavailable" });
+    const { result } = renderHook(() => useWalkChat({ lang: "he", isSignedIn: true, getContext: () => ctx, onAction, doFetch }));
+    act(() => result.current.send("ספר לי על המבנה הזה"));
+    await waitFor(() => expect(last(result)).toContain("העוזר לא זמין כרגע"));
+    expect(result.current.messages.at(-1)!.actions).toEqual([]);
+    expect(last(result)).not.toContain("טרייק");
+  });
+
+  it("free chat: a provider failure (502) answers from the keywords when it can, with no second model call", async () => {
+    const doFetch = reply(502, { code: "llm_unavailable" });
+    const { result } = renderHook(() => useWalkChat({ lang: "en", isSignedIn: true, freeChat: true, getContext: () => ctx, onAction: vi.fn(), doFetch }));
+    act(() => result.current.send("make it shorter"));
+    await waitFor(() => expect(last(result)).toContain("Which stop"));
+    expect(vi.mocked(doFetch).mock.calls.map((c) => c[0])).toEqual(["/api/walk-assistant"]);
+  });
+
+  it("free chat: a provider failure on a sentence the keywords do not know shows the Hebrew down line, no planner handoff, no walk-chat call", async () => {
+    const doFetch = reply(502, { code: "llm_unavailable" });
+    const { result } = renderHook(() => useWalkChat({ lang: "he", isSignedIn: true, freeChat: true, getContext: () => ctx, onAction: vi.fn(), doFetch }));
+    act(() => result.current.send("ספר לי על המבנה הזה"));
+    await waitFor(() => expect(last(result)).toContain("העוזר לא זמין כרגע"));
+    expect(result.current.messages.at(-1)!.actions).toEqual([]);
+    expect(vi.mocked(doFetch).mock.calls.map((c) => c[0])).toEqual(["/api/walk-assistant"]);
+  });
+
   it("makes no fetch for question 16 and shows the cap message", async () => {
     const doFetch = reply(200, { intent: "unknown", amenity: null, stopIndex: null });
     const { result } = setup(doFetch);

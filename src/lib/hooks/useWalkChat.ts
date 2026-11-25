@@ -170,7 +170,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           return;
         }
       }
-      const legacy = () => {
+      const legacy = (modelDown = false) => {
       const parsed = parseIntent(text, ctx.stops);
       if (parsed.intent !== "unknown") {
         const reply = resolveChat(parsed, ctx, lang);
@@ -180,6 +180,11 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
       }
       if (!isSignedIn) {
         push("app", `${CHAT_HELP_TEXT[lang]} ${copy.signIn}`);
+        return;
+      }
+      // The free chat just found the model unavailable: a second model call would fail the same way.
+      if (modelDown) {
+        push("app", copy.aiDown);
         return;
       }
       if (llmUsedRef.current >= MAX_CHAT_LLM_PER_WALK) {
@@ -218,6 +223,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           if (stale()) return;
           if (res.status === 401) return fail(copy.signIn);
           if (res.status === 429) return fail(data.code === "budget" ? copy.budget : copy.tooFast);
+          if (data.code === "llm_unavailable") return fail(copy.aiDown);
           if (!res.ok || typeof data.intent !== "string") return fail(copy.network);
 
           const stopId =
@@ -261,6 +267,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
       if (history[history.length - 1]?.content !== text) history.push({ role: "user", content: text });
       void (async () => {
         let fellBack = false;
+        let modelDown = false;
         try {
           const res = await (doFetch ?? fetch)("/api/walk-assistant", {
             method: "POST",
@@ -285,6 +292,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           }
           if (!res.ok || typeof data.reply !== "string") {
             fellBack = true;
+            modelDown = data.code === "llm_unavailable";
             return;
           }
           const fresh = getContext() ?? ctx;
@@ -347,7 +355,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           }
           if (fellBack && !stale()) {
             setMessages((prev) => prev.filter((m) => m.id !== thinkingId));
-            legacy();
+            legacy(modelDown);
           }
         }
       })();

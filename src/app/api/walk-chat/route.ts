@@ -11,8 +11,6 @@ import {
 import { LlmBudgetExceededError } from "@/lib/llm/types";
 import { createClient } from "@/lib/supabase/server";
 
-const UNKNOWN = { intent: "unknown", amenity: null, stopIndex: null } as const;
-
 interface WalkChatRequest {
   text?: unknown;
   stops?: unknown;
@@ -74,6 +72,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 429 },
       );
     }
-    return NextResponse.json(UNKNOWN);
+    // A provider failure is not "I did not understand": the client says the assistant is down and does not send the
+    // walker to a planner that runs on the same models.
+    console.warn("[walk-chat] model failed:", error instanceof Error ? error.name : "unknown");
+    return NextResponse.json({ code: "llm_unavailable" }, { status: 503 });
   }
 }

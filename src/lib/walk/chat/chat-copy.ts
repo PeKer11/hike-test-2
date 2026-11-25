@@ -10,6 +10,7 @@ export const CHAT_COPY: Record<
     budget: string;
     tooFast: string;
     network: string;
+    aiDown: string;
     timeout: string;
     noWalk: string;
     ask: string;
@@ -24,6 +25,7 @@ export const CHAT_COPY: Record<
     budget: "The AI helper is resting for today. Quick commands still work: cafe, skip, shorter.",
     tooFast: "Too many questions too fast. Try again in a minute, or use a quick command: cafe, skip, shorter.",
     network: "I couldn't reach the helper. Quick commands still work: cafe, skip, shorter.",
+    aiDown: "The assistant isn't available right now, try again.",
     timeout: "That took too long. Try again, or use a quick command: cafe, skip, shorter.",
     noWalk: "Start a walk first, then ask me here.",
     ask: "Ask",
@@ -37,6 +39,7 @@ export const CHAT_COPY: Record<
     budget: "העוזר נח להיום. פקודות מהירות עדיין עובדות: קפה, דלג, קצר יותר.",
     tooFast: "יותר מדי שאלות בבת אחת. נסו שוב בעוד דקה, או השתמשו בפקודה מהירה: קפה, דלג, קצר יותר.",
     network: "לא הצלחתי להגיע לעוזר. פקודות מהירות עדיין עובדות: קפה, דלג, קצר יותר.",
+    aiDown: "העוזר לא זמין כרגע, נסו שוב",
     timeout: "זה לקח יותר מדי זמן. נסו שוב, או השתמשו בפקודה מהירה: קפה, דלג, קצר יותר.",
     noWalk: "התחילו הליכה ואז שאלו אותי כאן.",
     ask: "שאלו",

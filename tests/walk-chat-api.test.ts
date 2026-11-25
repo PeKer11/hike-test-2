@@ -54,11 +54,11 @@ describe("POST /api/walk-chat", () => {
     warn.mockRestore();
   });
 
-  it("answers unknown with 200 on any other failure", async () => {
+  it("answers 503 {code:llm_unavailable} when the provider fails, never a fake unknown", async () => {
     runLlm.mockRejectedValue(new Error("provider down"));
     const res = await post(ok);
-    expect(res.status).toBe(200);
-    expect((await res.json()).intent).toBe("unknown");
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe("llm_unavailable");
   });
 
   it("validates text, stops and lang", async () => {

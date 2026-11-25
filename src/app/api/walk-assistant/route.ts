@@ -116,6 +116,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       console.warn("[walk-assistant] budget refused:", error.reason);
       return NextResponse.json({ code: "budget", error: "resting" }, { status: 429 });
     }
-    return NextResponse.json({ error: "failed" }, { status: 502 });
+    console.warn("[walk-assistant] model failed:", error instanceof Error ? error.name : "unknown");
+    return NextResponse.json({ code: "llm_unavailable", error: "failed" }, { status: 502 });
   }
 }
