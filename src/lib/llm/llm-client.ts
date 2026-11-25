@@ -66,7 +66,11 @@ function isFallbackEligible(error: unknown): boolean {
   if ((error as { [SCHEMA_FAILURE]?: boolean } | null)?.[SCHEMA_FAILURE])
     return true;
   const status = statusOf(error);
-  return status !== null && (status === 429 || status >= 500);
+  if (status === null) return false;
+  if (status === 429 || status >= 500) return true;
+  // An account problem on this provider (no credit, a bad key) says nothing about the other one.
+  if (status === 401 || status === 402 || status === 403) return true;
+  return status === 400 && /credit|billing|quota/i.test(error instanceof Error ? error.message : "");
 }
 
 function composePrompt<T>(
