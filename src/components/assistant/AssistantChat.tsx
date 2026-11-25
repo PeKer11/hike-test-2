@@ -128,6 +128,9 @@ const COPY = {
     stop: "Stop",
     unreachable: "Could not reach the assistant. Check your connection.",
     wrong: "Something went wrong. Try again.",
+    aiDown: "The assistant isn't available right now, try again.",
+    busyNow: "Still working on your last message.",
+    resting: "The assistant is resting for today. Try again tomorrow.",
     limits: {
       timeMinutes: "Time available",
       radiusKm: "Search radius from you",
@@ -171,6 +174,9 @@ const COPY = {
     stop: "עצירה",
     unreachable: "לא הצלחתי להגיע לעוזר. בדקו את החיבור.",
     wrong: "משהו השתבש. נסו שוב.",
+    aiDown: "העוזר לא זמין כרגע, נסו שוב",
+    busyNow: "עדיין עובד על ההודעה הקודמת שלכם.",
+    resting: "העוזר נח להיום. נסו שוב מחר.",
     limits: {
       timeMinutes: "זמן פנוי",
       radiusKm: "רדיוס חיפוש ממך",
@@ -566,7 +572,9 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
       }
       if (!response.ok) {
         // Nothing was answered: take the message back out of the thread and put the draft back.
-        undoSend(data.error ?? t.wrong);
+        // The server's own text is English: the chat shows its localized line for the code it knows, never the raw text.
+        const code = (data as { code?: string }).code;
+        undoSend(code === "llm_unavailable" ? t.aiDown : code === "busy" ? t.busyNow : code === "budget" ? t.resting : lang === "en" ? (data.error ?? t.wrong) : t.wrong);
         return;
       }
       setChatId(data.chatId);

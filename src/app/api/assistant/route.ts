@@ -345,6 +345,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
     console.error("[assistant] turn failed:", redactForLog(error));
-    return NextResponse.json({ error: "The assistant could not answer. Try again." }, { status: 502 });
+    return NextResponse.json({ code: "llm_unavailable", error: "The assistant could not answer. Try again." }, { status: 502 });
   }
 }
