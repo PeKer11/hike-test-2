@@ -72,3 +72,22 @@ describe("proposalLines with numbers", () => {
     expect(proposalLines({ adds: [], dropNames: [], headBack: true }, undefined, "he").line1).toBe("חזרה להתחלה");
   });
 });
+
+describe("proposalLines follows the dry run", () => {
+  const two = { adds: [{ name: "Kiosk", coordinates: { lat: 1, lng: 1 } }, { name: "Cafe", coordinates: { lat: 1, lng: 2 } }], dropNames: [], headBack: false };
+  const ready = { status: "ready" as const, minDelta: 12, distDeltaM: 800, endClock: "17:40" };
+  it("lists only the placed adds and names the one that did not fit", () => {
+    const l = proposalLines(two, { ...ready, placed: ["Kiosk"], unplaced: ["Cafe"], dropNames: [] }, "en");
+    expect(l.line1).toBe("+ Kiosk");
+    expect(l.line2).toContain("Cafe doesn't fit in the time left.");
+  });
+  it("in Hebrew the unplaced add says לא נכנס", () => {
+    expect(proposalLines(two, { ...ready, placed: ["Kiosk"], unplaced: ["Cafe"] }, "he").line2).toContain("Cafe לא נכנס בזמן שנשאר.");
+  });
+  it("shows a stop the dry run squeezed out as a real drop", () => {
+    expect(proposalLines(two, { ...ready, placed: ["Kiosk", "Cafe"], dropNames: ["Museum"] }, "en").line1).toBe("+ Kiosk · + Cafe · − Museum");
+  });
+  it("without dry-run detail the card is as asked", () => {
+    expect(proposalLines(two, ready, "en").line1).toBe("+ Kiosk · + Cafe");
+  });
+});

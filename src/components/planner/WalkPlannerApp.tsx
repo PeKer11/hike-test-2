@@ -237,6 +237,8 @@ import { readTtsOptIn, ttsSupported, writeTtsOptIn } from "@/lib/walk/tts";
 const STALE_FIX_MS = 20_000;
 /** Real 1 Hz GPS arrives 1000 +- 40 ms (late fixes bunch up); a 1000 ms gate dropped a third of the fixes and a 900 ms one still dropped 4-16 %. 500 ms caps a fast simulator at 2 Hz. */
 const POSITION_PUBLISH_MS = 500;
+/** A place proposed in the chat has no id of its own: its position (to about a metre) is its id. */
+const chatPlaceId = (c: { lat: number; lng: number }) => `chat-${Math.round(c.lat * 1e5)}-${Math.round(c.lng * 1e5)}`;
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
 
@@ -2072,7 +2074,7 @@ export function WalkPlannerApp({
   const runAddPlaceRebuild = (name: string, coordinates: { lat: number; lng: number }) => {
     const state = midWalkRebuildState();
     if (!state) return;
-    const id = `chat-${Math.round(coordinates.lat * 1e5)}-${Math.round(coordinates.lng * 1e5)}`;
+    const id = chatPlaceId(coordinates);
     // The same place proposed twice must not go on the walk twice.
     if ((state.currentAttractions ?? []).some((a) => a.id === id)) {
       showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].added(name, 0), "ok");
@@ -2217,7 +2219,7 @@ export function WalkPlannerApp({
     // Never add the same proposed place twice (ids are position based).
     const added = adds
       .map(({ name, coordinates }) => ({
-        id: `chat-${Math.round(coordinates.lat * 1e5)}-${Math.round(coordinates.lng * 1e5)}`,
+        id: chatPlaceId(coordinates),
         name,
         coordinates,
         category: "other" as const,
@@ -2257,7 +2259,7 @@ export function WalkPlannerApp({
   });
 
   // The latest card's dry run, kept so that approving builds exactly what the card showed.
-  const proposalPreviewRef = useRef<{ key: string; plan: WalkPlan; basis: ProposalBasis; minDelta: number } | null>(null);
+  const proposalPreviewRef = useRef<{ key: string; plan: WalkPlan; basis: ProposalBasis; minDelta: number; placedIds: string[] } | null>(null);
 
   // A dry-run /api/walk-plan for a card: nothing on screen or in the walk changes.
   const previewProposalRoute = async (
@@ -2292,9 +2294,22 @@ export function WalkPlannerApp({
     });
     const data = (await res.json().catch(() => null)) as (WalkPlan & { error?: string }) | null;
     if (!res.ok || !data || data.error || data.orderedAttractions.length === 0 || (data.geometry?.length ?? 0) < 2) return { status: "failed" };
-    const placed = (id: string) => data.orderedAttractions.some((a) => a.id === id);
-    const missing = change.added.filter((a) => !placed(a.id));
-    if (change.added.length > 0 && missing.length === change.added.length) return { status: "nofit", name: missing[0].name };
+    // The card is the change: only the stops the walk had (minus its skips) and the adds the planner placed may stay.
+    const kept = change.options.keepAttractions ?? [];
+    const placedAdds = change.added.filter((a) => data.orderedAttractions.some((o) => o.id === a.id));
+    const missing = change.added.filter((a) => !placedAdds.includes(a));
+    if (change.added.length > 0 && placedAdds.length === 0) return { status: "nofit", name: missing[0].name };
+    const allowed = new Set([...kept.map((a) => a.id), ...placedAdds.map((a) => a.id)]);
+    const onRoute = data.orderedAttractions.filter((a) => allowed.has(a.id));
+    const stripped = onRoute.length !== data.orderedAttractions.length;
+    // A stop the planner added on its own makes its line and clock wrong for this card: build the line again at approve.
+    const plan: WalkPlan = stripped
+      ? { ...data, orderedAttractions: onRoute, segments: data.segments.filter((sg) => allowed.has(sg.to.id)), geometry: undefined }
+      : data;
+    const dropNames = [
+      ...(state.currentAttractions ?? []).filter((a) => action.dropStopIds.includes(a.id)).map((a) => a.name),
+      ...(keep ?? []).filter((a) => !onRoute.some((o) => o.id === a.id)).map((a) => a.name),
+    ];
     const numbers = previewFromPlan({
       planMinutes: data.totalMinutes,
       planDistM: data.totalDistanceMeters,
@@ -2303,8 +2318,8 @@ export function WalkPlannerApp({
       nowMs: Date.now(),
       allowedRemainingMin: baseline.allowedRemainingMin,
     });
-    proposalPreviewRef.current = { key: action.key, plan: data, basis: currentBasis(state), minDelta: numbers.minDelta };
-    return numbers;
+    proposalPreviewRef.current = { key: action.key, plan, basis: currentBasis(state), minDelta: numbers.minDelta, placedIds: placedAdds.map((a) => a.id) };
+    return { ...numbers, placed: placedAdds.map((a) => a.name), unplaced: missing.map((a) => a.name), dropNames: [...new Set(dropNames)] };
   };
 
   // The card's אשר. "busy": an update is running, the card stays open. "recheck": the route changed since the
@@ -2326,7 +2341,7 @@ export function WalkPlannerApp({
       proposalPreviewRef.current = null;
       return "recheck";
     }
-    runApplyChangesRebuild(action.adds, action.dropStopIds, stored ? { plan: stored.plan, minDelta: stored.minDelta, exactRoute: verdict === "fresh" } : undefined);
+    runApplyChangesRebuild(action.adds, action.dropStopIds, stored ? { plan: stored.plan, minDelta: stored.minDelta, exactRoute: verdict === "fresh" && stored.plan.geometry !== undefined, placedIds: stored.placedIds } : undefined);
   };
 
   // Several chat proposals at once: drop the skipped stops, pin the new ones, one rebuild.
@@ -2334,11 +2349,13 @@ export function WalkPlannerApp({
   const runApplyChangesRebuild = (
     adds: Array<{ name: string; coordinates: { lat: number; lng: number } }>,
     dropStopIds: string[],
-    preview?: { plan: WalkPlan; minDelta: number; exactRoute: boolean },
+    preview?: { plan: WalkPlan; minDelta: number; exactRoute: boolean; placedIds?: string[] },
   ) => {
     const state = midWalkRebuildState();
     if (!state) return;
-    const { input, options, added, drop } = prepareChangeRebuild(state, adds, dropStopIds);
+    // Only the places the card's dry run placed are built, pinned and named in the notice.
+    const placedAdds = preview?.placedIds ? adds.filter(({ coordinates }) => preview.placedIds!.includes(chatPlaceId(coordinates))) : adds;
+    const { input, options, added, drop } = prepareChangeRebuild(state, placedAdds, dropStopIds);
     // One update at a time: say so before marking anything, so a refused tap leaves no trace.
     if (midWalkRebuildInFlightRef.current) {
       showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].stillUpdating, "warn");

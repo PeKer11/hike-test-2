@@ -27,6 +27,11 @@ export type ProposalPreview =
       endClock: string;
       /** True when the new total is more than the time the walker allowed. */
       overTime?: boolean;
+      /** Dry-run truth: the added places that made it onto the route, and those that did not. Absent = as asked. */
+      placed?: string[];
+      unplaced?: string[];
+      /** The stops that are off the route in the dry run (asked for, or squeezed out). Absent = as asked. */
+      dropNames?: string[];
     }
   | { status: "failed" }
   | { status: "nofit"; name: string };
@@ -65,11 +70,15 @@ export function proposalLines(
   lang: ChatLang,
 ): { line1: string; line2: string | null; actionable: boolean } {
   const t = T[lang];
+  // A numbered dry run is the truth: only what it placed and what it dropped is on the card.
+  const real = preview && (preview.status === "ready" || preview.status === "estimate") ? preview : null;
+  const adds = real?.placed ? p.adds.filter((a) => real.placed!.includes(a.name)) : p.adds;
+  const dropNames = real?.dropNames ?? p.dropNames;
   const parts = p.headBack
     ? [t.back]
     : [
-        ...p.adds.map((a) => `+ ${a.name}${a.afterName ? ` (${t.after(a.afterName)})` : ""}`),
-        ...p.dropNames.map((n) => `− ${n}`),
+        ...adds.map((a) => `+ ${a.name}${a.afterName ? ` (${t.after(a.afterName)})` : ""}`),
+        ...dropNames.map((n) => `− ${n}`),
       ];
   const line1 = parts.join(" · ");
   // No preview at all (no way to compute one): the card still works, it just has no numbers.
@@ -86,7 +95,8 @@ export function proposalLines(
     `${t.end} ${preview.endClock}`,
     ...(preview.overTime ? [t.over] : []),
   ];
-  return { line1, line2: bits.join(" · "), actionable: true };
+  const line2 = [bits.join(" · "), ...(real?.unplaced ?? []).map((n) => t.nofit(n))].join(" · ");
+  return { line1, line2, actionable: true };
 }
 
 type NumberedPreview = Extract<ProposalPreview, { status: "ready" | "estimate" }>;
