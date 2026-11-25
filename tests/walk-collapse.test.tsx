@@ -518,6 +518,7 @@ describe("a walker who has gone a different way (collapse)", () => {
     expect(heldOptions).not.toBeNull();
     expect(sheet()).toBeNull();
 
+    raiseSheet(); // an off-route card or a direction offer puts the sheet at peek
     fireEvent.click(screen.getByRole("button", { name: "End walk" }));
     fireEvent.click(screen.getByRole("button", { name: /End walk/ })); // second tap confirms
     await flush(2);
@@ -580,6 +581,7 @@ describe("a walker who has gone a different way (collapse)", () => {
     await advance(9_000);
     expect(sheet()).toBeNull();
     expect(walkPlanCalls).toHaveLength(1);
+    raiseSheet(); // an off-route card or a direction offer puts the sheet at peek
     expect(screen.getByRole("button", { name: "End walk" })).toBeTruthy();
   });
 });

@@ -62,6 +62,11 @@ interface WalkHudProps {
  */
 export function WalkHud({ alert, notice = null, sharing = null, center, sheet, chat, stats, gpsState = "idle", lang = "en", nextStop, stopProgress = null, half, openTick = 0, onDetails, onEndWalk, creditExtras }: WalkHudProps) {
   const [sheetState, setSheetState] = useState<SheetState>("peek");
+  // A direction offer (inside the sheet) and the off-route card (over the map) both need room: when one appears, a half sheet steps down to peek.
+  const needsRoom = Boolean(sheet) || Boolean(center);
+  useEffect(() => {
+    if (needsRoom) setSheetState((state) => (state === "half" ? "peek" : state));
+  }, [needsRoom]);
   const seenTick = useRef(openTick);
   useEffect(() => {
     if (openTick === seenTick.current) return;

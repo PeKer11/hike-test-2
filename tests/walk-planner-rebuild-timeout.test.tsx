@@ -303,6 +303,7 @@ describe("a mid-walk rebuild that never answers", () => {
 
     // The plan stays on screen during a mid-walk rebuild now, so the plan card's own
     // one-tap "End Walk" is there too; the HUD's button is the one that asks twice.
+    raiseSheet(); // an off-route card or a direction offer puts the sheet at peek
     fireEvent.click(screen.getByRole("button", { name: "End walk" }));
     fireEvent.click(screen.getByRole("button", { name: "End walk?" })); // second tap confirms
     await flush();

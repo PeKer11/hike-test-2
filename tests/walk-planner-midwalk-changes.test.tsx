@@ -285,6 +285,7 @@ describe("P5: a change asked for while an update is running is not lost silently
     await flush();
     expect(screen.getByText("Updating your route…")).toBeTruthy();
 
+    raiseSheet(); // an off-route card or a direction offer puts the sheet at peek
     fireEvent.click(screen.getByRole("button", { name: "End walk" }));
     fireEvent.click(screen.getByRole("button", { name: "End walk?" }));
     await flush();
@@ -460,6 +461,7 @@ describe("P17: 'back to the route' typed in the chat gets the walker back onto t
     await flush();
     await advance(8_000);
 
+    raiseSheet(); // an off-route card or a direction offer puts the sheet at peek
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
     fireEvent.change(box, { target: { value: "go back to the route" } });

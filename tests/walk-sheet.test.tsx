@@ -359,3 +359,22 @@ describe("the speed dot", () => {
     expect(dot(container)!.className).toContain("bg-terra");
   });
 });
+
+describe("a direction offer", () => {
+  it("steps a half sheet down to peek so the whole card is on screen", () => {
+    const view = render(<WalkHud alert={null} stats={stats} half={<p>half content</p>} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    fireEvent.click(handle());
+    expect(sheetState()).toBe("half");
+    view.rerender(<WalkHud alert={null} stats={stats} half={<p>half content</p>} sheet={<p>pick a direction</p>} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(sheetState()).toBe("peek");
+    expect(screen.getByText("pick a direction")).toBeTruthy();
+  });
+
+  it("does the same when the off-route card goes up over the map", () => {
+    const view = render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    fireEvent.click(handle());
+    expect(sheetState()).toBe("half");
+    view.rerender(<WalkHud alert={null} stats={stats} center={<p>off route</p>} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    expect(sheetState()).toBe("peek");
+  });
+});
