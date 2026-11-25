@@ -140,4 +140,10 @@ describe("WalkChatBox scrolling", () => {
     again(view, [msg(1, "user", "hi"), msg(2, "app", "A much longer reply")]);
     expect(s.get()).toBe(600);
   });
+
+  it("keeps a swipe on the list from scrolling the sheet behind it", () => {
+    const { list } = setup(base);
+    expect(list.className).toContain("overscroll-contain");
+    expect(list.className).toContain("touch-pan-y");
+  });
 });

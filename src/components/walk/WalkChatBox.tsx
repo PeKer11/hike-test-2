@@ -81,7 +81,7 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
             const el = e.currentTarget;
             atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
           }}
-          className="max-h-40 space-y-1.5 overflow-y-auto"
+          className="max-h-[min(15rem,32dvh)] space-y-1.5 overflow-y-auto overscroll-contain touch-pan-y"
           aria-live="polite"
         >
           {chat.messages.slice(-SHOWN_MESSAGES).map((m) => (
