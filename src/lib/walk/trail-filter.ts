@@ -35,6 +35,8 @@ export class TrailFilter {
   private pending: { coordinates: Coordinates; timestamp: number } | null = null;
   private rejectAnchor: Coordinates | null = null;
   private rejects = 0;
+  /** The last fix seen was a jump or a suspect: the dot may show it, the trail's tail must not follow it. */
+  private lastWasJump = false;
   private recent: Array<{ coordinates: Coordinates; timestamp: number }> = [];
 
   reset(): void {
@@ -43,7 +45,15 @@ export class TrailFilter {
     this.pending = null;
     this.rejectAnchor = null;
     this.rejects = 0;
+    this.lastWasJump = false;
     this.recent = [];
+  }
+
+  /** Whether the live tail may be drawn from the trail's end to the dot. */
+  tailAllowed(dot: Coordinates | undefined | null, accuracyM: number | null | undefined): boolean {
+    if (!dot || !this.last || this.lastWasJump) return false;
+    if (!(typeof accuracyM === "number" && accuracyM <= ENGINE_MAX_ACCURACY_M)) return false;
+    return haversineDistance(this.last.coordinates, dot) <= 2 * TRAIL_MAX_STEP_M;
   }
 
   /** The fix itself when it is good; otherwise the mean of the recent fixes (including it). */
@@ -76,7 +86,10 @@ export class TrailFilter {
     if (timestamp - this.good.timestamp > STALE_GOOD_MS) {
       const p = this.pending;
       this.pending = { coordinates, timestamp };
-      if (!p || timestamp - p.timestamp > STALE_GOOD_MS || haversineDistance(p.coordinates, coordinates) > step) return null;
+      if (!p || timestamp - p.timestamp > STALE_GOOD_MS || haversineDistance(p.coordinates, coordinates) > step) {
+        this.lastWasJump = true;
+        return null;
+      }
       this.pending = null;
       this.good = { coordinates, timestamp };
       this.rejects = 0;
@@ -91,6 +104,7 @@ export class TrailFilter {
       const consistent = this.rejectAnchor !== null && haversineDistance(this.rejectAnchor, coordinates) <= step;
       this.rejects = consistent ? this.rejects + 1 : 1;
       this.rejectAnchor = coordinates;
+      this.lastWasJump = true;
       if (this.rejects < MAX_CONSECUTIVE_REJECTS) return null;
       this.good = { coordinates, timestamp };
     } else {
@@ -98,6 +112,7 @@ export class TrailFilter {
       this.rejects = 0;
       this.rejectAnchor = null;
     }
+    this.lastWasJump = false;
     if (haversineDistance(this.last.coordinates, ref) < step) return null;
     return this.keep(ref, timestamp);
   }
@@ -115,8 +130,13 @@ export class TrailFilter {
  * dot instead of ending up to a step behind it. Pure. A trail with no point yet, a dot that is not engine-grade, or a
  * dot already on the last point leave the trail untouched (same array).
  */
-export function withLiveTail(walked: Coordinates[], dot: Coordinates | undefined | null, accuracyM: number | null | undefined): Coordinates[] {
-  if (!dot || walked.length === 0) return walked;
+export function withLiveTail(
+  walked: Coordinates[],
+  dot: Coordinates | undefined | null,
+  accuracyM: number | null | undefined,
+  tailAllowed = true,
+): Coordinates[] {
+  if (!dot || walked.length === 0 || !tailAllowed) return walked;
   if (!(typeof accuracyM === "number" && accuracyM <= ENGINE_MAX_ACCURACY_M)) return walked;
   const end = walked[walked.length - 1];
   if (end.lat === dot.lat && end.lng === dot.lng) return walked;

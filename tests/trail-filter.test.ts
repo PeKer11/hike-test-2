@@ -129,6 +129,27 @@ describe("TrailFilter", () => {
     expect(haversineDistance(drawn as Coordinates, raw)).toBeGreaterThan(2);
   });
 
+  it("the live tail is allowed only for a dot the filter believes and that is near the trail's end", () => {
+    const f = new TrailFilter();
+    expect(f.tailAllowed(at(5), 10)).toBe(false); // nothing kept yet
+    f.accept(at(0), 0, 10);
+    for (let i = 1; i <= 5; i += 1) f.accept(at(i * 1.4), i * 1000, 10);
+    expect(f.tailAllowed(at(9), 10)).toBe(true);
+    expect(f.tailAllowed(at(9), 80)).toBe(false);
+    expect(f.tailAllowed(at(120), 10)).toBe(false); // too far from the trail's end
+    // a lone outlier 120 m away is a jump: no tail until a good fix follows
+    f.accept(at(120), 6000, 15);
+    expect(f.tailAllowed(at(10), 10)).toBe(false);
+    f.accept(at(9), 7000, 10);
+    expect(f.tailAllowed(at(9), 10)).toBe(true);
+  });
+
+  it("withLiveTail leaves the trail alone when the tail is not allowed", () => {
+    const walked = [at(0), at(20)];
+    expect(withLiveTail(walked, at(31), 12, false)).toBe(walked);
+    expect(withLiveTail(walked, at(31), 12, true)).toEqual([at(0), at(20), at(31)]);
+  });
+
   it("withLiveTail ends the line at the dot, and leaves an empty trail or a poor dot alone", () => {
     const walked = [at(0), at(20)];
     expect(withLiveTail(walked, at(31), 12)).toEqual([at(0), at(20), at(31)]);

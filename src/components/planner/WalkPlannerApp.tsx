@@ -685,7 +685,7 @@ export function WalkPlannerApp({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const walkedPath = useMemo(() => [...walkedTrackRef.current], [walkedVersion, walkPhase]);
   // What the map draws: the kept points plus the dot, so the gold line always meets it. New array per published fix only.
-  const walkedDrawn = useMemo(() => withLiveTail(walkedPath, currentPosition, currentAccuracyM), [walkedPath, currentPosition, currentAccuracyM]);
+  const walkedDrawn = useMemo(() => withLiveTail(walkedPath, currentPosition, currentAccuracyM, trailFilterRef.current.tailAllowed(currentPosition, currentAccuracyM)), [walkedPath, currentPosition, currentAccuracyM]);
   const [attractionDistances, setAttractionDistances] = useState<Record<string, number>>({});
   const routeAnchor =
     route?.orderedWaypoints[0]?.coordinates ?? route?.geometry[0];
