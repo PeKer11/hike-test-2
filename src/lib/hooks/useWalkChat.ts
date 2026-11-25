@@ -6,7 +6,7 @@ import type { Coordinates } from "@/lib/types";
 import { isAffirm } from "@/lib/walk/chat/affirm";
 import { editCommand } from "@/lib/walk/chat/edit-command";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
-import { parseIntent, type ParsedIntent } from "@/lib/walk/chat/intent";
+import { parseIntent, radiusFromText, type ParsedIntent } from "@/lib/walk/chat/intent";
 import {
   CHAT_HELP_TEXT,
   plannerHandoff,
@@ -260,6 +260,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
       const timer = setTimeout(() => controller.abort(), FREE_CHAT_TIMEOUT_MS);
       const stale = () => myRequest !== requestId.current;
       const command = editCommand(text);
+      const radiusM = radiusFromText(text);
       const history = messagesRef.current
         .filter((m) => m.id !== thinkingId && m.text !== copy.thinking)
         .slice(-6)
@@ -272,7 +273,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           const res = await (doFetch ?? fetch)("/api/walk-assistant", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ history, position: ctx.position, stops: ctx.stops.map((s) => s.name), timing: ctx.timing, ...(command ? { autoApply: command } : {}) }),
+            body: JSON.stringify({ history, position: ctx.position, stops: ctx.stops.map((s) => s.name), timing: ctx.timing, ...(command ? { autoApply: command } : {}), ...(radiusM ? { radiusM } : {}) }),
             signal: controller.signal,
           });
           if (stale()) return;

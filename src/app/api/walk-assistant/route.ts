@@ -59,6 +59,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     ? body.stops.filter((s): s is string => typeof s === "string").map((s) => s.slice(0, 80)).slice(0, 12)
     : [];
 
+  const radiusM =
+    typeof body.radiusM === "number" && Number.isFinite(body.radiusM) ? Math.min(3000, Math.max(100, Math.round(body.radiusM))) : undefined;
+
   const t = body.timing as Record<string, unknown> | undefined;
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(-2880, Math.min(2880, Math.round(v))) : null);
   const kmh = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0.5 && v <= 15 ? Math.round(v * 10) / 10 : null);
@@ -97,7 +100,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, timing, memoryNote, choice, effort, costCeilingMicros: walkCeiling, places, autoApply });
+        const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, timing, memoryNote, choice, effort, costCeilingMicros: walkCeiling, places, autoApply, radiusM });
         return { value: turn, billedMicros: turn.billedMicros };
       },
       {},

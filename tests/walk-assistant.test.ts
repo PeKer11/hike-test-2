@@ -73,4 +73,15 @@ describe("POST /api/walk-assistant", () => {
     expect(res.status).toBe(502);
     expect((await res.json()).code).toBe("llm_unavailable");
   });
+
+  it("passes a walker's radius to the turn, clamped to 100-3000 m, and ignores a non-number", async () => {
+    await post({ ...base, radiusM: 500 });
+    expect(runWalkTurn.mock.calls.at(-1)?.[0]).toMatchObject({ radiusM: 500 });
+    await post({ ...base, radiusM: 999_999 });
+    expect(runWalkTurn.mock.calls.at(-1)?.[0]).toMatchObject({ radiusM: 3000 });
+    await post({ ...base, radiusM: 5 });
+    expect(runWalkTurn.mock.calls.at(-1)?.[0]).toMatchObject({ radiusM: 100 });
+    await post({ ...base, radiusM: "500" });
+    expect((runWalkTurn.mock.calls.at(-1)?.[0] as { radiusM?: number }).radiusM).toBeUndefined();
+  });
 });

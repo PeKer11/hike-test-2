@@ -143,6 +143,7 @@ export function searchTextPlaces(
   bias?: Coordinates,
   maxResults = 1,
   withRatings = false,
+  biasRadiusMeters = 20000,
 ): Promise<GooglePlace[]> {
   return post(SEARCH_TEXT_URL, {
     textQuery: query,
@@ -151,7 +152,7 @@ export function searchTextPlaces(
     ...(bias
       ? {
           locationBias: {
-            circle: { center: { latitude: bias.lat, longitude: bias.lng }, radius: 20000 },
+            circle: { center: { latitude: bias.lat, longitude: bias.lng }, radius: Math.min(50000, Math.max(100, biasRadiusMeters)) },
           },
         }
       : {}),
