@@ -146,4 +146,23 @@ describe("WalkChatBox scrolling", () => {
     expect(list.className).toContain("overscroll-contain");
     expect(list.className).toContain("touch-pan-y");
   });
+
+  it("offers a round down button when a reply lands while the walker reads up, and it jumps to the newest", () => {
+    const { view, list } = setup(base);
+    const s = fakeScroll(list, 0);
+    s.set(0);
+    expect(screen.queryByRole("button", { name: "Newest messages" })).toBeNull();
+    again(view, [...base, msg(3, "app", "more")]);
+    fireEvent.click(screen.getByRole("button", { name: "Newest messages" }));
+    expect(s.get()).toBe(600);
+    expect(screen.queryByRole("button", { name: "Newest messages" })).toBeNull();
+  });
+
+  it("has no down button when the walker is at the bottom", () => {
+    const { view, list } = setup(base);
+    const s = fakeScroll(list, 440);
+    s.set(440);
+    again(view, [...base, msg(3, "app", "more")]);
+    expect(screen.queryByRole("button", { name: "Newest messages" })).toBeNull();
+  });
 });

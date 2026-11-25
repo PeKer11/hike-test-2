@@ -23,6 +23,7 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
   const listRef = useRef<HTMLUListElement>(null);
   const atBottomRef = useRef(true);
   const wasOpenRef = useRef(false);
+  const [showNewest, setShowNewest] = useState(false);
   const last = chat.messages[chat.messages.length - 1];
   const hasList = chat.messages.length > 0;
   // Scroll only when a message arrives or changes, never on a plain re-render: the walker may be reading up the list.
@@ -34,6 +35,9 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
     if (justOpened || last?.role === "user" || atBottomRef.current) {
       list.scrollTop = list.scrollHeight;
       atBottomRef.current = true;
+      setShowNewest(false);
+    } else if (last?.role === "app") {
+      setShowNewest(true);
     }
   }, [open, hasList, last?.id, last?.text, last?.actions.length, last?.role]);
 
@@ -75,11 +79,13 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
         </button>
       </div>
       {chat.messages.length > 0 && (
+        <div className="relative">
         <ul
           ref={listRef}
           onScroll={(e) => {
             const el = e.currentTarget;
             atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+            if (atBottomRef.current) setShowNewest(false);
           }}
           className="max-h-[min(15rem,32dvh)] space-y-1.5 overflow-y-auto overscroll-contain touch-pan-y"
           aria-live="polite"
@@ -111,6 +117,22 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
             </li>
           ))}
         </ul>
+        {showNewest && (
+          <button
+            type="button"
+            aria-label={copy.newest}
+            onClick={() => {
+              const list = listRef.current;
+              if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
+              atBottomRef.current = true;
+              setShowNewest(false);
+            }}
+            className="absolute bottom-1 end-1 flex size-9 items-center justify-center rounded-full bg-forest text-on-accent shadow-tk-soft"
+          >
+            <ChevronDownIcon />
+          </button>
+        )}
+        </div>
       )}
       <form onSubmit={submit} className="flex gap-2">
         <input

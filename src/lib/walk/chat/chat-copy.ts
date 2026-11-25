@@ -16,6 +16,7 @@ export const CHAT_COPY: Record<
     ask: string;
     placeholder: string;
     send: string;
+    newest: string;
   }
 > = {
   en: {
@@ -31,6 +32,7 @@ export const CHAT_COPY: Record<
     ask: "Ask",
     placeholder: "cafe, water, skip, shorter…",
     send: "Send",
+    newest: "Newest messages",
   },
   he: {
     thinking: "חושב…",
@@ -45,5 +47,6 @@ export const CHAT_COPY: Record<
     ask: "שאלו",
     placeholder: "קפה, מים, דלג, קצר יותר…",
     send: "שלחו",
+    newest: "להודעות החדשות",
   },
 };
