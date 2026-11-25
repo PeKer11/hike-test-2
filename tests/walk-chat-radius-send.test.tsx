@@ -29,3 +29,13 @@ describe("the free chat sends the radius the walker typed", () => {
     expect("radiusM" in (await run("מה יש פה יפה"))).toBe(false);
   });
 });
+
+describe("the keyword chat's add-a-stop button carries the typed radius", () => {
+  it("'תוסיף עצירה עד 300 מטר' offers add-stop with radiusM 300", () => {
+    const { result } = renderHook(() =>
+      useWalkChat({ lang: "he", isSignedIn: false, getContext: () => ctx, onAction: vi.fn(), doFetch: vi.fn() as unknown as typeof fetch }),
+    );
+    act(() => result.current.send("תוסיף עצירה עד 300 מטר"));
+    expect(result.current.messages.at(-1)?.actions).toEqual([expect.objectContaining({ kind: "add-stop", radiusM: 300 })]);
+  });
+});
