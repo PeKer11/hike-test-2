@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { ChatIcon, ChevronDownIcon } from "@/components/ui/icons";
@@ -9,6 +9,7 @@ import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
 import type { ChatLang } from "@/lib/walk/chat/reply";
 
 const SHOWN_MESSAGES = 6; // the last three exchanges
+const NEAR_BOTTOM_PX = 48;
 
 /** The in-walk "Ask" pill: expands to one input and the last few replies. Lives in the HUD stack. */
 export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) {
@@ -18,6 +19,23 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
   useEffect(() => {
     if (chat.openTick > 0) setOpen(true);
   }, [chat.openTick]);
+
+  const listRef = useRef<HTMLUListElement>(null);
+  const atBottomRef = useRef(true);
+  const wasOpenRef = useRef(false);
+  const last = chat.messages[chat.messages.length - 1];
+  const hasList = chat.messages.length > 0;
+  // Scroll only when a message arrives or changes, never on a plain re-render: the walker may be reading up the list.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (!list) return;
+    if (justOpened || last?.role === "user" || atBottomRef.current) {
+      list.scrollTop = list.scrollHeight;
+      atBottomRef.current = true;
+    }
+  }, [open, hasList, last?.id, last?.text, last?.actions.length, last?.role]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -58,8 +76,10 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
       </div>
       {chat.messages.length > 0 && (
         <ul
-          ref={(el) => {
-            if (el) el.scrollTop = el.scrollHeight;
+          ref={listRef}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
           }}
           className="max-h-40 space-y-1.5 overflow-y-auto"
           aria-live="polite"

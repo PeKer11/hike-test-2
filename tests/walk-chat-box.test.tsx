@@ -72,3 +72,72 @@ describe("WalkChatBox", () => {
     expect(screen.getByRole("button", { name: /End walk/i })).toBeTruthy();
   });
 });
+
+type Msg = WalkChat["messages"][number];
+const msg = (id: number, role: "user" | "app", text: string, extra: Partial<Msg> = {}): Msg => ({ id, role, text, actions: [], used: false, ...extra });
+
+/** Gives the list fixed geometry (600 tall, 160 visible) and a settable scrollTop. */
+function fakeScroll(list: HTMLElement, start: number) {
+  let top = start;
+  Object.defineProperty(list, "scrollHeight", { configurable: true, get: () => 600 });
+  Object.defineProperty(list, "clientHeight", { configurable: true, get: () => 160 });
+  Object.defineProperty(list, "scrollTop", { configurable: true, get: () => top, set: (v: number) => { top = v; } });
+  Object.defineProperty(list, "scrollTo", { configurable: true, value: (o: { top: number }) => { top = o.top; } });
+  return {
+    set: (v: number) => { top = v; fireEvent.scroll(list); },
+    get: () => top,
+  };
+}
+
+describe("WalkChatBox scrolling", () => {
+  const base = [msg(1, "user", "hi"), msg(2, "app", "hello")];
+  const setup = (messages: Msg[]) => {
+    const view = render(<WalkChatBox chat={chatWith({ messages })} lang="en" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const list = screen.getByRole("list");
+    return { view, list };
+  };
+  const again = (view: ReturnType<typeof render>, messages: Msg[]) =>
+    view.rerender(<WalkChatBox chat={chatWith({ messages })} lang="en" />);
+
+  it("does not pull the list down on a re-render with the same messages", () => {
+    const { view, list } = setup(base);
+    const s = fakeScroll(list, 0);
+    s.set(0);
+    again(view, [...base]);
+    again(view, [...base]);
+    expect(s.get()).toBe(0);
+  });
+
+  it("leaves a walker who scrolled up where they are when an app message arrives", () => {
+    const { view, list } = setup(base);
+    const s = fakeScroll(list, 0);
+    s.set(0);
+    again(view, [...base, msg(3, "app", "more")]);
+    expect(s.get()).toBe(0);
+  });
+
+  it("follows a new message when the walker is at the bottom", () => {
+    const { view, list } = setup(base);
+    const s = fakeScroll(list, 440);
+    s.set(440);
+    again(view, [...base, msg(3, "app", "more")]);
+    expect(s.get()).toBe(600);
+  });
+
+  it("always scrolls down for the walker's own new message", () => {
+    const { view, list } = setup(base);
+    const s = fakeScroll(list, 0);
+    s.set(0);
+    again(view, [...base, msg(3, "user", "mine")]);
+    expect(s.get()).toBe(600);
+  });
+
+  it("follows a reply that replaces the thinking line (same id, new text) while at the bottom", () => {
+    const { view, list } = setup([msg(1, "user", "hi"), msg(2, "app", "Thinking…")]);
+    const s = fakeScroll(list, 440);
+    s.set(440);
+    again(view, [msg(1, "user", "hi"), msg(2, "app", "A much longer reply")]);
+    expect(s.get()).toBe(600);
+  });
+});
