@@ -71,7 +71,7 @@ const PLAN: WalkPlan = {
 type Body = Record<string, unknown>;
 let walkPlanCalls: Body[];
 /** What the walk chat's model answers (/api/walk-assistant). */
-let assistantAnswer: { reply: string; actions: unknown[] };
+let assistantAnswer: { reply: string; proposal?: unknown };
 let settingsStore: Record<string, string>;
 
 async function flush() {
@@ -103,7 +103,7 @@ beforeEach(() => {
   signedIn = false;
   chat = null;
   walkPlanCalls = [];
-  assistantAnswer = { reply: "ok", actions: [] };
+  assistantAnswer = { reply: "ok" };
   settingsStore = { "walk-settings": JSON.stringify({ ...DEFAULT_WALK_SETTINGS, deviationMode: "ask" }) };
   Object.defineProperty(window, "localStorage", {
     configurable: true,
@@ -199,20 +199,20 @@ describe("P21: a place added from the walk chat stays pinned", () => {
     await startSimulatedWalk();
     await advance(5_000);
     const kiosk = { lat: 32.1, lng: 34.7805 };
-    assistantAnswer = { reply: "There is a kiosk ahead.", actions: [{ kind: "add-place", name: "Corner Kiosk", coordinates: kiosk }] };
+    assistantAnswer = { reply: "", proposal: { adds: [{ name: "Corner Kiosk", coordinates: kiosk, distM: 300 }], skipStopIndexes: [], headBack: false } };
     await say("anything to drink ahead?");
-    fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: "Add Corner Kiosk" }));
+    fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: "Approve" }));
     await flush();
     const id = `chat-${Math.round(kiosk.lat * 1e5)}-${Math.round(kiosk.lng * 1e5)}`;
     const adding = walkPlanCalls[walkPlanCalls.length - 1];
     expect((adding.explicitAttractions as Attraction[]).map((a) => a.id)).toContain(id);
 
     // A later change of route, asked for separately: the kiosk is still one of the walker's pinned stops.
-    assistantAnswer = { reply: "Skip the museum?", actions: [{ kind: "skip-stop", stopIndex: 0 }] };
+    assistantAnswer = { reply: "", proposal: { adds: [], skipStopIndexes: [0], headBack: false } };
     await advance(3_000); // the new leg's first fix: the chat has the walk in view again
     const callsBefore = walkPlanCalls.length;
     await say("is the first one worth it?");
-    fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: /^Skip City Museum$/ }));
+    fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: "Approve" }));
     await flush();
     expect(walkPlanCalls).toHaveLength(callsBefore + 1);
     const later = walkPlanCalls[walkPlanCalls.length - 1];

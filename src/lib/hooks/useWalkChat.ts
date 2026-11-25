@@ -4,9 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Coordinates } from "@/lib/types";
 import { isAffirm, isDecline } from "@/lib/walk/chat/affirm";
-import { editCommand } from "@/lib/walk/chat/edit-command";
 import type { ProposalPreview } from "@/lib/walk/chat/proposal";
-import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
+import { CHAT_COPY, noMatchText } from "@/lib/walk/chat/chat-copy";
 import { parseIntent, radiusFromText, type ParsedIntent } from "@/lib/walk/chat/intent";
 import {
   CHAT_HELP_TEXT,
@@ -22,8 +21,6 @@ export const CHAT_REQUEST_TIMEOUT_MS = 10_000;
 const FREE_CHAT_TIMEOUT_MS = 30_000;
 const MAX_MESSAGES = 20;
 const MAX_TEXT = 200;
-/** Most places or stops one typed command may add or remove without a tap. */
-const MAX_AUTO_APPLY = 3;
 // "take me to X" is a command, not a question: a single detour offer runs without another tap.
 const GO_WORDS = /take (me|us)|bring (me|us)|go to|lead (me|us)|קח|תיקח|קחו|תקח|נלך|לך |סע |תוביל|הובל/i;
 
@@ -40,23 +37,6 @@ export interface ChatMessage {
   declined?: boolean;
   /** The numbers under a proposal card; set by the planner's dry-run, absent for plain replies. */
   preview?: ProposalPreview;
-}
-
-const COMBINED_LABEL_MAX = 60;
-
-/** The start of the app's own line for an action it just ran: "Adding" / "Removing". */
-const runVerb = (a: ChatAction, lang: ChatLang) =>
-  a.kind === "add-place" ? (lang === "he" ? "מוסיפים" : "Adding") : lang === "he" ? "מורידים" : "Removing";
-
-/** The combined chip's text: the places by name, drops with a minus, a count when the names run long. */
-function combinedLabel(lang: ChatLang, addNames: string[], dropNames: string[]): string {
-  const items = [...(addNames.length > 0 ? [addNames.join(" + ")] : []), ...dropNames.map((n) => `−${n}`)];
-  const head = addNames.length > 0 ? (lang === "he" ? "להוסיף" : "Add") : lang === "he" ? "להסיר" : "Remove";
-  const named = `${head}: ${items.join(", ")}`;
-  if (named.length <= COMBINED_LABEL_MAX) return named;
-  const n = addNames.length + dropNames.length;
-  if (dropNames.length === 0) return lang === "he" ? `להוסיף את ${n} המקומות` : n === 2 ? "Add both places" : `Add ${n} places`;
-  return lang === "he" ? `לבצע ${n} שינויים` : `Apply ${n} changes`;
 }
 
 export interface WalkChatDeps {
@@ -115,14 +95,14 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
   const push = useCallback((role: ChatMessage["role"], text: string, actions: ChatAction[] = []) => {
     const id = nextId.current++;
     setMessages((prev) =>
-      [...prev.map((m) => (actions.length > 0 && m.actions.length > 0 ? { ...m, superseded: true } : m)), { id, role, text, actions, used: false }].slice(-MAX_MESSAGES),
+      [...prev.map((m) => (actions.length > 0 && m.actions.length > 0 && !m.used ? { ...m, superseded: true } : m)), { id, role, text, actions, used: false }].slice(-MAX_MESSAGES),
     );
     return id;
   }, []);
 
   const replace = useCallback((id: number, text: string, actions: ChatAction[] = []) => {
     setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, text, actions } : actions.length > 0 && m.actions.length > 0 ? { ...m, superseded: true } : m)),
+      prev.map((m) => (m.id === id ? { ...m, text, actions } : actions.length > 0 && m.actions.length > 0 && !m.used ? { ...m, superseded: true } : m)),
     );
   }, []);
 
@@ -179,16 +159,13 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           affirmReplyId.current = push("app", lang === "he" ? "כבר על זה" : "Already on it");
           return;
         }
-        if (newest && !newest.used && !usedIds.current.has(newest.id) && newest.actions.length > 0) {
-          const applyAll = newest.actions.findIndex((a) => a.kind === "apply-changes");
-          const index = applyAll >= 0 ? applyAll : newest.actions.length === 1 ? 0 : -1;
+        if (newest && !newest.used && !newest.superseded && !usedIds.current.has(newest.id) && newest.actions.length > 0) {
+          const index = newest.actions.length === 1 ? 0 : -1;
           if (index >= 0) {
             affirmReplyId.current = push("app", lang === "he" ? "מטפלים בזה…" : "On it…");
             runAction(newest.id, index);
-          } else {
-            push("app", lang === "he" ? "על איזה מהם? אפשר ללחוץ על הכפתור" : "Which one? Tap its button");
+            return;
           }
-          return;
         }
       }
       const legacy = (modelDown = false) => {
@@ -282,10 +259,13 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
       abortRef.current = controller;
       const timer = setTimeout(() => controller.abort(), FREE_CHAT_TIMEOUT_MS);
       const stale = () => myRequest !== requestId.current;
-      const command = editCommand(text);
       const radiusM = radiusFromText(text);
+      // The card the walker has not answered yet: the model's next proposal replaces it, so it must know what is in it.
+      const openCard = [...messagesRef.current].reverse().find((m) => m.role === "app" && !m.used && !m.superseded && m.actions.some((a) => a.kind === "proposal"));
+      const openAction = openCard?.actions.find((a) => a.kind === "proposal");
+      const pendingCard = openAction?.kind === "proposal" ? { adds: openAction.adds.map((a) => a.name), drops: openAction.dropNames, headBack: openAction.headBack } : null;
       const history = messagesRef.current
-        .filter((m) => m.id !== thinkingId && m.text !== copy.thinking)
+        .filter((m) => m.id !== thinkingId && m.text !== copy.thinking && m.text !== "")
         .slice(-6)
         .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
       if (history[history.length - 1]?.content !== text) history.push({ role: "user", content: text });
@@ -296,7 +276,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           const res = await (doFetch ?? fetch)("/api/walk-assistant", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ history, position: ctx.position, stops: ctx.stops.map((s) => s.name), timing: ctx.timing, ...(command ? { autoApply: command } : {}), ...(radiusM ? { radiusM } : {}) }),
+            body: JSON.stringify({ history, position: ctx.position, stops: ctx.stops.map((s) => s.name), timing: ctx.timing, ...(pendingCard ? { pending: pendingCard } : {}), ...(radiusM ? { radiusM } : {}) }),
             signal: controller.signal,
           });
           if (stale()) return;
@@ -307,7 +287,8 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           }
           const data = (await res.json().catch(() => ({}))) as {
             reply?: string;
-            actions?: Array<{ kind: string; name?: string; coordinates?: Coordinates; stopIndex?: number }>;
+            proposal?: { adds?: Array<{ name: string; coordinates: Coordinates; distM?: number }>; skipStopIndexes?: number[]; headBack?: boolean };
+            noMatch?: "none_near" | "outside_radius" | "search_limit";
             code?: string;
           };
           if (res.status === 429) {
@@ -319,55 +300,28 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
             modelDown = data.code === "llm_unavailable";
             return;
           }
+          if (data.noMatch) {
+            replace(thinkingId, noMatchText(lang, data.noMatch, radiusM ?? undefined));
+            return;
+          }
           const fresh = getContext() ?? ctx;
-          const actions: ChatAction[] = [];
-          for (const a of data.actions ?? []) {
-            if (a.kind === "add-place" && a.name && a.coordinates) {
-              actions.push({ kind: "add-place", name: a.name, coordinates: a.coordinates, label: lang === "he" ? `להוסיף את ${a.name}` : `Add ${a.name}` });
-            } else if (a.kind === "skip-stop" && typeof a.stopIndex === "number" && ctx.stops[a.stopIndex]) {
-              // The index points into the stops sent with the message; a stop reached meanwhile must not shift it.
-              const sent = ctx.stops[a.stopIndex];
-              const st = fresh.stops.find((x) => x.id === sent.id);
-              if (st) actions.push({ kind: "drop", stopId: st.id, label: lang === "he" ? `לדלג על ${st.name}` : `Skip ${st.name}` });
-            } else if (a.kind === "head-back") {
-              actions.push({ kind: "head-back", label: lang === "he" ? "חזרה להתחלה" : "Head back" });
+          const p = data.proposal;
+          if (p) {
+            const adds = (p.adds ?? []).filter((a) => a.name && a.coordinates);
+            // The index points into the stops sent with the message; a stop reached meanwhile must not shift it.
+            const drops = (p.skipStopIndexes ?? []).flatMap((i) => {
+              const sent = ctx.stops[i];
+              const st = sent && fresh.stops.find((x) => x.id === sent.id);
+              return st ? [st] : [];
+            });
+            if (p.headBack || adds.length + drops.length > 0) {
+              replace(thinkingId, "", [
+                { kind: "proposal", adds, dropStopIds: drops.map((d) => d.id), dropNames: drops.map((d) => d.name), headBack: p.headBack === true, label: "" },
+              ]);
+              return;
             }
           }
-          // A typed command ("תוסיף שני מקומות") is carried out at once; anything else the reply proposes stays a button.
-          const kind = command === "add" ? "add-place" : command === "drop" ? "drop" : null;
-          const toRun = kind ? actions.filter((a) => a.kind === kind).slice(0, MAX_AUTO_APPLY) : [];
-          const shown = actions.filter((a) => !toRun.includes(a));
-          // Several proposals in one reply: one extra button that applies them all in a single rebuild.
-          const adds = shown.flatMap((a) => (a.kind === "add-place" ? [{ name: a.name, coordinates: a.coordinates }] : []));
-          const dropStopIds = shown.flatMap((a) => (a.kind === "drop" ? [a.stopId] : []));
-          const dropNames = (ids: string[]) => ids.map((id) => fresh.stops.find((x) => x.id === id)?.name ?? "");
-          if (adds.length + dropStopIds.length > 1) {
-            shown.unshift({
-              kind: "apply-changes",
-              adds,
-              dropStopIds,
-              label: combinedLabel(lang, adds.map((a) => a.name), dropNames(dropStopIds)),
-            });
-          }
-          const why = data.reply || (toRun.length > 0 ? "" : lang === "he" ? "לא הצלחתי לענות, נסו שוב." : "I couldn't answer, try again.");
-          let line = "";
-          if (toRun.length > 0) {
-            const names = toRun.map((a) => (a.kind === "add-place" ? a.name : a.kind === "drop" ? dropNames([a.stopId])[0] : ""));
-            const head = runVerb(toRun[0], lang);
-            line = `${head}: ${names.join(", ")}.`;
-          }
-          replace(thinkingId, [line, why].filter(Boolean).join(" "), shown);
-          if (toRun.length === 1) depsRef.current.onAction(toRun[0]);
-          else if (toRun.length > 1) {
-            const runAdds = toRun.flatMap((a) => (a.kind === "add-place" ? [{ name: a.name, coordinates: a.coordinates }] : []));
-            const runDrops = toRun.flatMap((a) => (a.kind === "drop" ? [a.stopId] : []));
-            depsRef.current.onAction({
-              kind: "apply-changes",
-              adds: runAdds,
-              dropStopIds: runDrops,
-              label: combinedLabel(lang, runAdds.map((a) => a.name), dropNames(runDrops)),
-            });
-          }
+          replace(thinkingId, data.reply || (lang === "he" ? "לא הצלחתי לענות, נסו שוב." : "I couldn't answer, try again."));
         } catch {
           if (controller.signal.aborted) replace(thinkingId, copy.timeout);
           else fellBack = true;

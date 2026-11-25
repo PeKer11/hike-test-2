@@ -70,7 +70,9 @@ export function proposalLines(
         ...p.dropNames.map((n) => `− ${n}`),
       ];
   const line1 = parts.join(" · ");
-  if (!preview || preview.status === "computing") return { line1, line2: t.computing, actionable: false };
+  // No preview at all (no way to compute one): the card still works, it just has no numbers.
+  if (!preview) return { line1, line2: null, actionable: true };
+  if (preview.status === "computing") return { line1, line2: t.computing, actionable: false };
   if (preview.status === "failed") return { line1: t.failed, line2: null, actionable: false };
   if (preview.status === "nofit") return { line1: t.nofit(preview.name), line2: null, actionable: false };
   const approx = preview.status === "estimate" ? "~" : "";

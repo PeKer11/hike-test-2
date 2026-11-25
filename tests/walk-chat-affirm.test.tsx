@@ -11,12 +11,18 @@ const ctx: ChatContext = {
   position: { lat: 32, lng: 34.8 },
 };
 
-const CAFE = { kind: "add-place", name: "Café Ahead", coordinates: { lat: 32.001, lng: 34.801 } };
-const BAKERY = { kind: "add-place", name: "Bakery", coordinates: { lat: 32.002, lng: 34.802 } };
+const CAFE = { name: "Café Ahead", coordinates: { lat: 32.001, lng: 34.801 }, distM: 120 };
+const BAKERY = { name: "Bakery", coordinates: { lat: 32.002, lng: 34.802 }, distM: 200 };
 
-function setup(actions: unknown[]) {
+/** The server's answer: a proposal when there are places, otherwise a plain text reply. */
+function setup(adds: unknown[]) {
   const doFetch = vi.fn(
-    async () => ({ ok: true, status: 200, json: async () => ({ reply: "I suggest this. Does it fit?", actions }) }) as unknown as Response,
+    async () =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => (adds.length > 0 ? { reply: "", proposal: { adds, skipStopIndexes: [], headBack: false } } : { reply: "I suggest this. Does it fit?" }),
+      }) as unknown as Response,
   ) as unknown as typeof fetch;
   const onAction = vi.fn();
   const hook = renderHook(() =>
@@ -39,7 +45,7 @@ describe("a typed yes after a proposal", () => {
     const fetches = vi.mocked(h.doFetch).mock.calls.length;
     act(() => h.result.current.send("כן"));
     expect(h.onAction).toHaveBeenCalledTimes(1);
-    expect(h.onAction.mock.calls[0][0]).toMatchObject({ kind: "add-place", name: "Café Ahead" });
+    expect(h.onAction.mock.calls[0][0]).toMatchObject({ kind: "proposal", adds: [expect.objectContaining({ name: "Café Ahead" })] });
     expect(vi.mocked(h.doFetch).mock.calls.length).toBe(fetches);
     expect(h.result.current.messages.find((m) => m.actions.length > 0)?.used).toBe(true);
   });
@@ -61,7 +67,7 @@ describe("a typed yes after a proposal", () => {
     await propose(h);
     // The walker asks something else; the next reply has no buttons.
     vi.mocked(h.doFetch).mockImplementationOnce(
-      async () => ({ ok: true, status: 200, json: async () => ({ reply: "No rain expected.", actions: [] }) }) as unknown as Response,
+      async () => ({ ok: true, status: 200, json: async () => ({ reply: "No rain expected." }) }) as unknown as Response,
     );
     act(() => h.result.current.send("will it rain?"));
     await waitFor(() => expect(h.result.current.messages.at(-1)?.text).toBe("No rain expected."));
@@ -102,35 +108,17 @@ describe("a typed yes after a proposal", () => {
     expect(isDecline("")).toBe(false);
   });
 
-  it("runs apply-all when there are several proposals", async () => {
-    const h = setup([CAFE, BAKERY]);
-    await propose(h);
-    act(() => h.result.current.send("yes please"));
-    expect(h.onAction).toHaveBeenCalledTimes(1);
-    expect(h.onAction.mock.calls[0][0]).toMatchObject({ kind: "apply-changes" });
-  });
-
-  it("a plural yes applies both proposals with no fetch", async () => {
-    for (const phrase of ["תוסיף אותם", "תוסיף את שניהם", "שניהם", "add them", "add both", "both"]) {
+  it("a yes of any kind approves one card that holds several places, with no fetch", async () => {
+    for (const phrase of ["yes please", "תוסיף אותם", "תוסיף את שניהם", "שניהם", "add them", "add both", "both"]) {
       const h = setup([CAFE, BAKERY]);
       await propose(h);
       const fetches = vi.mocked(h.doFetch).mock.calls.length;
       act(() => h.result.current.send(phrase));
       expect(h.onAction, phrase).toHaveBeenCalledTimes(1);
-      expect(h.onAction.mock.calls[0][0]).toMatchObject({ kind: "apply-changes" });
+      expect(h.onAction.mock.calls[0][0]).toMatchObject({ kind: "proposal", adds: [expect.anything(), expect.anything()] });
       expect(vi.mocked(h.doFetch).mock.calls.length).toBe(fetches);
       cleanup();
     }
-  });
-
-  it("asks which one when several actions have no apply-all", async () => {
-    const h = setup([{ kind: "head-back" }, { kind: "skip-stop", stopIndex: 0 }]);
-    await propose(h);
-    const fetches = vi.mocked(h.doFetch).mock.calls.length;
-    act(() => h.result.current.send("yes"));
-    expect(h.onAction).not.toHaveBeenCalled();
-    expect(vi.mocked(h.doFetch).mock.calls.length).toBe(fetches);
-    expect(h.result.current.messages.at(-1)!.text).toContain("Which one");
   });
 
   it("matches only short exact phrases", () => {

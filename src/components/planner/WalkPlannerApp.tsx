@@ -4140,6 +4140,9 @@ export function WalkPlannerApp({
         void addBestStopOrFill(action.radiusM);
       } else if (action.kind === "apply-changes") {
         runApplyChangesRebuild(action.adds, action.dropStopIds);
+      } else if (action.kind === "proposal") {
+        if (action.headBack) void runThemedOption("short");
+        else runApplyChangesRebuild(action.adds, action.dropStopIds);
       } else if (action.kind === "add-place") {
         runAddPlaceRebuild(action.name, action.coordinates);
       } else if (action.kind === "set-pace") {

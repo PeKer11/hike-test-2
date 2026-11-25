@@ -68,7 +68,7 @@ const PLAN: WalkPlan = {
 type Body = Record<string, unknown>;
 let walkPlanCalls: Body[];
 /** What the walk chat's model answers (/api/walk-assistant). */
-let assistantAnswer: { reply: string; actions: unknown[] };
+let assistantAnswer: { reply: string; proposal?: unknown };
 let settingsStore: Record<string, string>;
 /** While set, /api/walk-plan waits for it (a rebuild that is still running). */
 let holdPlan: Promise<void> | null;
@@ -119,7 +119,7 @@ beforeEach(() => {
   walkPlanCalls = [];
   holdPlan = null;
   omitIds = [];
-  assistantAnswer = { reply: "ok", actions: [] };
+  assistantAnswer = { reply: "ok" };
   settingsStore = { "walk-settings": JSON.stringify({ ...DEFAULT_WALK_SETTINGS, deviationMode: "ask", uiLanguage: "he" }) };
   Object.defineProperty(window, "localStorage", {
     configurable: true,
@@ -197,7 +197,9 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
   const B = { lat: 32.101, lng: 34.7806 };
   const C = { lat: 32.102, lng: 34.7807 };
   const idOf = (c: { lat: number; lng: number }) => `chat-${Math.round(c.lat * 1e5)}-${Math.round(c.lng * 1e5)}`;
-  const add = (name: string, coordinates: { lat: number; lng: number }) => ({ kind: "add-place", name, coordinates });
+  const add = (name: string, coordinates: { lat: number; lng: number }) => ({ name, coordinates, distM: 300 });
+  /** What the assistant route answers when the model proposes one change. */
+  const plan = (adds: unknown[], skipStopIndexes: number[] = []) => ({ reply: "", proposal: { adds, skipStopIndexes, headBack: false } });
 
   async function say(text: string) {
     const ask = screen.queryByRole("button", { name: /^(Ask|שאלו|לשאול)/ });
@@ -215,9 +217,9 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
   async function applyAllTwoAdds() {
     await startSimulatedWalk();
     await advance(5_000);
-    assistantAnswer = { reply: "Two places ahead.", actions: [add("Alush Garden", A), add("Haruv Garden", B)] };
+    assistantAnswer = plan([add("Alush Garden", A), add("Haruv Garden", B)]);
     await say("anything nice ahead?");
-    fireEvent.click(chatButton("להוסיף: Alush Garden + Haruv Garden"));
+    fireEvent.click(chatButton("אשר"));
     await flush();
     expect(screen.getByTestId("walk-notice").textContent).toContain("נוסף: Alush Garden, Haruv Garden");
   }
@@ -229,9 +231,9 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
     await flush();
     // The next rebuild (a third place, asked for separately) carries neither of the undone pins.
     await advance(3_000);
-    assistantAnswer = { reply: "One more.", actions: [add("Corner Kiosk", C)] };
+    assistantAnswer = plan([add("Corner Kiosk", C)]);
     await say("and a drink?");
-    fireEvent.click(chatButton("להוסיף את Corner Kiosk"));
+    fireEvent.click(chatButton("אשר"));
     await flush();
     expect(pinned()).toContain(idOf(C));
     expect(pinned()).not.toContain(idOf(A));
@@ -241,10 +243,10 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
   it("U4: says 'nothing fit' only when none of the added places made it onto the walk", async () => {
     await startSimulatedWalk();
     await advance(5_000);
-    assistantAnswer = { reply: "Two places ahead.", actions: [add("Alush Garden", A), add("Haruv Garden", B)] };
+    assistantAnswer = plan([add("Alush Garden", A), add("Haruv Garden", B)]);
     await say("anything nice ahead?");
     omitIds = [idOf(A)]; // the first did not fit, the second did
-    fireEvent.click(chatButton("להוסיף: Alush Garden + Haruv Garden"));
+    fireEvent.click(chatButton("אשר"));
     await flush();
     const text = screen.getByTestId("walk-notice").textContent ?? "";
     expect(text).not.toContain("לא נמצא מקום שנכנס");
@@ -254,17 +256,17 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
   it("U2: undo makes the stops it had dropped offerable again (no longer excluded from discovery)", async () => {
     await startSimulatedWalk();
     await advance(5_000);
-    assistantAnswer = { reply: "Swap?", actions: [add("Alush Garden", A), { kind: "skip-stop", stopIndex: 0 }] };
+    assistantAnswer = plan([add("Alush Garden", A)], [0]);
     await say("swap the museum");
-    fireEvent.click(chatButton(/^להוסיף: Alush Garden/));
+    fireEvent.click(chatButton("אשר"));
     await flush();
     expect(last().excludeIds as string[]).toContain("a1");
     fireEvent.click(within(screen.getByTestId("walk-notice")).getByRole("button", { name: "ביטול" }));
     await flush();
     await advance(3_000);
-    assistantAnswer = { reply: "One more.", actions: [add("Corner Kiosk", C)] };
+    assistantAnswer = plan([add("Corner Kiosk", C)]);
     await say("and a drink?");
-    fireEvent.click(chatButton("להוסיף את Corner Kiosk"));
+    fireEvent.click(chatButton("אשר"));
     await flush();
     expect((last().excludeIds as string[]) ?? []).not.toContain("a1");
   });
@@ -272,9 +274,9 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
   it("U5: a second chat edit in the same walk can still be undone", async () => {
     await applyAllTwoAdds(); // the first edit starts the undo chain
     await advance(9_000); // its notice is gone
-    assistantAnswer = { reply: "One more.", actions: [add("Corner Kiosk", C)] };
+    assistantAnswer = plan([add("Corner Kiosk", C)]);
     await say("and a drink?");
-    fireEvent.click(chatButton("להוסיף את Corner Kiosk"));
+    fireEvent.click(chatButton("אשר"));
     await flush();
     const notice = screen.getByTestId("walk-notice");
     expect(notice.textContent).toContain("Corner Kiosk");
@@ -283,11 +285,14 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
     expect(screen.queryByTestId("walk-notice")).toBeNull();
   });
 
-  it("U6: a typed remove command runs at once, names the stop, and can be undone", async () => {
+  it("U6: a typed remove asks first; approving removes, names the stop, and can be undone", async () => {
     await startSimulatedWalk();
     await advance(5_000);
-    assistantAnswer = { reply: "הוא רחוק.", actions: [{ kind: "skip-stop", stopIndex: 0 }] };
+    assistantAnswer = plan([], [0]);
     await say("תוריד את המוזיאון");
+    expect(screen.queryByTestId("walk-notice")).toBeNull(); // nothing changes until the card is approved
+    fireEvent.click(chatButton("אשר"));
+    await flush();
     const notice = screen.getByTestId("walk-notice");
     expect(notice.textContent).toContain("הוסר: City Museum");
     expect(last().excludeIds as string[]).toContain("a1");
@@ -299,25 +304,26 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
   it("U3: a change refused while an update is running marks nothing as dropped", async () => {
     await startSimulatedWalk();
     await advance(5_000);
-    assistantAnswer = { reply: "A kiosk.", actions: [add("Corner Kiosk", C)] };
+    assistantAnswer = plan([add("Corner Kiosk", C)]);
     await say("a drink?");
     let release!: () => void;
     holdPlan = new Promise<void>((r) => (release = r));
-    fireEvent.click(chatButton("להוסיף את Corner Kiosk")); // a rebuild now running
+    fireEvent.click(chatButton("אשר")); // a rebuild now running
     await flush();
     const before = walkPlanCalls.length;
-    // A typed command runs at once, and is refused while the update is still running.
-    assistantAnswer = { reply: "Skipping the museum.", actions: [{ kind: "skip-stop", stopIndex: 0 }] };
+    // The approved card is refused while the update is still running.
+    assistantAnswer = plan([], [0]);
     await say("תוריד את המוזיאון");
+    fireEvent.click(chatButton("אשר"));
     await flush();
     expect(walkPlanCalls).toHaveLength(before);
     holdPlan = null;
     release();
     await flush();
     await advance(3_000);
-    assistantAnswer = { reply: "Another.", actions: [add("Haruv Garden", B)] };
+    assistantAnswer = plan([add("Haruv Garden", B)]);
     await say("one more?");
-    fireEvent.click(chatButton("להוסיף את Haruv Garden"));
+    fireEvent.click(chatButton("אשר"));
     await flush();
     expect((last().excludeIds as string[]) ?? []).not.toContain("a1");
   });

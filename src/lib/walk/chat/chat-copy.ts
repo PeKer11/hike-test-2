@@ -65,3 +65,10 @@ export const CHAT_COPY: Record<
     replaced: "הוחלף בהצעה חדשה",
   },
 };
+
+/** The fixed line for "nothing_found". The model only picks the reason; it writes none of this. */
+export function noMatchText(lang: ChatLang, reason: "none_near" | "outside_radius" | "search_limit", radiusM?: number): string {
+  if (reason === "search_limit") return lang === "he" ? "הגעתי למגבלת החיפושים להיום." : "I've hit today's search limit.";
+  if (reason === "outside_radius" && radiusM) return lang === "he" ? `לא מצאתי מקום מתאים בטווח ${radiusM} מ׳.` : `I couldn't find a suitable place within ${radiusM} m.`;
+  return lang === "he" ? "לא מצאתי מקום מתאים קרוב." : "I couldn't find a suitable place nearby.";
+}
