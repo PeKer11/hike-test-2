@@ -450,7 +450,7 @@ describe("a walker who has gone a different way (collapse)", () => {
     fireEvent.change(box, { target: { value: "head back" } });
     fireEvent.submit(box.closest("form")!);
     await flush();
-    fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: "Head back" }));
+    fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: "Approve" }));
     await flush(6);
     await advance(1_000);
 

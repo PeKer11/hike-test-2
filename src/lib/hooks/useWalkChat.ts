@@ -43,6 +43,17 @@ export interface ChatMessage {
   preview?: ProposalPreview;
 }
 
+/** A keyword reply with exactly one route change (skip one stop, head back) is the same card the model's proposals are. */
+function cardFor(actions: ChatAction[], stops: ChatContext["stops"], key: string): ProposalAction | null {
+  const only = actions.length === 1 ? actions[0] : null;
+  if (only?.kind === "drop") {
+    const stop = stops.find((x) => x.id === only.stopId);
+    return stop ? { kind: "proposal", key, adds: [], dropStopIds: [stop.id], dropNames: [stop.name], headBack: false, label: "" } : null;
+  }
+  if (only?.kind === "head-back") return { kind: "proposal", key, adds: [], dropStopIds: [], dropNames: [], headBack: true, label: "" };
+  return null;
+}
+
 export interface WalkChatDeps {
   lang: ChatLang;
   isSignedIn: boolean;
@@ -245,8 +256,11 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
         const reply = resolveChat(parsed, ctx, lang);
         const radius = radiusFromText(text);
         const actions = radius ? reply.actions.map((a) => (a.kind === "add-stop" ? { ...a, radiusM: radius } : a)) : reply.actions;
-        const id = push("app", reply.text, actions);
-        autoRun(id, text, actions);
+        const card = cardFor(actions, ctx.stops, String(nextId.current));
+        const id = push("app", card ? "" : reply.text, card ? [card] : actions);
+        if (card) {
+          if (!card.headBack) startPreview(id, card);
+        } else autoRun(id, text, actions);
         return;
       }
       if (!isSignedIn) {
@@ -307,8 +321,11 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           const fresh = getContext() ?? ctx;
           // Signed in and still not understood: the planner chat (Sol) can take it, so offer that instead of a hint.
           const reply = intent.intent === "unknown" ? plannerHandoff(text, lang) : resolveChat(intent, fresh, lang);
-          replace(thinkingId, reply.text, reply.actions);
-          autoRun(thinkingId, text, reply.actions);
+          const card = cardFor(reply.actions, fresh.stops, String(thinkingId));
+          replace(thinkingId, card ? "" : reply.text, card ? [card] : reply.actions);
+          if (card) {
+            if (!card.headBack) startPreview(thinkingId, card);
+          } else autoRun(thinkingId, text, reply.actions);
         } catch {
           fail(controller.signal.aborted ? copy.timeout : copy.network);
         } finally {

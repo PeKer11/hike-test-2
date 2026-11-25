@@ -4068,8 +4068,8 @@ export function WalkPlannerApp({
                   onClick: () =>
                     walkChat.openWith(
                       uiLang === "he"
-                        ? "אני לא מספיק בזמן. מה כדאי לקצר? תציע לי ותשאל אותי."
-                        : "I'm running short on time. What should we cut? Suggest something and ask me.",
+                        ? "אני לא מספיק בזמן. מה כדאי לקצר?"
+                        : "I'm running short on time. What should we cut?",
                     ),
                 },
               ]
@@ -4281,8 +4281,8 @@ export function WalkPlannerApp({
           ? "תוסיף עצירה — קודם תשאל אותי איזה סוג מקום בא לי"
           : "Add a stop — first ask me what kind of place I want"
         : uiLang === "he"
-          ? "תוסיף עצירה — תבחר אחת בשבילי ותשאל אותי אם זה מתאים"
-          : "Add a stop — pick the best one for me and ask if it fits",
+          ? "תוסיף עצירה — תבחר אחת בשבילי"
+          : "Add a stop — pick the best one for me",
     );
 
   // For the per-fix callout gate (a closure): is any card, or the options sheet, up?

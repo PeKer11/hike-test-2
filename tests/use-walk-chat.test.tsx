@@ -59,7 +59,8 @@ describe("useWalkChat", () => {
     const { result } = setup(doFetch);
     act(() => result.current.send("what is that building"));
     expect(last(result)).toBe("Thinking…");
-    await waitFor(() => expect(last(result)).toContain("Carmel Market"));
+    // One stop to skip is a proposal card naming it.
+    await waitFor(() => expect(result.current.messages.at(-1)?.actions[0]).toMatchObject({ kind: "proposal", dropNames: ["Carmel Market"] }));
     const body = JSON.parse((vi.mocked(doFetch).mock.calls[0][1] as { body: string }).body);
     expect(body).toEqual({ text: "what is that building", stops: ["Old Port", "Carmel Market"], lang: "en" });
     expect(result.current.pending).toBe(false);
