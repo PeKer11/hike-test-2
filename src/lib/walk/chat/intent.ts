@@ -60,9 +60,13 @@ const SHORTER_WORDS = [
   "קצר", "קצרה", "קצרים", "קצרות", "לקצר", "פחות זמן", "עייף", "עייפה", "עייפים", "עייפות", "מתיש",
   "ארוך מדי", "ארוך מידי", "ארוכה מדי", "ארוכה מידי",
 ];
+/** Hebrew verbs that ask to add something; the edit-command check and the "longer" intent share them. */
+export const ADD_WORDS_HE = [
+  "תוסיף", "תוסיפי", "תוסיפו", "הוסף", "הוסיפי", "הוסיפו", "להוסיף", "תכניס", "תכניסי", "תכניסו", "תשים", "תשימי", "תשימו",
+];
 const LONGER_WORDS = [
   "longer", "extend", "add a stop", "add stop", "another stop", "more time", "more stops", "add more",
-  "ארוך יותר", "יותר ארוך", "ארוכה יותר", "יותר ארוכה", "להאריך", "עוד עצירה", "עוד תחנה", "עוד זמן", "תוסיף",
+  "ארוך יותר", "יותר ארוך", "ארוכה יותר", "יותר ארוכה", "להאריך", "עוד עצירה", "עוד תחנה", "עוד זמן", ...ADD_WORDS_HE,
 ];
 
 // Words that carry no stop identity; what is left after removing them is a stop name or nothing.

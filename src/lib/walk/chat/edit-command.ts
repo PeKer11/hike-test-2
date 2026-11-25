@@ -1,6 +1,4 @@
-import { hasAny, normalize, SKIP_WORDS } from "@/lib/walk/chat/intent";
-
-const ADD_WORDS_HE = ["תוסיף", "תוסיפי", "תוסיפו", "הוסף", "הוסיפו", "להוסיף", "תכניס", "תשים"];
+import { ADD_WORDS_HE, hasAny, normalize, SKIP_WORDS } from "@/lib/walk/chat/intent";
 // Whole words only: "address" is not "add".
 const ADD_WORDS_EN = /(^|[^a-z])(add|include|put)([^a-z]|$)/;
 

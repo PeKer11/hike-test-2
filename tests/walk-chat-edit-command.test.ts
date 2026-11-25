@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { editCommand } from "@/lib/walk/chat/edit-command";
+import { ADD_WORDS_HE, parseIntent } from "@/lib/walk/chat/intent";
 
 describe("editCommand", () => {
   it("add commands", () => {
@@ -14,5 +15,20 @@ describe("editCommand", () => {
   it("questions, small talk and mixed commands are not commands", () => {
     for (const t of ["מה יש פה יפה?", "what is nice nearby?", "תוסיף קפה ותוריד את המוזיאון", "is there water?", "address book"])
       expect(editCommand(t), t).toBeNull();
+  });
+
+  it("every Hebrew add verb, with and without a ו- prefix, is both an add command and a longer intent", () => {
+    expect(ADD_WORDS_HE.length).toBeGreaterThanOrEqual(8);
+    for (const verb of ADD_WORDS_HE) {
+      for (const sentence of [`${verb} אטרקציה`, `ו${verb} אטרקציה`, `בעצם בא לי עד חצי ק״מ רדיוס ו${verb} אטרקציה`]) {
+        expect(editCommand(sentence), sentence).toBe("add");
+        expect(parseIntent(sentence, []).intent, sentence).toBe("longer");
+      }
+    }
+  });
+
+  it("the sentence from the phone parses as longer, not unknown", () => {
+    expect(parseIntent("בעצם בא לי עד חצי ק״מ רדיוס ותוסיף אטרקציה", []).intent).toBe("longer");
+    expect(parseIntent("בעצם בא לי עד חצי ק״מ רדיוס ותוסיפי אטרקציה", []).intent).toBe("longer");
   });
 });
