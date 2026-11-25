@@ -238,6 +238,8 @@ const STALE_FIX_MS = 20_000;
 /** Real 1 Hz GPS arrives 1000 +- 40 ms (late fixes bunch up); a 1000 ms gate dropped a third of the fixes and a 900 ms one still dropped 4-16 %. 500 ms caps a fast simulator at 2 Hz. */
 const POSITION_PUBLISH_MS = 500;
 /** A place proposed in the chat has no id of its own: its position (to about a metre) is its id. */
+/** A proposed place this close to a stop that stays on the walk is that stop. */
+const SAME_PLACE_M = 40;
 const chatPlaceId = (c: { lat: number; lng: number }) => `chat-${Math.round(c.lat * 1e5)}-${Math.round(c.lng * 1e5)}`;
 
 type PlannerMode = "manual" | "hike-search" | "walk-companion";
@@ -2217,7 +2219,7 @@ export function WalkPlannerApp({
     const drop = new Set(dropStopIds);
     const onWalk = new Set((state.currentAttractions ?? []).map((a) => a.id));
     // Never add the same proposed place twice (ids are position based).
-    const added = adds
+    const fresh = adds
       .map(({ name, coordinates }) => ({
         id: chatPlaceId(coordinates),
         name,
@@ -2228,6 +2230,8 @@ export function WalkPlannerApp({
       }))
       .filter((a, i, all) => !onWalk.has(a.id) && all.findIndex((b) => b.id === a.id) === i);
     const kept = (state.currentAttractions ?? []).filter((a) => !drop.has(a.id));
+    // A place within 40 m of a stop that stays on the walk is that stop, not a new one (two markers for one place).
+    const added = fresh.filter((a) => !kept.some((k) => haversineDistance(k.coordinates, a.coordinates) <= SAME_PLACE_M));
     const request = buildExtendedTimeRebuildRequest({
       ...state,
       currentAttractions: [...kept, ...added],
@@ -2270,6 +2274,7 @@ export function WalkPlannerApp({
     const baseline = remainingBaseline();
     if (!state || !baseline) throw new Error("no live walk");
     const change = prepareChangeRebuild(state, action.adds, action.dropStopIds);
+    if (action.adds.length > 0 && change.added.length === 0 && action.dropStopIds.length === 0) return { status: "present", name: action.adds[0].name };
     const visitedIds = visitTrackerRef.current?.visitedIds ?? new Set<string>();
     const keep = change.options.keepAttractions ? excludeVisited(change.options.keepAttractions, visitedIds) : undefined;
     const res = await fetch("/api/walk-plan", {

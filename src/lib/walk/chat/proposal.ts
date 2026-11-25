@@ -34,7 +34,9 @@ export type ProposalPreview =
       dropNames?: string[];
     }
   | { status: "failed" }
-  | { status: "nofit"; name: string };
+  | { status: "nofit"; name: string }
+  /** Every place the card would add is already a stop of the walk. */
+  | { status: "present"; name: string };
 
 const T = {
   en: {
@@ -47,6 +49,7 @@ const T = {
     computing: "Calculating route…",
     failed: "I couldn't build a route with that change.",
     nofit: (n: string) => `${n} doesn't fit in the time left.`,
+    present: (n: string) => `${n} is already on the walk.`,
   },
   he: {
     back: "חזרה להתחלה",
@@ -58,6 +61,7 @@ const T = {
     computing: "מחשב מסלול…",
     failed: "לא הצלחתי לבנות מסלול עם השינוי הזה.",
     nofit: (n: string) => `${n} לא נכנס בזמן שנשאר.`,
+    present: (n: string) => `${n} כבר במסלול.`,
   },
 } as const;
 
@@ -86,6 +90,7 @@ export function proposalLines(
   if (preview.status === "computing") return { line1, line2: t.computing, actionable: false };
   if (preview.status === "failed") return { line1: t.failed, line2: null, actionable: false };
   if (preview.status === "nofit") return { line1: t.nofit(preview.name), line2: null, actionable: false };
+  if (preview.status === "present") return { line1: t.present(preview.name), line2: null, actionable: false };
   const approx = preview.status === "estimate" ? "~" : "";
   const min = Math.round(Math.abs(preview.minDelta));
   const km = (Math.abs(preview.distDeltaM) / 1000).toFixed(1);

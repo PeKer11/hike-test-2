@@ -198,4 +198,23 @@ describe("the card is exactly what is built", () => {
     expect(ids).toContain(idOf(KIOSK));
     expect(ids).not.toContain(idOf(CAFE));
   });
+
+  it("a place within 40 m of a stop on the walk is that stop: the card says so and offers no approve", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    const nearCathedral = { lat: 32.11 + 15 / 111_320, lng: 34.78 };
+    assistantAnswer = { reply: "", proposal: { adds: [{ name: "Cathedral Plaza", coordinates: nearCathedral, distM: 900 }], skipStopIndexes: [], headBack: false } };
+    await say("add the plaza");
+    const box = screen.getByTestId("walk-chat");
+    expect(within(box).getByText(/Cathedral Plaza is already on the walk/)).toBeTruthy();
+    expect(within(box).queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("a place 80 m from every stop is still a new stop", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    assistantAnswer = { reply: "", proposal: { adds: [{ name: "Corner Kiosk", coordinates: KIOSK, distM: 300 }], skipStopIndexes: [], headBack: false } };
+    await say("add a kiosk");
+    expect(within(screen.getByTestId("walk-chat")).getByRole("button", { name: "Approve" })).toBeTruthy();
+  });
 });
