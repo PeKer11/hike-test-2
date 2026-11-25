@@ -91,6 +91,7 @@ let walkPlanCalls: Body[];
 let assistantCalls: number;
 let failRebuild: boolean;
 let dropAdded: boolean;
+let noNearby: boolean;
 let settingsStore: Record<string, string>;
 
 function installFetch() {
@@ -98,6 +99,7 @@ function installFetch() {
   assistantCalls = 0;
   failRebuild = false;
   dropAdded = false;
+  noNearby = false;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -113,7 +115,7 @@ function installFetch() {
         return {
           ok: true,
           json: async () => ({
-            places: [{ ...CAFE, source: "osm", verification: "registered", kind: "poi" }],
+            places: noNearby ? [] : [{ ...CAFE, source: "osm", verification: "registered", kind: "poi" }],
           }),
         };
       }
@@ -247,5 +249,21 @@ describe("ahead of pace: yes adds the named place", () => {
     await flush();
     expectCafeAdded();
     expect(assistantCalls).toBe(0);
+  });
+
+  it("with nothing to add, Add a stop says nothing fits and never fills the time with a rebuild", async () => {
+    noNearby = true; // discovery finds nothing from the first fix
+    await startFastWalk(false);
+    const callsBefore = walkPlanCalls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
+    fireEvent.change(box, { target: { value: "add a stop" } });
+    fireEvent.submit(box.closest("form")!);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Add a stop" }));
+    await flush();
+    expect(walkPlanCalls.slice(callsBefore).some((b) => b.fillRemainingTime === true)).toBe(false);
+    expect(walkPlanCalls.length).toBe(callsBefore);
+    expect(screen.getByTestId("walk-notice").textContent).toContain("No place fits");
   });
 });

@@ -2186,27 +2186,14 @@ export function WalkPlannerApp({
   };
 
   // The keyword chat's "Add a stop": add the best place, else fill the time and say if nothing fit.
-  const addBestStopOrFill = async (radiusM?: number) => {
+  // One place, or "nothing fits": never a rebuild that fills the time with whatever the planner likes.
+  const addBestStop = async (radiusM?: number) => {
     const item = pickBestAddItem(radiusM);
     if (item) {
       void addPlaceToLiveWalk(item.attraction, item.detourMin);
       return;
     }
-    // The walker named a distance: a rebuild that fills the time would add something farther, so say nothing fits.
-    if (radiusM) {
-      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].nothingFit, "warn");
-      return;
-    }
-    const state = midWalkRebuildState();
-    if (!state) return;
-    const idsBefore = (walkPlanRef.current?.orderedAttractions ?? []).map((a) => a.id).join(",");
-    const lastFix = latestPaceUpdateRef.current;
-    const heading = lastFix ? headingMonitorRef.current?.recentHeading(lastFix.timestamp) ?? undefined : undefined;
-    const { input, options } = buildPaceRebuildRequest("sustained-fast-pace", state, heading);
-    const plan = await handleBuildWalk(input, options);
-    if (plan && plan.orderedAttractions.map((a) => a.id).join(",") === idsBefore) {
-      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].nothingFit, "warn");
-    }
+    showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].nothingFit, "warn");
   };
 
   // The walk after one chat change: skipped stops out, new places pinned in, the clock grown to fit. Shared by the
@@ -4319,7 +4306,7 @@ export function WalkPlannerApp({
       } else if (action.kind === "drop") {
         runDropStopsRebuild([action.stopId], undefined, true);
       } else if (action.kind === "add-stop") {
-        void addBestStopOrFill(action.radiusM);
+        void addBestStop(action.radiusM);
       } else if (action.kind === "apply-changes") {
         runApplyChangesRebuild(action.adds, action.dropStopIds);
       } else if (action.kind === "proposal") {
