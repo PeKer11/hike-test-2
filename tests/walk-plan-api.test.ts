@@ -1468,3 +1468,36 @@ describe("POST /api/walk-plan — excludeIds (places already visited or dropped)
     expect(response.status).toBe(200);
   });
 });
+
+describe("POST /api/walk-plan with a presetGeometry mid-walk (what an approved proposal card sends)", () => {
+  const stops = [makeAttraction("s1", 32.082, 34.78, 15), makeAttraction("s2", 32.085, 34.781, 15)];
+  const preset = [origin, { lat: 32.082, lng: 34.78 }, { lat: 32.085, lng: 34.781 }];
+  const body = (over: Record<string, unknown> = {}) => ({
+    ...baseBody(stops),
+    fixedOrder: true,
+    returnTo: origin,
+    endAnchor: origin,
+    excludeIds: [],
+    ...over,
+  });
+
+  it("shows the previewed line as is, without asking the router, when the walker is still where the preview started", async () => {
+    const res = await POST(postRequest(body({ presetGeometry: preset })));
+    expect(res.status).toBe(200);
+    expect((await res.json()).geometry).toEqual(preset);
+    expect(mockGetDirections).not.toHaveBeenCalled();
+  });
+
+  it("ignores the preset when the walker has moved more than 100 m, so the line is routed from here (the fixed-order rebuild)", async () => {
+    // origin 200 m north of the preset's first point
+    const moved = { ...body({ presetGeometry: preset }), lat: origin.lat + 0.0018 };
+    const res = await POST(postRequest(moved));
+    expect(res.status).toBe(200);
+    expect((await res.json()).geometry).not.toEqual(preset);
+  });
+
+  it("ignores the preset when the order is not fixed", async () => {
+    const res = await POST(postRequest(body({ presetGeometry: preset, fixedOrder: undefined })));
+    expect((await res.json()).geometry).not.toEqual(preset);
+  });
+});
