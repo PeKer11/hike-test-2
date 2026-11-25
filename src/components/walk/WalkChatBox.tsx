@@ -8,7 +8,7 @@ import type { WalkChat } from "@/lib/hooks/useWalkChat";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
 import type { ChatLang } from "@/lib/walk/chat/reply";
 
-const SHOWN_MESSAGES = 6; // the last three exchanges
+const SHOWN_MESSAGES = 20;
 const NEAR_BOTTOM_PX = 48;
 
 /** The in-walk "Ask" pill: expands to one input and the last few replies. Lives in the HUD stack. */

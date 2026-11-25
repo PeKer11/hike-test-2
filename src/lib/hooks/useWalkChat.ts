@@ -19,7 +19,7 @@ import {
 export const MAX_CHAT_LLM_PER_WALK = 15;
 export const CHAT_REQUEST_TIMEOUT_MS = 10_000;
 const FREE_CHAT_TIMEOUT_MS = 30_000;
-const MAX_MESSAGES = 6;
+const MAX_MESSAGES = 20;
 const MAX_TEXT = 200;
 /** Most places or stops one typed command may add or remove without a tap. */
 const MAX_AUTO_APPLY = 3;

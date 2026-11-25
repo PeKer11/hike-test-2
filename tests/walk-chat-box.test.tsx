@@ -165,4 +165,10 @@ describe("WalkChatBox scrolling", () => {
     again(view, [...base, msg(3, "app", "more")]);
     expect(screen.queryByRole("button", { name: "Newest messages" })).toBeNull();
   });
+
+  it("shows up to twenty messages", () => {
+    const many = Array.from({ length: 25 }, (_, i) => msg(i + 1, i % 2 ? "app" : "user", `m${i}`));
+    const { list } = setup(many);
+    expect(list.querySelectorAll("li")).toHaveLength(20);
+  });
 });

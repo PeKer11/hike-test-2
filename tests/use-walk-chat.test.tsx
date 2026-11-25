@@ -146,10 +146,10 @@ describe("useWalkChat", () => {
     expect(result.current.pending).toBe(false);
   });
 
-  it("keeps only the last six messages and reset clears the count", () => {
+  it("keeps only the last twenty messages and reset clears the count", () => {
     const { result } = setup(reply(200, {}));
-    for (let i = 0; i < 5; i++) act(() => result.current.send("shorter"));
-    expect(result.current.messages).toHaveLength(6);
+    for (let i = 0; i < 12; i++) act(() => result.current.send("shorter"));
+    expect(result.current.messages).toHaveLength(20);
     act(() => result.current.reset());
     expect(result.current.messages).toHaveLength(0);
     expect(result.current.llmUsed).toBe(0);
