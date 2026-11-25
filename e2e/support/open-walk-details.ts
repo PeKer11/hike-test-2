@@ -6,3 +6,9 @@ export async function openWalkDetails(page: Page): Promise<void> {
   if (!(await details.isVisible())) await page.getByRole("button", { name: "Expand or collapse" }).click();
   await details.click();
 }
+
+/** A walk starts at peek (deck, numbers, credits). Ask and End walk wait in half: raise the sheet if it is still at peek. */
+export async function raiseWalkSheet(page: Page): Promise<void> {
+  const hud = page.getByTestId("walk-hud");
+  if ((await hud.getAttribute("data-sheet")) === "peek") await page.getByRole("button", { name: /^(Expand or collapse|הרחבה או כיווץ)$/ }).click();
+}

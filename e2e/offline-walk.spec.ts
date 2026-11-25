@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { appErrors, watchConsole } from "./support/console-watch";
 import { ORIGIN, STUBBED_PLAN } from "./support/stub-plan";
 import { openMore } from "./support/open-more";
+import { raiseWalkSheet } from "./support/open-walk-details";
 
 /**
  * Airplane mode in the middle of a real (non-simulated) walk: no crash, the HUD stays, the GPS dot keeps
@@ -62,6 +63,7 @@ test("a walk survives two minutes offline and resumes lookups when the network r
   await page.waitForRequest("**/api/nearby", { timeout: 60_000 });
 
   await expect(page.getByTestId("walk-hud")).toBeVisible();
+  await raiseWalkSheet(page);
   await page.getByRole("button", { name: "End walk" }).click();
   await page.getByRole("button", { name: /End walk/ }).click();
   await expect(page.getByPlaceholder("Latitude")).toBeAttached();

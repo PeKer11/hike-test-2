@@ -68,6 +68,7 @@ describe("WalkChatBox", () => {
     render(
       <WalkHud alert={null} stats={null} onDetails={vi.fn()} onEndWalk={vi.fn()} chat={<WalkChatBox chat={chatWith()} lang="he" />} />,
     );
+    fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" })); // Ask and End walk wait in half
     expect(screen.getByRole("button", { name: "שאלו" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /End walk/i })).toBeTruthy();
   });

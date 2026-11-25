@@ -9,6 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types";
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 
+/** A walk starts at peek (deck, numbers, credits); Ask and End walk wait in half. Tests that use them raise the sheet first. */
+function raiseSheet() {
+  if (screen.getByTestId("walk-hud").getAttribute("data-sheet") === "peek") fireEvent.click(screen.getByRole("button", { name: /^(Expand or collapse|הרחבה או כיווץ)$/ }));
+}
+
 vi.mock("@/components/map", () => ({ DynamicMap: () => <div data-testid="map" /> }));
 // Signed out while the walk is planned from the form; signed in once it is under way (the chat only exists then).
 let signedIn = false;
@@ -99,6 +104,7 @@ async function startSimulatedWalk() {
   fireEvent.click(screen.getByLabelText(/Simulate this walk/));
   fireEvent.click(screen.getByRole("button", { name: "התחל הליכה" }));
   await flush();
+  raiseSheet();
   signedIn = true;
   await advance(2_000);
   rerenderApp(<WalkPlannerApp view="walk" onNavigate={nav} />);

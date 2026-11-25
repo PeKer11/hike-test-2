@@ -12,6 +12,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types";
 
+/** A walk starts at peek (deck, numbers, credits); Ask and End walk wait in half. Tests that use them raise the sheet first. */
+function raiseSheet() {
+  if (screen.getByTestId("walk-hud").getAttribute("data-sheet") === "peek") fireEvent.click(screen.getByRole("button", { name: /^(Expand or collapse|הרחבה או כיווץ)$/ }));
+}
+
 /** Opens Details: the button is in the sheet's half state, so raise the sheet first if it is at peek. */
 function openDetails() {
   if (!screen.queryByRole("button", { name: "Details" })) fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
@@ -161,6 +166,7 @@ async function startSimulatedWalk(opts: { loop?: boolean; hebrew?: boolean } = {
     fireEvent.click(screen.getByLabelText(/Simulate this walk/));
     fireEvent.click(screen.getByRole("button", { name: "התחל הליכה" }));
     await flush();
+    raiseSheet();
     return;
   }
   fireEvent.change(screen.getByPlaceholderText("Latitude"), { target: { value: String(ORIGIN.lat) } });
@@ -171,6 +177,7 @@ async function startSimulatedWalk(opts: { loop?: boolean; hebrew?: boolean } = {
   fireEvent.click(screen.getByLabelText(/Simulate this walk/));
   fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
   await flush();
+  raiseSheet();
 }
 
 /** Stray, get asked, and say yes to the redraw: the walker changes the route mid-walk. */
@@ -288,6 +295,7 @@ describe("P5: a change asked for while an update is running is not lost silently
     await flush();
     fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
     await flush();
+    raiseSheet();
     await advance(2_000);
     const callsBefore = walkPlanCalls.length;
     fireEvent.click(screen.getByRole("button", { name: /Stray 80 m off route/ }));

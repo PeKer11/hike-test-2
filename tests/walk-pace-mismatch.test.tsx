@@ -10,6 +10,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types";
 
+/** A walk starts at peek (deck, numbers, credits); Ask and End walk wait in half. Tests that use them raise the sheet first. */
+function raiseSheet() {
+  if (screen.getByTestId("walk-hud").getAttribute("data-sheet") === "peek") fireEvent.click(screen.getByRole("button", { name: /^(Expand or collapse|הרחבה או כיווץ)$/ }));
+}
+
 vi.mock("@/components/map", () => ({
   DynamicMap: () => <div data-testid="map" />,
 }));
@@ -62,6 +67,7 @@ async function startSimulatedWalk() {
   fireEvent.click(screen.getByLabelText(/Simulate this walk/));
   fireEvent.click(screen.getByRole("button", { name: /^(Start Walk|התחל הליכה)$/ }));
   await flush();
+  raiseSheet();
 }
 
 /** Tell the walk chat "I walk 1.5 km/h" and accept its offer: the plan's pace becomes 40 min/km. */

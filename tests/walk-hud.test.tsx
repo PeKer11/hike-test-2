@@ -11,6 +11,11 @@ import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 
+/** A walk starts at peek (deck, numbers, credits); Ask and End walk wait in half. Tests that use them raise the sheet first. */
+function raiseSheet() {
+  if (screen.getByTestId("walk-hud").getAttribute("data-sheet") === "peek") fireEvent.click(screen.getByRole("button", { name: /^(Expand or collapse|הרחבה או כיווץ)$/ }));
+}
+
 /** Opens Details: the button is in the sheet's half state, so raise the sheet first if it is at peek. */
 function openDetails() {
   if (!screen.queryByRole("button", { name: "Details" })) fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
@@ -254,6 +259,7 @@ async function startSimulatedWalk() {
   fireEvent.click(screen.getByLabelText(/Simulate this walk/));
   fireEvent.click(screen.getByRole("button", { name: /^(Start Walk|התחל הליכה)$/ }));
   await flush();
+  raiseSheet();
 }
 
 async function stray() {
@@ -340,6 +346,7 @@ describe("the live-walk HUD", () => {
     fireEvent.click(screen.getByLabelText(/Simulate this walk/));
     fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
     await flush();
+    raiseSheet();
     expect(onRequestExpand).toHaveBeenCalledWith(true);
   });
 
@@ -395,15 +402,19 @@ describe("the openrouteservice credit sits off the map (feedback 2026-11-22, ite
     expect(creditText()).toBe(CREDIT);
     expect(screen.getByTestId("walk-hud").contains(screen.getByTestId("ors-credit"))).toBe(true);
     expect(screen.getByTestId("map").contains(screen.getByTestId("ors-credit"))).toBe(false);
-    // The last thing in the sheet, under Ask / End walk.
+    // The last thing in the sheet at peek (the walk starts raised in these tests; Details sits under the credits in half).
+    fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
+    expect(screen.getByTestId("walk-hud").getAttribute("data-sheet")).toBe("peek");
     const sheet = screen.getByTestId("walk-sheet-body");
     expect(sheet.lastElementChild).toBe(screen.getByTestId("map-credits"));
   });
 
   it("is on screen whenever the sheet is, whatever state it is in", async () => {
     await startSimulatedWalk();
-    fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" })); // peek -> half
     expect(screen.getByTestId("walk-hud").getAttribute("data-sheet")).toBe("half");
+    expect(creditText()).toBe(CREDIT);
+    fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" })); // half -> peek
+    expect(screen.getByTestId("walk-hud").getAttribute("data-sheet")).toBe("peek");
     expect(creditText()).toBe(CREDIT);
   });
 });
@@ -793,6 +804,7 @@ describe("ending the walk (walk feedback 2026-11)", () => {
 
   it("uses the clear Hebrew labels", () => {
     render(<WalkHud alert={null} stats={null} lang="he" onDetails={() => {}} onEndWalk={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "הרחבה או כיווץ" }));
     fireEvent.click(screen.getByRole("button", { name: "סיום הליכה" }));
     expect(screen.getByRole("button", { name: "לסיים את ההליכה?" })).toBeTruthy();
   });

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { appErrors, watchConsole } from "./support/console-watch";
+import { raiseWalkSheet } from "./support/open-walk-details";
 import { openMore } from "./support/open-more";
 
 /**
@@ -45,6 +46,7 @@ test("the open walk chat never covers the whole map, and minimizing it gives the
   const hud = page.getByTestId("walk-hud");
   await expect(hud).toBeVisible();
 
+  await raiseWalkSheet(page);
   await page.getByRole("button", { name: /^Ask/ }).click();
   const chat = page.getByTestId("walk-chat");
   const input = chat.locator("input");

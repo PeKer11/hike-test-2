@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { appErrors, watchConsole } from "./support/console-watch";
-import { openWalkDetails } from "./support/open-walk-details";
+import { openWalkDetails, raiseWalkSheet } from "./support/open-walk-details";
 import { openMore } from "./support/open-more";
 
 /**
@@ -149,6 +149,7 @@ test("Start Walk fills the phone screen with the map and keeps the HUD out of th
   expect(attrBox!.y + attrBox!.height).toBeLessThanOrEqual(hudBox!.y + 1);
 
   // Ending the walk brings the form back.
+  await raiseWalkSheet(page);
   await page.getByRole("button", { name: "End walk" }).click();
   await page.getByRole("button", { name: /End walk/ }).click();
   await expect(page.getByPlaceholder("Latitude")).toBeAttached();
@@ -278,6 +279,7 @@ test("the direction options sheet stays out of the account-pill corner and above
   await expect(page.locator(".leaflet-overlay-pane path[stroke-dasharray]").first()).toBeAttached();
   await sheet.getByRole("button", { name: "Back to my plan" }).click();
   await expect(sheet).toBeHidden();
+  await raiseWalkSheet(page);
   await expect(page.getByRole("button", { name: "End walk" })).toBeVisible();
 
   expect(watch.hydrationErrors).toEqual([]);

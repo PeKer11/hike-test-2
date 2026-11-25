@@ -88,6 +88,7 @@ async function fixAt(metersNorth: number) {
 
 /** A change from the walk chat that rebuilds the walk: skip the named stop ("Add a stop" never rebuilds on its own now). */
 async function changeFromChat(stopName: string) {
+  if (!screen.queryByRole("button", { name: "Ask" }) && !screen.queryByTestId("walk-chat")) fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
   const ask = screen.queryByRole("button", { name: "Ask" });
   if (ask) fireEvent.click(ask); // the chat stays open after the first use
   const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
@@ -253,6 +254,7 @@ describe("'Keep' on the plan-at-your-pace card survives a change of route", () =
   }
 
   async function skipMuseumFromChat() {
+    if (!screen.queryByRole("button", { name: "Ask" }) && !screen.queryByTestId("walk-chat")) fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
     const ask = screen.queryByRole("button", { name: "Ask" });
     if (ask) fireEvent.click(ask);
     const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");

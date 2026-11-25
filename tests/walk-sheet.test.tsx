@@ -119,6 +119,29 @@ describe("the three sheet states", () => {
     expect(screen.queryByTestId("walk-chat")).toBeNull();
   });
 
+  it("peek shows the deck, the numbers and the credits only; Ask and End walk wait in half", () => {
+    render(withChat(chatWith()));
+    expect(sheetState()).toBe("peek");
+    expect(screen.queryByRole("button", { name: "End walk" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+    expect(screen.getByTestId("walk-turn-deck")).toBeTruthy();
+    expect(screen.getByRole("progressbar")).toBeTruthy();
+    expect(screen.getByTestId("map-credits")).toBeTruthy();
+    fireEvent.click(handle());
+    expect(screen.getByRole("button", { name: "End walk" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy();
+  });
+
+  it("caps the sheet by state: half at 45%, peek and full at 62%", () => {
+    render(withChat(chatWith()));
+    const cap = () => screen.getByTestId("walk-hud").className.split(/\s+/).filter((c) => /^max-h-\[\d+%\]$/.test(c));
+    expect(cap()).toEqual(["max-h-[62%]"]);
+    fireEvent.click(handle());
+    expect(cap()).toEqual(["max-h-[45%]"]);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    expect(cap()).toEqual(["max-h-[62%]"]);
+  });
+
   it("opens Details from the Details button in half, not from another tap on the handle", () => {
     const onDetails = vi.fn();
     render(<WalkHud alert={null} stats={stats} half={<p>half content</p>} onDetails={onDetails} onEndWalk={vi.fn()} />);
@@ -162,6 +185,7 @@ describe("the walk sheet", () => {
   it("needs a second tap within 5 s to end the walk", () => {
     const onEnd = vi.fn();
     render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={onEnd} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
     fireEvent.click(screen.getByRole("button", { name: "End walk" }));
     expect(onEnd).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "End walk?" })).toBeTruthy();
@@ -219,6 +243,7 @@ describe("the walk sheet", () => {
 
   it("leads End walk with the stop square", () => {
     render(<WalkHud alert={null} stats={stats} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
     expect(screen.getByRole("button", { name: "End walk" }).querySelector("svg rect")).not.toBeNull();
   });
 
@@ -231,6 +256,7 @@ describe("the walk sheet", () => {
 
   it("speaks Hebrew when asked", () => {
     render(<WalkHud alert={null} stats={stats} lang="he" nextStop={{ name: "שוק הכרמל", minutes: 4 }} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "הרחבה או כיווץ" }));
     expect(screen.getByRole("button", { name: "סיום הליכה" })).toBeTruthy();
     expect(screen.getByText(/התחנה הבאה/)).toBeTruthy();
   });

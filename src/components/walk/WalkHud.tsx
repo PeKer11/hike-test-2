@@ -188,24 +188,26 @@ export function WalkHud({ alert, notice = null, sharing = null, center, sheet, c
           </div>
         ) : null}
         {stats ? <WalkStatsBar stats={stats} lang={lang} /> : null}
-        <div className="flex flex-wrap items-center gap-2">
-          {typeof chat === "function" ? chat({ open: sheetState === "full", setOpen: (open) => setSheetState(open ? "full" : "half") }) : chat}
-          <button
-            type="button"
-            onClick={() => {
-              if (confirmEnd) {
-                setConfirmEnd(false);
-                onEndWalk();
-              } else {
-                setConfirmEnd(true);
-              }
-            }}
-            className="tk-btn tk-btn-secondary ms-auto min-h-[52px] shrink-0"
-          >
-            <StopIcon />
-            {confirmEnd ? t.endConfirm : t.endWalk}
-          </button>
-        </div>
+        {sheetState !== "peek" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {typeof chat === "function" ? chat({ open: sheetState === "full", setOpen: (open) => setSheetState(open ? "full" : "half") }) : chat}
+            <button
+              type="button"
+              onClick={() => {
+                if (confirmEnd) {
+                  setConfirmEnd(false);
+                  onEndWalk();
+                } else {
+                  setConfirmEnd(true);
+                }
+              }}
+              className="tk-btn tk-btn-secondary ms-auto min-h-[52px] shrink-0"
+            >
+              <StopIcon />
+              {confirmEnd ? t.endConfirm : t.endWalk}
+            </button>
+          </div>
+        ) : null}
         {/* The route line is openrouteservice's: its credit is always on screen, here rather than on the map's edge. */}
         <MapCredits extra={creditExtras} />
         {sheetState === "half" ? (

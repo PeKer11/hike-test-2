@@ -14,6 +14,11 @@ import type { Announcement } from "@/lib/walk/poi-announcer";
 import { haversineDistance } from "@/lib/utils/geo";
 import { SimulatedWalkTracker } from "@/lib/walk/simulated-walk-tracker";
 
+/** A walk starts at peek (deck, numbers, credits); Ask and End walk wait in half. Tests that use them raise the sheet first. */
+function raiseSheet() {
+  if (screen.getByTestId("walk-hud").getAttribute("data-sheet") === "peek") fireEvent.click(screen.getByRole("button", { name: /^(Expand or collapse|הרחבה או כיווץ)$/ }));
+}
+
 /** Opens Details: the button is in the sheet's half state, so raise the sheet first if it is at peek. */
 function openDetails() {
   if (!screen.queryByRole("button", { name: "Details" })) fireEvent.click(screen.getByRole("button", { name: "Expand or collapse" }));
@@ -266,6 +271,7 @@ async function startSimulatedWalk() {
   fireEvent.click(screen.getByLabelText(/Simulate this walk/));
   fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
   await flush(3);
+  raiseSheet();
 }
 
 /** The simulator's stray, 600 m off the line and never coming back. */
@@ -449,6 +455,7 @@ describe("a walker who has gone a different way (collapse)", () => {
     fireEvent.click(screen.getByLabelText(/Simulate this walk/));
     fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
     await flush(3);
+    raiseSheet();
     await advance(110_000); // about 18 simulated minutes: 1.2 km out, 20-minute walk used up
 
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
@@ -525,6 +532,7 @@ describe("a walker who has gone a different way (collapse)", () => {
     await flush();
     fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
     await flush(3);
+    raiseSheet();
     expect(screen.queryByTestId("walk-hud")).not.toBeNull();
     expect(walkPlanCalls).toHaveLength(plansBefore + 1);
 

@@ -48,7 +48,7 @@ export function WalkSheet({
       ref={sheetRef}
       data-testid="walk-hud"
       data-sheet={state}
-      className={`${FLOAT} pointer-events-auto absolute inset-x-0 bottom-0 flex max-h-[62%] flex-col overflow-hidden rounded-t-[6px] border-t-[1.5px] border-[var(--tk-lip)] bg-paper shadow-[0_-6px_18px_rgba(30,20,10,0.16)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)]`}
+      className={`${FLOAT} pointer-events-auto absolute inset-x-0 bottom-0 flex ${state === "half" ? "max-h-[45%]" : "max-h-[62%]"} flex-col overflow-hidden rounded-t-[6px] border-t-[1.5px] border-[var(--tk-lip)] bg-paper shadow-[0_-6px_18px_rgba(30,20,10,0.16)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)]`}
     >
       {/* The header (deck + handle) never scrolls: an open chat scrolls the body, so the handle is always on screen. */}
       <div data-testid="walk-sheet-header" className={`relative flex-none px-4 ${deck ? "" : "pt-1"}`}>
