@@ -90,6 +90,28 @@ function wordRegex(word: string, flags = ""): RegExp {
   return new RegExp(`(^|[^a-z])${body}[a-z]*`, flags);
 }
 
+const KM_UNIT = "(?:kilomet(?:er|re)s?|km|קילומטרים|קילומטר|קמ)";
+const M_UNIT = "(?:meters?|metres?|מטרים|מטר|m|מ)";
+const NOT_MORE_LETTERS = "(?![\\p{L}\\/])";
+const RADIUS_MIN_M = 100;
+const RADIUS_MAX_M = 3000;
+
+/**
+ * A distance the walker asked for ("חצי ק״מ", "עד 300 מטר", "within 2 km") in metres, clamped to 100-3000, or null.
+ * A speed ("5 קמ״ש", "5 km/h") is not a radius.
+ */
+export function radiusFromText(rawText: string): number | null {
+  const t = normalize(rawText);
+  const clamp = (m: number) => Math.min(RADIUS_MAX_M, Math.max(RADIUS_MIN_M, Math.round(m)));
+  if (new RegExp(`(?:^|[^\\p{L}])(?:חצי|half(?: an?)?)\\s*${KM_UNIT}${NOT_MORE_LETTERS}`, "u").test(t)) return 500;
+  const km = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*${KM_UNIT}${NOT_MORE_LETTERS}`, "u").exec(t);
+  if (km) return clamp(Number(km[1].replace(",", ".")) * 1000);
+  const m = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*${M_UNIT}${NOT_MORE_LETTERS}`, "u").exec(t);
+  if (m) return clamp(Number(m[1].replace(",", ".")));
+  if (new RegExp(`(?:^|[^\\p{L}])(?:עד|within|up to)\\s+(?:a\\s+)?${KM_UNIT}${NOT_MORE_LETTERS}`, "u").test(t)) return 1000;
+  return null;
+}
+
 export function normalize(text: string): string {
   return text.toLowerCase().replace(/['’`"״׳]/g, "").replace(/\s+/g, " ").trim();
 }
