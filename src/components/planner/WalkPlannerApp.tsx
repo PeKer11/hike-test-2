@@ -2193,7 +2193,8 @@ export function WalkPlannerApp({
       void addPlaceToLiveWalk(item.attraction, item.detourMin);
       return;
     }
-    showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].nothingFit, "warn");
+    // An update is running: that is the answer, not "nothing fits".
+    showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"][midWalkRebuildInFlightRef.current ? "stillUpdating" : "nothingFit"], "warn");
   };
 
   // The walk after one chat change: skipped stops out, new places pinned in, the clock grown to fit. Shared by the

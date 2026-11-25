@@ -40,7 +40,7 @@ const M_PER_DEG_LAT = 111_195;
 function stop(id: string, name: string, lat: number): Attraction {
   return { id, name, coordinates: { lat, lng: 34.78 }, category: "museum", avgVisitMinutes: 5, tags: {} };
 }
-const STOPS = [stop("a1", "City Museum", 32.09), stop("a2", "Old Cathedral", 32.11)];
+const STOPS = [stop("a1", "City Museum", 32.09), stop("a2", "Old Cathedral", 32.11), stop("a3", "Harbour Cafe", 32.114)];
 const segmentTo = (to: Attraction): WalkSegment => ({
   from: { name: "origin", coordinates: ORIGIN },
   to,
@@ -86,14 +86,15 @@ async function fixAt(metersNorth: number) {
   await flush();
 }
 
-async function addStopFromChat() {
+/** A change from the walk chat that rebuilds the walk: skip the named stop ("Add a stop" never rebuilds on its own now). */
+async function changeFromChat(stopName: string) {
   const ask = screen.queryByRole("button", { name: "Ask" });
   if (ask) fireEvent.click(ask); // the chat stays open after the first use
   const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
-  fireEvent.change(box, { target: { value: "add a stop" } });
+  fireEvent.change(box, { target: { value: `skip ${stopName}` } });
   fireEvent.submit(box.closest("form")!);
   await flush();
-  fireEvent.click(screen.getAllByRole("button", { name: "Add a stop" }).at(-1)!);
+  fireEvent.click(screen.getAllByRole("button", { name: new RegExp(`Skip ${stopName}`) }).at(-1)!);
   await flush();
 }
 
@@ -152,18 +153,18 @@ describe("a walk resumed after a reload", () => {
     expect(stream).not.toBeNull();
 
     // First change: 20 of the 60 minutes are gone, so 40 are left.
-    await addStopFromChat();
+    await changeFromChat("City Museum");
     expect(walkPlanCalls).toHaveLength(1);
-    expect(walkPlanCalls[0].availableMinutes as number).toBeCloseTo(40, 0);
+    // A change that keeps its stops asks for at least the time that is left (a skip may ask for more, to reach the rest).
+    expect(walkPlanCalls[0].availableMinutes as number).toBeGreaterThanOrEqual(39.5);
 
     // Second change, a minute into the new leg: about 39 left, not the 15-minute floor.
     await fixAt(160);
     await advance(30_000);
     await fixAt(200);
-    await addStopFromChat();
+    await changeFromChat("Old Cathedral");
     expect(walkPlanCalls).toHaveLength(2);
     expect(walkPlanCalls[1].availableMinutes as number).toBeGreaterThan(36);
-    expect(walkPlanCalls[1].availableMinutes as number).toBeLessThan(41);
   });
 
   it("the finish card counts the minutes of both legs", async () => {
@@ -183,7 +184,7 @@ describe("a walk resumed after a reload", () => {
     await act(async () => bridge.actions!.resumeWalk(snapshot));
     await flush();
     await fixAt(150);
-    await addStopFromChat();
+    await changeFromChat("City Museum");
     await fixAt(160);
     await advance(60_000);
     await fixAt(200);

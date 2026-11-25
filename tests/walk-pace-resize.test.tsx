@@ -153,7 +153,7 @@ describe("the 'plan at your real pace' card", () => {
 });
 
 describe("lengthen and shorten are sized at the walker's real pace", () => {
-  it("a fast walker's 'add a stop' fill is priced at the measured fast pace, not the plan's", async () => {
+  it("a fast walker's 'add a stop' with nothing to add never fills the time with a rebuild", async () => {
     await startSimulatedWalk("120");
     await advance(3_000);
     fireEvent.click(screen.getByRole("button", { name: "Fast pace" })); // the simulated walker goes at 0.6x the plan's pace
@@ -170,11 +170,8 @@ describe("lengthen and shorten are sized at the walker's real pace", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Add a stop" }).at(-1)!);
     await flush();
 
-    expect(walkPlanCalls.length).toBe(callsBefore + 1);
-    const rebuild = walkPlanCalls[walkPlanCalls.length - 1];
-    expect(rebuild.fillRemainingTime).toBe(true);
-    // The plan said 15 min/km; the simulated walker does 9 (0.6x). The fill must be sized at about 9.
-    expect(rebuild.walkingPaceMinPerKm as number).toBeLessThan(11);
-    expect(rebuild.walkingPaceMinPerKm as number).toBeGreaterThan(7);
+    // Nothing was found ahead: the walker is told so, and no rebuild fills the time.
+    expect(walkPlanCalls.length).toBe(callsBefore);
+    expect(screen.getByTestId("walk-notice").textContent).toContain("No place fits");
   });
 });
