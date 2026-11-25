@@ -176,6 +176,7 @@ describe("WalkChatBox scrolling", () => {
 describe("WalkChatBox proposal card", () => {
   const proposal = {
     kind: "proposal" as const,
+    key: "k1",
     adds: [{ name: "Erez Lookout", coordinates: { lat: 1, lng: 2 }, afterName: "the museum" }],
     dropNames: ["Old Khan"],
     dropStopIds: ["k"],

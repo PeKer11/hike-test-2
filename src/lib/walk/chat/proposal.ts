@@ -1,4 +1,6 @@
 import type { Coordinates } from "@/lib/types";
+import { haversineDistance } from "@/lib/utils/geo";
+import { detourMinutes } from "@/lib/walk/walk-stats";
 
 import type { ChatLang } from "./reply";
 
@@ -85,4 +87,86 @@ export function proposalLines(
     ...(preview.overTime ? [t.over] : []),
   ];
   return { line1, line2: bits.join(" · "), actionable: true };
+}
+
+type NumberedPreview = Extract<ProposalPreview, { status: "ready" | "estimate" }>;
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** Wall-clock time `plusMin` minutes after `nowMs`, local, "17:40". */
+export function endClock(nowMs: number, plusMin: number): string {
+  const d = new Date(nowMs + Math.round(plusMin) * 60_000);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** The card's numbers from a real dry-run plan: what it costs against what is left now, on the same clock. */
+export function previewFromPlan(a: {
+  planMinutes: number;
+  planDistM: number;
+  baselineMin: number;
+  baselineDistM: number;
+  nowMs: number;
+  allowedRemainingMin: number | null;
+}): NumberedPreview {
+  return {
+    status: "ready",
+    minDelta: Math.round(a.planMinutes - a.baselineMin),
+    distDeltaM: Math.round(a.planDistM - a.baselineDistM),
+    endClock: endClock(a.nowMs, a.planMinutes),
+    overTime: a.allowedRemainingMin !== null && a.planMinutes > a.allowedRemainingMin,
+  };
+}
+
+/** Minutes a skipped stop is assumed to save when there is no route to measure (the planner's own visit allowance). */
+const SKIP_SAVES_MIN = 20;
+const WINDING = 1.25;
+
+/**
+ * A rough figure for when the route could not be computed in time: each add is an out-and-back at the planned pace
+ * plus a visit, each skip saves a visit. Null when there is nothing to price (head back) or no clock to add it to.
+ */
+export function estimatePreview(a: {
+  addDistancesM: number[];
+  dropCount: number;
+  plannedMinPerKm: number;
+  nowMs: number;
+  remainingMin: number | null;
+  allowedRemainingMin: number | null;
+}): NumberedPreview | null {
+  if (a.remainingMin === null || (a.addDistancesM.length === 0 && a.dropCount === 0)) return null;
+  const minDelta =
+    a.addDistancesM.reduce((sum, d) => sum + detourMinutes(d, a.plannedMinPerKm, 20), 0) - a.dropCount * SKIP_SAVES_MIN;
+  const distDeltaM = Math.round(a.addDistancesM.reduce((sum, d) => sum + 2 * d * WINDING, 0));
+  const total = a.remainingMin + minDelta;
+  return {
+    status: "estimate",
+    minDelta,
+    distDeltaM,
+    endClock: endClock(a.nowMs, total),
+    overTime: a.allowedRemainingMin !== null && total > a.allowedRemainingMin,
+  };
+}
+
+/** What a card's numbers were computed against. */
+export interface ProposalBasis {
+  /** The ids of the stops still ahead, in order. */
+  stopIds: string[];
+  /** Bumps whenever any rebuild starts: a different route is a different question. */
+  planRev: number;
+  position: Coordinates;
+  at: number;
+}
+
+const BASIS_MOVED_M = 60;
+const BASIS_AGE_MS = 120_000;
+
+/**
+ * fresh: the preview still holds, apply it as shown. replanned: a stop was reached or a rebuild ran, so the
+ * numbers are for another route (re-preview and ask again). relocated: same route, but the walker has moved on,
+ * so the preview's line no longer starts under their feet (build again from here, same stops).
+ */
+export function basisCheck(basis: ProposalBasis, now: ProposalBasis): "fresh" | "replanned" | "relocated" {
+  if (basis.planRev !== now.planRev || basis.stopIds.length !== now.stopIds.length || basis.stopIds.some((id, i) => id !== now.stopIds[i])) return "replanned";
+  if (haversineDistance(basis.position, now.position) > BASIS_MOVED_M || now.at - basis.at > BASIS_AGE_MS) return "relocated";
+  return "fresh";
 }

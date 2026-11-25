@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Coordinates } from "@/lib/types";
 import { isAffirm, isDecline } from "@/lib/walk/chat/affirm";
-import type { ProposalPreview } from "@/lib/walk/chat/proposal";
+import { estimatePreview, type ProposalPreview } from "@/lib/walk/chat/proposal";
 import { CHAT_COPY, noMatchText } from "@/lib/walk/chat/chat-copy";
 import { parseIntent, radiusFromText, type ParsedIntent } from "@/lib/walk/chat/intent";
 import {
@@ -21,6 +21,10 @@ export const CHAT_REQUEST_TIMEOUT_MS = 10_000;
 const FREE_CHAT_TIMEOUT_MS = 30_000;
 const MAX_MESSAGES = 20;
 const MAX_TEXT = 200;
+/** How long a card waits for its real route before it shows a rough estimate. */
+export const PREVIEW_TIMEOUT_MS = 6_000;
+
+type ProposalAction = Extract<ChatAction, { kind: "proposal" }>;
 // "take me to X" is a command, not a question: a single detour offer runs without another tap.
 const GO_WORDS = /take (me|us)|bring (me|us)|go to|lead (me|us)|קח|תיקח|קחו|תקח|נלך|לך |סע |תוביל|הובל/i;
 
@@ -44,8 +48,13 @@ export interface WalkChatDeps {
   isSignedIn: boolean;
   /** Stops ahead, nearby amenities and position, read at send time. Null when no walk is on. */
   getContext: () => ChatContext | null;
-  /** Runs a tapped action (the planner owns what each one does). */
-  onAction: (action: ChatAction) => void;
+  /**
+   * Runs a tapped action (the planner owns what each one does). A proposal may answer "busy" (an update is
+   * running: the card stays open) or "recheck" (the route changed since the numbers: show new ones, ask again).
+   */
+  onAction: (action: ChatAction) => void | "busy" | "recheck";
+  /** Dry-run route for a proposal card: resolves with the card's numbers, rejects when no route could be built. */
+  previewProposal?: (action: ProposalAction, signal: AbortSignal) => Promise<ProposalPreview>;
   /** Try the free-form model chat first (the server decides who may); falls back to keywords. */
   freeChat?: boolean;
   doFetch?: typeof fetch;
@@ -60,7 +69,7 @@ export interface WalkChat {
   openTick: number;
   /** Open the chat box and send `text` as the walker's first words. */
   openWith: (text: string) => void;
-  runAction: (messageId: number, actionIndex: number) => void;
+  runAction: (messageId: number, actionIndex: number) => "started" | "busy" | "recheck" | "noop";
   /** Close a proposal with no change (the card's No, or a typed no). */
   decline: (messageId: number) => void;
   /** Clear the conversation and the per-walk question count (call when a walk ends). */
@@ -91,6 +100,51 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
   const [openTick, setOpenTick] = useState(0);
   const requestId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const previewRef = useRef<{ controller: AbortController; messageId: number } | null>(null);
+
+  const setPreview = useCallback((id: number, preview: ProposalPreview | undefined) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, preview } : m)));
+  }, []);
+
+  // One card is live at a time: starting a preview for it ends the one for any older card.
+  const startPreview = useCallback(
+    (messageId: number, action: ProposalAction) => {
+      const preview = depsRef.current.previewProposal;
+      if (!preview) return;
+      previewRef.current?.controller.abort();
+      const controller = new AbortController();
+      const mine = { controller, messageId };
+      previewRef.current = mine;
+      let settled = false;
+      const settle = (value: ProposalPreview | undefined) => {
+        if (settled || previewRef.current !== mine) return;
+        settled = true;
+        clearTimeout(timer);
+        setPreview(messageId, value);
+      };
+      const timer = setTimeout(() => {
+        // No route in time: a rough figure beats a card that never opens.
+        const t = depsRef.current.getContext()?.timing;
+        const rough = estimatePreview({
+          addDistancesM: action.adds.map((a) => a.distM ?? 0),
+          dropCount: action.dropStopIds.length,
+          plannedMinPerKm: t?.plannedKmh ? 60 / t.plannedKmh : 12,
+          nowMs: Date.now(),
+          remainingMin: t?.remainingMin ?? null,
+          allowedRemainingMin: t ? t.availableMin - t.elapsedMin : null,
+        });
+        const live = !settled && previewRef.current === mine;
+        settle(rough ?? undefined);
+        if (live) controller.abort();
+      }, PREVIEW_TIMEOUT_MS);
+      setPreview(messageId, { status: "computing" });
+      preview(action, controller.signal).then(
+        (value) => settle(value),
+        () => settle({ status: "failed" }),
+      );
+    },
+    [setPreview],
+  );
 
   const push = useCallback((role: ChatMessage["role"], text: string, actions: ChatAction[] = []) => {
     const id = nextId.current++;
@@ -106,19 +160,31 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     );
   }, []);
 
-  const runAction = useCallback((messageId: number, actionIndex: number) => {
-    const message = messagesRef.current.find((m) => m.id === messageId);
-    const action = message?.actions[actionIndex];
-    if (!message || message.used || !action || usedIds.current.has(messageId)) return;
-    usedIds.current.add(messageId);
-    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, used: true } : m)));
-    depsRef.current.onAction(action);
-  }, []);
+  const runAction = useCallback(
+    (messageId: number, actionIndex: number): "started" | "busy" | "recheck" | "noop" => {
+      const message = messagesRef.current.find((m) => m.id === messageId);
+      const action = message?.actions[actionIndex];
+      if (!message || message.used || !action || usedIds.current.has(messageId)) return "noop";
+      usedIds.current.add(messageId);
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, used: true } : m)));
+      const result = depsRef.current.onAction(action);
+      if (result === "busy" || result === "recheck") {
+        // Nothing started: the card stays open for another tap.
+        usedIds.current.delete(messageId);
+        setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, used: false } : m)));
+        if (result === "recheck" && action.kind === "proposal") startPreview(messageId, action);
+        return result;
+      }
+      return "started";
+    },
+    [startPreview],
+  );
 
   const decline = useCallback((messageId: number) => {
     const message = messagesRef.current.find((m) => m.id === messageId);
     if (!message || message.used || usedIds.current.has(messageId)) return;
     usedIds.current.add(messageId);
+    if (previewRef.current?.messageId === messageId) previewRef.current.controller.abort();
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, used: true, declined: true } : m)));
   }, []);
 
@@ -162,8 +228,13 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
         if (newest && !newest.used && !newest.superseded && !usedIds.current.has(newest.id) && newest.actions.length > 0) {
           const index = newest.actions.length === 1 ? 0 : -1;
           if (index >= 0) {
-            affirmReplyId.current = push("app", lang === "he" ? "מטפלים בזה…" : "On it…");
-            runAction(newest.id, index);
+            const onIt = push("app", lang === "he" ? "מטפלים בזה…" : "On it…");
+            affirmReplyId.current = onIt;
+            if (runAction(newest.id, index) === "busy") {
+              // Not started (an update is running): the card is still open, so "yes" must work again.
+              setMessages((prev) => prev.filter((m) => m.id !== onIt));
+              affirmReplyId.current = null;
+            }
             return;
           }
         }
@@ -315,9 +386,9 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
               return st ? [st] : [];
             });
             if (p.headBack || adds.length + drops.length > 0) {
-              replace(thinkingId, "", [
-                { kind: "proposal", adds, dropStopIds: drops.map((d) => d.id), dropNames: drops.map((d) => d.name), headBack: p.headBack === true, label: "" },
-              ]);
+              const action: ProposalAction = { kind: "proposal", key: String(thinkingId), adds, dropStopIds: drops.map((d) => d.id), dropNames: drops.map((d) => d.name), headBack: p.headBack === true, label: "" };
+              replace(thinkingId, "", [action]);
+              startPreview(thinkingId, action);
               return;
             }
           }
@@ -338,7 +409,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
         }
       })();
     },
-    [push, replace, runAction, decline],
+    [push, replace, runAction, decline, startPreview],
   );
 
   const openWith = useCallback(
@@ -353,6 +424,8 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     requestId.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
+    previewRef.current?.controller.abort();
+    previewRef.current = null;
     llmUsedRef.current = 0;
     setLlmUsed(0);
     setPending(false);
@@ -361,7 +434,10 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     setMessages([]);
   }, []);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    previewRef.current?.controller.abort();
+  }, []);
 
   return { messages, pending, llmUsed, send, openTick, openWith, runAction, decline, reset };
 }

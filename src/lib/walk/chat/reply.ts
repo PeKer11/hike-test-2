@@ -16,7 +16,7 @@ export type ChatAction =
   | { kind: "add-place"; name: string; coordinates: Coordinates; label: string }
   | { kind: "apply-changes"; adds: Array<{ name: string; coordinates: Coordinates }>; dropStopIds: string[]; label: string }
   /** One card for the whole change: the walker approves or declines it as a unit. `label` is unused by the card. */
-  | { kind: "proposal"; adds: ProposalPlace[]; dropStopIds: string[]; dropNames: string[]; headBack: boolean; label: string }
+  | { kind: "proposal"; /** Ties the card to the planner's preview of it. */ key: string; adds: ProposalPlace[]; dropStopIds: string[]; dropNames: string[]; headBack: boolean; label: string }
   | { kind: "set-pace"; minPerKm: number; label: string }
   | { kind: "head-back"; label: string }
   /** "Back to my route": get onto the planned line again (the walk sheet's own Back to my route). */
