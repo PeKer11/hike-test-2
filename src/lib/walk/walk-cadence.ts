@@ -99,3 +99,17 @@ export const SPEED_STOP_BELOW_MPS = 0.35;
 export const SPEED_MOVE_ABOVE_MPS = 0.6;
 /** Time constant of the shown value's smoothing. */
 export const SPEED_LIVE_TAU_MS = 2_000;
+
+// --- Dot stabilizer (the shown dot holds while the phone stands) --------------
+/** A held dot moves only for fixes farther than max(this, the fix's accuracy). */
+export const DOT_ESCAPE_MIN_M = 15;
+/** Doppler says standing: only this many agreeing fixes, over this long, all beyond the radius, move the dot. */
+export const DOT_ESCAPE_FIXES_STOPPED = 10;
+export const DOT_ESCAPE_SPAN_STOPPED_MS = 10_000;
+/** No Doppler at all (Wi-Fi/cell phone): this many agreeing fixes over this long. */
+export const DOT_ESCAPE_FIXES_NODOP = 3;
+export const DOT_ESCAPE_SPAN_NODOP_MS = 3_000;
+/** A standing dot slides once to the mean of the last N good GPS fixes when it sits this far from them. */
+export const DOT_RECENTRE_FIXES = 30;
+export const DOT_RECENTRE_MAX_ACCURACY_M = 20;
+export const DOT_RECENTRE_MIN_M = 10;
