@@ -76,3 +76,37 @@ for (const viewport of [
     expect(appErrors(watch)).toEqual([]);
   });
 }
+
+test.describe("touch", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test("dragging the header down with a finger steps full, half, peek; dragging up steps back", async ({ page }) => {
+    await startWalk(page);
+    const hud = page.getByTestId("walk-hud");
+    const cdp = await page.context().newCDPSession(page);
+
+    /** One finger down on the sunset deck (not the handle), moved `dy` px, lifted. */
+    async function swipe(dy: number) {
+      const box = (await page.getByTestId("walk-turn-deck").boundingBox())!;
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+      for (let i = 1; i <= 6; i += 1) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (dy * i) / 6 }] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    }
+
+    await swipe(-90);
+    await expect(hud).toHaveAttribute("data-sheet", "half");
+    await swipe(-90);
+    await expect(hud).toHaveAttribute("data-sheet", "full");
+    const heights: number[] = [(await hud.boundingBox())!.height];
+    await swipe(90);
+    await expect(hud).toHaveAttribute("data-sheet", "half");
+    heights.push((await hud.boundingBox())!.height);
+    await swipe(90);
+    await expect(hud).toHaveAttribute("data-sheet", "peek");
+    heights.push((await hud.boundingBox())!.height);
+    expect(heights[0]).toBeGreaterThan(heights[1]);
+    expect(heights[1]).toBeGreaterThan(heights[2]);
+  });
+});

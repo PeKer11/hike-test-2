@@ -119,6 +119,34 @@ describe("the three sheet states", () => {
     expect(screen.queryByTestId("walk-chat")).toBeNull();
   });
 
+  it("drags from anywhere on the deck, not only the handle", () => {
+    render(withChat(chatWith()));
+    const deck = screen.getByTestId("walk-turn-deck");
+    drag(deck, 400, 330);
+    expect(sheetState()).toBe("half");
+    drag(deck, 300, 380);
+    expect(sheetState()).toBe("peek");
+  });
+
+  it("a cancelled touch drag leaves nothing behind: the next pointer up is not a drag", () => {
+    render(withChat(chatWith()));
+    const deck = screen.getByTestId("walk-turn-deck");
+    fireEvent.pointerDown(deck, { clientY: 400 });
+    fireEvent.pointerCancel(deck);
+    fireEvent.pointerUp(deck, { clientY: 300 });
+    expect(sheetState()).toBe("peek");
+  });
+
+  it("holds the pointer for the drag and does not let the browser scroll the header", () => {
+    render(withChat(chatWith()));
+    const header = screen.getByTestId("walk-sheet-header");
+    expect(header.className.split(/\s+/)).toContain("touch-none");
+    const capture = vi.fn();
+    (header as unknown as { setPointerCapture: typeof capture }).setPointerCapture = capture;
+    fireEvent.pointerDown(header, { clientY: 400, pointerId: 7 });
+    expect(capture).toHaveBeenCalledWith(7);
+  });
+
   it("peek shows the deck, the numbers and the credits only; Ask and End walk wait in half", () => {
     render(withChat(chatWith()));
     expect(sheetState()).toBe("peek");

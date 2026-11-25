@@ -51,32 +51,44 @@ export function WalkSheet({
       className={`${FLOAT} pointer-events-auto absolute inset-x-0 bottom-0 flex ${state === "half" ? "max-h-[45%]" : "max-h-[62%]"} flex-col overflow-hidden rounded-t-[6px] border-t-[1.5px] border-[var(--tk-lip)] bg-paper shadow-[0_-6px_18px_rgba(30,20,10,0.16)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)]`}
     >
       {/* The header (deck + handle) never scrolls: an open chat scrolls the body, so the handle is always on screen. */}
-      <div data-testid="walk-sheet-header" className={`relative flex-none px-4 ${deck ? "" : "pt-1"}`}>
+      <div
+        data-testid="walk-sheet-header"
+        className={`relative flex-none touch-none px-4 ${deck ? "" : "pt-1"}`}
+        onPointerDown={(e) => {
+          dragged.current = false;
+          startY.current = e.clientY;
+          try {
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+          } catch {
+            // A pointer that is already gone cannot be captured; the drag simply does not start.
+          }
+        }}
+        onPointerUp={(e) => {
+          const from = startY.current;
+          startY.current = null;
+          if (from === null) return;
+          const dy = e.clientY - from;
+          if (Math.abs(dy) < 24) return; // a tap: onClick handles it
+          dragged.current = true;
+          if (dy < 0) up();
+          else down();
+        }}
+        onPointerCancel={() => {
+          startY.current = null;
+        }}
+        onClick={() => {
+          if (dragged.current) {
+            dragged.current = false;
+            return;
+          }
+          tap();
+        }}
+      >
         {deck}
         <button
           type="button"
           aria-label={label}
-          onPointerDown={(e) => {
-            startY.current = e.clientY;
-          }}
-          onPointerUp={(e) => {
-            const from = startY.current;
-            startY.current = null;
-            if (from === null) return;
-            const dy = e.clientY - from;
-            if (Math.abs(dy) < 24) return; // a tap: onClick handles it
-            dragged.current = true;
-            if (dy < 0) up();
-            else down();
-          }}
-          onClick={() => {
-            if (dragged.current) {
-              dragged.current = false;
-              return;
-            }
-            tap();
-          }}
-          className={`mx-auto flex h-6 w-24 shrink-0 touch-none items-center justify-center ${deck ? "absolute inset-x-0 top-1 z-10" : ""}`}
+          className={`mx-auto flex h-7 w-full shrink-0 items-center justify-center ${deck ? "absolute inset-x-0 top-0 z-10" : ""}`}
         >
           <span aria-hidden className={`h-1 w-9 rounded-full ${deck ? "bg-[rgba(255,247,236,0.5)]" : "bg-charcoal/25"}`} />
         </button>
