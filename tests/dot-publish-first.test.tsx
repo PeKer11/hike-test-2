@@ -8,7 +8,7 @@ import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 
 // A fake GPS for the stationary-jitter test; every other locate() caller gets an inert one.
-type Fix = { coordinates: Coordinates; accuracyMeters: number; timestamp: number; source: "gps" };
+type Fix = { coordinates: Coordinates; accuracyMeters: number; timestamp: number; source: "gps"; speedMps?: number };
 let walkOnUpdate: ((fix: Fix) => void) | null = null;
 vi.mock("@/lib/geo/locate", async (orig) => ({
   ...(await orig<typeof import("@/lib/geo/locate")>()),
@@ -141,7 +141,7 @@ describe("dot publishes first", () => {
     let prev: Coordinates | undefined;
     for (let i = 0; i < 10; i++) {
       await act(async () => {
-        walkOnUpdate!({ coordinates: { lat: ORIGIN.lat + (1.4 * i) / M_PER_DEG, lng: ORIGIN.lng }, accuracyMeters: 12, timestamp: t0 + i * 1000, source: "gps" });
+        walkOnUpdate!({ coordinates: { lat: ORIGIN.lat + (1.4 * i) / M_PER_DEG, lng: ORIGIN.lng }, accuracyMeters: 12, speedMps: 1.4, timestamp: t0 + i * 1000, source: "gps" });
       });
       await advance(1_000);
       const dot = mapCalls.at(-1)?.currentPosition as Coordinates | undefined;
@@ -151,5 +151,29 @@ describe("dot publishes first", () => {
     spy.mockRestore();
     errSpy.mockRestore();
     expect(moves).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("the dot holds while standing", () => {
+  it("120 stationary fixes with jitter move the shown dot at most 3 times after warm-up", async () => {
+    await startRealWalk();
+    const t0 = Date.now();
+    const r = rng(7);
+    const seen = new Set<Coordinates>();
+    for (let i = 0; i < 120; i++) {
+      await act(async () => {
+        walkOnUpdate!({
+          coordinates: { lat: ORIGIN.lat + ((r() - 0.5) * 12) / M_PER_DEG, lng: ORIGIN.lng + ((r() - 0.5) * 12) / M_PER_DEG },
+          accuracyMeters: 8,
+          speedMps: 0.05,
+          timestamp: t0 + i * 1000,
+          source: "gps",
+        });
+      });
+      await advance(1_000);
+      const dot = mapCalls.at(-1)?.currentPosition as Coordinates | undefined;
+      if (i >= 10 && dot) seen.add(dot);
+    }
+    expect(seen.size).toBeLessThanOrEqual(3);
   });
 });

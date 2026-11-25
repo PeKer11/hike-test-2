@@ -9,7 +9,7 @@ import type { Attraction, Coordinates, WalkPlan, WalkSegment } from "@/lib/types
 import { DEFAULT_WALK_SETTINGS } from "@/lib/types/walk-settings";
 
 // A fake GPS for the stationary-jitter test; every other locate() caller gets an inert one.
-type Fix = { coordinates: Coordinates; accuracyMeters: number; timestamp: number; source: "gps" };
+type Fix = { coordinates: Coordinates; accuracyMeters: number; timestamp: number; source: "gps"; speedMps?: number };
 let walkOnUpdate: ((fix: Fix) => void) | null = null;
 vi.mock("@/lib/geo/locate", async (orig) => ({
   ...(await orig<typeof import("@/lib/geo/locate")>()),
@@ -143,6 +143,7 @@ async function walk(accOf: (i: number, r: () => number) => number, n: number) {
       walkOnUpdate!({
         coordinates: { lat: ORIGIN.lat + (1.4 * i + noise) / M_PER_DEG, lng: ORIGIN.lng + ((r() - 0.5) * Math.min(acc, 20)) / (M_PER_DEG * 0.848) },
         accuracyMeters: acc,
+        speedMps: 1.4,
         timestamp: t0 + i * 1000,
         source: "gps",
       });
@@ -185,7 +186,7 @@ describe("a walk streamed through the real planner", () => {
       const coordinates = { lat: ORIGIN.lat + (1.4 * i) / M_PER_DEG, lng: ORIGIN.lng };
       sent.push(key(coordinates));
       await act(async () => {
-        walkOnUpdate!({ coordinates, accuracyMeters: 10, timestamp: t0 + i * 1000, source: "gps" });
+        walkOnUpdate!({ coordinates, accuracyMeters: 10, speedMps: 1.4, timestamp: t0 + i * 1000, source: "gps" });
       });
       const dot = mapCalls.at(-1)?.currentPosition as Coordinates | undefined;
       if (dot) shown.add(key(dot));

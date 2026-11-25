@@ -116,6 +116,7 @@ import { requestCompassPermission } from "@/lib/hooks/useCompassHeading";
 import { useWalkerHeading } from "@/lib/hooks/useWalkerHeading";
 import { LiveSpeed } from "@/lib/walk/live-speed";
 import { SpeedEstimator } from "@/lib/walk/speed-estimator";
+import { DotStabilizer } from "@/lib/walk/dot-stabilizer";
 import { TrailFilter, withLiveTail } from "@/lib/walk/trail-filter";
 import { PaceAdvisor, type PaceAdvice } from "@/lib/walk/pace-advisor";
 import { PACE_MISMATCH_LENGTHEN_MIN_SPARE, PaceMismatchWatcher, type PaceMismatchOffer } from "@/lib/walk/pace-mismatch";
@@ -444,6 +445,10 @@ export function WalkPlannerApp({
   const walkedTrackRef = useRef<Coordinates[]>([]);
   // Decides which fixes become trail, so a phone standing still draws no scribble.
   const trailFilterRef = useRef(new TrailFilter());
+  /** Decides where the shown dot sits: it holds while the phone stands (see dot-stabilizer.ts). */
+  const dotStabilizerRef = useRef(new DotStabilizer());
+  /** The stabilizer moved the dot on a fix the 500 ms gate skipped: the next published fix carries it. */
+  const dotPendingRef = useRef<Coordinates | null>(null);
   const offRouteGateRef = useRef(new OffRouteGate());
   // Bumped when the track gains a point (at most once a second), so the map gets a new array only then.
   const [walkedVersion, setWalkedVersion] = useState(0);
@@ -1257,6 +1262,8 @@ export function WalkPlannerApp({
     shortcut.endWalk();
     walkedTrackRef.current = [];
     trailFilterRef.current.reset();
+    dotStabilizerRef.current.reset();
+    dotPendingRef.current = null;
     offRouteGateRef.current.reset();
     walkStartPointRef.current = null;
     walkLegsBeforeRef.current = { minutes: 0, meters: 0 };
@@ -1672,6 +1679,9 @@ export function WalkPlannerApp({
       latestPaceUpdateRef.current = null;
       setPinnedTimeWarning(null);
       setCurrentPosition(hereNow);
+      // The shown dot starts from where the walker is now; the stabilizer holds from here, not from the old route's spot.
+      dotStabilizerRef.current.reset(hereNow);
+      dotPendingRef.current = null;
     };
     if (snapshot) {
       midWalkRebuildInFlightRef.current = true;
@@ -1699,6 +1709,7 @@ export function WalkPlannerApp({
       if (walkPhase !== "walking") {
         walkedTrackRef.current = [];
         trailFilterRef.current.reset();
+        dotStabilizerRef.current.reset();
     offRouteGateRef.current.reset();
       }
       walkStartPointRef.current = input.origin;
@@ -3205,10 +3216,28 @@ export function WalkPlannerApp({
       const now = Date.now();
       const held = trailFilterRef.current.dotHeld(update.currentPosition, update.accuracyMeters, update.timestamp);
       const due = !held && now - lastGpsUpdateRef.current >= POSITION_PUBLISH_MS;
-      if (due) {
-        lastGpsUpdateRef.current = now;
+      // While the phone stands nothing is published: the dot, its halo, the gold tail and the map stay still.
+      let shownDot: Coordinates | null = null;
+      if (!held) {
+        // A simulated walk has no GPS jitter and no Doppler: its dot always follows.
+        const decision = isSimulating
+          ? { publish: true, coordinates: update.currentPosition }
+          : dotStabilizerRef.current.push({
+          coordinates: update.currentPosition,
+          accuracyM: update.accuracyMeters,
+          speedMps: update.speedMps,
+          timestamp: update.timestamp,
+        });
+        if (decision.publish) dotPendingRef.current = decision.coordinates;
+        if (due && dotPendingRef.current) {
+          shownDot = dotPendingRef.current;
+          dotPendingRef.current = null;
+        }
+      }
+      if (due) lastGpsUpdateRef.current = now;
+      if (shownDot) {
         gpsDebug.published();
-        setCurrentPosition(update.currentPosition);
+        setCurrentPosition(shownDot);
         setCurrentAccuracyM(update.accuracyMeters);
       }
       if (update.accuracyMeters > ENGINE_MAX_ACCURACY_M) return;
