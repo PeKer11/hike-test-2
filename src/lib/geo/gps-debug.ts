@@ -3,6 +3,9 @@
  * Always counting (a few integer increments per fix); shown only with `?gpsdebug=1` (see GpsDebugLine).
  */
 
+import type { Coordinates } from "@/lib/types";
+import { haversineDistance } from "@/lib/utils/geo";
+
 export type GpsFixKind = "watch" | "quick" | "rearm";
 
 export interface GpsDebugSnapshot {
@@ -27,6 +30,17 @@ export interface GpsDebugSnapshot {
   lastSpeedMps: number | null;
   errors: number;
   lastError: string | null;
+  /** Dot stabilizer: moving / unsure / stopped / nodoppler (null before the first fix). */
+  dotState: "moving" | "unsure" | "stopped" | "nodoppler" | null;
+  dotHolding: boolean;
+  /** Fixes the stabilizer did not show. */
+  dotHeld: number;
+  dotEscapes: number;
+  dotRecentres: number;
+  /** Path the shown dot walked over the last 60 s of fixes, m. */
+  dotPath60M: number;
+  /** Distance between the raw fix and the shown dot, m. */
+  rawToDotM: number | null;
 }
 
 const EMPTY: GpsDebugSnapshot = {
@@ -44,13 +58,26 @@ const EMPTY: GpsDebugSnapshot = {
   lastSpeedMps: null,
   errors: 0,
   lastError: null,
+  dotState: null,
+  dotHolding: false,
+  dotHeld: 0,
+  dotEscapes: 0,
+  dotRecentres: 0,
+  dotPath60M: 0,
+  rawToDotM: null,
 };
+
+const PATH_WINDOW_MS = 60_000;
+let dotMoves: Array<{ t: number; m: number }> = [];
+let lastShown: Coordinates | null = null;
 
 let state: GpsDebugSnapshot = { ...EMPTY };
 
 export const gpsDebug = {
   reset(): void {
     state = { ...EMPTY };
+    dotMoves = [];
+    lastShown = null;
   },
   snapshot(): GpsDebugSnapshot {
     return { ...state };
@@ -75,6 +102,31 @@ export const gpsDebug = {
   },
   published(): void {
     state.published += 1;
+  },
+  /** One call per accepted fix: what the dot stabilizer decided. `timestamp` is the fix's. */
+  dot(d: {
+    state: NonNullable<GpsDebugSnapshot["dotState"]>;
+    holding: boolean;
+    held: number;
+    escapes: number;
+    recentres: number;
+    raw: Coordinates;
+    shown: Coordinates;
+    timestamp: number;
+  }): void {
+    if (lastShown) {
+      const m = haversineDistance(lastShown, d.shown);
+      if (m > 0) dotMoves.push({ t: d.timestamp, m });
+    }
+    lastShown = d.shown;
+    dotMoves = dotMoves.filter((x) => d.timestamp - x.t <= PATH_WINDOW_MS);
+    state.dotState = d.state;
+    state.dotHolding = d.holding;
+    state.dotHeld = d.held;
+    state.dotEscapes = d.escapes;
+    state.dotRecentres = d.recentres;
+    state.dotPath60M = dotMoves.reduce((s, x) => s + x.m, 0);
+    state.rawToDotM = haversineDistance(d.raw, d.shown);
   },
   error(e: unknown): void {
     state.errors += 1;
@@ -114,6 +166,13 @@ export function formatGpsDebug(s: GpsDebugSnapshot, zoom: number | undefined, fo
     `acc ${n(s.lastAccuracyM)}m`,
     `age ${s.lastAgeMs === null ? "-" : Math.round(s.lastAgeMs / 100) / 10}s`,
     `dop ${n(s.lastSpeedMps, 1)}`,
+    `st ${s.dotState === null ? "-" : s.dotState === "stopped" ? "stop" : s.dotState === "moving" ? "move" : s.dotState === "nodoppler" ? "nodop" : "unsure"}`,
+    `hold ${s.dotHolding ? "y" : "n"}`,
+    `held ${s.dotHeld}`,
+    `esc ${s.dotEscapes}`,
+    `rc ${s.dotRecentres}`,
+    `d60 ${Math.round(s.dotPath60M)}m`,
+    `raw>dot ${s.rawToDotM === null ? "-" : Math.round(s.rawToDotM) + "m"}`,
     `dop% ${s.received === 0 ? "-" : Math.round((100 * s.withSpeed) / s.received)}`,
     `err ${s.errors}`,
     `z ${zoom === undefined ? "-" : Math.round(zoom * 10) / 10}`,

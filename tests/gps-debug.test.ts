@@ -60,4 +60,38 @@ describe("gps debug counters", () => {
     expect(line).toContain("dop -");
     expect(line).toContain("dop% 50");
   });
+  it("shows the dot stabilizer fields", () => {
+    const here = { lat: 32.08, lng: 34.78 };
+    const off = { lat: 32.08 + 6 / 111320, lng: 34.78 };
+    gpsDebug.dot({ state: "stopped", holding: true, held: 12, escapes: 1, recentres: 2, raw: off, shown: here, timestamp: 100_000 });
+    const s = gpsDebug.snapshot();
+    expect(s.dotState).toBe("stopped");
+    const line = formatGpsDebug(s, 17, true);
+    expect(line).toContain("st stop");
+    expect(line).toContain("hold y");
+    expect(line).toContain("held 12");
+    expect(line).toContain("esc 1");
+    expect(line).toContain("rc 2");
+    expect(line).toContain("d60 0m");
+    expect(line).toContain("raw>dot 6m");
+  });
+
+  it("d60 sums the shown dot's path over the last 60 s of fixes", () => {
+    const at = (m: number) => ({ lat: 32.08 + m / 111320, lng: 34.78 });
+    const base = { state: "moving" as const, holding: false, held: 0, escapes: 0, recentres: 0 };
+    gpsDebug.dot({ ...base, raw: at(0), shown: at(0), timestamp: 0 });
+    gpsDebug.dot({ ...base, raw: at(10), shown: at(10), timestamp: 20_000 });
+    gpsDebug.dot({ ...base, raw: at(25), shown: at(25), timestamp: 90_000 });
+    // the first move is 70 s old (out), the second (15 m) is new (in)
+    expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("d60 15m");
+  });
+
+  it("labels no-Doppler and unsure states", () => {
+    const base = { holding: true, held: 0, escapes: 0, recentres: 0, raw: { lat: 1, lng: 1 }, shown: { lat: 1, lng: 1 }, timestamp: 1 };
+    gpsDebug.dot({ ...base, state: "nodoppler" });
+    expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("st nodop");
+    gpsDebug.dot({ ...base, state: "unsure", holding: false });
+    expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("st unsure");
+    expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("hold n");
+  });
 });

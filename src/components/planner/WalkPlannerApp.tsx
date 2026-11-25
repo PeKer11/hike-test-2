@@ -3231,6 +3231,19 @@ export function WalkPlannerApp({
           timestamp: update.timestamp,
         });
         dotStillRef.current = !decision.publish;
+        if (!isSimulating) {
+          const stab = dotStabilizerRef.current;
+          gpsDebug.dot({
+            state: stab.state,
+            holding: stab.holding,
+            held: stab.stats.held,
+            escapes: stab.stats.escapes,
+            recentres: stab.stats.recentres,
+            raw: update.currentPosition,
+            shown: decision.coordinates,
+            timestamp: update.timestamp,
+          });
+        }
         if (decision.publish) dotPendingRef.current = decision.coordinates;
         if (due && dotPendingRef.current) {
           shownDot = dotPendingRef.current;
