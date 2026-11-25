@@ -176,4 +176,24 @@ describe("the dot holds while standing", () => {
     }
     expect(seen.size).toBeLessThanOrEqual(3);
   });
+  it("the route line keeps the same geometry while the dot holds", async () => {
+    await startRealWalk();
+    const t0 = Date.now();
+    const r = rng(9);
+    const seen = new Set<unknown>();
+    for (let i = 0; i < 60; i++) {
+      await act(async () => {
+        walkOnUpdate!({
+          coordinates: { lat: ORIGIN.lat + ((r() - 0.5) * 12) / M_PER_DEG, lng: ORIGIN.lng + ((r() - 0.5) * 12) / M_PER_DEG },
+          accuracyMeters: 8,
+          speedMps: 0.05,
+          timestamp: t0 + i * 1000,
+          source: "gps",
+        });
+      });
+      await advance(1_000);
+      if (i >= 10) seen.add(mapCalls.at(-1)?.routeGeometry);
+    }
+    expect(seen.size).toBeLessThanOrEqual(1);
+  });
 });

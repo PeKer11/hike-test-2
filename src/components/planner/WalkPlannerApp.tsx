@@ -449,6 +449,8 @@ export function WalkPlannerApp({
   const dotStabilizerRef = useRef(new DotStabilizer());
   /** The stabilizer moved the dot on a fix the 500 ms gate skipped: the next published fix carries it. */
   const dotPendingRef = useRef<Coordinates | null>(null);
+  /** The shown dot did not move on the current fix: the route line must not slide either. */
+  const dotStillRef = useRef(false);
   const offRouteGateRef = useRef(new OffRouteGate());
   // Bumped when the track gains a point (at most once a second), so the map gets a new array only then.
   const [walkedVersion, setWalkedVersion] = useState(0);
@@ -3228,6 +3230,7 @@ export function WalkPlannerApp({
           speedMps: update.speedMps,
           timestamp: update.timestamp,
         });
+        dotStillRef.current = !decision.publish;
         if (decision.publish) dotPendingRef.current = decision.coordinates;
         if (due && dotPendingRef.current) {
           shownDot = dotPendingRef.current;
@@ -3525,7 +3528,8 @@ export function WalkPlannerApp({
         deviation.closestPointOnRoute,
       );
       // Off route the match jumps around (a loop can match its tail): keep the line as it was.
-      if (!offRoute) setRemainingGeometry(remaining);
+      // While the dot holds (standing), the line starts where the dot is: no slide with the jitter.
+      if (!offRoute && !dotStillRef.current) setRemainingGeometry(remaining);
       void shortcut.feed();
     };
 
