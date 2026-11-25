@@ -14,7 +14,8 @@ const NUM = "(?:\\d+|אחת|אחד|שתיים|שתים|שניים|שתי|שני|
 const MEASURE = /\d+(?:[.,]\d+)?\s*(?:ק"מ|ק״מ|קמ|מטרים|מטר|דקות|דקה|kilomet(?:er|re)s?|km|meters?|metres?|minutes?|mins?|m|מ)(?![\p{L}])/giu;
 const ADD_WORDS = [
   ...ADD_WORDS_HE, "עוד", "תגדיל", "להגדיל", "הגדל", "תרחיב", "תאריך", "להאריך", "כמה",
-  "add", "another", "more", "bigger", "longer", "extend", "one", "two", "three",
+  "תחליף", "תחליפי", "להחליף", "תפתיע", "תפתיעי",
+  "add", "another", "more", "bigger", "longer", "extend", "swap", "replace", "surprise", "one", "two", "three",
 ];
 
 const wordRe = (w: string) => new RegExp(`(^|[^\\p{L}\\d])[בלהומכ]?${w}(?![\\p{L}\\d])`, "iu");

@@ -150,9 +150,16 @@ const EXPLORE_LINE =
 const radiusLine = (m: number) =>
   `\nThe walker asked for places within ${m} m of where they are: call find_places with radius_m=${m} and never offer a place farther than that. If nothing is that close, call nothing_found with reason outside_radius.`;
 
+/** The place searches a turn runs; swapped only by scripts/walk-minimal-eval.ts. */
+export interface WalkTurnPlaces {
+  text: typeof searchTextPlaces;
+  nearby: typeof searchNearbyPlaces;
+}
+
 export async function runWalkTurn(
   input: WalkTurnInput,
   call: typeof callOpenAiTools = toolCallFor(input.choice.provider),
+  search: WalkTurnPlaces = { text: searchTextPlaces, nearby: searchNearbyPlaces },
 ): Promise<{ reply: string; proposal?: WalkProposal; noMatch?: NoMatchReason; remembered: string[]; billedMicros: number }> {
   const found = new Map<string, { name: string; coordinates: Coordinates }>();
   let proposal: WalkProposal | undefined;
@@ -229,9 +236,9 @@ export async function runWalkTurn(
             continue;
           }
           const places = query
-            ? await searchTextPlaces(query, input.position, asked !== null ? 10 : 6, false, asked !== null ? radius : undefined)
+            ? await search.text(query, input.position, asked !== null ? 10 : 6, false, asked !== null ? radius : undefined)
             : category
-              ? await searchNearbyPlaces(category, input.position, radius, 6)
+              ? await search.nearby(category, input.position, radius, 6)
               : [];
           const base = found.size;
           output = places
