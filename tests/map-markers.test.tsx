@@ -119,6 +119,17 @@ describe("MapMarkers pinning", () => {
     expect(screen.getAllByText(/Tap to pin/)).toHaveLength(3);
   });
 
+  it("says the pin hint in Hebrew, with no Latin text and no raw coordinates", () => {
+    render(<MapMarkers waypoints={stops} pinnedIds={["w3"]} onTogglePin={vi.fn()} lang="he" />);
+
+    const hints = screen.getAllByTestId("pin-hint");
+    expect(hints).toHaveLength(stops.length);
+    expect(screen.getAllByText("הקישו כדי לנעוץ — העצירה תישאר גם כשהמסלול ייבנה מחדש.")).toHaveLength(3);
+    expect(screen.getByText("נעוץ — יישאר כשהמסלול ייבנה מחדש. הקישו שוב לביטול.")).toBeTruthy();
+    for (const h of hints) expect(h.textContent).not.toMatch(/[A-Za-z]/);
+    expect(screen.queryByText(/32\.08000/)).toBeNull();
+  });
+
   it("offers no pinning at all when the map is not showing a walk's own stops", () => {
     render(<MapMarkers waypoints={stops} />);
 

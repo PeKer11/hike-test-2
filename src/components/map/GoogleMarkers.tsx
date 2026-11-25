@@ -3,6 +3,8 @@
 import { AdvancedMarker, InfoWindow, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { useEffect, useRef, useState } from "react";
 
+import { pinHint } from "@/components/map/pin-hint";
+import { isGpsDebugOn } from "@/lib/geo/gps-debug";
 import { calloutHtml } from "@/components/map/PoiCallouts";
 import { markerIconHtml } from "@/components/map/MapMarkers";
 import { HALO_FILL_OPACITY, HALO_MIN_ACCURACY_M, HALO_STROKE_OPACITY, WalkerMarkerShape, WALKER_COLOR } from "@/components/map/WalkerMarker";
@@ -18,12 +20,14 @@ export function GoogleStopMarkers({
   pinnedIds = [],
   onTogglePin,
   nextStopId,
+  lang = "en",
 }: {
   waypoints: Waypoint[];
   pinnedIds?: string[];
   onTogglePin?: (waypointId: string) => void;
   /** Walking: only this stop shows its name (null = none). Undefined = every stop is labelled. */
   nextStopId?: string | null;
+  lang?: string;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const open = waypoints.find((w) => w.id === openId);
@@ -63,15 +67,15 @@ export function GoogleStopMarkers({
           <div className="space-y-1">
             <div className="text-sm font-semibold">{open.name}</div>
             {onTogglePin ? (
-              <div className="text-[13px] text-amber-700">
-                {pinnedIds.includes(open.id)
-                  ? "Pinned — kept when the walk is rebuilt. Tap again to unpin."
-                  : "Tap to pin — keeps this stop when the walk is rebuilt."}
+              <div data-testid="pin-hint" className="text-[13px] text-amber-700">
+                {pinHint(lang, pinnedIds.includes(open.id))}
               </div>
             ) : null}
-            <div className="text-[13px] text-charcoal/80">
-              {open.coordinates.lat.toFixed(5)}, {open.coordinates.lng.toFixed(5)}
-            </div>
+            {isGpsDebugOn() ? (
+              <div className="text-[13px] text-charcoal/80">
+                {open.coordinates.lat.toFixed(5)}, {open.coordinates.lng.toFixed(5)}
+              </div>
+            ) : null}
             <span className="sr-only">{openIndex + 1}</span>
           </div>
         </InfoWindow>

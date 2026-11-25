@@ -3,6 +3,8 @@
 import L from "leaflet";
 import { Marker, Popup, Tooltip } from "react-leaflet";
 
+import { pinHint } from "@/components/map/pin-hint";
+import { isGpsDebugOn } from "@/lib/geo/gps-debug";
 import type { Waypoint } from "@/lib/types";
 
 interface MapMarkersProps {
@@ -18,6 +20,8 @@ interface MapMarkersProps {
    * on a marker toggles that stop's pin.
    */
   onTogglePin?: (waypointId: string) => void;
+  /** The walker's language for the pin hint; English when absent. */
+  lang?: string;
 }
 
 /**
@@ -69,6 +73,7 @@ export function MapMarkers({
   waypoints,
   pinnedIds = [],
   onTogglePin,
+  lang = "en",
 }: MapMarkersProps) {
   return (
     <>
@@ -105,15 +110,15 @@ export function MapMarkers({
               <div className="space-y-1">
                 <div className="text-sm font-semibold">{waypoint.name}</div>
                 {onTogglePin && (
-                  <div className="text-[13px] text-amber-700">
-                    {isPinned
-                      ? "Pinned — kept when the walk is rebuilt. Tap again to unpin."
-                      : "Tap to pin — keeps this stop when the walk is rebuilt."}
+                  <div data-testid="pin-hint" className="text-[13px] text-amber-700">
+                    {pinHint(lang, isPinned)}
                   </div>
                 )}
-                <div className="text-[13px] text-charcoal/80">
-                  {waypoint.coordinates.lat.toFixed(5)}, {waypoint.coordinates.lng.toFixed(5)}
-                </div>
+                {isGpsDebugOn() && (
+                  <div className="text-[13px] text-charcoal/80">
+                    {waypoint.coordinates.lat.toFixed(5)}, {waypoint.coordinates.lng.toFixed(5)}
+                  </div>
+                )}
               </div>
             </Popup>
           </Marker>

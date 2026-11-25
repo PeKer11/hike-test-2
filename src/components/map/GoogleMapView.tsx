@@ -294,7 +294,7 @@ export default function GoogleMapView({
           {previewRoutes?.map((r) => (
             <Line key={r.id} path={r.geometry} color={r.highlighted ? "#c15f3c" : "#1e3d2f"} weight={r.highlighted ? 5 : 3} opacity={r.highlighted ? 0.95 : 0.55} zIndex={3} dashed arrows />
           ))}
-          <GoogleStopMarkers waypoints={waypoints} pinnedIds={pinnedIds} onTogglePin={onTogglePin} nextStopId={nextStopId} />
+          <GoogleStopMarkers waypoints={waypoints} pinnedIds={pinnedIds} onTogglePin={onTogglePin} nextStopId={nextStopId} lang={lang} />
           <GooglePreviewMarkers places={previewPlaces ?? []} />
           <GoogleRecommendedLayer enabled={topRated} onNote={onTopRatedNote} onAddToWalk={onAddToWalk} addedIds={addedIds} />
           {currentPosition ? <GoogleCurrentPosition position={currentPosition} accuracyM={currentAccuracyM} headingDeg={currentHeadingDeg} headingStore={headingStore} /> : null}

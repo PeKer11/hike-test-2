@@ -296,6 +296,7 @@ export default function MapView({
         waypoints={waypoints}
         pinnedIds={pinnedIds}
         onTogglePin={onTogglePin}
+        lang={lang}
       />
       <PreviewMarkers places={previewPlaces ?? []} />
       <RecommendedLayer onAddToWalk={onAddToWalk} addedIds={addedIds} />
