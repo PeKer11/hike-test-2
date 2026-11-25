@@ -35,6 +35,19 @@ describe("the walk sheet", () => {
     expect(onDetails).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the handle and the deck in a header that never scrolls; only the body scrolls", () => {
+    render(<WalkHud alert={null} stats={stats} nextStop={{ name: "Bauhaus Center", minutes: 6 }} half={<p>half content</p>} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
+    const header = screen.getByTestId("walk-sheet-header");
+    const body = screen.getByTestId("walk-sheet-body");
+    const handle = screen.getByRole("button", { name: "Details" });
+    expect(header.contains(handle)).toBe(true);
+    expect(header.contains(screen.getByTestId("walk-turn-deck"))).toBe(true);
+    expect(header.className.split(/\s+/)).toContain("flex-none");
+    expect(header.closest(".overflow-y-auto")).toBeNull();
+    expect(body.className.split(/\s+/)).toEqual(expect.arrayContaining(["min-h-0", "flex-1", "overflow-y-auto"]));
+    expect(screen.getByTestId("walk-hud").className.split(/\s+/)).not.toContain("overflow-y-auto");
+  });
+
   it("drags up to half and back down to peek", () => {
     render(<WalkHud alert={null} stats={stats} half={<p>half content</p>} onDetails={vi.fn()} onEndWalk={vi.fn()} />);
     const handle = screen.getByRole("button", { name: "Details" });

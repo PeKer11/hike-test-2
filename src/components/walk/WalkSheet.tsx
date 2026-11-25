@@ -10,7 +10,7 @@ export type SheetState = "peek" | "half";
  * desktop. WalkHud tells the map and the off-route card about it (`--hud-h`, `--hud-o`, `--hud-w`). Phones keep the bottom sheet.
  */
 const FLOAT =
-  "md:inset-x-0 md:bottom-8 md:mx-auto md:max-h-[calc(100%-96px)] md:w-[560px] md:max-w-[calc(100%-32px)] md:overflow-y-auto md:rounded-[6px] md:border-[1.5px] md:shadow-[0_8px_24px_rgba(30,20,10,0.28)] lg:inset-x-auto lg:start-4 lg:mx-0 lg:w-[400px]";
+  "md:inset-x-0 md:bottom-8 md:mx-auto md:max-h-[calc(100%-96px)] md:w-[560px] md:max-w-[calc(100%-32px)] md:rounded-[6px] md:border-[1.5px] md:shadow-[0_8px_24px_rgba(30,20,10,0.28)] lg:inset-x-auto lg:start-4 lg:mx-0 lg:w-[400px]";
 
 /**
  * The walk's bottom sheet: one opaque surface with a drag handle. On a phone it is capped at 62% of the map section and
@@ -49,38 +49,43 @@ export function WalkSheet({
       ref={sheetRef}
       data-testid="walk-hud"
       data-sheet={state}
-      className={`${FLOAT} pointer-events-auto absolute inset-x-0 bottom-0 flex max-h-[62%] flex-col gap-2 overflow-y-auto overscroll-contain rounded-t-[6px] border-t-[1.5px] border-[var(--tk-lip)] bg-paper px-4 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-6px_18px_rgba(30,20,10,0.16)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)] ${deck ? "" : "pt-1"}`}
+      className={`${FLOAT} pointer-events-auto absolute inset-x-0 bottom-0 flex max-h-[62%] flex-col overflow-hidden rounded-t-[6px] border-t-[1.5px] border-[var(--tk-lip)] bg-paper shadow-[0_-6px_18px_rgba(30,20,10,0.16)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.5)]`}
     >
-      {deck}
-      <button
-        type="button"
-        aria-label={label}
-        onPointerDown={(e) => {
-          startY.current = e.clientY;
-        }}
-        onPointerUp={(e) => {
-          const from = startY.current;
-          startY.current = null;
-          if (from === null) return;
-          const dy = e.clientY - from;
-          if (Math.abs(dy) < 24) return; // a tap: onClick handles it
-          dragged.current = true;
-          if (dy < 0) up();
-          else down();
-        }}
-        onClick={() => {
-          if (dragged.current) {
-            dragged.current = false;
-            return;
-          }
-          up();
-        }}
-        className={`mx-auto flex h-6 w-24 touch-none items-center justify-center ${deck ? "absolute inset-x-0 top-1 z-10" : ""}`}
-      >
-        <span aria-hidden className={`h-1 w-9 rounded-full ${deck ? "bg-[rgba(255,247,236,0.5)]" : "bg-charcoal/25"}`} />
-      </button>
-      {children}
-      {state === "half" ? half : null}
+      {/* The header (deck + handle) never scrolls: an open chat scrolls the body, so the handle is always on screen. */}
+      <div data-testid="walk-sheet-header" className={`relative flex-none px-4 ${deck ? "" : "pt-1"}`}>
+        {deck}
+        <button
+          type="button"
+          aria-label={label}
+          onPointerDown={(e) => {
+            startY.current = e.clientY;
+          }}
+          onPointerUp={(e) => {
+            const from = startY.current;
+            startY.current = null;
+            if (from === null) return;
+            const dy = e.clientY - from;
+            if (Math.abs(dy) < 24) return; // a tap: onClick handles it
+            dragged.current = true;
+            if (dy < 0) up();
+            else down();
+          }}
+          onClick={() => {
+            if (dragged.current) {
+              dragged.current = false;
+              return;
+            }
+            up();
+          }}
+          className={`mx-auto flex h-6 w-24 shrink-0 touch-none items-center justify-center ${deck ? "absolute inset-x-0 top-1 z-10" : ""}`}
+        >
+          <span aria-hidden className={`h-1 w-9 rounded-full ${deck ? "bg-[rgba(255,247,236,0.5)]" : "bg-charcoal/25"}`} />
+        </button>
+      </div>
+      <div data-testid="walk-sheet-body" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-2">
+        {children}
+        {state === "half" ? half : null}
+      </div>
     </div>
   );
 }

@@ -310,7 +310,7 @@ describe("the live-walk HUD", () => {
     const cls = screen.getByTestId("walk-hud").className;
     expect(cls).toContain("bg-paper");
     expect(cls).toContain("inset-x-0");
-    expect(cls).toContain("env(safe-area-inset-bottom)");
+    expect(screen.getByTestId("walk-sheet-body").className).toContain("env(safe-area-inset-bottom)");
     expect(cls).not.toContain("#0b1a2b");
   });
 
@@ -391,7 +391,7 @@ describe("the openrouteservice credit sits off the map (feedback 2026-11-22, ite
     expect(screen.getByTestId("walk-hud").contains(screen.getByTestId("ors-credit"))).toBe(true);
     expect(screen.getByTestId("map").contains(screen.getByTestId("ors-credit"))).toBe(false);
     // The last thing in the sheet, under Ask / End walk.
-    const sheet = screen.getByTestId("walk-hud");
+    const sheet = screen.getByTestId("walk-sheet-body");
     expect(sheet.lastElementChild).toBe(screen.getByTestId("map-credits"));
   });
 

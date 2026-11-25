@@ -59,6 +59,11 @@ test("the open walk chat never covers the whole map, and minimizing it gives the
   // The map keeps at least a third of the walk screen above the sheet, and the sheet's top is on screen.
   expect(open!.y).toBeGreaterThanOrEqual(0.3 * 600 - 1);
 
+  // The handle never scrolls out of view inside the sheet (it was 226 against a sheet top of 297 before the header was split off).
+  const handleBox = await page.getByTestId("walk-sheet-header").boundingBox();
+  expect(handleBox!.y).toBeGreaterThanOrEqual(open!.y - 1);
+  expect(handleBox!.y).toBeLessThan(open!.y + open!.height);
+
   await chat.getByRole("button", { name: "Minimize" }).click();
   await expect(chat).toBeHidden();
   const closed = await hud.boundingBox();
