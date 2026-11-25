@@ -14,11 +14,25 @@ import {
 /** Same rule as the speed estimator: this many consistent rejected jumps in a row mean the walker really moved. */
 const MAX_CONSECUTIVE_REJECTS = 3;
 
+/** Doppler speeds at or above this are a moving walker; a median under STOPPED_MPS over 3+ fixes is a standing one. */
+const MOVING_MPS = 0.6;
+const STOPPED_MPS = 0.35;
+const STOPPED_WINDOW_MS = 10_000;
+/** Rejected fixes that agree for this long, with the phone not stopped, are a real move. */
+const REBASE_AGREE_MS = 15_000;
+
+/** The first trail point needs this accuracy, or a second fix that agrees with it. */
+const SEED_MAX_ACCURACY_M = 20;
+
 /** After this long with no good fix, the first fix back is only believed once a second fix agrees with it. */
 const STALE_GOOD_MS = 10_000;
 
 /** How far from the last kept point a fix must be to become a trail point. */
-const stepFor = (accuracyM: number) => Math.max(TRAIL_MIN_STEP_M, Math.min(accuracyM, TRAIL_MAX_STEP_M));
+const stepFor = (accuracyM: number) => {
+  const base = Math.max(TRAIL_MIN_STEP_M, Math.min(accuracyM, TRAIL_MAX_STEP_M));
+  // A poor fix is judged by a mean of a few fixes whose own noise is still a good part of the accuracy: ask for a bit more.
+  return accuracyM > TRAIL_SMOOTH_ABOVE_ACCURACY_M ? Math.max(base, Math.min(accuracyM * 0.6, TRAIL_MAX_STEP_M * 1.6)) : base;
+};
 
 /**
  * Decides which GPS fixes become points of the walked trail, so a phone standing
@@ -30,11 +44,12 @@ const stepFor = (accuracyM: number) => Math.max(TRAIL_MIN_STEP_M, Math.min(accur
 export class TrailFilter {
   private last: { coordinates: Coordinates; timestamp: number } | null = null;
   /** The newest fix that was not a jump. Speed is measured from here, not from the last kept point. */
-  private good: { coordinates: Coordinates; timestamp: number } | null = null;
+  private good: { coordinates: Coordinates; timestamp: number; accuracyM: number } | null = null;
   /** The first fix after a silence, waiting for a second one that agrees with it. */
   private pending: { coordinates: Coordinates; timestamp: number } | null = null;
-  private rejectAnchor: Coordinates | null = null;
-  private rejects = 0;
+  /** The run of rejected fixes that agree with each other, with their Doppler speed. */
+  private rejected: Array<{ coordinates: Coordinates; timestamp: number; speedMps?: number }> = [];
+  private doppler: Array<{ timestamp: number; speedMps: number }> = [];
   /** The last fix seen was a jump or a suspect: the dot may show it, the trail's tail must not follow it. */
   private lastWasJump = false;
   private recent: Array<{ coordinates: Coordinates; timestamp: number }> = [];
@@ -43,10 +58,16 @@ export class TrailFilter {
     this.last = null;
     this.good = null;
     this.pending = null;
-    this.rejectAnchor = null;
-    this.rejects = 0;
+    this.rejected = [];
+    this.doppler = [];
     this.lastWasJump = false;
     this.recent = [];
+  }
+
+  /** The phone is standing: at least 3 Doppler speeds in the last 10 s with a median under 0.35 m/s. */
+  private stopped(timestamp: number): boolean {
+    const w = this.doppler.filter((d) => timestamp - d.timestamp <= STOPPED_WINDOW_MS).map((d) => d.speedMps).sort((a, b) => a - b);
+    return w.length >= 3 && w[Math.floor(w.length / 2)] < STOPPED_MPS;
   }
 
   /** Whether the live tail may be drawn from the trail's end to the dot. */
@@ -72,12 +93,23 @@ export class TrailFilter {
    * The point to add to the trail, or null when the fix adds nothing. That is the filter's own point (the mean of
    * the recent fixes for a poor fix), never the raw fix: the smoothing only protects the line when that is drawn.
    */
-  accept(coordinates: Coordinates, timestamp: number, accuracyM: number): Coordinates | null {
+  accept(coordinates: Coordinates, timestamp: number, accuracyM: number, speedMps?: number): Coordinates | null {
     if (!(accuracyM <= TRAIL_MAX_ACCURACY_M)) return null;
     const step = stepFor(accuracyM);
+    if (typeof speedMps === "number") {
+      this.doppler.push({ timestamp, speedMps });
+      this.doppler = this.doppler.filter((d) => timestamp - d.timestamp <= STOPPED_WINDOW_MS);
+    }
     if (!this.good || !this.last) {
+      // The first point needs a good fix, or two poor ones that agree: a lone coarse fix must not start the trail.
       const ref = this.reference(coordinates, timestamp, accuracyM);
-      this.good = { coordinates, timestamp };
+      if (accuracyM > SEED_MAX_ACCURACY_M) {
+        const p = this.pending;
+        this.pending = { coordinates, timestamp };
+        if (!p || haversineDistance(p.coordinates, coordinates) > step) return null;
+      }
+      this.pending = null;
+      this.good = { coordinates, timestamp, accuracyM };
       return this.keep(ref, timestamp);
     }
 
@@ -91,36 +123,49 @@ export class TrailFilter {
         return null;
       }
       this.pending = null;
-      this.good = { coordinates, timestamp };
-      this.rejects = 0;
-      this.rejectAnchor = null;
+      this.good = { coordinates, timestamp, accuracyM };
+      this.rejected = [];
       this.recent = [];
     }
 
-    const ref = this.reference(coordinates, timestamp, accuracyM);
     const dtSec = Math.max(1, (timestamp - this.good.timestamp) / 1000);
-    const jumpMps = haversineDistance(this.good.coordinates, coordinates) / dtSec;
-    if (jumpMps > SPEED_MAX_JUMP_MPS) {
-      const consistent = this.rejectAnchor !== null && haversineDistance(this.rejectAnchor, coordinates) <= step;
-      this.rejects = consistent ? this.rejects + 1 : 1;
-      this.rejectAnchor = coordinates;
+    // Two noisy fixes of a standing phone are apart by about their accuracy: that part is not movement.
+    const allowanceM = (accuracyM + this.good.accuracyM) / 2;
+    if (Math.max(0, haversineDistance(this.good.coordinates, coordinates) - allowanceM) / dtSec > SPEED_MAX_JUMP_MPS) {
       this.lastWasJump = true;
-      if (this.rejects < MAX_CONSECUTIVE_REJECTS) return null;
-      this.good = { coordinates, timestamp };
+      const prev = this.rejected[this.rejected.length - 1];
+      if (!prev || haversineDistance(prev.coordinates, coordinates) > step) this.rejected = [];
+      this.rejected.push({ coordinates, timestamp, speedMps });
+      if (this.rejected.length < MAX_CONSECUTIVE_REJECTS) return null;
+      const span = timestamp - this.rejected[0].timestamp;
+      const moving = this.rejected.filter((r) => typeof r.speedMps === "number" && r.speedMps >= MOVING_MPS).length >= MAX_CONSECUTIVE_REJECTS;
+      if (!moving && !(span >= REBASE_AGREE_MS && !this.stopped(timestamp))) {
+        // Standing still, and the GPS (real Doppler on every fix) keeps agreeing somewhere else: the anchor was the
+        // wrong one. Move it without drawing a line to it.
+        if (this.stopped(timestamp) && this.rejected.every((r) => typeof r.speedMps === "number")) {
+          this.good = { coordinates, timestamp, accuracyM };
+          this.last = { coordinates, timestamp };
+          this.rejected = [];
+          this.recent = [];
+          this.lastWasJump = false;
+        }
+        return null;
+      }
+      this.rejected = [];
+      this.recent = [];
     } else {
-      this.good = { coordinates, timestamp };
-      this.rejects = 0;
-      this.rejectAnchor = null;
+      this.rejected = [];
     }
+    this.good = { coordinates, timestamp, accuracyM };
     this.lastWasJump = false;
+    const ref = this.reference(coordinates, timestamp, accuracyM);
     if (haversineDistance(this.last.coordinates, ref) < step) return null;
     return this.keep(ref, timestamp);
   }
 
   private keep(coordinates: Coordinates, timestamp: number): Coordinates {
     this.last = { coordinates, timestamp };
-    this.rejectAnchor = null;
-    this.rejects = 0;
+    this.rejected = [];
     return coordinates;
   }
 }

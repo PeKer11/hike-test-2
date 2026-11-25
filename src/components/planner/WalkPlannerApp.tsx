@@ -3161,7 +3161,7 @@ export function WalkPlannerApp({
       if (!due) return;
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
-      const trailPoint = trailFilterRef.current.accept(update.currentPosition, update.timestamp, update.accuracyMeters);
+      const trailPoint = trailFilterRef.current.accept(update.currentPosition, update.timestamp, update.accuracyMeters, update.speedMps);
       if (trailPoint) {
         walkedTrackRef.current.push(trailPoint);
         setWalkedVersion((v) => v + 1);

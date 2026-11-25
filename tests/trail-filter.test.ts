@@ -104,7 +104,7 @@ describe("TrailFilter", () => {
     expect(worst).toBeLessThanOrEqual(12);
   });
 
-  it("standing still with 30-40 m accuracy and 15 m wobble keeps at most 2 points", () => {
+  it("standing still with 30-40 m accuracy and 15 m wobble keeps at most 3 points without a device speed", () => {
     const f = new TrailFilter();
     let seed = 5;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
@@ -112,12 +112,13 @@ describe("TrailFilter", () => {
     for (let i = 0; i < 300; i += 1) {
       if (f.accept(at(rnd() * 15, rnd() * 15), i * 1000, 30 + Math.abs(rnd()) * 10)) kept += 1;
     }
-    expect(kept).toBeLessThanOrEqual(2);
+    expect(kept).toBeLessThanOrEqual(3);
   });
 
   it("returns the point to draw: a noisy fix that passes is drawn at the mean of the recent fixes, not at the raw fix", () => {
     const f = new TrailFilter();
-    expect(f.accept(at(0), 0, 30)).not.toBeNull();
+    expect(f.accept(at(0), 0, 30)).toBeNull(); // a coarse first fix alone does not start the trail
+    expect(f.accept(at(1), 500, 30)).not.toBeNull();
     let drawn: Coordinates | null = null;
     let raw = at(0);
     for (let i = 1; i <= 12 && !drawn; i += 1) {
@@ -127,6 +128,48 @@ describe("TrailFilter", () => {
     expect(drawn).not.toBeNull();
     expect(drawn).not.toEqual(raw);
     expect(haversineDistance(drawn as Coordinates, raw)).toBeGreaterThan(2);
+  });
+
+  describe("a standing phone with a Doppler speed", () => {
+    // Real stationary GPS: a few metres of noise, a Doppler speed near zero.
+    const standingGps = (f: TrailFilter, fromS: number, toS: number, kept: Coordinates[]) => {
+      for (let s = fromS; s < toS; s += 1) {
+        const p = f.accept(at(Math.sin(s) * 2, Math.cos(s * 1.3) * 2), s * 1000, 10, 0.05);
+        if (p) kept.push(p);
+      }
+    };
+    const farthest = (pts: Coordinates[]) => Math.max(0, ...pts.map((p) => haversineDistance(p, at(0))));
+
+    it("a 4-fix Wi-Fi cluster 130 m away (no speed) does not become the trail", () => {
+      const f = new TrailFilter();
+      const kept: Coordinates[] = [];
+      standingGps(f, 0, 60, kept);
+      for (let s = 60; s < 64; s += 1) {
+        const p = f.accept(at(130 + (s % 2), 1), s * 1000, 30);
+        if (p) kept.push(p);
+      }
+      standingGps(f, 64, 120, kept);
+      expect(farthest(kept)).toBeLessThan(20);
+    });
+
+    it("GPS that keeps agreeing somewhere else while standing moves the anchor silently and draws nothing", () => {
+      const f = new TrailFilter();
+      const kept: Coordinates[] = [];
+      standingGps(f, 0, 30, kept);
+      for (let s = 30; s < 60; s += 1) {
+        const p = f.accept(at(130 + (s % 3)), s * 1000, 10, 0.05);
+        if (p) kept.push(p);
+      }
+      expect(farthest(kept)).toBeLessThan(20);
+    });
+
+    it("a walker whose fixes jump 200 m ahead and keep agreeing with a real walking speed re-baselines within 3 fixes", () => {
+      const f = new TrailFilter();
+      for (let s = 0; s <= 10; s += 1) f.accept(at(s * 1.4), s * 1000, 10, 1.4);
+      expect(f.accept(at(220), 11_000, 10, 1.4)).toBeNull();
+      expect(f.accept(at(221.4), 12_000, 10, 1.4)).toBeNull();
+      expect(f.accept(at(222.8), 13_000, 10, 1.4)).not.toBeNull();
+    });
   });
 
   it("the live tail is allowed only for a dot the filter believes and that is near the trail's end", () => {
