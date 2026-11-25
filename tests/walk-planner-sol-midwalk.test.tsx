@@ -210,8 +210,8 @@ describe("P21: a place added from the walk chat stays pinned", () => {
     // A later change of route, asked for separately: the kiosk is still one of the walker's pinned stops.
     assistantAnswer = { reply: "", proposal: { adds: [], skipStopIndexes: [0], headBack: false } };
     await advance(3_000); // the new leg's first fix: the chat has the walk in view again
-    const callsBefore = walkPlanCalls.length;
     await say("is the first one worth it?");
+    const callsBefore = walkPlanCalls.length; // the card's dry run is already in; approving adds exactly one build
     fireEvent.click(within(screen.getByTestId("walk-chat")).getByRole("button", { name: "Approve" }));
     await flush();
     expect(walkPlanCalls).toHaveLength(callsBefore + 1);

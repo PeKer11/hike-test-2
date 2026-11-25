@@ -34,6 +34,9 @@ import { WalkFinishCard, type WalkFinishData } from "@/components/walk/WalkFinis
 import { WalkFeedbackCard } from "@/components/walk/WalkFeedbackCard";
 import { AssistantChat, type AssistantBuild } from "@/components/assistant/AssistantChat";
 import type { WalkCompanionInput } from "@/lib/types/walk-companion";
+import { walkPlanRequestBody } from "@/lib/walk/plan-request";
+import type { ChatAction } from "@/lib/walk/chat/reply";
+import { basisCheck, previewFromPlan, type ProposalBasis, type ProposalPreview } from "@/lib/walk/chat/proposal";
 import type {
   Attraction,
   AttractionCategory,
@@ -1800,32 +1803,23 @@ export function WalkPlannerApp({
         method: "POST",
         signal: controller.signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat: input.origin.lat,
-          lng: input.origin.lng,
-          availableMinutes: input.availableMinutes,
-          walkingPaceMinPerKm: input.walkingPaceMinPerKm,
-          radiusMeters: input.radiusMeters,
-          maxEndDistanceFromOriginMeters: input.maxEndDistanceFromOriginMeters,
-          endAnchor: input.endAnchor,
-          // A loop closes at the real start. Mid-walk `origin` is where the walker stands, so
-          // without this a rebuild would end the walk at the spot it was rebuilt.
-          returnTo: options?.autoResume ? input.endAnchor : undefined,
-          preferredCategories: input.preferredCategories,
-          explicitAttractions: aiStops ?? keepAttractions,
-          fixedOrder: aiStops || options?.fixedOrder === true ? true : undefined,
-          presetGeometry: aiGeometry ?? options?.presetGeometry,
-          ...routeRulesRef.current,
-          pinnedAttractionIds: activePinnedIds,
-          fillRemainingTime: options?.fillRemainingTime ?? false,
-          heading: options?.heading,
-          // Mid-walk, what discovery turns up must not be a place the walker has already been to or dropped.
-          excludeIds: options?.autoResume ? [...new Set([...visitedIds, ...droppedStopIdsRef.current])] : undefined,
-          stopCount: promptStopCount ?? undefined,
-          notableOnly: promptNotableOnly,
-          learnPreferences: walkSettings.preferenceLearningEnabled,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }),
+        body: JSON.stringify(
+          walkPlanRequestBody({
+            input,
+            options,
+            keep: keepAttractions,
+            aiStops,
+            aiGeometry,
+            routeRules: routeRulesRef.current as Record<string, unknown> | undefined,
+            activePinnedIds,
+            visitedIds,
+            droppedIds: droppedStopIdsRef.current,
+            stopCount: promptStopCount,
+            notableOnly: promptNotableOnly,
+            learnPreferences: walkSettings.preferenceLearningEnabled,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+        ),
       });
       const data = (await res.json()) as WalkPlan & { error?: string; habitHints?: HabitHint[] };
 
@@ -2198,10 +2192,13 @@ export function WalkPlannerApp({
     }
   };
 
-  // Several chat proposals at once: drop the skipped stops, pin the new ones, one rebuild.
-  const runApplyChangesRebuild = (adds: Array<{ name: string; coordinates: { lat: number; lng: number } }>, dropStopIds: string[]) => {
-    const state = midWalkRebuildState();
-    if (!state) return;
+  // The walk after one chat change: skipped stops out, new places pinned in, the clock grown to fit. Shared by the
+  // card's dry-run and the real build, so the preview is exactly the question the build asks.
+  const prepareChangeRebuild = (
+    state: NonNullable<ReturnType<typeof midWalkRebuildState>>,
+    adds: Array<{ name: string; coordinates: { lat: number; lng: number } }>,
+    dropStopIds: string[],
+  ) => {
     const drop = new Set(dropStopIds);
     const onWalk = new Set((state.currentAttractions ?? []).map((a) => a.id));
     // Never add the same proposed place twice (ids are position based).
@@ -2216,6 +2213,119 @@ export function WalkPlannerApp({
       }))
       .filter((a, i, all) => !onWalk.has(a.id) && all.findIndex((b) => b.id === a.id) === i);
     const kept = (state.currentAttractions ?? []).filter((a) => !drop.has(a.id));
+    const request = buildExtendedTimeRebuildRequest({
+      ...state,
+      currentAttractions: [...kept, ...added],
+      pinnedIds: [...state.pinnedIds.filter((id) => !drop.has(id)), ...added.map((a) => a.id)],
+    });
+    return { ...request, added, drop };
+  };
+
+  // What the walker has left, on the planner's own clock (planned pace + each stop's visit), so that a card's
+  // "+12 min" compares two numbers measured the same way.
+  const remainingBaseline = () => {
+    const input = walkInputRef.current;
+    const stats = walkStats;
+    if (!input || !stats) return null;
+    const visited = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    const visits = excludeVisited(walkPlanRef.current?.orderedAttractions ?? [], visited).reduce((sum, a) => sum + a.avgVisitMinutes, 0);
+    return {
+      minutes: (stats.remainingM / 1000) * input.walkingPaceMinPerKm + visits,
+      distM: stats.remainingM,
+      allowedRemainingMin: input.availableMinutes - stats.elapsedMin,
+    };
+  };
+
+  const currentBasis = (state: NonNullable<ReturnType<typeof midWalkRebuildState>>): ProposalBasis => ({
+    stopIds: stopsAheadIds(),
+    planRev: buildWalkRequestIdRef.current,
+    position: state.currentPosition ?? state.originalInput.origin,
+    at: Date.now(),
+  });
+
+  // The latest card's dry run, kept so that approving builds exactly what the card showed.
+  const proposalPreviewRef = useRef<{ key: string; plan: WalkPlan; basis: ProposalBasis; minDelta: number } | null>(null);
+
+  // A dry-run /api/walk-plan for a card: nothing on screen or in the walk changes.
+  const previewProposalRoute = async (
+    action: Extract<ChatAction, { kind: "proposal" }>,
+    signal: AbortSignal,
+  ): Promise<ProposalPreview> => {
+    const state = midWalkRebuildState();
+    const baseline = remainingBaseline();
+    if (!state || !baseline) throw new Error("no live walk");
+    const change = prepareChangeRebuild(state, action.adds, action.dropStopIds);
+    const visitedIds = visitTrackerRef.current?.visitedIds ?? new Set<string>();
+    const keep = change.options.keepAttractions ? excludeVisited(change.options.keepAttractions, visitedIds) : undefined;
+    const res = await fetch("/api/walk-plan", {
+      method: "POST",
+      signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        walkPlanRequestBody({
+          input: change.input,
+          options: change.options,
+          keep,
+          routeRules: routeRulesRef.current as Record<string, unknown> | undefined,
+          activePinnedIds: (change.options.pinnedIds ?? []).filter((id) => !visitedIds.has(id)),
+          visitedIds,
+          droppedIds: new Set([...droppedStopIdsRef.current, ...action.dropStopIds]),
+          stopCount: promptStopCount,
+          notableOnly: promptNotableOnly,
+          learnPreferences: false,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      ),
+    });
+    const data = (await res.json().catch(() => null)) as (WalkPlan & { error?: string }) | null;
+    if (!res.ok || !data || data.error || data.orderedAttractions.length === 0 || (data.geometry?.length ?? 0) < 2) return { status: "failed" };
+    const placed = (id: string) => data.orderedAttractions.some((a) => a.id === id);
+    const missing = change.added.filter((a) => !placed(a.id));
+    if (change.added.length > 0 && missing.length === change.added.length) return { status: "nofit", name: missing[0].name };
+    const numbers = previewFromPlan({
+      planMinutes: data.totalMinutes,
+      planDistM: data.totalDistanceMeters,
+      baselineMin: baseline.minutes,
+      baselineDistM: baseline.distM,
+      nowMs: Date.now(),
+      allowedRemainingMin: baseline.allowedRemainingMin,
+    });
+    proposalPreviewRef.current = { key: action.key, plan: data, basis: currentBasis(state), minDelta: numbers.minDelta };
+    return numbers;
+  };
+
+  // The card's אשר. "busy": an update is running, the card stays open. "recheck": the route changed since the
+  // numbers were computed, so they are computed again and the walker confirms the new ones.
+  const approveProposal = (action: Extract<ChatAction, { kind: "proposal" }>): "busy" | "recheck" | void => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    if (midWalkRebuildInFlightRef.current) {
+      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].stillUpdating, "warn");
+      return "busy";
+    }
+    if (action.headBack) {
+      void runThemedOption("short");
+      return;
+    }
+    const stored = proposalPreviewRef.current?.key === action.key ? proposalPreviewRef.current : null;
+    const verdict = stored ? basisCheck(stored.basis, currentBasis(state)) : null;
+    if (stored && verdict === "replanned") {
+      proposalPreviewRef.current = null;
+      return "recheck";
+    }
+    runApplyChangesRebuild(action.adds, action.dropStopIds, stored ? { plan: stored.plan, minDelta: stored.minDelta, exactRoute: verdict === "fresh" } : undefined);
+  };
+
+  // Several chat proposals at once: drop the skipped stops, pin the new ones, one rebuild.
+  // With the card's `preview` the build is that dry run's stops in its order (and its line, while the walker has not moved on).
+  const runApplyChangesRebuild = (
+    adds: Array<{ name: string; coordinates: { lat: number; lng: number } }>,
+    dropStopIds: string[],
+    preview?: { plan: WalkPlan; minDelta: number; exactRoute: boolean },
+  ) => {
+    const state = midWalkRebuildState();
+    if (!state) return;
+    const { input, options, added, drop } = prepareChangeRebuild(state, adds, dropStopIds);
     // One update at a time: say so before marking anything, so a refused tap leaves no trace.
     if (midWalkRebuildInFlightRef.current) {
       showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].stillUpdating, "warn");
@@ -2224,15 +2334,18 @@ export function WalkPlannerApp({
     // Only the ids this change newly marks: undoing it forgets exactly those.
     const newlyDropped = dropStopIds.filter((id) => !droppedStopIdsRef.current.has(id));
     for (const id of dropStopIds) droppedStopIdsRef.current.add(id);
-    const { input, options } = buildExtendedTimeRebuildRequest({
-      ...state,
-      currentAttractions: [...kept, ...added],
-      pinnedIds: [...state.pinnedIds.filter((id) => !drop.has(id)), ...added.map((a) => a.id)],
-    });
+    const buildOptions = preview
+      ? {
+          ...options,
+          keepAttractions: preview.plan.orderedAttractions,
+          fixedOrder: true,
+          ...(preview.exactRoute ? { presetGeometry: preview.plan.geometry ?? undefined } : {}),
+        }
+      : options;
     const before = captureChatEditSnapshot();
-    void handleBuildWalk(input, options).then((plan) => {
+    void handleBuildWalk(input, buildOptions).then((plan) => {
       keepPinned(added.map((a) => a.id), plan);
-      if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added.map((a) => a.id), plan, added.length * 20, true, newlyDropped, before);
+      if (added.length > 0) announceAdded(added.map((a) => a.name).join(", "), added.map((a) => a.id), plan, preview ? preview.minDelta : added.length * 20, true, newlyDropped, before);
       else if (plan && newlyDropped.length > 0) {
         const names = (state.currentAttractions ?? []).filter((a) => drop.has(a.id)).map((a) => a.name).join(", ");
         showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].removed(names), "ok", true, undefined, newlyDropped, before);
@@ -4099,6 +4212,7 @@ export function WalkPlannerApp({
     lang: uiLang === "he" ? "he" : "en",
     isSignedIn,
     freeChat: true,
+    previewProposal: previewProposalRoute,
     getContext: () => {
       const snap = getCompanionSnapshot();
       if (!snap) return null;
@@ -4141,8 +4255,7 @@ export function WalkPlannerApp({
       } else if (action.kind === "apply-changes") {
         runApplyChangesRebuild(action.adds, action.dropStopIds);
       } else if (action.kind === "proposal") {
-        if (action.headBack) void runThemedOption("short");
-        else runApplyChangesRebuild(action.adds, action.dropStopIds);
+        return approveProposal(action);
       } else if (action.kind === "add-place") {
         runAddPlaceRebuild(action.name, action.coordinates);
       } else if (action.kind === "set-pace") {

@@ -388,7 +388,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
             if (p.headBack || adds.length + drops.length > 0) {
               const action: ProposalAction = { kind: "proposal", key: String(thinkingId), adds, dropStopIds: drops.map((d) => d.id), dropNames: drops.map((d) => d.name), headBack: p.headBack === true, label: "" };
               replace(thinkingId, "", [action]);
-              startPreview(thinkingId, action);
+              if (!action.headBack) startPreview(thinkingId, action);
               return;
             }
           }

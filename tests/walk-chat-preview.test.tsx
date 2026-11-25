@@ -1,5 +1,5 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useWalkChat } from "@/lib/hooks/useWalkChat";
 import type { ProposalPreview } from "@/lib/walk/chat/proposal";
@@ -139,4 +139,16 @@ describe("approving", () => {
   });
 });
 
-beforeEach(() => undefined);
+describe("head back", () => {
+  it("has no dry run: the card is approvable with no numbers", async () => {
+    const preview = vi.fn(async () => READY);
+    const doFetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ reply: "", proposal: { adds: [], skipStopIndexes: [], headBack: true } }) }) as unknown as Response) as unknown as typeof fetch;
+    const { result } = renderHook(() =>
+      useWalkChat({ lang: "en", isSignedIn: true, freeChat: true, getContext: () => ctx, onAction: vi.fn(), doFetch, previewProposal: preview as never }),
+    );
+    act(() => result.current.send("take me back"));
+    await waitFor(() => expect(result.current.messages.some((m) => m.actions.length > 0)).toBe(true));
+    expect(preview).not.toHaveBeenCalled();
+    expect(result.current.messages.at(-1)!.preview).toBeUndefined();
+  });
+});

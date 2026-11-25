@@ -310,13 +310,14 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
     holdPlan = new Promise<void>((r) => (release = r));
     fireEvent.click(chatButton("אשר")); // a rebuild now running
     await flush();
-    const before = walkPlanCalls.length;
     // The approved card is refused while the update is still running.
     assistantAnswer = plan([], [0]);
     await say("תוריד את המוזיאון");
-    fireEvent.click(chatButton("אשר"));
-    await flush();
+    const before = walkPlanCalls.length; // the card's own dry run is already in (held, like the rest)
+    await say("כן"); // approves by typing: the card's button is still waiting for its numbers
     expect(walkPlanCalls).toHaveLength(before);
+    expect(within(screen.getByTestId("walk-chat")).queryByText(/מטפלים בזה/)).toBeNull();
+    expect(chatButton("אשר")).toBeTruthy(); // the card is still open: the tap was not lost
     holdPlan = null;
     release();
     await flush();
@@ -326,5 +327,95 @@ describe("undo and refusals after 'לבצע הכול' (the owner's sequence)", (
     fireEvent.click(chatButton("אשר"));
     await flush();
     expect((last().excludeIds as string[]) ?? []).not.toContain("a1");
+  });
+});
+
+describe("the proposal card computes a real route before anything changes", () => {
+  const A = { lat: 32.1, lng: 34.7805 };
+  const idOf = (c: { lat: number; lng: number }) => `chat-${Math.round(c.lat * 1e5)}-${Math.round(c.lng * 1e5)}`;
+  const plan = (adds: unknown[], skipStopIndexes: number[] = []) => ({ reply: "", proposal: { adds, skipStopIndexes, headBack: false } });
+  const chatEl = () => screen.getByTestId("walk-chat");
+  const chatButton = (name: string | RegExp) => within(chatEl()).getByRole("button", { name });
+  const last = () => walkPlanCalls[walkPlanCalls.length - 1];
+
+  async function say(text: string) {
+    const ask = screen.queryByRole("button", { name: /^(Ask|שאלו|לשאול)/ });
+    if (ask) fireEvent.click(ask);
+    const box = within(screen.getByTestId("walk-chat")).getByRole("textbox");
+    fireEvent.change(box, { target: { value: text } });
+    fireEvent.submit(box.closest("form")!);
+    await flush();
+    await advance(500);
+  }
+
+  it("C1: asking sends a dry-run to /api/walk-plan with the kept stops plus the new one, changes nothing, and shows real numbers", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    const before = walkPlanCalls.length;
+    assistantAnswer = plan([{ name: "Alush Garden", coordinates: A, distM: 300 }]);
+    await say("תוסיף משהו");
+    expect(walkPlanCalls).toHaveLength(before + 1);
+    const dry = last();
+    expect((dry.explicitAttractions as Attraction[]).map((a) => a.id)).toContain(idOf(A));
+    expect(dry.fixedOrder).toBeUndefined();
+    expect(dry.returnTo).toBeDefined();
+    expect(screen.queryByTestId("walk-notice")).toBeNull();
+    const text = chatEl().textContent ?? "";
+    expect(text).toMatch(/דק׳ · .*ק״מ · סיום \d\d:\d\d/);
+    expect(text).not.toContain("~");
+    expect((chatButton("אשר") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("C2: approving builds exactly what the card showed (fixed order, the previewed route) and the notice is from the real numbers", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    assistantAnswer = plan([{ name: "Alush Garden", coordinates: A, distM: 300 }]);
+    await say("תוסיף משהו");
+    const dry = last();
+    fireEvent.click(chatButton("אשר"));
+    await flush();
+    const built = last();
+    expect(built).not.toBe(dry);
+    expect(built.fixedOrder).toBe(true);
+    expect(built.presetGeometry).toEqual(ROUTE);
+    expect((built.explicitAttractions as Attraction[]).map((a) => a.id)).toEqual((dry.explicitAttractions as Attraction[]).map((a) => a.id));
+    expect(screen.getByTestId("walk-notice").textContent).toContain("נוסף: Alush Garden");
+    expect(within(chatEl()).getByText("✓ אושר")).toBeTruthy();
+  });
+
+  it("C3: 'לא' closes the card silently: no build, no notice", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    assistantAnswer = plan([{ name: "Alush Garden", coordinates: A, distM: 300 }]);
+    await say("תוסיף משהו");
+    const calls = walkPlanCalls.length;
+    fireEvent.click(chatButton("לא"));
+    await flush();
+    expect(walkPlanCalls).toHaveLength(calls);
+    expect(screen.queryByTestId("walk-notice")).toBeNull();
+    expect(within(chatEl()).getByText("בוטל")).toBeTruthy();
+  });
+
+  it("C4: with no answer from the planner for 6 s the card shows ~ numbers and can still be approved", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    holdPlan = new Promise<void>(() => undefined);
+    assistantAnswer = plan([{ name: "Alush Garden", coordinates: A, distM: 300 }]);
+    await say("תוסיף משהו");
+    expect(chatEl().textContent).toContain("מחשב מסלול");
+    expect((chatButton("אשר") as HTMLButtonElement).disabled).toBe(true);
+    await advance(6_100);
+    expect(chatEl().textContent).toMatch(/~\+\d+ דק׳/);
+    expect((chatButton("אשר") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("C5: when the planner can't place the new stop at all, the card says so and has no buttons", async () => {
+    await startSimulatedWalk();
+    await advance(5_000);
+    omitIds = [idOf(A)];
+    assistantAnswer = plan([{ name: "Alush Garden", coordinates: A, distM: 300 }]);
+    await say("תוסיף משהו");
+    expect(chatEl().textContent).toContain("Alush Garden לא נכנס בזמן שנשאר.");
+    expect(within(chatEl()).queryByRole("button", { name: "אשר" })).toBeNull();
   });
 });
