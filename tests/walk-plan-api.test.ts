@@ -416,6 +416,7 @@ describe("POST /api/walk-plan — saved profile preferences", () => {
         postRequest({
           ...baseBody([named]),
           fillRemainingTime: true,
+          explore: true,
           pinnedAttractionIds: ["osm-food"],
         }),
       );
@@ -1164,10 +1165,25 @@ describe("POST /api/walk-plan — a stated stop count and a famous-places ask", 
     return plan.orderedAttractions.length;
   }
 
-  it("hands back eight stops when the prompt stated no count", async () => {
-    // The bug's own symptom, from the other end: a generous budget fills the
-    // walk to MAX_WALK_STOPS because nothing else ever capped it.
-    expect(await planStopCount({})).toBe(8);
+  it("hands back at most three stops when the prompt stated no count and asked to explore nothing", async () => {
+    // A generous budget used to fill the walk to MAX_WALK_STOPS because nothing else capped it.
+    expect(await planStopCount({})).toBe(3);
+  });
+
+  it("an explore request keeps the old ceiling of eight", async () => {
+    expect(await planStopCount({ explore: true })).toBe(8);
+  });
+
+  it("ranks without exploration by default, and with it only when asked", async () => {
+    mockRankAttractions.mockClear();
+    await planStopCount({});
+    expect(mockRankAttractions.mock.calls.at(-1)![1]).toMatchObject({ allowExploration: false });
+    mockRankAttractions.mockClear();
+    await planStopCount({ explore: true });
+    expect(mockRankAttractions.mock.calls.at(-1)![1]).toMatchObject({ allowExploration: true });
+    mockRankAttractions.mockClear();
+    await planStopCount({ explore: "yes" });
+    expect(mockRankAttractions.mock.calls.at(-1)![1]).toMatchObject({ allowExploration: false });
   });
 
   it("hands back exactly the number of stops the walker asked for", async () => {
@@ -1201,9 +1217,9 @@ describe("POST /api/walk-plan — a stated stop count and a famous-places ask", 
   });
 
   it("ignores a count that is not a usable number of stops", async () => {
-    expect(await planStopCount({ stopCount: 0 })).toBe(8);
-    expect(await planStopCount({ stopCount: -2 })).toBe(8);
-    expect(await planStopCount({ stopCount: "three" })).toBe(8);
+    expect(await planStopCount({ stopCount: 0 })).toBe(3);
+    expect(await planStopCount({ stopCount: -2 })).toBe(3);
+    expect(await planStopCount({ stopCount: "three" })).toBe(3);
   });
 
   it("counts the stops the walker named against the count they asked for", async () => {

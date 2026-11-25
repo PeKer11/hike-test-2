@@ -55,6 +55,8 @@ interface AssistantRequest {
   defaults?: unknown;
   /** Screenshots/photos the walker attached, as data URLs. Seen by the model only, never stored. */
   images?: unknown;
+  /** The walker's own words asked to discover (surprise me, what is around, ideas). */
+  explore?: unknown;
   /** The walker's IANA time zone, for every clock rule. */
   timeZone?: unknown;
   /** The walk on the map right now (plan, saved preview or live walk), so "extend" knows what to extend. */

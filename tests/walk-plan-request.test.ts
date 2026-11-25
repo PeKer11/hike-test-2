@@ -35,6 +35,11 @@ describe("walkPlanRequestBody", () => {
     expect(b.fixedOrder).toBeUndefined();
   });
 
+  it("sends explore only when the walker's words asked for it", () => {
+    expect(walkPlanRequestBody({ ...base, options: { explore: true } }).explore).toBe(true);
+    expect(walkPlanRequestBody({ ...base, options: {} }).explore).toBeUndefined();
+  });
+
   it("stops the AI chose are kept in the AI's order, with its geometry", () => {
     const ai = { id: "z" } as unknown as Attraction;
     const b = walkPlanRequestBody({ ...base, options: {}, aiStops: [ai], aiGeometry: [{ lat: 9, lng: 9 }, { lat: 8, lng: 8 }] });

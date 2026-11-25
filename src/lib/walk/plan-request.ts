@@ -9,6 +9,8 @@ export interface PlanRequestArgs {
     presetGeometry?: Coordinates[];
     fillRemainingTime?: boolean;
     heading?: number;
+    /** The walker's words asked to discover: the planner may mix in a kind they do not pick, and fill up to eight stops. */
+    explore?: boolean;
   };
   /** The stops to keep (already without the ones the walker has visited). */
   keep?: Attraction[];
@@ -51,6 +53,7 @@ export function walkPlanRequestBody(a: PlanRequestArgs): Record<string, unknown>
     pinnedAttractionIds: a.activePinnedIds,
     fillRemainingTime: options?.fillRemainingTime ?? false,
     heading: options?.heading,
+    explore: options?.explore === true ? true : undefined,
     // Mid-walk, what discovery turns up must not be a place the walker has already been to or dropped.
     excludeIds: options?.autoResume ? [...new Set([...a.visitedIds, ...a.droppedIds])] : undefined,
     stopCount: a.stopCount ?? undefined,

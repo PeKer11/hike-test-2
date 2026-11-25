@@ -32,6 +32,10 @@ describe("the free chat sends the radius the walker typed", () => {
     expect((await run("תוסיף שתי אטרקציות")).maxAdds).toBe(2);
     expect("maxAdds" in (await run("מה יש פה יפה"))).toBe(false);
   });
+  it("an explore request goes as explore: true; a plain add does not", async () => {
+    expect((await run("תפתיע אותי")).explore).toBe(true);
+    expect("explore" in (await run("תוסיף אטרקציה"))).toBe(false);
+  });
   it("no distance in the words, no radiusM", async () => {
     expect("radiusM" in (await run("מה יש פה יפה"))).toBe(false);
   });

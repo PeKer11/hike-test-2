@@ -102,7 +102,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, timing, memoryNote, choice, effort, costCeilingMicros: walkCeiling, places, pending, radiusM, maxAdds });
+        const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, timing, memoryNote, choice, effort, costCeilingMicros: walkCeiling, places, pending, radiusM, maxAdds, explore: body.explore === true });
         return { value: turn, billedMicros: turn.billedMicros };
       },
       {},

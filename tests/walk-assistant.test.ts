@@ -103,4 +103,11 @@ describe("POST /api/walk-assistant", () => {
     await post(base);
     expect((runWalkTurn.mock.calls[4][0] as { maxAdds?: number }).maxAdds).toBeUndefined();
   });
+
+  it("passes explore only when it is exactly true", async () => {
+    await post({ ...base, explore: true });
+    expect((runWalkTurn.mock.calls[0][0] as { explore?: boolean }).explore).toBe(true);
+    await post({ ...base, explore: "true" });
+    expect((runWalkTurn.mock.calls[1][0] as { explore?: boolean }).explore).toBeFalsy();
+  });
 });

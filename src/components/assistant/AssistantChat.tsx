@@ -25,6 +25,7 @@ import { StartLocationPicker } from "./StartLocationPicker";
 import type { Attraction, Coordinates } from "@/lib/types";
 import { ACCESS_PROFILES } from "@/lib/walk/access";
 import { BTN_ALT, BTN_ALT_SM, chipCell } from "@/components/ui/panel-style";
+import { isExploreRequest } from "@/lib/walk/chat/explore";
 
 interface Message {
   role: "user" | "assistant";
@@ -558,7 +559,7 @@ export function AssistantChat({ origin, isBuilding, onPlacesChange, onBuild, get
     setPending(true);
     try {
       const currentWalk = getCurrentWalkRef.current?.() ?? null;
-      const body = JSON.stringify({ chatId, message: typed, ...(currentWalk ? { current: currentWalk } : {}), origin, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}) });
+      const body = JSON.stringify({ chatId, message: typed, ...(currentWalk ? { current: currentWalk } : {}), origin, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, defaults, ...(queuedRef.current.length ? { queued: queuedRef.current } : {}), ...(walkingRef.current ? { walking: true } : {}), ...(sentImages.length ? { images: sentImages } : {}), ...(override?.limits ? { limits: override.limits } : {}), ...(isExploreRequest(typed) ? { explore: true } : {}) });
       // 409 "busy": an earlier turn of this user is still finishing on the server (e.g. one that was stopped).
       // Wait for it instead of leaving an unanswered bubble; Stop still cancels the wait.
       let response: Response;

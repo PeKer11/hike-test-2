@@ -140,6 +140,8 @@ export interface WalkTurnInput {
   radiusM?: number;
   /** How many places the walker asked to add (1-3): propose_plan may not carry more. */
   maxAdds?: number;
+  /** The walker's own words asked to discover something (surprise me, what is around, ideas). */
+  explore?: boolean;
 }
 
 const radiusLine = (m: number) =>

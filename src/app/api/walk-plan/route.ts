@@ -95,6 +95,8 @@ interface WalkPlanApiRequest {
   // not the whole walk — top up the leftover time with discovered POIs. Off by
   // default so the pace-triggered rebuild keeps meaning "only these".
   fillRemainingTime?: boolean;
+  /** The walker's own words asked to discover; only then does the ranker mix in a kind they do not pick. */
+  explore?: boolean;
   /**
    * Compass bearing the walker is moving along, set by a mid-walk "add a stop"
    * rebuild. Discovered stops behind it (more than 90 degrees off) are left out,
@@ -120,6 +122,8 @@ const DUPLICATE_RADIUS_METERS = 50;
 // Below this much of the budget spent, the named places leave enough room that
 // discovering filler is worth an Overpass call.
 const FILL_THRESHOLD = 0.9;
+/** A new walk with no stated stop count and no explore request holds at most this many stops. */
+const DEFAULT_STOP_CEILING = 3;
 
 interface ProfileCategories {
   /** What the walker ticked for THIS walk. Flat boost, never explored away from. */
@@ -457,6 +461,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         ? Math.min(Math.round(requestedStopCount), MAX_WALK_STOPS)
         : undefined;
 
+    const explore = body.explore === true;
+    // No stated count and no wish to explore: a few stops, not as many as the time allows.
+    const defaultStopCeiling = explore ? MAX_WALK_STOPS : DEFAULT_STOP_CEILING;
     const notableOnly = body.notableOnly === true;
     const heading =
       typeof body.heading === "number" && Number.isFinite(body.heading)
@@ -544,7 +551,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             downvotedPoiKeys: profile.downvotedPoiKeys,
             availableMinutes,
             walkingPaceMinPerKm,
-            allowExploration: true,
+            allowExploration: explore,
             notableOnly,
           });
 
@@ -570,7 +577,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           const fillerBudget = Math.max(0, availableMinutes - explicitMinutes);
           // A stated count is a count of the whole walk, so the named stops
           // come off it before the filler gets a ceiling.
-          const stopCeiling = stopCount ?? MAX_WALK_STOPS;
+          const stopCeiling = stopCount ?? defaultStopCeiling;
           const feasible = selectFeasibleAttractions(
             filler,
             fillerBudget,
@@ -600,7 +607,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           downvotedPoiKeys: profile.downvotedPoiKeys,
           availableMinutes,
           walkingPaceMinPerKm,
-          allowExploration: true,
+          allowExploration: explore,
           notableOnly,
         });
 
@@ -610,7 +617,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           walkingPaceMinPerKm,
           // On top of the time budget, not instead of it: three stops that do
           // not fit in the time available are still three stops too many.
-          stopCount ?? MAX_WALK_STOPS,
+          stopCount ?? defaultStopCeiling,
         ).selected;
       }
 
