@@ -149,4 +149,13 @@ describe("the walk prompt", () => {
     expect(WALK_SYSTEM).not.toMatch(/Be natural and free/);
     expect(WALK_SYSTEM).not.toMatch(/offer to add a stop or a longer loop/);
   });
+
+  it("Explore mode is in the system prompt only when the walker's words asked for it", async () => {
+    const off = model([() => ({ content: "hi", toolCalls: [] })]);
+    await run(off);
+    expect(String(off.reqs[0].messages[0].content)).not.toMatch(/Explore mode: on/);
+    const on = model([() => ({ content: "hi", toolCalls: [] })]);
+    await run(on, { explore: true });
+    expect(String(on.reqs[0].messages[0].content)).toMatch(/Explore mode: on/);
+  });
 });

@@ -1,4 +1,5 @@
 import { needsDeepThinking } from "@/lib/assistant/effort";
+import { exploreNote } from "@/lib/assistant/prompt";
 import { NextResponse } from "next/server";
 
 import { createPlacesGate, placesDailyCap } from "@/lib/api/places-quota";
@@ -196,6 +197,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     placesNote(savedPlaces) +
     queuedNote(body.queued) +
     currentWalkNote(state) +
+    exploreNote(body.explore === true) +
     (body.walking === true ? "\nThe walker is in the middle of a walk, at the start point given. Plan from here, and never propose places they already passed. The stops of the walk on the map are the ones still ahead: keep them and their order. When the walker changes pace or time (\"I walk 2 km/h\"), call set_walk_params, estimate_walk and build_walk with those same stops. Add stops only when they ask for more (extend, longer, more time, another stop)." : "");
   // Places they already walked to (marked visited in Saved places) are not offered again.
   const visitedSaved = savedPlaces.filter((p) => p.visitedAt);
