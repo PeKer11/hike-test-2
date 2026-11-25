@@ -174,8 +174,10 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
       const parsed = parseIntent(text, ctx.stops);
       if (parsed.intent !== "unknown") {
         const reply = resolveChat(parsed, ctx, lang);
-        const id = push("app", reply.text, reply.actions);
-        autoRun(id, text, reply.actions);
+        const radius = radiusFromText(text);
+        const actions = radius ? reply.actions.map((a) => (a.kind === "add-stop" ? { ...a, radiusM: radius } : a)) : reply.actions;
+        const id = push("app", reply.text, actions);
+        autoRun(id, text, actions);
         return;
       }
       if (!isSignedIn) {

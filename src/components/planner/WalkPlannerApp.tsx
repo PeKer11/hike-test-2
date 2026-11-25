@@ -2148,7 +2148,7 @@ export function WalkPlannerApp({
   };
 
   // The best registered place ahead that the walker can still afford, or null.
-  const pickBestAddItem = (): DiscoveryItem | null => {
+  const pickBestAddItem = (radiusM?: number): DiscoveryItem | null => {
     const snap = getCompanionSnapshot();
     const discovery = discoveryRef.current;
     if (!snap || !discovery) return null;
@@ -2157,6 +2157,7 @@ export function WalkPlannerApp({
       remainingWalkMin: snap.tick.remainingWalkMin,
       environment: snap.tick.environment,
       excludeIds: snap.tick.remainingStops.map((st) => st.id),
+      ...(radiusM ? { within: { position: snap.tick.position, radiusM } } : {}),
     });
     return pick ? discovery.collection.items.get(pick.id) ?? null : null;
   };
@@ -2174,10 +2175,15 @@ export function WalkPlannerApp({
   };
 
   // The keyword chat's "Add a stop": add the best place, else fill the time and say if nothing fit.
-  const addBestStopOrFill = async () => {
-    const item = pickBestAddItem();
+  const addBestStopOrFill = async (radiusM?: number) => {
+    const item = pickBestAddItem(radiusM);
     if (item) {
       void addPlaceToLiveWalk(item.attraction, item.detourMin);
+      return;
+    }
+    // The walker named a distance: a rebuild that fills the time would add something farther, so say nothing fits.
+    if (radiusM) {
+      showWalkNotice(walkCopy.notice[uiLang === "he" ? "he" : "en"].nothingFit, "warn");
       return;
     }
     const state = midWalkRebuildState();
@@ -4131,7 +4137,7 @@ export function WalkPlannerApp({
       } else if (action.kind === "drop") {
         runDropStopsRebuild([action.stopId], undefined, true);
       } else if (action.kind === "add-stop") {
-        void addBestStopOrFill();
+        void addBestStopOrFill(action.radiusM);
       } else if (action.kind === "apply-changes") {
         runApplyChangesRebuild(action.adds, action.dropStopIds);
       } else if (action.kind === "add-place") {

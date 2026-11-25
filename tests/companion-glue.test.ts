@@ -149,6 +149,18 @@ describe("pickAddPlace", () => {
   });
 });
 
+describe("pickAddPlace with a radius the walker asked for", () => {
+  it("ignores places farther than the radius from the walker, even when they score higher", () => {
+    const frame = { alongM: 100, lateralM: 40, side: "left" as const, segIdx: 0 };
+    const far = item("far", at(40, 700), { frame, detourMin: 2, score: 9 });
+    const near = item("near", at(40, 100), { frame, detourMin: 2, score: 1 });
+    const base = { speedMpm: 80, remainingWalkMin: 60, environment: "urban" as const };
+    expect(pickAddPlace([far, near], { ...base, within: { position: POS, radiusM: 500 } })?.id).toBe("near");
+    expect(pickAddPlace([far], { ...base, within: { position: POS, radiusM: 500 } })).toBeNull();
+    expect(pickAddPlace([far, near], base)?.id).toBe("far");
+  });
+});
+
 describe("amenities", () => {
   it("maps water and toilets with their place along the route", () => {
     const water: NearbyPlace = {

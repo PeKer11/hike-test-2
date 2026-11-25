@@ -11,7 +11,7 @@ export type ChatLang = "en" | "he";
 export type ChatAction =
   | { kind: "detour"; item: AmenityItem; label: string }
   | { kind: "drop"; stopId: string; label: string }
-  | { kind: "add-stop"; label: string }
+  | { kind: "add-stop"; label: string; /** A distance the walker typed: the stop must be within it. */ radiusM?: number }
   | { kind: "add-place"; name: string; coordinates: Coordinates; label: string }
   | { kind: "apply-changes"; adds: Array<{ name: string; coordinates: Coordinates }>; dropStopIds: string[]; label: string }
   | { kind: "set-pace"; minPerKm: number; label: string }

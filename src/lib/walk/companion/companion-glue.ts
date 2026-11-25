@@ -333,12 +333,15 @@ export function pickAddPlace(
     environment: WalkEnvironment;
     /** Places already on the walk: offering one of those as "add" would add nothing. */
     excludeIds?: readonly string[];
+    /** A distance the walker asked for: places farther than this from them are not offered. */
+    within?: { position: Coordinates; radiusM: number };
   },
 ): { id: string; name: string; detourMin: number } | null {
   let best: DiscoveryItem | null = null;
   for (const item of items) {
     if (item.tier !== "registered" || item.state !== "new" || item.frame === null) continue;
     if (args.excludeIds?.includes(item.id)) continue;
+    if (args.within && haversineDistance(args.within.position, item.attraction.coordinates) > args.within.radiusM) continue;
     if (
       !canOfferAdd({
         lateralM: item.frame.lateralM,
