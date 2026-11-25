@@ -3,9 +3,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { ChatIcon, ChevronDownIcon } from "@/components/ui/icons";
 import type { WalkChat } from "@/lib/hooks/useWalkChat";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
+import { proposalLines } from "@/lib/walk/chat/proposal";
 import type { ChatLang } from "@/lib/walk/chat/reply";
 
 const SHOWN_MESSAGES = 20;
@@ -90,7 +92,43 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
           className="max-h-[min(15rem,32dvh)] space-y-1.5 overflow-y-auto overscroll-contain touch-pan-y"
           aria-live="polite"
         >
-          {chat.messages.slice(-SHOWN_MESSAGES).map((m) => (
+          {chat.messages.slice(-SHOWN_MESSAGES).map((m) => {
+            const proposal = m.actions.find((a) => a.kind === "proposal");
+            if (proposal?.kind === "proposal") {
+              const closed = m.used || m.superseded;
+              if (closed) {
+                return (
+                  <li key={m.id} dir="auto" className="text-start text-[13px] text-charcoal/50">
+                    {m.declined ? copy.cancelled : m.superseded ? copy.replaced : copy.approved}
+                  </li>
+                );
+              }
+              const lines = proposalLines(proposal, m.preview, lang);
+              return (
+                <li key={m.id} dir="auto" className="text-start">
+                  <Card className="space-y-1 p-3 text-[15px] text-charcoal">
+                    <p className="font-semibold">{lines.line1}</p>
+                    {lines.line2 && <p className="text-charcoal/70">{lines.line2}</p>}
+                    {(lines.actionable || m.preview?.status === "computing" || !m.preview) && (
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          type="button"
+                          disabled={!lines.actionable}
+                          onClick={() => chat.runAction(m.id, m.actions.indexOf(proposal))}
+                          className="min-h-9 px-4 text-[13px]"
+                        >
+                          {copy.approve}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => chat.decline(m.id)} className="min-h-9 px-4 text-[13px]">
+                          {copy.no}
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+                </li>
+              );
+            }
+            return (
             <li key={m.id} dir="auto" className={m.role === "user" ? "text-end" : "text-start"}>
               <p
                 className={`inline-block rounded-xl px-3 py-1.5 text-[15px] ${
@@ -115,7 +153,8 @@ export function WalkChatBox({ chat, lang }: { chat: WalkChat; lang: ChatLang }) 
                 </div>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
         {showNewest && (
           <button

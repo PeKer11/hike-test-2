@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Coordinates } from "@/lib/types";
 import { isAffirm, isDecline } from "@/lib/walk/chat/affirm";
 import { editCommand } from "@/lib/walk/chat/edit-command";
+import type { ProposalPreview } from "@/lib/walk/chat/proposal";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
 import { parseIntent, radiusFromText, type ParsedIntent } from "@/lib/walk/chat/intent";
 import {
@@ -37,6 +38,8 @@ export interface ChatMessage {
   superseded?: boolean;
   /** The walker said no to the proposal: it is closed and nothing ran. */
   declined?: boolean;
+  /** The numbers under a proposal card; set by the planner's dry-run, absent for plain replies. */
+  preview?: ProposalPreview;
 }
 
 const COMBINED_LABEL_MAX = 60;

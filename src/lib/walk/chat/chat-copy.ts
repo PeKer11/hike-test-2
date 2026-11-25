@@ -17,6 +17,11 @@ export const CHAT_COPY: Record<
     placeholder: string;
     send: string;
     newest: string;
+    approve: string;
+    no: string;
+    approved: string;
+    cancelled: string;
+    replaced: string;
   }
 > = {
   en: {
@@ -33,6 +38,11 @@ export const CHAT_COPY: Record<
     placeholder: "cafe, water, skip, shorter…",
     send: "Send",
     newest: "Newest messages",
+    approve: "Approve",
+    no: "No",
+    approved: "✓ Approved",
+    cancelled: "Cancelled",
+    replaced: "Replaced by a new proposal",
   },
   he: {
     thinking: "חושב…",
@@ -48,5 +58,10 @@ export const CHAT_COPY: Record<
     placeholder: "קפה, מים, דלג, קצר יותר…",
     send: "שלחו",
     newest: "להודעות החדשות",
+    approve: "אשר",
+    no: "לא",
+    approved: "✓ אושר",
+    cancelled: "בוטל",
+    replaced: "הוחלף בהצעה חדשה",
   },
 };

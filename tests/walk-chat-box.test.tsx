@@ -172,3 +172,62 @@ describe("WalkChatBox scrolling", () => {
     expect(list.querySelectorAll("li")).toHaveLength(20);
   });
 });
+
+describe("WalkChatBox proposal card", () => {
+  const proposal = {
+    kind: "proposal" as const,
+    adds: [{ name: "Erez Lookout", coordinates: { lat: 1, lng: 2 }, afterName: "the museum" }],
+    dropNames: ["Old Khan"],
+    dropStopIds: ["k"],
+    headBack: false,
+    label: "",
+  };
+  const ready = { status: "ready" as const, minDelta: 12, distDeltaM: 800, endClock: "17:40" };
+  const card = (extra: Partial<Msg> = {}): Msg => msg(2, "app", "", { actions: [proposal], preview: ready, ...extra });
+  const open = (messages: Msg[], chat: Partial<WalkChat> = {}) => {
+    const c = chatWith({ messages, ...chat });
+    render(<WalkChatBox chat={c} lang="en" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    return c;
+  };
+
+  it("shows two lines and only Approve / No, and wires them", () => {
+    const c = open([card()]);
+    expect(screen.getByText("+ Erez Lookout (after the museum) · − Old Khan")).toBeTruthy();
+    expect(screen.getByText("+12 min · +0.8 km · ends 17:40")).toBeTruthy();
+    const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(names).toContain("Approve");
+    expect(names).toContain("No");
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(c.runAction).toHaveBeenCalledWith(2, 0);
+    fireEvent.click(screen.getByRole("button", { name: "No" }));
+    expect(c.decline).toHaveBeenCalledWith(2);
+  });
+
+  it("disables the buttons while the route is computing", () => {
+    open([card({ preview: { status: "computing" } })]);
+    expect(screen.getByText("Calculating route…")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "No" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("has no buttons when the preview failed", () => {
+    open([card({ preview: { status: "failed" } })]);
+    expect(screen.getByText("I couldn't build a route with that change.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("collapses to one grey line once approved, declined or superseded", () => {
+    for (const [extra, text] of [
+      [{ used: true }, "✓ Approved"],
+      [{ used: true, declined: true }, "Cancelled"],
+      [{ superseded: true }, "Replaced by a new proposal"],
+    ] as const) {
+      cleanup();
+      open([card(extra)]);
+      expect(screen.getByText(text)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+      expect(screen.queryByText(/Erez Lookout/)).toBeNull();
+    }
+  });
+});

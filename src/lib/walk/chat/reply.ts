@@ -3,6 +3,7 @@ import { haversineDistance } from "@/lib/utils/geo";
 import type { AmenityItem } from "@/lib/walk/companion/amenity-detour";
 import type { AmenityKind } from "@/lib/walk/companion/companion-types";
 
+import type { ProposalPlace } from "./proposal";
 import type { ChatStop, ParsedIntent } from "./intent";
 
 export type ChatLang = "en" | "he";
@@ -14,6 +15,8 @@ export type ChatAction =
   | { kind: "add-stop"; label: string; /** A distance the walker typed: the stop must be within it. */ radiusM?: number }
   | { kind: "add-place"; name: string; coordinates: Coordinates; label: string }
   | { kind: "apply-changes"; adds: Array<{ name: string; coordinates: Coordinates }>; dropStopIds: string[]; label: string }
+  /** One card for the whole change: the walker approves or declines it as a unit. `label` is unused by the card. */
+  | { kind: "proposal"; adds: ProposalPlace[]; dropStopIds: string[]; dropNames: string[]; headBack: boolean; label: string }
   | { kind: "set-pace"; minPerKm: number; label: string }
   | { kind: "head-back"; label: string }
   /** "Back to my route": get onto the planned line again (the walk sheet's own Back to my route). */
