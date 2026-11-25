@@ -79,6 +79,16 @@ export class TrailFilter {
     return w.length >= 3 && w[Math.floor(w.length / 2)] < STOPPED_MPS;
   }
 
+  /**
+   * A fix worse than ENGINE_MAX_ACCURACY_M that is farther from the last good fix than its own accuracy is a network
+   * fix: the dot holds. After STALE_GOOD_MS without a good fix the dot follows whatever comes.
+   */
+  dotHeld(coordinates: Coordinates, accuracyM: number, timestamp: number): boolean {
+    if (!this.good || accuracyM <= ENGINE_MAX_ACCURACY_M) return false;
+    if (timestamp - this.good.timestamp > STALE_GOOD_MS) return false;
+    return haversineDistance(this.good.coordinates, coordinates) > accuracyM;
+  }
+
   /** The fix at this timestamp was judged by the filter and believed (not a jump, not a suspect, a watch fix). */
   judgedGood(timestamp: number): boolean {
     return this.good !== null && this.good.timestamp === timestamp && !this.lastWasJump;

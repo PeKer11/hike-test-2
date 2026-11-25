@@ -213,6 +213,16 @@ describe("TrailFilter", () => {
     expect(f.accept(at(12), 8000, 10, 1.4, "rearm")).toBeNull();
   });
 
+  it("a fix worse than 50 m is held off the dot unless it is within its own accuracy of the last good fix, or the stream has been silent for 10 s", () => {
+    const f = new TrailFilter();
+    expect(f.dotHeld(at(500), 90, 0)).toBe(false); // nothing to compare with yet
+    for (let s = 0; s <= 5; s += 1) f.accept(at(0), s * 1000, 10, 0.1);
+    expect(f.dotHeld(at(150), 90, 6000)).toBe(true); // 150 m away, outside its own 90 m
+    expect(f.dotHeld(at(60), 90, 6000)).toBe(false); // inside its own accuracy: the dot may take it
+    expect(f.dotHeld(at(150), 90, 17_000)).toBe(false); // no good fix for 10 s: the dot follows
+    expect(f.dotHeld(at(150), 30, 6000)).toBe(false); // an engine-grade fix is never held here
+  });
+
   it("the live tail is allowed only for a dot the filter believes and that is near the trail's end", () => {
     const f = new TrailFilter();
     expect(f.tailAllowed(at(5), 10)).toBe(false); // nothing kept yet

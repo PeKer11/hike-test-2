@@ -3084,7 +3084,8 @@ export function WalkPlannerApp({
       // The dot accepts any fix the tracker lets through (<=150 m); speed, deviation and visits only trust fixes this
       // good. A poor fix still moves the dot, but never changes what the engine believes.
       const now = Date.now();
-      const due = now - lastGpsUpdateRef.current >= POSITION_PUBLISH_MS;
+      const held = trailFilterRef.current.dotHeld(update.currentPosition, update.accuracyMeters, update.timestamp);
+      const due = !held && now - lastGpsUpdateRef.current >= POSITION_PUBLISH_MS;
       if (due) {
         lastGpsUpdateRef.current = now;
         gpsDebug.published();
