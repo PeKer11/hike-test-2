@@ -45,14 +45,28 @@ describe("TrailFilter", () => {
     expect(length(kept)).toBeLessThan(60 * 1.4 * 1.1);
   });
 
-  it("re-baselines after 3 consistent fixes far away (a tunnel)", () => {
+  it("re-baselines after a realistic tunnel: a 12 s gap, then 2 fixes that agree", () => {
     const f = new TrailFilter();
     expect(f.accept(at(0), 0, 10)).toBe(true);
-    const far = at(500);
-    expect(f.accept(far, 2000, 10)).toBe(false);
-    expect(f.accept(at(502), 3000, 10)).toBe(false);
-    expect(f.accept(at(504), 4000, 10)).toBe(true);
-    expect(f.accept(at(515), 12_000, 10)).toBe(true);
+    expect(f.accept(at(500), 12_000, 10)).toBe(false);
+    expect(f.accept(at(502), 13_000, 10)).toBe(true);
+    expect(f.accept(at(515), 20_000, 10)).toBe(true);
+  });
+
+  it("measures speed from the last good fix, so a long still period does not let a 100 m jump through", () => {
+    const f = new TrailFilter();
+    expect(f.accept(at(0), 0, 10)).toBe(true);
+    for (let i = 1; i <= 60; i += 1) f.accept(at(1), i * 1000, 10);
+    expect(f.accept(at(100), 61_000, 20)).toBe(false);
+    expect(f.accept(at(1), 62_000, 10)).toBe(false);
+  });
+
+  it("a fix after a 30 s silence needs a second fix that agrees (a lone Wi-Fi fix draws nothing)", () => {
+    const f = new TrailFilter();
+    expect(f.accept(at(0), 0, 10)).toBe(true);
+    expect(f.accept(at(100), 30_000, 12)).toBe(false);
+    expect(f.accept(at(1), 31_000, 10)).toBe(false);
+    expect(f.accept(at(2), 32_000, 10)).toBe(false);
   });
 
   it("ignores fixes worse than 50 m and reset forgets the last point", () => {
