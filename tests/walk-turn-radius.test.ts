@@ -29,7 +29,7 @@ function scripted(findArgs: Record<string, unknown>) {
     }
     if (step === 2) {
       toolOutput = String(req.messages.at(-1)?.content);
-      return { content: null, toolCalls: [{ id: "c2", type: "function", function: { name: "propose_add_stop", arguments: JSON.stringify({ place_id: "p1" }) } }], inTok: 1, outTok: 1 };
+      return { content: null, toolCalls: [{ id: "c2", type: "function", function: { name: "propose_plan", arguments: JSON.stringify({ add: ["p1"], skip: [] }) } }], inTok: 1, outTok: 1 };
     }
     return { content: "added", toolCalls: [], inTok: 1, outTok: 1 };
   });
@@ -50,7 +50,7 @@ describe("a radius the walker asked for", () => {
     expect(searchTextPlaces.mock.calls[0][4]).toBe(500);
     const offered = JSON.parse(s.output()) as Array<{ name: string; dist_m: number }>;
     expect(offered.map((p) => p.name)).toEqual(["Near Fountain"]);
-    expect(r.actions).toEqual([{ kind: "add-place", name: "Near Fountain", coordinates: place("Near Fountain", 300).coordinates }]);
+    expect(r.proposal?.adds).toEqual([{ name: "Near Fountain", coordinates: place("Near Fountain", 300).coordinates, distM: expect.any(Number) }]);
   });
 
   it("overrides a larger radius_m the model passes", async () => {

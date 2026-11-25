@@ -37,7 +37,7 @@ function skipModel() {
     if (n === 1)
       return {
         content: null, inTok: 10, outTok: 10,
-        toolCalls: [{ id: "t1", type: "function" as const, function: { name: "propose_skip_stop", arguments: JSON.stringify({ stop_number: 1 }) } }],
+        toolCalls: [{ id: "t1", type: "function" as const, function: { name: "propose_plan", arguments: JSON.stringify({ add: [], skip: [1] }) } }],
       };
     return { content: "ok", toolCalls: [], inTok: 10, outTok: 10 };
   });
@@ -54,16 +54,16 @@ const turn = (spareMin: number, text: string) => {
 describe("runWalkTurn skip guard", () => {
   it("ahead by 25 with a phrasing the keyword parser misses: the skip is kept", async () => {
     const r = await turn(25, "תבנה מחדש את המסלול בלי גלאניס ותחזיר אותי להתחלה");
-    expect(r.actions).toEqual([{ kind: "skip-stop", stopIndex: 0 }]);
+    expect(r.proposal).toEqual({ adds: [], skipStopIndexes: [0], headBack: false });
     expect(r.m.seenSystem[0]).toMatch(/AHEAD/);
     expect(r.m.seenSystem[0]).toMatch(/Never tell the walker to make a change themselves/);
   });
   it("ahead by 25 but the walker asked to skip: kept", async () => {
     const r = await turn(25, "skip the first stop");
-    expect(r.actions).toEqual([{ kind: "skip-stop", stopIndex: 0 }]);
+    expect(r.proposal).toEqual({ adds: [], skipStopIndexes: [0], headBack: false });
   });
   it("behind by 25: kept", async () => {
     const r = await turn(-25, "what else is nearby?");
-    expect(r.actions).toEqual([{ kind: "skip-stop", stopIndex: 0 }]);
+    expect(r.proposal).toEqual({ adds: [], skipStopIndexes: [0], headBack: false });
   });
 });

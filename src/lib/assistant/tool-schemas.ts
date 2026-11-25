@@ -122,9 +122,14 @@ export const WALK_TOOL_ARGS = {
       radius_m: z.number().min(100).max(3000).optional(),
     })
     .strict(),
-  propose_add_stop: z.object({ place_id: z.string().min(1).max(20) }).strict(),
-  propose_skip_stop: z.object({ stop_number: z.number().int().min(1).max(50) }).strict(),
-  propose_head_back: z.object({}).strict(),
+  propose_plan: z
+    .object({
+      add: z.array(z.string().min(1).max(20)).max(10),
+      skip: z.array(z.number().int().min(1).max(50)).max(12),
+      head_back: z.boolean().optional(),
+    })
+    .strict(),
+  nothing_found: z.object({ reason: z.enum(["none_near", "outside_radius", "search_limit"]) }).strict(),
 } as const;
 
 /** Strict-mode tool schemas make a model send `null` for a field it leaves out. */

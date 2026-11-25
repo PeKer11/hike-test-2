@@ -18,7 +18,7 @@ describe("tool schemas", () => {
   it("cover exactly the tools the model is offered", () => {
     expect(Object.keys(ASSISTANT_TOOL_ARGS).sort()).toEqual(ASSISTANT_TOOLS.map((t) => t.function.name).sort());
     expect(WALK_SYSTEM).toBeTruthy();
-    expect(Object.keys(WALK_TOOL_ARGS).sort()).toEqual(["find_places", "propose_add_stop", "propose_head_back", "propose_skip_stop", "remember"]);
+    expect(Object.keys(WALK_TOOL_ARGS).sort()).toEqual(["find_places", "nothing_found", "propose_plan", "remember"]);
   });
 
   it("rejects an unknown key without calling Google", async () => {

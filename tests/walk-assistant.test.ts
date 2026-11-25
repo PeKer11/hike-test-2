@@ -54,13 +54,19 @@ describe("POST /api/walk-assistant", () => {
     expect(learnFactsFromText).not.toHaveBeenCalled();
   });
 
-  it("passes autoApply only when the walker's own words are that command", async () => {
-    await post({ ...base, history: [{ role: "user", content: "תוסיף שני מקומות" }], autoApply: "add" });
-    expect((runWalkTurn.mock.calls[0][0] as { autoApply?: string }).autoApply).toBe("add");
-    await post({ ...base, history: [{ role: "user", content: "what is nice?" }], autoApply: "add" });
-    expect((runWalkTurn.mock.calls[1][0] as { autoApply?: string }).autoApply).toBeUndefined();
-    await post({ ...base, history: [{ role: "user", content: "תוסיף שני מקומות" }], autoApply: "drop" });
-    expect((runWalkTurn.mock.calls[2][0] as { autoApply?: string }).autoApply).toBeUndefined();
+  it("no longer takes an autoApply flag, and returns the proposal and noMatch instead of actions", async () => {
+    runWalkTurn.mockResolvedValueOnce({ reply: "", proposal: { adds: [], skipStopIndexes: [0], headBack: false }, noMatch: undefined, remembered: [], billedMicros: 1 } as never);
+    const res = await post({ ...base, history: [{ role: "user", content: "תוסיף שני מקומות" }], autoApply: "add" });
+    expect("autoApply" in (runWalkTurn.mock.calls[0][0] as object)).toBe(false);
+    expect(await res.json()).toEqual({ reply: "", proposal: { adds: [], skipStopIndexes: [0], headBack: false } });
+  });
+
+  it("passes the open proposal to the turn as clipped strings", async () => {
+    await post({ ...base, pending: { adds: ["Erez Lookout", 5, "x".repeat(300)], drops: ["Old Khan"], headBack: false } });
+    const input = runWalkTurn.mock.calls[0][0] as { pending?: { adds: string[]; drops: string[]; headBack: boolean } };
+    expect(input.pending?.adds).toHaveLength(2);
+    expect(input.pending?.adds[1].length).toBeLessThanOrEqual(80);
+    expect(input.pending?.drops).toEqual(["Old Khan"]);
   });
 
   it("refuses an oversized body", async () => {

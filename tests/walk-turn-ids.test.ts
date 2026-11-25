@@ -30,7 +30,7 @@ describe("find_places ids", () => {
         const [first] = ids(req.messages);
         // the first id of search 1, and the second place of search 1 (ids are opaque: read them from the output)
         const second = (JSON.parse(req.messages.filter((m) => m.role === "tool")[0].content ?? "[]") as Array<{ id: string }>)[1].id;
-        return { content: null, inTok: 1, outTok: 1, toolCalls: [tc("c", "propose_add_stop", { place_id: first }), tc("d", "propose_add_stop", { place_id: second })] };
+        return { content: null, inTok: 1, outTok: 1, toolCalls: [tc("c", "propose_plan", { add: [first, second], skip: [] })] };
       }
       return { content: "ok", toolCalls: [], inTok: 1, outTok: 1 };
     });
@@ -38,6 +38,6 @@ describe("find_places ids", () => {
       { history: [{ role: "user", content: "add two" }], position: { lat: 32, lng: 34 }, stops: ["A"], choice },
       call as never,
     );
-    expect(r.actions.map((a) => (a.kind === "add-place" ? a.name : a.kind))).toEqual(["Mitzpe Erez", "Han Zeruniya"]);
+    expect(r.proposal?.adds.map((a) => a.name)).toEqual(["Mitzpe Erez", "Han Zeruniya"]);
   });
 });
