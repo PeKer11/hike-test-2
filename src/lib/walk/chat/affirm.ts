@@ -24,3 +24,13 @@ export function normalizeAffirm(text: string): string {
 export function isAffirm(text: string): boolean {
   return AFFIRM.has(normalizeAffirm(text));
 }
+
+const DECLINE = new Set([
+  "לא", "לא תודה", "עזוב", "עזבי", "לא צריך", "ביטול", "בטל",
+  "no", "nope", "no thanks", "no thank you", "cancel", "never mind", "nevermind",
+]);
+
+/** A typed "no" to an open proposal. Same exact-match rule as isAffirm. */
+export function isDecline(text: string): boolean {
+  return DECLINE.has(normalizeAffirm(text));
+}

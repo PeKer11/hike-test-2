@@ -2,7 +2,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useWalkChat } from "@/lib/hooks/useWalkChat";
-import { isAffirm } from "@/lib/walk/chat/affirm";
+import { isAffirm, isDecline } from "@/lib/walk/chat/affirm";
 import type { ChatContext } from "@/lib/walk/chat/reply";
 
 const ctx: ChatContext = {
@@ -71,13 +71,35 @@ describe("a typed yes after a proposal", () => {
     expect(vi.mocked(h.doFetch).mock.calls.length).toBe(fetches + 1);
   });
 
-  it("sends a no to the server", async () => {
-    const h = setup([CAFE]);
-    await propose(h);
+  it("a typed no with an open proposal declines it locally: no fetch, no action", async () => {
+    for (const phrase of ["לא", "לא תודה", "no", "No thanks", "ביטול"]) {
+      const h = setup([CAFE]);
+      await propose(h);
+      const fetches = vi.mocked(h.doFetch).mock.calls.length;
+      act(() => h.result.current.send(phrase));
+      expect(h.onAction, phrase).not.toHaveBeenCalled();
+      expect(vi.mocked(h.doFetch).mock.calls.length, phrase).toBe(fetches);
+      const card = h.result.current.messages.find((m) => m.actions.length > 0)!;
+      expect(card.used).toBe(true);
+      expect(card.declined).toBe(true);
+      cleanup();
+    }
+  });
+
+  it("a typed no with nothing to decline still goes to the server", async () => {
+    const h = setup([]);
+    act(() => h.result.current.send("anything nice nearby?"));
+    await waitFor(() => expect(h.result.current.messages.at(-1)?.text).toBe("I suggest this. Does it fit?"));
     const fetches = vi.mocked(h.doFetch).mock.calls.length;
     act(() => h.result.current.send("לא"));
-    expect(h.onAction).not.toHaveBeenCalled();
     expect(vi.mocked(h.doFetch).mock.calls.length).toBe(fetches + 1);
+  });
+
+  it("matches only short exact no phrases", () => {
+    expect(isDecline(" לא! ")).toBe(true);
+    expect(isDecline("Nope")).toBe(true);
+    expect(isDecline("no, add a cafe instead")).toBe(false);
+    expect(isDecline("")).toBe(false);
   });
 
   it("runs apply-all when there are several proposals", async () => {

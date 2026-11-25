@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Coordinates } from "@/lib/types";
-import { isAffirm } from "@/lib/walk/chat/affirm";
+import { isAffirm, isDecline } from "@/lib/walk/chat/affirm";
 import { editCommand } from "@/lib/walk/chat/edit-command";
 import { CHAT_COPY } from "@/lib/walk/chat/chat-copy";
 import { parseIntent, radiusFromText, type ParsedIntent } from "@/lib/walk/chat/intent";
@@ -35,6 +35,8 @@ export interface ChatMessage {
   used: boolean;
   /** A newer reply brought its own buttons: these ones are stale and are hidden. */
   superseded?: boolean;
+  /** The walker said no to the proposal: it is closed and nothing ran. */
+  declined?: boolean;
 }
 
 const COMBINED_LABEL_MAX = 60;
@@ -76,6 +78,8 @@ export interface WalkChat {
   /** Open the chat box and send `text` as the walker's first words. */
   openWith: (text: string) => void;
   runAction: (messageId: number, actionIndex: number) => void;
+  /** Close a proposal with no change (the card's No, or a typed no). */
+  decline: (messageId: number) => void;
   /** Clear the conversation and the per-walk question count (call when a walk ends). */
   reset: () => void;
 }
@@ -128,6 +132,13 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
     depsRef.current.onAction(action);
   }, []);
 
+  const decline = useCallback((messageId: number) => {
+    const message = messagesRef.current.find((m) => m.id === messageId);
+    if (!message || message.used || usedIds.current.has(messageId)) return;
+    usedIds.current.add(messageId);
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, used: true, declined: true } : m)));
+  }, []);
+
   const autoRun = (id: number, text: string, actions: ChatAction[]) => {
     if (actions.length !== 1 || actions[0].kind !== "detour" || !GO_WORDS.test(text)) return;
     usedIds.current.add(id);
@@ -151,6 +162,13 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
       // A typed "yes" confirms the proposal in the newest app reply, on the device, with no model call.
       // Only the newest reply counts (an older proposal is not what "ok" answers), and a reply still
       // being fetched is newest too, so nothing older runs while it is pending.
+      if (isDecline(text)) {
+        const newest = [...messagesRef.current].reverse().find((m) => m.role === "app");
+        if (newest && !newest.used && !newest.superseded && !usedIds.current.has(newest.id) && newest.actions.length > 0) {
+          decline(newest.id);
+          return;
+        }
+      }
       if (isAffirm(text)) {
         const newest = [...messagesRef.current].reverse().find((m) => m.role === "app");
         if (newest && newest.id === affirmReplyId.current) {
@@ -363,7 +381,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
         }
       })();
     },
-    [push, replace, runAction],
+    [push, replace, runAction, decline],
   );
 
   const openWith = useCallback(
@@ -388,5 +406,5 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  return { messages, pending, llmUsed, send, openTick, openWith, runAction, reset };
+  return { messages, pending, llmUsed, send, openTick, openWith, runAction, decline, reset };
 }
