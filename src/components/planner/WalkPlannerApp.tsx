@@ -3161,8 +3161,9 @@ export function WalkPlannerApp({
       if (!due) return;
       setAttractionDistances(update.attractionDistances);
       setWalkTrackingMessage(null);
-      if (trailFilterRef.current.accept(update.currentPosition, update.timestamp, update.accuracyMeters)) {
-        walkedTrackRef.current.push(update.currentPosition);
+      const trailPoint = trailFilterRef.current.accept(update.currentPosition, update.timestamp, update.accuracyMeters);
+      if (trailPoint) {
+        walkedTrackRef.current.push(trailPoint);
         setWalkedVersion((v) => v + 1);
         if (walkedTrackRef.current.length > 5_000) {
           // Keep the whole walk's shape at half the resolution rather than only its tail.

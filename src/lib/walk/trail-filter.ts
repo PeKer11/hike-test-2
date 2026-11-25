@@ -58,9 +58,12 @@ export class TrailFilter {
     };
   }
 
-  /** True when the fix should be added to the trail. */
-  accept(coordinates: Coordinates, timestamp: number, accuracyM: number): boolean {
-    if (!(accuracyM <= TRAIL_MAX_ACCURACY_M)) return false;
+  /**
+   * The point to add to the trail, or null when the fix adds nothing. That is the filter's own point (the mean of
+   * the recent fixes for a poor fix), never the raw fix: the smoothing only protects the line when that is drawn.
+   */
+  accept(coordinates: Coordinates, timestamp: number, accuracyM: number): Coordinates | null {
+    if (!(accuracyM <= TRAIL_MAX_ACCURACY_M)) return null;
     const step = stepFor(accuracyM);
     if (!this.good || !this.last) {
       const ref = this.reference(coordinates, timestamp, accuracyM);
@@ -73,7 +76,7 @@ export class TrailFilter {
     if (timestamp - this.good.timestamp > STALE_GOOD_MS) {
       const p = this.pending;
       this.pending = { coordinates, timestamp };
-      if (!p || timestamp - p.timestamp > STALE_GOOD_MS || haversineDistance(p.coordinates, coordinates) > step) return false;
+      if (!p || timestamp - p.timestamp > STALE_GOOD_MS || haversineDistance(p.coordinates, coordinates) > step) return null;
       this.pending = null;
       this.good = { coordinates, timestamp };
       this.rejects = 0;
@@ -88,22 +91,22 @@ export class TrailFilter {
       const consistent = this.rejectAnchor !== null && haversineDistance(this.rejectAnchor, coordinates) <= step;
       this.rejects = consistent ? this.rejects + 1 : 1;
       this.rejectAnchor = coordinates;
-      if (this.rejects < MAX_CONSECUTIVE_REJECTS) return false;
+      if (this.rejects < MAX_CONSECUTIVE_REJECTS) return null;
       this.good = { coordinates, timestamp };
     } else {
       this.good = { coordinates, timestamp };
       this.rejects = 0;
       this.rejectAnchor = null;
     }
-    if (haversineDistance(this.last.coordinates, ref) < step) return false;
+    if (haversineDistance(this.last.coordinates, ref) < step) return null;
     return this.keep(ref, timestamp);
   }
 
-  private keep(coordinates: Coordinates, timestamp: number): true {
+  private keep(coordinates: Coordinates, timestamp: number): Coordinates {
     this.last = { coordinates, timestamp };
     this.rejectAnchor = null;
     this.rejects = 0;
-    return true;
+    return coordinates;
   }
 }
 

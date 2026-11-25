@@ -47,35 +47,35 @@ describe("TrailFilter", () => {
 
   it("re-baselines after a realistic tunnel: a 12 s gap, then 2 fixes that agree", () => {
     const f = new TrailFilter();
-    expect(f.accept(at(0), 0, 10)).toBe(true);
-    expect(f.accept(at(500), 12_000, 10)).toBe(false);
-    expect(f.accept(at(502), 13_000, 10)).toBe(true);
-    expect(f.accept(at(515), 20_000, 10)).toBe(true);
+    expect(f.accept(at(0), 0, 10)).not.toBeNull();
+    expect(f.accept(at(500), 12_000, 10)).toBeNull();
+    expect(f.accept(at(502), 13_000, 10)).not.toBeNull();
+    expect(f.accept(at(515), 20_000, 10)).not.toBeNull();
   });
 
   it("measures speed from the last good fix, so a long still period does not let a 100 m jump through", () => {
     const f = new TrailFilter();
-    expect(f.accept(at(0), 0, 10)).toBe(true);
+    expect(f.accept(at(0), 0, 10)).not.toBeNull();
     for (let i = 1; i <= 60; i += 1) f.accept(at(1), i * 1000, 10);
-    expect(f.accept(at(100), 61_000, 20)).toBe(false);
-    expect(f.accept(at(1), 62_000, 10)).toBe(false);
+    expect(f.accept(at(100), 61_000, 20)).toBeNull();
+    expect(f.accept(at(1), 62_000, 10)).toBeNull();
   });
 
   it("a fix after a 30 s silence needs a second fix that agrees (a lone Wi-Fi fix draws nothing)", () => {
     const f = new TrailFilter();
-    expect(f.accept(at(0), 0, 10)).toBe(true);
-    expect(f.accept(at(100), 30_000, 12)).toBe(false);
-    expect(f.accept(at(1), 31_000, 10)).toBe(false);
-    expect(f.accept(at(2), 32_000, 10)).toBe(false);
+    expect(f.accept(at(0), 0, 10)).not.toBeNull();
+    expect(f.accept(at(100), 30_000, 12)).toBeNull();
+    expect(f.accept(at(1), 31_000, 10)).toBeNull();
+    expect(f.accept(at(2), 32_000, 10)).toBeNull();
   });
 
   it("ignores fixes worse than 50 m and reset forgets the last point", () => {
     const f = new TrailFilter();
-    expect(f.accept(at(0), 0, 60)).toBe(false);
-    expect(f.accept(at(0), 1000, 10)).toBe(true);
-    expect(f.accept(at(0), 2000, 10)).toBe(false);
+    expect(f.accept(at(0), 0, 60)).toBeNull();
+    expect(f.accept(at(0), 1000, 10)).not.toBeNull();
+    expect(f.accept(at(0), 2000, 10)).toBeNull();
     f.reset();
-    expect(f.accept(at(0), 3000, 10)).toBe(true);
+    expect(f.accept(at(0), 3000, 10)).not.toBeNull();
   });
 
   it("walking at 1.4 m/s with steady 30 m accuracy still adds a point at least every 20 s (noisy fixes)", () => {
@@ -113,6 +113,20 @@ describe("TrailFilter", () => {
       if (f.accept(at(rnd() * 15, rnd() * 15), i * 1000, 30 + Math.abs(rnd()) * 10)) kept += 1;
     }
     expect(kept).toBeLessThanOrEqual(2);
+  });
+
+  it("returns the point to draw: a noisy fix that passes is drawn at the mean of the recent fixes, not at the raw fix", () => {
+    const f = new TrailFilter();
+    expect(f.accept(at(0), 0, 30)).not.toBeNull();
+    let drawn: Coordinates | null = null;
+    let raw = at(0);
+    for (let i = 1; i <= 12 && !drawn; i += 1) {
+      raw = at(i * 3);
+      drawn = f.accept(raw, i * 1000, 30);
+    }
+    expect(drawn).not.toBeNull();
+    expect(drawn).not.toEqual(raw);
+    expect(haversineDistance(drawn as Coordinates, raw)).toBeGreaterThan(2);
   });
 
   it("withLiveTail ends the line at the dot, and leaves an empty trail or a poor dot alone", () => {
