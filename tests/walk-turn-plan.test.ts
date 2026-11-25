@@ -119,4 +119,34 @@ describe("the walk prompt", () => {
     expect(WALK_SYSTEM).toMatch(/Never mention opening hours, prices, crowds or accessibility unless the walker asked about them/);
     expect(WALK_SYSTEM).toMatch(/open proposal/);
   });
+
+  it("with maxAdds 1, two ids is an error the model sees; one id then becomes the proposal", async () => {
+    search.mockResolvedValue([place("Erez", 1), place("Khan", 2)]);
+    let toolReply = "";
+    const m = model([
+      find,
+      () => ({ content: null, toolCalls: [tc("a", "propose_plan", { add: ["p1", "p2"], skip: [] })] }),
+      (req) => {
+        toolReply = String(req.messages.at(-1)?.content);
+        return { content: null, toolCalls: [tc("b", "propose_plan", { add: ["p1"], skip: [] })] };
+      },
+    ]);
+    const r = await run(m, { maxAdds: 1 });
+    expect(toolReply).toContain("the walker asked for 1 place(s): propose exactly 1");
+    expect(r.proposal?.adds.map((a) => a.name)).toEqual(["Erez"]);
+  });
+
+  it("with maxAdds 2, one id is fine (fewer than asked is never an error) and three is an error", async () => {
+    search.mockResolvedValue([1, 2, 3].map((i) => place(`P${i}`, i)));
+    const ok = model([find, () => ({ content: null, toolCalls: [tc("a", "propose_plan", { add: ["p1"], skip: [] })] })]);
+    expect((await run(ok, { maxAdds: 2 })).proposal?.adds).toHaveLength(1);
+    const bad = model([find, () => ({ content: null, toolCalls: [tc("a", "propose_plan", { add: ["p1", "p2", "p3"], skip: [] })] }), () => ({ content: "no", toolCalls: [] })]);
+    expect((await run(bad, { maxAdds: 2 })).proposal).toBeUndefined();
+  });
+
+  it("the prompt asks for exactly what was asked and never an unrequested add", () => {
+    expect(WALK_SYSTEM).toMatch(/smallest/);
+    expect(WALK_SYSTEM).not.toMatch(/Be natural and free/);
+    expect(WALK_SYSTEM).not.toMatch(/offer to add a stop or a longer loop/);
+  });
 });

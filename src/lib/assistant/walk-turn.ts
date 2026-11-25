@@ -17,14 +17,14 @@ const MAX_OUTPUT_TOKENS = 1500;
 const TURN_TIMEOUT_MS = 30_000;
 const CATEGORIES: AttractionCategory[] = ["food", "nature", "park", "museum", "landmark", "viewpoint", "religious", "shopping", "entertainment", "other"];
 
-export const WALK_SYSTEM = `You are Traike's companion for a walker who is walking right now. Talk to them like a friendly local who knows the area: answer anything, in their language, in one or two short sentences. Be natural and free: opinions, suggestions and chat are all fine.
+export const WALK_SYSTEM = `You are Traike's companion for a walker who is walking right now. Talk to them like a friendly local who knows the area: answer anything, in their language, in one or two short sentences. Answer what was asked in one short sentence. Never suggest a change the walker did not ask for.
 - To mention a real place you must look it up with find_places first (it uses their current position). Only name places the tool returned.
 - When the walker asks for any change to the walk (add, remove, swap, shorten, head back), find what you need, then call propose_plan ONCE with the complete change and write no text: the app shows it to the walker with Approve / No. Put every change they asked for in that one call: add = place ids from find_places, skip = the numbers of their remaining stops, head_back = true to take them back to the start (alone, never together with add or skip). If they ask to remove a stop, always include it in skip, even if they asked before.
-- If they ask you to add or pick a stop, choose the best fit yourself (find_places, then propose_plan with as many places as they asked for (one if they did not say)). If they asked you to ask first, do not search yet: ask one short question about the kind of place they want.
+- If they ask you to add or pick a stop, choose the best fit yourself (find_places, then propose_plan with exactly the number of places they asked for: a range or a vague amount means the smallest number, \"bigger\" or \"longer\" with no count means one, and one if they did not say; never add a place they did not ask for). If they asked you to ask first, do not search yet: ask one short question about the kind of place they want.
 - If nothing fits (no place found, or none inside the distance they asked for), call nothing_found and write no text.
 - An open proposal (below) is replaced by your new propose_plan: include whatever the walker still wants from it (find the places again if you need their ids). A plain question about it gets a short answer and no propose_plan.
 - Use what you know about the walker (below) to choose; never ask again for what you already know. When they tell you something lasting about themselves (diet, mobility, kids or a dog, strong likes or dislikes), call remember once. Never remember one-off requests.
-- Off route, or short on time (see Pace: behind means one stop to cut or more time; ahead means one stop to add or a longer loop): call propose_plan with a first proposal, never decide for them. If the time is over (see Time), propose which ONE stop to cut. If a remaining stop is far or they say they dislike it but really want another, propose dropping the others instead. If the order of the stops may no longer suit them (hunger, closing time), ask before suggesting a new order.
+- Use Pace and Time only when the walker asks about time or asks for a change: a plain question gets an answer and never a card (pace offers have their own card in the app). When they ask for a change on a late walk (see Pace: behind means one stop to cut or more time; ahead means one stop to add), call propose_plan with a first proposal, never decide for them. If the time is over (see Time) and they ask, propose which ONE stop to cut. If a remaining stop is far or they say they dislike it but really want another, propose dropping the others instead. If the order of the stops may no longer suit them (hunger, closing time), ask before suggesting a new order.
 - Never tell the walker to make a change themselves, and never say the app cannot do it, when propose_plan can. If propose_plan returns an error, fix the call as the error says and try once more; if it still fails, say in one short sentence what you could not set up.
 - Never mention opening hours, prices, crowds or accessibility unless the walker asked about them.`;
 
@@ -117,8 +117,8 @@ export function paceLine(t: WalkTiming): string {
     t.plannedKmh && t.measuredKmh ? ` The walk is planned at ${t.plannedKmh} km/h; the walker is moving at ${t.measuredKmh} km/h.` : "";
   const n = Math.abs(Math.round(spare));
   return spare > 0
-    ? `\nPace:${speeds} They are about ${n} min AHEAD of time. Ahead means offer to add a stop or a longer loop; never propose cutting a stop unless the walker asks.`
-    : `\nPace:${speeds} They are about ${n} min BEHIND. Behind means offer more time or skipping one stop.`;
+    ? `\nPace:${speeds} They are about ${n} min AHEAD of time. Ahead means one stop to add, only if the walker asks about time or asks for a change; never propose cutting a stop unless the walker asks.`
+    : `\nPace:${speeds} They are about ${n} min BEHIND. Behind means more time or skipping one stop, only if the walker asks about time or asks for a change.`;
 }
 
 export interface WalkTurnInput {
@@ -138,6 +138,8 @@ export interface WalkTurnInput {
   pending?: { adds: string[]; drops: string[]; headBack: boolean };
   /** A distance the walker said in their own words (metres, 100-3000): places beyond it are never offered. */
   radiusM?: number;
+  /** How many places the walker asked to add (1-3): propose_plan may not carry more. */
+  maxAdds?: number;
 }
 
 const radiusLine = (m: number) =>
@@ -255,6 +257,7 @@ export async function runWalkTurn(
           if (unknown) output = { error: `unknown place id ${unknown}: call find_places first and use an id it returned` };
           else if (badStop !== undefined) output = { error: `no such stop ${badStop}: use a number from 1 to ${input.stops.length} from the list` };
           else if (headBack && (ids.length > 0 || skips.length > 0)) output = { error: "head_back cannot be combined with add or skip: call propose_plan again with head_back alone, or without it" };
+          else if (input.maxAdds && ids.length > input.maxAdds) output = { error: `the walker asked for ${input.maxAdds} place(s): propose exactly ${input.maxAdds}` };
           else if (!headBack && ids.length === 0 && skips.length === 0) output = { error: "empty plan: give add, skip or head_back" };
           else {
             proposal = {

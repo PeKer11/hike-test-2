@@ -90,4 +90,17 @@ describe("POST /api/walk-assistant", () => {
     await post({ ...base, radiusM: "500" });
     expect((runWalkTurn.mock.calls.at(-1)?.[0] as { radiusM?: number }).radiusM).toBeUndefined();
   });
+
+  it("passes maxAdds clamped to 1-3, and nothing when it is absent or not a number", async () => {
+    await post({ ...base, maxAdds: 1 });
+    expect((runWalkTurn.mock.calls[0][0] as { maxAdds?: number }).maxAdds).toBe(1);
+    await post({ ...base, maxAdds: 9 });
+    expect((runWalkTurn.mock.calls[1][0] as { maxAdds?: number }).maxAdds).toBe(3);
+    await post({ ...base, maxAdds: 0 });
+    expect((runWalkTurn.mock.calls[2][0] as { maxAdds?: number }).maxAdds).toBe(1);
+    await post({ ...base, maxAdds: "2" });
+    expect((runWalkTurn.mock.calls[3][0] as { maxAdds?: number }).maxAdds).toBeUndefined();
+    await post(base);
+    expect((runWalkTurn.mock.calls[4][0] as { maxAdds?: number }).maxAdds).toBeUndefined();
+  });
 });

@@ -62,6 +62,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   const radiusM =
     typeof body.radiusM === "number" && Number.isFinite(body.radiusM) ? Math.min(3000, Math.max(100, Math.round(body.radiusM))) : undefined;
 
+  const maxAdds = typeof body.maxAdds === "number" && Number.isFinite(body.maxAdds) ? Math.min(3, Math.max(1, Math.round(body.maxAdds))) : undefined;
+
   const t = body.timing as Record<string, unknown> | undefined;
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(-2880, Math.min(2880, Math.round(v))) : null);
   const kmh = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0.5 && v <= 15 ? Math.round(v * 10) / 10 : null);
@@ -100,7 +102,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { userId: user.id, ip: callerKey(request) },
       3,
       async (choice, effort) => {
-        const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, timing, memoryNote, choice, effort, costCeilingMicros: walkCeiling, places, pending, radiusM });
+        const turn = await runWalkTurn({ history, position: { lat: pos.lat as number, lng: pos.lng as number }, stops, timing, memoryNote, choice, effort, costCeilingMicros: walkCeiling, places, pending, radiusM, maxAdds });
         return { value: turn, billedMicros: turn.billedMicros };
       },
       {},

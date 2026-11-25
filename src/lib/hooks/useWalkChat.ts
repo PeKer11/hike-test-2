@@ -6,6 +6,7 @@ import type { Coordinates } from "@/lib/types";
 import { isAffirm, isDecline } from "@/lib/walk/chat/affirm";
 import { estimatePreview, type ProposalPreview } from "@/lib/walk/chat/proposal";
 import { CHAT_COPY, noMatchText } from "@/lib/walk/chat/chat-copy";
+import { requestedAddCount } from "@/lib/walk/chat/count";
 import { parseIntent, radiusFromText, type ParsedIntent } from "@/lib/walk/chat/intent";
 import {
   CHAT_HELP_TEXT,
@@ -348,6 +349,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
       const timer = setTimeout(() => controller.abort(), FREE_CHAT_TIMEOUT_MS);
       const stale = () => myRequest !== requestId.current;
       const radiusM = radiusFromText(text);
+      const maxAdds = requestedAddCount(text);
       // The card the walker has not answered yet: the model's next proposal replaces it, so it must know what is in it.
       const openCard = [...messagesRef.current].reverse().find((m) => m.role === "app" && !m.used && !m.superseded && m.actions.some((a) => a.kind === "proposal"));
       const openAction = openCard?.actions.find((a) => a.kind === "proposal");
@@ -364,7 +366,7 @@ export function useWalkChat(deps: WalkChatDeps): WalkChat {
           const res = await (doFetch ?? fetch)("/api/walk-assistant", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ history, position: ctx.position, stops: ctx.stops.map((s) => s.name), timing: ctx.timing, ...(pendingCard ? { pending: pendingCard } : {}), ...(radiusM ? { radiusM } : {}) }),
+            body: JSON.stringify({ history, position: ctx.position, stops: ctx.stops.map((s) => s.name), timing: ctx.timing, ...(pendingCard ? { pending: pendingCard } : {}), ...(radiusM ? { radiusM } : {}), ...(maxAdds ? { maxAdds } : {}) }),
             signal: controller.signal,
           });
           if (stale()) return;

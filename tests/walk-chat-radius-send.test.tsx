@@ -25,6 +25,13 @@ describe("the free chat sends the radius the walker typed", () => {
   it("'עד חצי ק״מ' goes as radiusM 500", async () => {
     expect((await run("בעצם בא לי עד חצי ק״מ רדיוס ותוסיף אטרקציה")).radiusM).toBe(500);
   });
+  it("'עוד אטרקציה או שניים' goes as maxAdds 1 (a range is the smallest)", async () => {
+    expect((await run("תגדיל את זה תעשה עוד אטרקציה או שניים")).maxAdds).toBe(1);
+  });
+  it("'תוסיף שתי אטרקציות' goes as maxAdds 2; a question sends none", async () => {
+    expect((await run("תוסיף שתי אטרקציות")).maxAdds).toBe(2);
+    expect("maxAdds" in (await run("מה יש פה יפה"))).toBe(false);
+  });
   it("no distance in the words, no radiusM", async () => {
     expect("radiusM" in (await run("מה יש פה יפה"))).toBe(false);
   });
