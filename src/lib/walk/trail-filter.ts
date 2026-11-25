@@ -24,6 +24,11 @@ const REBASE_AGREE_MS = 15_000;
 /** The first trail point needs this accuracy, or a second fix that agrees with it. */
 const SEED_MAX_ACCURACY_M = 20;
 
+/** A fix with no device speed while this share of the last PROVIDER_WINDOW_MS carried one is a Wi-Fi or cell fix. */
+const PROVIDER_WINDOW_MS = 20_000;
+const PROVIDER_SHARE = 0.5;
+const PROVIDER_MIN_FIXES = 5;
+
 /** After this long with no good fix, the first fix back is only believed once a second fix agrees with it. */
 const STALE_GOOD_MS = 10_000;
 
@@ -50,6 +55,8 @@ export class TrailFilter {
   /** The run of rejected fixes that agree with each other, with their Doppler speed. */
   private rejected: Array<{ coordinates: Coordinates; timestamp: number; speedMps?: number }> = [];
   private doppler: Array<{ timestamp: number; speedMps: number }> = [];
+  /** Which recent fixes carried a device speed: a fix without one in a stream that has them is another provider. */
+  private seen: Array<{ timestamp: number; hasSpeed: boolean }> = [];
   /** The last fix seen was a jump or a suspect: the dot may show it, the trail's tail must not follow it. */
   private lastWasJump = false;
   private recent: Array<{ coordinates: Coordinates; timestamp: number }> = [];
@@ -60,6 +67,7 @@ export class TrailFilter {
     this.pending = null;
     this.rejected = [];
     this.doppler = [];
+    this.seen = [];
     this.lastWasJump = false;
     this.recent = [];
   }
@@ -96,6 +104,16 @@ export class TrailFilter {
   accept(coordinates: Coordinates, timestamp: number, accuracyM: number, speedMps?: number): Coordinates | null {
     if (!(accuracyM <= TRAIL_MAX_ACCURACY_M)) return null;
     const step = stepFor(accuracyM);
+    this.seen = this.seen.filter((x) => timestamp - x.timestamp <= PROVIDER_WINDOW_MS);
+    const withSpeed = this.seen.filter((x) => x.hasSpeed).length;
+    const providerSwitch =
+      typeof speedMps !== "number" && this.seen.length >= PROVIDER_MIN_FIXES && withSpeed / this.seen.length >= PROVIDER_SHARE;
+    this.seen.push({ timestamp, hasSpeed: typeof speedMps === "number" });
+    if (providerSwitch) {
+      // It may move the dot, never the trail: it does not anchor, draw, or count as a good fix.
+      this.lastWasJump = true;
+      return null;
+    }
     if (typeof speedMps === "number") {
       this.doppler.push({ timestamp, speedMps });
       this.doppler = this.doppler.filter((d) => timestamp - d.timestamp <= STOPPED_WINDOW_MS);
@@ -159,6 +177,7 @@ export class TrailFilter {
     this.good = { coordinates, timestamp, accuracyM };
     this.lastWasJump = false;
     const ref = this.reference(coordinates, timestamp, accuracyM);
+    if (this.stopped(timestamp)) return null; // Doppler freeze: a standing phone draws no new points
     if (haversineDistance(this.last.coordinates, ref) < step) return null;
     return this.keep(ref, timestamp);
   }

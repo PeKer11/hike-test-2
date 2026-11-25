@@ -172,6 +172,39 @@ describe("TrailFilter", () => {
     });
   });
 
+  describe("Doppler freeze and provider switch", () => {
+    it("GPS-only drift of a standing phone (Doppler near 0) keeps at most 1 point over 5 minutes", () => {
+      const f = new TrailFilter();
+      let n = 0;
+      let e = 0;
+      let seed = 21;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+      let kept = 0;
+      for (let s = 0; s < 300; s += 1) {
+        n = 0.95 * n + rnd() * 3;
+        e = 0.95 * e + rnd() * 3;
+        if (f.accept(at(n, e), s * 1000, 8 + Math.abs(rnd()) * 6, Math.abs(rnd()) * 0.15)) kept += 1;
+      }
+      expect(kept).toBeLessThanOrEqual(1);
+    });
+
+    it("a fix with no device speed among fixes that carry one is a Wi-Fi/cell fix: never a point, never a tail", () => {
+      const f = new TrailFilter();
+      for (let s = 0; s <= 10; s += 1) f.accept(at(s * 1.4), s * 1000, 10, 1.4);
+      expect(f.accept(at(10 * 1.4 + 14), 11_000, 12)).toBeNull();
+      expect(f.tailAllowed(at(28), 12)).toBe(false);
+      expect(f.accept(at(11 * 1.4), 12_000, 10, 1.4)).toBeNull(); // normal fix back, within a step
+      expect(f.tailAllowed(at(16), 10)).toBe(true);
+    });
+
+    it("a walker's moving fixes still draw while the Doppler says moving", () => {
+      const f = new TrailFilter();
+      let kept = 0;
+      for (let s = 0; s <= 60; s += 1) if (f.accept(at(s * 1.4), s * 1000, 10, 1.4)) kept += 1;
+      expect(kept).toBeGreaterThan(5);
+    });
+  });
+
   it("the live tail is allowed only for a dot the filter believes and that is near the trail's end", () => {
     const f = new TrailFilter();
     expect(f.tailAllowed(at(5), 10)).toBe(false); // nothing kept yet
