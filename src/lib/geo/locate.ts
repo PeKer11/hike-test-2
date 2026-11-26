@@ -177,7 +177,7 @@ export function locate(options: LocateOptions): { stop(): void } {
   /** `seqAtCall` is the watch-fix count when a one-shot read was asked for. */
   const handleFix = (fix: LocateFix, kind: GpsFixKind = "watch", seqAtCall = 0) => {
     if (stopped) return;
-    if (fix.source === "gps") gpsDebug.received(kind, fix.accuracyMeters, fix.timestamp, fix.speedMps);
+    if (fix.source === "gps") gpsDebug.received(kind, fix.accuracyMeters, fix.timestamp, fix.speedMps, fix.headingDeg);
     if (purpose === "walk" && fix.source === "gps") {
       // No wall-clock age check: a device fix is stamped by the GPS/OS clock, and a phone clock a few seconds off
       // used to discard every fix. The watch delivers in order, so a watch fix is only compared with the previous

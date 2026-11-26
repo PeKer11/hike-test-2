@@ -94,4 +94,73 @@ describe("gps debug counters", () => {
     expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("st unsure");
     expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("hold n");
   });
+
+  describe("device fields: provider guess, null/zero rates, interval, accuracy median, stabilizer mode", () => {
+    const feed = (n: number, f: (i: number) => { acc: number; speed?: number | null; heading?: number; ivS?: number }) => {
+      let t = 1_000_000;
+      for (let i = 0; i < n; i++) {
+        const x = f(i);
+        gpsDebug.received("watch", x.acc, t, x.speed, x.heading);
+        t += (x.ivS ?? 1) * 1000;
+      }
+    };
+
+    it("a GNSS phone with Doppler: prov gps, the interval and the accuracy median", () => {
+      feed(40, (i) => ({ acc: 8 + (i % 5), speed: 1.3, heading: 10 }));
+      const line = formatGpsDebug(gpsDebug.snapshot(), 17, true);
+      expect(line).toContain("prov gps");
+      expect(line).toContain("spd∅ 0%");
+      expect(line).toContain("spd0 0%");
+      expect(line).toContain("hdg∅ 0%");
+      expect(line).toContain("iv 1s");
+      expect(line).toContain("accMed 10m");
+    });
+
+    it("network-only: prov net, speed and heading always missing, a slow interval", () => {
+      feed(30, (i) => ({ acc: [40, 60, 90][i % 3], ivS: [2, 5, 9][i % 3] }));
+      const line = formatGpsDebug(gpsDebug.snapshot(), 17, true);
+      expect(line).toContain("prov net");
+      expect(line).toContain("spd∅ 100%");
+      expect(line).toContain("hdg∅ 100%");
+      expect(line).toContain("iv 5s");
+      expect(line).toContain("accMed 60m");
+    });
+
+    it("network fixes that report speed exactly 0 are net too; GNSS with Doppler 0 is gps", () => {
+      feed(30, () => ({ acc: 60, speed: 0, ivS: 4 }));
+      expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("prov net");
+      expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("spd0 100%");
+      gpsDebug.reset();
+      feed(30, () => ({ acc: 12, speed: 0 }));
+      expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("prov gps");
+    });
+
+    it("anything in between is mix; only the last 30 watch fixes count", () => {
+      feed(30, () => ({ acc: 60 }));
+      feed(30, (i) => ({ acc: 30, speed: i % 3 === 0 ? 1.2 : null }));
+      const line = formatGpsDebug(gpsDebug.snapshot(), 17, true);
+      expect(line).toContain("prov mix");
+      expect(line).toContain("accMed 30m");
+      expect(line).toContain("spd∅ 67%");
+    });
+
+    it("shows trend, Doppler trust and contradictions from the stabilizer", () => {
+      const base = { state: "nodoppler" as const, holding: false, held: 0, escapes: 3, recentres: 0, raw: { lat: 1, lng: 1 }, shown: { lat: 1, lng: 1 }, timestamp: 1 };
+      gpsDebug.dot({ ...base, trend: true, dopplerTrusted: false, contradictions: 2 });
+      const line = formatGpsDebug(gpsDebug.snapshot(), 17, true);
+      expect(line).toContain("trend y");
+      expect(line).toContain("dopT n");
+      expect(line).toContain("contra 2");
+    });
+
+    it("before any fix: dashes, and the old fields default to trend n, dopT y, contra 0", () => {
+      const line = formatGpsDebug(gpsDebug.snapshot(), 17, true);
+      expect(line).toContain("prov -");
+      expect(line).toContain("iv -");
+      expect(line).toContain("accMed -");
+      expect(line).toContain("trend n");
+      expect(line).toContain("dopT y");
+      expect(line).toContain("contra 0");
+    });
+  });
 });
