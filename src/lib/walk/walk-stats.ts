@@ -1,4 +1,5 @@
 import type { Coordinates } from "@/lib/types";
+import { ENGINE_MAX_ACCURACY_M, LOW_ACCURACY_WINDOW_MS } from "@/lib/walk/walk-cadence";
 import {
   bearingBetween,
   closestPointOnSegment,
@@ -48,6 +49,13 @@ export function pickShownSpeed(args: {
   if (args.dopplerTrusted && args.live && args.live.state !== "unknown") return { ...args.live, source: "live" };
   if (args.sustained.state !== "unknown" || !args.position) return { ...args.sustained, source: "sustained" };
   return { ...args.position, source: "position" };
+}
+
+/** Low location accuracy: the accuracy median of the fixes in the last 30 s is above 50 m, or the provider looks network-only. */
+export function isLowAccuracy(samples: Array<{ t: number; acc: number }>, now: number, provider: string | null): boolean {
+  if (provider === "net") return true;
+  const recent = samples.filter((x) => now - x.t <= LOW_ACCURACY_WINDOW_MS).map((x) => x.acc).sort((a, b) => a - b);
+  return recent.length > 0 && recent[Math.floor(recent.length / 2)] > ENGINE_MAX_ACCURACY_M;
 }
 
 /** A jump bigger than this while "paused" is a swapped route or a real move, not jitter. */

@@ -16,6 +16,7 @@ export const locateCopy = {
     howIos: "iPhone: Settings › Safari › Location",
     howAndroid: "Android: lock icon in the address bar › Permissions › Location",
     myLocation: "My location",
+    lowAccuracy: "Low location accuracy, position is approximate",
   },
   he: {
     searching: "מאתר…",
@@ -31,6 +32,7 @@ export const locateCopy = {
     howIos: "iPhone: הגדרות › Safari › מיקום",
     howAndroid: "Android: סמל המנעול בשורת הכתובת › הרשאות › מיקום",
     myLocation: "המיקום שלי",
+    lowAccuracy: "דיוק מיקום נמוך — המיקום משוער",
   },
 } as const;
 

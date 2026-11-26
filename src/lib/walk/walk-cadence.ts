@@ -126,6 +126,8 @@ export const DOT_CONTRADICT_MS = 60_000;
 export const DOT_ZERO_DOPPLER_DISP_M = 18;
 /** Position-derived speed at or above this (while not held) counts as moving. */
 export const DOT_POSITION_MOVING_MPS = 0.7;
+/** The walk shows "low location accuracy" while the accuracy median over this window is above ENGINE_MAX_ACCURACY_M. */
+export const LOW_ACCURACY_WINDOW_MS = 30_000;
 /** A standing dot slides once to the mean of the last N good GPS fixes when it sits this far from them. */
 export const DOT_RECENTRE_FIXES = 30;
 export const DOT_RECENTRE_MAX_ACCURACY_M = 20;

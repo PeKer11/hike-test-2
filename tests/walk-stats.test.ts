@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   cumulativeDistances,
+  isLowAccuracy,
   isNearAnyStop,
   nextStopAlongM,
   routeDirectionDeg,
@@ -173,5 +174,23 @@ describe("pickShownSpeed", () => {
   });
   it("nothing known anywhere: unknown", () => {
     expect(pickShownSpeed({ live: unknown, sustained: unknown, position: undefined, dopplerTrusted: true }).state).toBe("unknown");
+  });
+});
+
+describe("isLowAccuracy", () => {
+  const T = 1_000_000;
+  it("true while the accuracy median over the last 30 s is above 50 m", () => {
+    const poor = Array.from({ length: 20 }, (_, i) => ({ t: T + i * 3000, acc: [60, 90, 40][i % 3] }));
+    expect(isLowAccuracy(poor, T + 57_000, null)).toBe(true);
+  });
+  it("false again once 30 s of 10 m fixes have pushed the poor ones out", () => {
+    const poor = Array.from({ length: 20 }, (_, i) => ({ t: T + i * 3000, acc: 80 }));
+    const good = Array.from({ length: 31 }, (_, i) => ({ t: T + 60_000 + i * 1000, acc: 10 }));
+    expect(isLowAccuracy([...poor, ...good.slice(0, 5)], T + 64_000, null)).toBe(true);
+    expect(isLowAccuracy([...poor, ...good], T + 90_000, null)).toBe(false);
+  });
+  it("true whenever the provider guess is net, false with no fixes", () => {
+    expect(isLowAccuracy([{ t: T, acc: 35 }], T, "net")).toBe(true);
+    expect(isLowAccuracy([], T, "mix")).toBe(false);
   });
 });

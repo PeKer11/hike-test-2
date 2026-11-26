@@ -193,4 +193,15 @@ describe("fixes worse than 50 m (Tab S6 network-only)", () => {
     expect(mapCalls.at(-1).nextStopId).toBe("a1");
     expect(screen.queryByText(/Off route|מחוץ למסלול/)).toBeNull();
   }, 60_000);
+
+  it("the low-accuracy chip shows on 60-90 m fixes and is gone after 30 s of 10 m fixes", async () => {
+    const CHIP = "Low location accuracy, position is approximate";
+    let shownDuringPoor = false;
+    await stream(100, (i) => {
+      if (i === 60) shownDuringPoor = screen.queryByText(CHIP) !== null;
+      return i < 10 ? { acc: 10, wobble: -1.4 * i } : i < 60 ? { acc: [60, 70, 90, 80][i % 4], wobble: -14 } : { acc: 10, wobble: -14 };
+    });
+    expect(shownDuringPoor).toBe(true);
+    expect(screen.queryByText(CHIP)).toBeNull();
+  }, 60_000);
 });

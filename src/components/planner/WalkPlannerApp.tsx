@@ -110,6 +110,7 @@ import {
   ADVISOR_STOP_QUIET_RADIUS_M,
   ENGINE_MAX_ACCURACY_M,
   LOCAL_REJOIN_MAX_DEVIATION_M,
+  LOW_ACCURACY_WINDOW_MS,
 } from "@/lib/walk/walk-cadence";
 import { HeadingSmoother } from "@/lib/walk/heading-smoother";
 import { requestCompassPermission } from "@/lib/hooks/useCompassHeading";
@@ -123,6 +124,7 @@ import { PACE_MISMATCH_LENGTHEN_MIN_SPARE, PaceMismatchWatcher, type PaceMismatc
 import {
   detourMinutes,
   isNearAnyStop,
+  isLowAccuracy,
   nextStopAlongM,
   pickShownSpeed,
   progressAlong,
@@ -654,6 +656,8 @@ export function WalkPlannerApp({
   const walkBeganAtRef = useRef<number | null>(null);
   // Timestamp (fix clock) of the first fix of this walk leg, for "elapsed".
   const firstFixAtRef = useRef<number | null>(null);
+  /** Accuracy of every fix that reached the dot (fix clock), for the low-accuracy chip. */
+  const accuracyHistoryRef = useRef<Array<{ t: number; acc: number }>>([]);
   // Fix clock vs wall clock: lets the ticker ask "what time is it on the fix
   // clock" between fixes without mixing the simulator's clock with Date.now().
   const lastFixWallRef = useRef<number>(0);
@@ -900,6 +904,8 @@ export function WalkPlannerApp({
     const stats: WalkStatsData = {
       kmh: speed.kmh,
       speedState: speed.state,
+      speedApprox: speed.source === "position",
+      lowAccuracy: isLowAccuracy(accuracyHistoryRef.current, now, gpsDebug.snapshot().provider),
       plannedPaceMinPerKm: input.walkingPaceMinPerKm,
       timeToFinishMin: toFinish,
       elapsedMin,
@@ -1014,6 +1020,7 @@ export function WalkPlannerApp({
     paceMismatchShownAtRef.current = null;
     setPaceMismatchOffer(null);
     firstFixAtRef.current = null;
+    accuracyHistoryRef.current = [];
     matchedRef.current = null;
     routeEndRef.current.reset();
     setPaceAdvisory(null);
@@ -3227,12 +3234,17 @@ export function WalkPlannerApp({
         : new PaceMismatchWatcher(planInput.walkingPaceMinPerKm)
       : null;
     firstFixAtRef.current = null;
+    accuracyHistoryRef.current = [];
 
     // The dot is published first, so nothing the engine does can freeze it; a throw in the engine is logged, not fatal.
     const onPositionUpdate = (update: PaceUpdate) => {
       // The dot accepts any fix the tracker lets through (<=150 m); speed, deviation and visits only trust fixes this
       // good. A poor fix still moves the dot, but never changes what the engine believes.
       const now = Date.now();
+      accuracyHistoryRef.current = [
+        ...accuracyHistoryRef.current.filter((x) => update.timestamp - x.t <= LOW_ACCURACY_WINDOW_MS),
+        { t: update.timestamp, acc: update.accuracyMeters },
+      ];
       const held = trailFilterRef.current.dotHeld(update.currentPosition, update.accuracyMeters, update.timestamp);
       const due = !held && now - lastGpsUpdateRef.current >= POSITION_PUBLISH_MS;
       // While the phone stands nothing is published: the dot, its halo, the gold tail and the map stay still.

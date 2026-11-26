@@ -1,5 +1,6 @@
 import { paceBarTone, type PaceTone } from "@/lib/walk/walk-stats";
 import { walkCopy } from "@/lib/walk/walk-copy";
+import { locateCopy } from "@/lib/geo/locate-copy";
 import type { SpeedState } from "@/lib/walk/speed-estimator";
 
 export interface WalkStatsData {
@@ -18,6 +19,10 @@ export interface WalkStatsData {
   allowedMin?: number;
   /** Really at the end of the route: close, on a good fix, for a few seconds (`RouteEndDetector`). */
   atRouteEnd?: boolean;
+  /** Location accuracy is low (median over 30 s above 50 m, or network-only): a chip, and the speed is approximate. */
+  lowAccuracy?: boolean;
+  /** The speed comes from positions, not the device: shown with an ≈. */
+  speedApprox?: boolean;
 }
 
 const TONE_DOT: Record<PaceTone, string> = {
@@ -65,8 +70,9 @@ export function WalkStatsBar({ stats, lang = "en" }: { stats: WalkStatsData; lan
   const t = lang === "he" ? walkCopy.statsHe : walkCopy.stats;
   const sheet = walkCopy.hud.sheet[lang];
   const tone = paceBarTone(stats.kmh, stats.plannedPaceMinPerKm);
+  const approx = stats.lowAccuracy || stats.speedApprox ? "≈" : "";
   const paceValue =
-    stats.speedState === "paused" ? t.paused : stats.kmh === null ? t.unknown : stats.kmh.toFixed(1);
+    stats.speedState === "paused" ? t.paused : stats.kmh === null ? t.unknown : approx + stats.kmh.toFixed(1);
   const showPaceUnit = stats.speedState === "moving" && stats.kmh !== null;
   const totalM = stats.walkedM + stats.remainingM;
   const pct = totalM > 0 ? Math.round(Math.min(1, Math.max(0, stats.walkedM / totalM)) * 100) : 0;
@@ -74,6 +80,11 @@ export function WalkStatsBar({ stats, lang = "en" }: { stats: WalkStatsData; lan
 
   return (
     <div data-testid="walk-stats" className="space-y-2">
+      {stats.lowAccuracy ? (
+        <p className="mx-auto w-fit rounded-full bg-warn/15 px-3 py-0.5 text-center text-[13px] font-medium text-tk-ink">
+          {locateCopy[lang].lowAccuracy}
+        </p>
+      ) : null}
       <div className="flex divide-x divide-charcoal/10 rtl:divide-x-reverse">
         <Stat
           label={t.distanceToFinish}
