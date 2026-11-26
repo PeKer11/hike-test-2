@@ -107,8 +107,10 @@ export const DOT_ESCAPE_MIN_M = 15;
 export const DOT_ESCAPE_FIXES_STOPPED = 10;
 export const DOT_ESCAPE_SPAN_STOPPED_MS = 10_000;
 /** No Doppler at all (Wi-Fi/cell phone): this many agreeing fixes over this long. */
-export const DOT_ESCAPE_FIXES_NODOP = 3;
-export const DOT_ESCAPE_SPAN_NODOP_MS = 3_000;
+export const DOT_ESCAPE_FIXES_NODOP = 2;
+export const DOT_ESCAPE_SPAN_NODOP_MS = 2_000;
+/** No usable Doppler: the escape radius is capped here (network accuracy is mostly bias, not scatter). */
+export const DOT_NODOP_RADIUS_CAP_M = 25;
 /** A standing dot slides once to the mean of the last N good GPS fixes when it sits this far from them. */
 export const DOT_RECENTRE_FIXES = 30;
 export const DOT_RECENTRE_MAX_ACCURACY_M = 20;

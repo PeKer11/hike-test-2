@@ -6,6 +6,7 @@ import {
   DOT_ESCAPE_MIN_M,
   DOT_ESCAPE_SPAN_NODOP_MS,
   DOT_ESCAPE_SPAN_STOPPED_MS,
+  DOT_NODOP_RADIUS_CAP_M,
   DOT_RECENTRE_FIXES,
   DOT_RECENTRE_MAX_ACCURACY_M,
   DOT_RECENTRE_MIN_M,
@@ -47,7 +48,8 @@ const mean = (pts: Coordinates[]): Coordinates => ({
 
 /**
  * Decides where the shown dot sits. Moving or unsure: it follows the raw fix as before. Standing (Doppler) or no
- * Doppler at all: it holds, and moves only on agreeing fixes beyond max(15 m, the fix's accuracy). Pure; time is the
+ * Doppler at all: it holds, and moves only on agreeing fixes beyond max(15 m, the fix's accuracy), the accuracy capped
+ * at 25 m when there is no Doppler. Pure; time is the
  * fix timestamp.
  */
 export class DotStabilizer {
@@ -59,6 +61,11 @@ export class DotStabilizer {
   private lastState: DotState = "nodoppler";
   /** Counters for ?gpsdebug=1. */
   stats = { held: 0, escapes: 0, recentres: 0 };
+  private readonly nodopRadiusCapM: number;
+
+  constructor(opts: { nodopRadiusCapM?: number } = {}) {
+    this.nodopRadiusCapM = opts.nodopRadiusCapM ?? DOT_NODOP_RADIUS_CAP_M;
+  }
 
   reset(seed?: Coordinates): void {
     this.shown = seed ?? null;
@@ -111,7 +118,8 @@ export class DotStabilizer {
       this.mode = "hold";
       this.good = this.good.slice(-1);
     }
-    const radius = Math.max(DOT_ESCAPE_MIN_M, f.accuracyM);
+    // Doppler-stopped: the whole accuracy. No usable Doppler: capped, since network accuracy is bias, not scatter.
+    const radius = st === "stopped" ? Math.max(DOT_ESCAPE_MIN_M, f.accuracyM) : Math.max(DOT_ESCAPE_MIN_M, Math.min(f.accuracyM, this.nodopRadiusCapM));
     // The GPS says standing: a Wi-Fi fix (no speed) cannot overrule it.
     const noSpeedWhileStopped = st === "stopped" && !hasSpeed;
     if (!noSpeedWhileStopped && haversineDistance(this.shown, f.coordinates) > radius) {
