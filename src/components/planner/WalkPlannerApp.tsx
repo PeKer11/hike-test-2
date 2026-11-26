@@ -124,6 +124,7 @@ import {
   detourMinutes,
   isNearAnyStop,
   nextStopAlongM,
+  pickShownSpeed,
   progressAlong,
   steadyWalkedM,
   routeDirectionDeg,
@@ -863,9 +864,15 @@ export function WalkPlannerApp({
       kmh: null,
       state: "unknown" as const,
     };
-    // The cell and the distance hold follow the live speed; with no Doppler it is the sustained one, as before.
-    const live = liveSpeedRef.current?.current(now);
-    const speed = live && live.state !== "unknown" ? live : sustained;
+    // The cell and the distance hold follow the live speed; with no (trusted) Doppler the sustained one, and with no
+    // sustained one either, the speed from the dot's own positions.
+    const stab = dotStabilizerRef.current;
+    const speed = pickShownSpeed({
+      live: liveSpeedRef.current?.current(now),
+      sustained,
+      position: stab.positionSpeed(now),
+      dopplerTrusted: stab.dopplerTrusted(now),
+    });
     const projected = progressAlong(
       walkGeometryRef.current,
       matched.segmentIndex,
@@ -3267,8 +3274,12 @@ export function WalkPlannerApp({
         setCurrentAccuracyM(update.accuracyMeters);
       }
       if (update.accuracyMeters > ENGINE_MAX_ACCURACY_M) return;
+      // Doppler the stabilizer caught contradicting the positions (stuck at 0 while walking) never reaches the
+      // engine: live speed, the sustained estimate and the trail then fall back to positions.
+      const engineUpdate =
+        !isSimulating && !dotStabilizerRef.current.dopplerTrusted(update.timestamp) ? { ...update, speedMps: undefined } : update;
       try {
-        runEngine(update, due);
+        runEngine(engineUpdate, due);
       } catch (e) {
         gpsDebug.error(e);
         console.error("walk engine error", e);

@@ -33,6 +33,23 @@ export function progressAlong(
   return { walkedM, remainingM: Math.max(0, total - walkedM) };
 }
 
+type ShownSpeed = { kmh: number | null; state: "moving" | "paused" | "unknown" };
+
+/**
+ * The speed cell: trusted live Doppler, else the sustained estimate, else the speed from the dot's positions
+ * (`source: "position"`, shown as approximate). Live Doppler the dot stabilizer distrusts is never shown.
+ */
+export function pickShownSpeed(args: {
+  live: ShownSpeed | undefined;
+  sustained: ShownSpeed;
+  position: ShownSpeed | undefined;
+  dopplerTrusted: boolean;
+}): ShownSpeed & { source: "live" | "sustained" | "position" } {
+  if (args.dopplerTrusted && args.live && args.live.state !== "unknown") return { ...args.live, source: "live" };
+  if (args.sustained.state !== "unknown" || !args.position) return { ...args.sustained, source: "sustained" };
+  return { ...args.position, source: "position" };
+}
+
 /** A jump bigger than this while "paused" is a swapped route or a real move, not jitter. */
 const STEADY_MAX_JUMP_M = 60;
 

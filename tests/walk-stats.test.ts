@@ -7,6 +7,7 @@ import {
   routeDirectionDeg,
   detourMinutes,
   paceBarTone,
+  pickShownSpeed,
   progressAlong,
   spareMinAtPace,
   steadyWalkedM,
@@ -151,5 +152,26 @@ describe("steadyWalkedM (distance holds while the walker is paused)", () => {
     expect(steadyWalkedM(500, 512, "moving")).toBe(512);
     expect(steadyWalkedM(null, 512, "paused")).toBe(512);
     expect(steadyWalkedM(900, 20, "paused")).toBe(20);
+  });
+});
+
+describe("pickShownSpeed", () => {
+  const live = { kmh: 5, state: "moving" as const };
+  const sustained = { kmh: 4.6, state: "moving" as const };
+  const position = { kmh: 5.4, state: "moving" as const };
+  const unknown = { kmh: null, state: "unknown" as const };
+
+  it("trusted live Doppler first", () => {
+    expect(pickShownSpeed({ live, sustained, position, dopplerTrusted: true })).toEqual({ ...live, source: "live" });
+  });
+  it("live Doppler that is not trusted is skipped for the sustained speed", () => {
+    expect(pickShownSpeed({ live: { kmh: 0, state: "paused" }, sustained, position, dopplerTrusted: false })).toEqual({ ...sustained, source: "sustained" });
+  });
+  it("no live and no sustained speed: the position-derived one", () => {
+    expect(pickShownSpeed({ live: unknown, sustained: unknown, position, dopplerTrusted: true })).toEqual({ ...position, source: "position" });
+    expect(pickShownSpeed({ live: undefined, sustained: unknown, position, dopplerTrusted: false })).toEqual({ ...position, source: "position" });
+  });
+  it("nothing known anywhere: unknown", () => {
+    expect(pickShownSpeed({ live: unknown, sustained: unknown, position: undefined, dopplerTrusted: true }).state).toBe("unknown");
   });
 });
