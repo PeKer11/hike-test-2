@@ -1,12 +1,14 @@
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
 import {
+  DOT_CONTRADICT_MS,
   DOT_ESCAPE_FIXES_NODOP,
   DOT_ESCAPE_FIXES_STOPPED,
   DOT_ESCAPE_MIN_M,
   DOT_ESCAPE_SPAN_NODOP_MS,
   DOT_ESCAPE_SPAN_STOPPED_MS,
   DOT_NODOP_RADIUS_CAP_M,
+  DOT_POSITION_MOVING_MPS,
   DOT_PROGRESS_MIN_M,
   DOT_PROGRESS_MIN_MPS,
   DOT_RECENTRE_FIXES,
@@ -16,6 +18,7 @@ import {
   DOT_TREND_PAIR_MS,
   DOT_TREND_STALL_M,
   DOT_TREND_STALL_MS,
+  DOT_ZERO_DOPPLER_DISP_M,
   SPEED_LIVE_WINDOW_MS,
   SPEED_MOVE_ABOVE_MPS,
   SPEED_STOP_BELOW_MPS,
@@ -77,8 +80,9 @@ export class DotStabilizer {
   private hist: Array<{ t: number; c: Coordinates }> = [];
   private lastEscape: { t: number; x: number; y: number } | null = null;
   private trend = false;
+  private contradictedUntil = Number.NEGATIVE_INFINITY;
   /** Counters for ?gpsdebug=1. */
-  stats = { held: 0, escapes: 0, recentres: 0, trends: 0 };
+  stats = { held: 0, escapes: 0, recentres: 0, trends: 0, contradictions: 0 };
 
   reset(seed?: Coordinates): void {
     this.shown = seed ?? null;
@@ -90,7 +94,8 @@ export class DotStabilizer {
     this.hist = [];
     this.lastEscape = null;
     this.trend = false;
-    this.stats = { held: 0, escapes: 0, recentres: 0, trends: 0 };
+    this.contradictedUntil = Number.NEGATIVE_INFINITY;
+    this.stats = { held: 0, escapes: 0, recentres: 0, trends: 0, contradictions: 0 };
   }
 
   get state(): DotState {
@@ -102,6 +107,18 @@ export class DotStabilizer {
   /** Following positions with no usable Doppler because the fixes keep advancing. */
   get trending(): boolean {
     return this.trend;
+  }
+  /** False while Doppler contradicts the positions (then it must not drive speed, trail or stops). */
+  dopplerTrusted(ts: number): boolean {
+    return ts >= this.contradictedUntil;
+  }
+  /** Speed from the fixes' displacement over about 20 s: moving in trend or follow, paused while held. */
+  positionSpeed(ts: number): { kmh: number | null; state: "moving" | "paused" | "unknown" } {
+    const p = this.progress(ts);
+    if (!p) return { kmh: null, state: "unknown" };
+    const v = p.m / p.dtS;
+    const moving = this.trend || this.lastState === "moving" || (this.mode !== "hold" && v >= DOT_POSITION_MOVING_MPS);
+    return moving ? { kmh: v * 3.6, state: "moving" } : { kmh: 0, state: "paused" };
   }
   get escapeCandidates(): number {
     return this.cand.length;
@@ -126,9 +143,15 @@ export class DotStabilizer {
     this.dop = this.dop.filter((d) => ts - d.t <= STOP_WINDOW_MS);
     const recent = this.dop.filter((d) => ts - d.t <= SPEED_LIVE_WINDOW_MS).map((d) => d.v);
     if (recent.length && median(recent) >= SPEED_MOVE_ABOVE_MPS) return "moving";
+    if (!this.dopplerTrusted(ts)) return "nodoppler";
     if (this.dop.length >= STOP_MIN_READINGS && median(this.dop.map((d) => d.v)) < SPEED_STOP_BELOW_MPS) return "stopped";
     if (this.dop.length === 0) return "nodoppler";
     return "unsure";
+  }
+
+  private contradict(ts: number): void {
+    this.contradictedUntil = ts + DOT_CONTRADICT_MS;
+    this.stats.contradictions += 1;
   }
 
   push(f: DotFix): DotDecision {
@@ -136,9 +159,22 @@ export class DotStabilizer {
     const hasSpeed = typeof f.speedMps === "number" && Number.isFinite(f.speedMps);
     if (hasSpeed) this.dop.push({ t: ts, v: f.speedMps as number });
     this.hist = [...this.hist.filter((h) => ts - h.t <= HIST_MS), { t: ts, c: f.coordinates }];
-    const st = this.stateAt(ts);
+    let st = this.stateAt(ts);
+    // Doppler stuck at exactly 0 while the fixes travel 18 m+ in ~20 s is not a standing phone.
+    if (this.dopplerTrusted(ts) && this.dop.length > 0 && this.dop.every((d) => d.v === 0)) {
+      const p = this.progress(ts);
+      if (p && p.m >= DOT_ZERO_DOPPLER_DISP_M) {
+        this.contradict(ts);
+        if (this.shown && st === "stopped") {
+          this.trend = true;
+          this.stats.trends += 1;
+        }
+        st = this.stateAt(ts);
+      }
+    }
     this.lastState = st;
-    if (hasSpeed && f.accuracyM <= DOT_RECENTRE_MAX_ACCURACY_M) this.good = [...this.good, f.coordinates].slice(-DOT_RECENTRE_FIXES);
+    // Recentre only on trusted Doppler: fixes from a walk with Doppler 0 would pull the dot backwards.
+    if (hasSpeed && this.dopplerTrusted(ts) && f.accuracyM <= DOT_RECENTRE_MAX_ACCURACY_M) this.good = [...this.good, f.coordinates].slice(-DOT_RECENTRE_FIXES);
 
     if (!this.shown || st === "moving" || st === "unsure") {
       this.mode = "follow";
@@ -160,6 +196,7 @@ export class DotStabilizer {
         this.shown = mean(this.hist.filter((h) => ts - h.t <= NOW_WINDOW_MS).map((h) => h.c));
         return { publish: true, coordinates: this.shown, mode: "recentre", state: st };
       }
+      if (!this.dopplerTrusted(ts)) this.contradictedUntil = ts + DOT_CONTRADICT_MS;
       this.mode = "trend";
       this.shown = f.coordinates;
       return { publish: true, coordinates: f.coordinates, mode: "trend", state: st };
@@ -201,6 +238,8 @@ export class DotStabilizer {
         if (advancing || consistent) {
           this.trend = true;
           this.stats.trends += 1;
+          // Trend while Doppler says standing: the Doppler is wrong.
+          if (st === "stopped") this.contradict(ts);
           this.mode = "trend";
           this.shown = f.coordinates;
           return { publish: true, coordinates: f.coordinates, mode: "trend", state: st };

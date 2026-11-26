@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DotStabilizer } from "@/lib/walk/dot-stabilizer";
-import { DEVICES, T0, pathPerMin, replayDots, toLL, walkMetrics, type DeviceId } from "./helpers/device-fixes";
+import { DEVICES, STAND_S, T0, alongY, pathPerMin, replayDots, toLL, walkMetrics, type DeviceId } from "./helpers/device-fixes";
 
 // Movement bars per device class (docs/DEVICE-MOVEMENT-PLAN-2026-11-25.md, section 4 commit 1). Seeds 1-3.
 // Walk: stand 20 s, then 1.4 m/s for 180 s. `it.fails` marks a bar that the current stabilizer does not meet yet;
@@ -18,7 +18,7 @@ describe("DotStabilizer devices: walking (every seed)", () => {
       expect(m.longestFreezeS, `seed ${seed}`).toBeLessThanOrEqual(40);
     }
   });
-  it.fails("B3 (Doppler always 0): first move <= 20 s, lag p50 <= 5 m", () => {
+  it("B3 (Doppler always 0): first move <= 20 s, lag p50 <= 5 m", () => {
     for (const seed of SEEDS) {
       const m = walk("B3", seed);
       expect(m.firstMoveS, `seed ${seed}`).toBeLessThanOrEqual(20);
@@ -105,9 +105,79 @@ describe("DotStabilizer: trend follow", () => {
 describe("DotStabilizer devices: standing", () => {
   for (const id of ["B1", "B2", "B3"] as const) {
     for (const seed of SEEDS) {
-      it(`${id} standing stays under 5 m/min (seed ${seed})`, () => {
-        expect(pathPerMin(replayDots(DEVICES[id](seed, false), new DotStabilizer()))).toBeLessThanOrEqual(5);
+      it(`${id} standing stays under 5 m/min with 0 Doppler contradictions (seed ${seed})`, () => {
+        const st = new DotStabilizer();
+        expect(pathPerMin(replayDots(DEVICES[id](seed, false), st))).toBeLessThanOrEqual(5);
+        expect(st.stats.contradictions).toBe(0);
       });
     }
   }
+});
+
+describe("DotStabilizer: Doppler contradiction", () => {
+  it("walking with Doppler 0: the dot never steps more than 5 m backwards along the walk, except onto the raw fix itself", () => {
+    // Following raw fixes carries their own noise (a good-GPS phone does the same); a recentre onto old fixes must not.
+    const check = (fixes: Array<{ t: number; x: number; y: number; acc: number; speed?: number }>, label: string) => {
+      const st = new DotStabilizer();
+      let prev: number | null = null;
+      for (const f of fixes) {
+        const raw = toLL(f.x, f.y);
+        const d = st.push({ coordinates: raw, accuracyM: f.acc, speedMps: f.speed, timestamp: f.t });
+        const y = alongY(d.coordinates);
+        const onRaw = d.coordinates.lat === raw.lat && d.coordinates.lng === raw.lng;
+        if (prev !== null && !onRaw && f.t - T0 >= STAND_S * 1000) expect(y - prev, `${label} at ${(f.t - T0) / 1000} s (${d.mode})`).toBeGreaterThanOrEqual(-5);
+        prev = y;
+      }
+    };
+    check(Array.from({ length: 200 }, (_, s) => ({ t: T0 + s * 1000, x: 0, y: s < 30 ? 0 : (s - 30) * 1.4, acc: 10, speed: 0 })), "clean");
+    for (const seed of SEEDS) check(DEVICES.B3(seed, true), `B3 seed ${seed}`);
+  });
+
+  it("Doppler stuck at exactly 0 while the fixes travel >= 18 m in ~20 s stops being trusted, and the dot follows", () => {
+    const st = new DotStabilizer();
+    let firstDistrust: number | null = null;
+    for (let s = 0; s < 60; s++) {
+      const y = s < 10 ? 0 : (s - 10) * 1.4;
+      st.push({ coordinates: toLL(0, y), accuracyM: 10, speedMps: 0, timestamp: T0 + s * 1000 });
+      if (firstDistrust === null && !st.dopplerTrusted(T0 + s * 1000)) firstDistrust = s;
+    }
+    expect(firstDistrust).not.toBeNull();
+    expect(firstDistrust!).toBeLessThanOrEqual(35);
+    expect(st.stats.contradictions).toBeGreaterThanOrEqual(1);
+    expect(st.state).toBe("nodoppler");
+    expect(st.holding).toBe(false);
+  });
+
+  it("a standing phone whose Doppler reads exactly 0 keeps holding and keeps trusting it", () => {
+    const st = new DotStabilizer();
+    for (let s = 0; s < 120; s++) {
+      st.push({ coordinates: toLL(Math.sin(s / 7) * 4, Math.cos(s / 5) * 4), accuracyM: 10, speedMps: 0, timestamp: T0 + s * 1000 });
+      expect(st.dopplerTrusted(T0 + s * 1000)).toBe(true);
+    }
+    expect(st.stats.contradictions).toBe(0);
+    expect(st.state).toBe("stopped");
+  });
+
+  it("Doppler is trusted again 60 s after the last contradiction once the walker stands", () => {
+    const st = new DotStabilizer();
+    let s = 0;
+    for (; s < 60; s++) st.push({ coordinates: toLL(0, s < 10 ? 0 : (s - 10) * 1.4), accuracyM: 10, speedMps: 0, timestamp: T0 + s * 1000 });
+    expect(st.dopplerTrusted(T0 + s * 1000)).toBe(false);
+    for (; s < 200; s++) st.push({ coordinates: toLL(0, 70), accuracyM: 10, speedMps: 0, timestamp: T0 + s * 1000 });
+    expect(st.dopplerTrusted(T0 + s * 1000)).toBe(true);
+    expect(st.state).toBe("stopped");
+  });
+
+  it("positionSpeed: about the walking speed while following positions, paused while held, unknown with no history", () => {
+    const st = new DotStabilizer();
+    expect(st.positionSpeed(T0).state).toBe("unknown");
+    let s = 0;
+    for (; s < 60; s++) st.push({ coordinates: toLL(0, s < 10 ? 0 : (s - 10) * 1.4), accuracyM: 60, timestamp: T0 + s * 1000 });
+    const walking = st.positionSpeed(T0 + (s - 1) * 1000);
+    expect(walking.state).toBe("moving");
+    expect(walking.kmh!).toBeGreaterThan(4);
+    expect(walking.kmh!).toBeLessThan(6);
+    for (; s < 120; s++) st.push({ coordinates: toLL(0, 70), accuracyM: 60, timestamp: T0 + s * 1000 });
+    expect(st.positionSpeed(T0 + (s - 1) * 1000)).toEqual({ kmh: 0, state: "paused" });
+  });
 });

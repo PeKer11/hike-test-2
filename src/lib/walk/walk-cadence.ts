@@ -120,6 +120,12 @@ export const DOT_TREND_STALL_M = 12;
 /** ...or when the escape's own candidates advance along it by max(this, this speed x their span). */
 export const DOT_PROGRESS_MIN_M = 8;
 export const DOT_PROGRESS_MIN_MPS = 0.6;
+/** Doppler stops being trusted this long (renewed while trend lasts) when it contradicts the positions. */
+export const DOT_CONTRADICT_MS = 60_000;
+/** Doppler reading exactly 0 for 10 s while the fixes travel this far in about 20 s is not a standing phone. */
+export const DOT_ZERO_DOPPLER_DISP_M = 18;
+/** Position-derived speed at or above this (while not held) counts as moving. */
+export const DOT_POSITION_MOVING_MPS = 0.7;
 /** A standing dot slides once to the mean of the last N good GPS fixes when it sits this far from them. */
 export const DOT_RECENTRE_FIXES = 30;
 export const DOT_RECENTRE_MAX_ACCURACY_M = 20;
