@@ -116,40 +116,6 @@ export const DEVICES: Record<DeviceId, (seed: number, walking: boolean) => Fix[]
   C2: (s, w) => genGps(s, w, { accLo: 25, accHi: 60, sigma: 10, tau: 30, ivLo: 1, ivHi: 3, speed: "null" }),
 };
 
-// The repo's own standing generator (same as tests/dot-stabilizer.test.ts), for guards that need it outside that file.
-const AP = [{ x: 18, y: 6 }, { x: -12, y: 22 }, { x: 4, y: -30 }];
-export function repoStanding(kind: "s1" | "s3" | "s4", seed: number, secs = 600): Fix[] {
-  const r = rng(seed);
-  const [sigma, tau, accLo, accHi, dop] = kind === "s1" ? [4, 20, 5, 12, 0.25] : [10, 30, 12, 30, 0.4];
-  const e = ar(r, sigma, tau);
-  let cl = 0;
-  let burst = 0;
-  const out: Fix[] = [];
-  for (let s = 0; s < secs; s++) {
-    const t = T0 + s * 1000;
-    const wifi = () => ({ t, x: AP[cl].x + r.n() * 3, y: AP[cl].y + r.n() * 3, acc: 18 + r.u() * 22, speed: undefined, truthY: 0 });
-    if (kind === "s4") {
-      if (r.u() < 0.05) cl = Math.floor(r.u() * 3);
-      out.push(wifi());
-      continue;
-    }
-    if (kind === "s3") {
-      if (burst > 0) {
-        burst--;
-        out.push(wifi());
-        continue;
-      }
-      if (r.u() < 0.08) {
-        burst = 2 + Math.floor(r.u() * 6);
-        cl = Math.floor(r.u() * 3);
-      }
-    }
-    const n = e();
-    out.push({ t, x: n.x + r.n() * 1.5, y: n.y + r.n() * 1.5, acc: accLo + r.u() * (accHi - accLo), speed: Math.abs(r.n()) * dop * 0.5, truthY: 0 });
-  }
-  return out;
-}
-
 /** Anything with the DotStabilizer push() shape. */
 export interface DotLike {
   push(f: { coordinates: Coordinates; accuracyM: number; speedMps?: number | null; timestamp: number }): { publish: boolean; coordinates: Coordinates };

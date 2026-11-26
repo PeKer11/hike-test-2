@@ -111,6 +111,15 @@ export const DOT_ESCAPE_FIXES_NODOP = 2;
 export const DOT_ESCAPE_SPAN_NODOP_MS = 2_000;
 /** No usable Doppler: the escape radius is capped here (network accuracy is mostly bias, not scatter). */
 export const DOT_NODOP_RADIUS_CAP_M = 25;
+/** Trend follow: a second escape within this long and within this turn of the previous one means walking. */
+export const DOT_TREND_PAIR_MS = 60_000;
+export const DOT_TREND_MAX_TURN_DEG = 60;
+/** Trend ends (hold) when the last 5 s sit less than this far from the fixes about this long ago. */
+export const DOT_TREND_STALL_MS = 20_000;
+export const DOT_TREND_STALL_M = 12;
+/** ...or when the escape's own candidates advance along it by max(this, this speed x their span). */
+export const DOT_PROGRESS_MIN_M = 8;
+export const DOT_PROGRESS_MIN_MPS = 0.6;
 /** A standing dot slides once to the mean of the last N good GPS fixes when it sits this far from them. */
 export const DOT_RECENTRE_FIXES = 30;
 export const DOT_RECENTRE_MAX_ACCURACY_M = 20;
