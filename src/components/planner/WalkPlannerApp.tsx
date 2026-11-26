@@ -3273,17 +3273,39 @@ export function WalkPlannerApp({
         setCurrentPosition(shownDot);
         setCurrentAccuracyM(update.accuracyMeters);
       }
-      if (update.accuracyMeters > ENGINE_MAX_ACCURACY_M) return;
       // Doppler the stabilizer caught contradicting the positions (stuck at 0 while walking) never reaches the
       // engine: live speed, the sustained estimate and the trail then fall back to positions.
       const engineUpdate =
         !isSimulating && !dotStabilizerRef.current.dopplerTrusted(update.timestamp) ? { ...update, speedMps: undefined } : update;
+      if (update.accuracyMeters > ENGINE_MAX_ACCURACY_M) {
+        // Stats lane: a poor fix keeps the clock running, and the walked distance follows the shown dot. Trail,
+        // off-route, visits, discovery and pace stay engine-grade only.
+        latestPaceUpdateRef.current = engineUpdate;
+        lastFixWallRef.current = Date.now();
+        startLegClock(update.timestamp);
+        if (shownDot) {
+          const onRoute = detectDeviation(shownDot, walkGeometryRef.current, lastSegmentIndexRef.current);
+          lastSegmentIndexRef.current = onRoute.closestSegmentIndex;
+          matchedRef.current = { segmentIndex: onRoute.closestSegmentIndex, point: onRoute.closestPointOnRoute };
+          refreshWalkStats();
+        }
+        return;
+      }
       try {
         runEngine(engineUpdate, due);
       } catch (e) {
         gpsDebug.error(e);
         console.error("walk engine error", e);
       }
+    };
+
+    // The first fix of the leg (engine-grade or not) starts its clock.
+    const startLegClock = (timestamp: number) => {
+      if (firstFixAtRef.current !== null) return;
+      firstFixAtRef.current = resumedStartRef.current ?? timestamp;
+      // A cooldown armed on the previous leg's clock (the simulator's runs 10x ahead) must not outlast its length here.
+      replanTriggerRef.current?.capCooldown(timestamp);
+      paceMismatchRef.current?.startLeg(timestamp);
     };
 
     // Throttle setState calls to at most once per second (LOW-2): `due` says the dot was published on this fix.
@@ -3300,12 +3322,7 @@ export function WalkPlannerApp({
       // Every accepted fix, outside the 1 s throttle below: the beam's lag is the sum of the delays, so none is added here.
       // A simulated walk steers the beam by its raw path bearing; the smoother would add seconds of lag.
       walkerHeading.setGps(isSimulating && update.headingDeg != null ? update.headingDeg : headingSmootherRef.current.current(update.timestamp));
-      if (firstFixAtRef.current === null) {
-        firstFixAtRef.current = resumedStartRef.current ?? update.timestamp;
-        // A cooldown armed on the previous leg's clock (the simulator's runs 10x ahead) must not outlast its length here.
-        replanTriggerRef.current?.capCooldown(update.timestamp);
-        paceMismatchRef.current?.startLeg(update.timestamp);
-      }
+      startLegClock(update.timestamp);
 
       liveSpeedRef.current?.record({ timestamp: update.timestamp, speedMps: update.speedMps });
       speedEstimatorRef.current?.record({

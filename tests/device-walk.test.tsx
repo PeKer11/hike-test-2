@@ -123,8 +123,12 @@ async function startRealWalk() {
   expect(walkOnUpdate).not.toBeNull();
 }
 
-/** Streams `n` fixes 1 s apart walking north at 1.4 m/s; `fixOf(i)` sets accuracy and speed. Returns the speed cells. */
-async function stream(n: number, fixOf: (i: number) => { acc: number; speedMps?: number; wobble?: number }) {
+/**
+ * Streams `n` fixes 1 s apart walking north at 1.4 m/s; `fixOf(i)` sets accuracy, speed, along-track wobble, east
+ * offset and an optional absolute position. Returns the speed cells.
+ */
+type FixSpec = { acc: number; speedMps?: number; wobble?: number; eastM?: number; at?: Coordinates };
+async function stream(n: number, fixOf: (i: number) => FixSpec) {
   await startRealWalk();
   const t0 = Date.now();
   const cells: string[] = [];
@@ -132,7 +136,7 @@ async function stream(n: number, fixOf: (i: number) => { acc: number; speedMps?:
     const f = fixOf(i);
     await act(async () => {
       walkOnUpdate!({
-        coordinates: { lat: ORIGIN.lat + (1.4 * i + (f.wobble ?? 0)) / M_PER_DEG, lng: ORIGIN.lng },
+        coordinates: f.at ?? { lat: ORIGIN.lat + (1.4 * i + (f.wobble ?? 0)) / M_PER_DEG, lng: ORIGIN.lng + (f.eastM ?? 0) / (M_PER_DEG * 0.848) },
         accuracyMeters: f.acc,
         timestamp: t0 + i * 1000,
         source: "gps",
@@ -161,5 +165,32 @@ describe("Doppler stuck at 0 while walking (Note 9 hypothesis)", () => {
     expect(trailM, "trail length").toBeGreaterThan(80);
     for (const [i, t] of cells.slice(45).entries()) expect(t, `cell at ${45 + i} s: ${t}`).not.toMatch(PAUSED);
     expect(cells.slice(45).some((t) => /^\d/.test(t) && parseFloat(t) >= 3)).toBe(true);
+  }, 60_000);
+});
+
+describe("fixes worse than 50 m (Tab S6 network-only)", () => {
+  const distanceToFinishKm = () => {
+    const el = screen.getByTestId("walk-stats");
+    return parseFloat(el.querySelectorAll("p.text-\\[28px\\]")[0]!.textContent!);
+  };
+
+  it("2 minutes of 60-90 m fixes walking: the walked distance grows by 100 m+, no off-route badge, no visit", async () => {
+    // 10 s standing on 10 m fixes (no Doppler) start the stats; then 120 s walking on 60-90 m fixes, 40 m east of the line.
+    const levels = [60, 70, 90, 80];
+    await stream(130, (i) =>
+      i < 10 ? { acc: 10, wobble: -1.4 * i } : { acc: levels[i % 4], wobble: -14 + Math.sin(i) * 3, eastM: 40 },
+    );
+    const before = 4.0;
+    expect(before - distanceToFinishKm(), "walked km").toBeGreaterThanOrEqual(0.1);
+    expect(screen.queryByText(/Off route|מחוץ למסלול/)).toBeNull();
+    // Poor fixes right on the first stop never count as visiting it.
+    for (let k = 0; k < 15; k++) {
+      await act(async () => {
+        walkOnUpdate!({ coordinates: STOPS[0].coordinates, accuracyMeters: 70, timestamp: Date.now(), source: "gps" });
+      });
+      await advance(1_000);
+    }
+    expect(mapCalls.at(-1).nextStopId).toBe("a1");
+    expect(screen.queryByText(/Off route|מחוץ למסלול/)).toBeNull();
   }, 60_000);
 });
