@@ -218,7 +218,7 @@ async function startSimulatedWalk(plan = planOf([MUSEUM, CATHEDRAL, MARKET])) {
   // `WalkTracker.start()` throws without `navigator.geolocation`; the simulator
   // is the app's own answer to that, and the same one a developer ticks to
   // watch this flow in a browser.
-  fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+  fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
   fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
   await flush();
 }

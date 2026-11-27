@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { LocationDeniedCard } from "@/components/assistant/LocationDeniedCard";
 import { GOOD_ACCURACY_M, geolocationSupported, locate, queryLocationPermission } from "@/lib/geo/locate";
 import { currentLocateLang, locateCopy, type LocateLang } from "@/lib/geo/locate-copy";
-import { loadSavedStart, saveStart } from "@/lib/start-location";
+import { MY_LOCATION_LABEL, loadSavedStart, saveStart } from "@/lib/start-location";
 import type { Coordinates } from "@/lib/types";
 import { haversineDistance } from "@/lib/utils/geo";
 
@@ -118,7 +118,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate, lang }: Sta
         picked = { coordinates: fix.coordinates, accuracyMeters: fix.accuracyMeters };
         setStatus(settled ? null : t.approx);
         setLabel(settled ? t.myLocation : `${t.myLocation} · ${t.approx}`);
-        saveStart(fix.coordinates, "My last location");
+        saveStart(fix.coordinates, MY_LOCATION_LABEL);
         onPick(fix.coordinates, "here");
       },
       onState: (state) => {
@@ -141,7 +141,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate, lang }: Sta
     if (origin) return;
     const saved = loadSavedStart();
     if (saved) {
-      setLabel(saved.label);
+      setLabel(saved.label === MY_LOCATION_LABEL ? locateCopy[lang ?? currentLocateLang()].myLocation : saved.label);
       onPick(saved.coordinates);
       return;
     }

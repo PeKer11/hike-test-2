@@ -64,7 +64,7 @@ async function startSimulatedWalk() {
   fireEvent.change(screen.getByPlaceholderText(/^(Longitude|קו אורך)$/), { target: { value: String(ORIGIN.lng) } });
   fireEvent.click(screen.getByRole("button", { name: /^(Build walking route|בנה מסלול הליכה)$/ }));
   await flush();
-  fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+  fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
   fireEvent.click(screen.getByRole("button", { name: /^(Start Walk|התחל הליכה)$/ }));
   await flush();
   raiseSheet();

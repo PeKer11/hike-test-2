@@ -163,7 +163,7 @@ async function startSimulatedWalk(opts: { loop?: boolean; hebrew?: boolean } = {
     fireEvent.change(screen.getByPlaceholderText("קו אורך"), { target: { value: String(ORIGIN.lng) } });
     fireEvent.click(screen.getByRole("button", { name: "בנה מסלול הליכה" }));
     await flush();
-    fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+    fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
     fireEvent.click(screen.getByRole("button", { name: "התחל הליכה" }));
     await flush();
     raiseSheet();
@@ -174,7 +174,7 @@ async function startSimulatedWalk(opts: { loop?: boolean; hebrew?: boolean } = {
   if (opts.loop) fireEvent.change(screen.getByPlaceholderText("Any"), { target: { value: "0" } });
   fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
   await flush();
-  fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+  fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
   fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
   await flush();
   raiseSheet();

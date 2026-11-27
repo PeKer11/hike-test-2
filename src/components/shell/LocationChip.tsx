@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { START_LOCATION_EVENT, loadSavedStart } from "@/lib/start-location";
+import { MY_LOCATION_LABEL, START_LOCATION_EVENT, loadSavedStart } from "@/lib/start-location";
 
 const DEFAULT_LABEL = { en: "My location", he: "המיקום שלי" } as const;
 
@@ -18,7 +18,7 @@ export function useStartLabel(lang: "he" | "en"): string {
   useEffect(() => {
     const read = () => {
       const s = loadSavedStart();
-      setSaved(s && s.label !== "My last location" ? shortLabel(s.label) : null);
+      setSaved(s && s.label !== MY_LOCATION_LABEL ? shortLabel(s.label) : null);
     };
     read();
     window.addEventListener(START_LOCATION_EVENT, read);

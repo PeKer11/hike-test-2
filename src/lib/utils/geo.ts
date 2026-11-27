@@ -101,16 +101,17 @@ export function routeDistanceBetween(
   return Math.max(0, toPos - fromPos);
 }
 
-export function formatDistance(meters: number): string {
+export function formatDistance(meters: number, lang: "en" | "he" = "en"): string {
+  const he = lang === "he";
   if (!Number.isFinite(meters)) {
-    return "Unknown distance";
+    return he ? "מרחק לא ידוע" : "Unknown distance";
   }
 
   if (meters < 1000) {
-    return `${Math.round(meters)} m`;
+    return `${Math.round(meters)} ${he ? "מ׳" : "m"}`;
   }
 
-  return `${(meters / 1000).toFixed(1)} km`;
+  return `${(meters / 1000).toFixed(1)} ${he ? "ק״מ" : "km"}`;
 }
 
 /** North/south/east/west box around a path (Google's LatLngBoundsLiteral), or null when it has fewer than 2 points. */

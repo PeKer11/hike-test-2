@@ -268,7 +268,7 @@ async function startSimulatedWalk() {
   fireEvent.change(screen.getByPlaceholderText("Longitude"), { target: { value: String(ORIGIN.lng) } });
   fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
   await flush();
-  fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+  fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
   fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
   await flush(3);
   raiseSheet();
@@ -452,7 +452,7 @@ describe("a walker who has gone a different way (collapse)", () => {
     fireEvent.change(document.querySelector('input[type="number"][min="15"]') as HTMLInputElement, { target: { value: "20" } });
     fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
     await flush();
-    fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+    fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
     fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
     await flush(3);
     raiseSheet();

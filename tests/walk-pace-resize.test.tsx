@@ -66,7 +66,7 @@ async function startSimulatedWalk(minutes?: string) {
   if (minutes) fireEvent.change(document.querySelector('input[type="number"][min="15"]') as HTMLInputElement, { target: { value: minutes } });
   fireEvent.click(screen.getByRole("button", { name: /^(Build walking route|בנה מסלול הליכה)$/ }));
   await flush();
-  fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+  fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
   fireEvent.click(screen.getByRole("button", { name: /^(Start Walk|התחל הליכה)$/ }));
   await flush();
   raiseSheet();

@@ -1,5 +1,8 @@
 import type { Coordinates } from "@/lib/types";
 
+/** Stored when the start is the phone's own location. A stored value only: screens show the translated "my location". */
+export const MY_LOCATION_LABEL = "My last location";
+
 export const START_LOCATION_KEY = "traike.startLocation.v1";
 /** Fired on `window` after a start is saved, so the header chip can follow. */
 export const START_LOCATION_EVENT = "traike-start-change";
@@ -19,7 +22,7 @@ export function loadSavedStart(): SavedStart | null {
     const lng = v.coordinates?.lng;
     if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-    return { coordinates: { lat, lng }, label: typeof v.label === "string" && v.label ? v.label : "My last location" };
+    return { coordinates: { lat, lng }, label: typeof v.label === "string" && v.label ? v.label : MY_LOCATION_LABEL };
   } catch {
     return null;
   }

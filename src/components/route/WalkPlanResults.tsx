@@ -16,7 +16,37 @@ interface WalkPlanResultsProps {
   lang?: SocialLang;
 }
 
+const COPY = {
+  en: {
+    title: "Your Walk Plan",
+    total: (n: number) => `${n} min total`,
+    walking: (n: number) => `${n} min walking`,
+    visit: (n: number) => `${n} min visit`,
+    walk: (n: number) => `${n} min walk`,
+    walkingTime: "Walking time",
+    visitTime: "Visit time",
+    totalLabel: "Total",
+    min: (n: number) => `${n} min`,
+    dropped: "Didn't fit in time budget:",
+    none: "No attractions found in this area for your time budget. Try increasing the search radius or available time.",
+  },
+  he: {
+    title: "המסלול שלך",
+    total: (n: number) => `${n} דק׳ בסך הכול`,
+    walking: (n: number) => `${n} דק׳ הליכה`,
+    visit: (n: number) => `${n} דק׳ ביקור`,
+    walk: (n: number) => `${n} דק׳ הליכה`,
+    walkingTime: "זמן הליכה",
+    visitTime: "זמן ביקורים",
+    totalLabel: "סה״כ",
+    min: (n: number) => `${n} דק׳`,
+    dropped: "לא נכנסו בזמן:",
+    none: "לא מצאנו מקומות שמתאימים לזמן שלך.",
+  },
+} as const;
+
 export function WalkPlanResults({ plan, error, community, lang = "en" }: WalkPlanResultsProps) {
+  const t = COPY[lang];
   if (error) {
     return (
       <Card>
@@ -33,10 +63,7 @@ export function WalkPlanResults({ plan, error, community, lang = "en" }: WalkPla
   if (plan.orderedAttractions.length === 0) {
     return (
       <Card>
-        <p className="text-sm text-charcoal/70">
-          No attractions found in this area for your time budget. Try increasing
-          the search radius or available time.
-        </p>
+        <p className="text-sm text-charcoal/70">{t.none}</p>
       </Card>
     );
   }
@@ -53,11 +80,11 @@ export function WalkPlanResults({ plan, error, community, lang = "en" }: WalkPla
   return (
     <Card className="space-y-3">
       <div>
-        <h2 className="font-display text-base font-bold text-forest">Your Walk Plan</h2>
+        <h2 className="font-display text-base font-bold text-forest">{t.title}</h2>
         <div className="mt-1 flex gap-3 text-xs text-charcoal/60">
-          <span className="inline-flex items-center gap-1"><ClockIcon className="h-4 w-4" /> {Math.round(plan.totalMinutes)} min total</span>
-          <span className="inline-flex items-center gap-1"><WalkIcon className="h-4 w-4" /> {Math.round(walkingMinutes)} min walking</span>
-          <span className="inline-flex items-center gap-1"><TrailIcon className="h-4 w-4" /> {formatDistance(plan.totalDistanceMeters)}</span>
+          <span className="inline-flex items-center gap-1"><ClockIcon className="h-4 w-4" /> {t.total(Math.round(plan.totalMinutes))}</span>
+          <span className="inline-flex items-center gap-1"><WalkIcon className="h-4 w-4" /> {t.walking(Math.round(walkingMinutes))}</span>
+          <span className="inline-flex items-center gap-1"><TrailIcon className="h-4 w-4" /> {formatDistance(plan.totalDistanceMeters, lang)}</span>
         </div>
       </div>
 
@@ -77,9 +104,9 @@ export function WalkPlanResults({ plan, error, community, lang = "en" }: WalkPla
                   {emoji} {attraction.name}
                 </p>
                 <p className="text-xs text-charcoal/60">
-                  {attraction.avgVisitMinutes} min visit
+                  {t.visit(attraction.avgVisitMinutes)}
                   {segment
-                    ? ` · ${Math.round(segment.walkingMinutes)} min walk · ${formatDistance(segment.distanceMeters)}`
+                    ? ` · ${t.walk(Math.round(segment.walkingMinutes))} · ${formatDistance(segment.distanceMeters, lang)}`
                     : ""}
                 </p>
                 {community ? (
@@ -94,25 +121,23 @@ export function WalkPlanResults({ plan, error, community, lang = "en" }: WalkPla
       {/* Time breakdown */}
       <div className="rounded-md bg-cream/70 p-2 text-xs text-charcoal/70 space-y-0.5">
         <div className="flex justify-between">
-          <span>Walking time</span>
-          <span>{Math.round(walkingMinutes)} min</span>
+          <span>{t.walkingTime}</span>
+          <span>{t.min(Math.round(walkingMinutes))}</span>
         </div>
         <div className="flex justify-between">
-          <span>Visit time</span>
-          <span>{Math.round(visitMinutes)} min</span>
+          <span>{t.visitTime}</span>
+          <span>{t.min(Math.round(visitMinutes))}</span>
         </div>
         <div className="flex justify-between font-semibold text-forest">
-          <span>Total</span>
-          <span>{Math.round(plan.totalMinutes)} min</span>
+          <span>{t.totalLabel}</span>
+          <span>{t.min(Math.round(plan.totalMinutes))}</span>
         </div>
       </div>
 
       {/* Dropped attractions */}
       {plan.droppedAttractions.length > 0 && (
         <div className="text-xs text-charcoal/60">
-          <p className="font-medium text-charcoal/80">
-            Didn&apos;t fit in time budget:
-          </p>
+          <p className="font-medium text-charcoal/80">{t.dropped}</p>
           <p>{plan.droppedAttractions.map((a) => a.name).join(", ")}</p>
         </div>
       )}

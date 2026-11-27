@@ -116,7 +116,7 @@ describe("walkedGeometry handed to the map", () => {
     fireEvent.change(screen.getByPlaceholderText("Longitude"), { target: { value: String(ORIGIN.lng) } });
     fireEvent.click(screen.getByRole("button", { name: "Build walking route" }));
     await flush();
-    fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+    fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
     fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
     await flush();
     for (let i = 0; i < 20; i++) await advance(1_000);

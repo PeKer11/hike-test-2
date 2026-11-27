@@ -116,7 +116,7 @@ describe("a throwing walks panel during a live walk", () => {
     fireEvent.change(screen.getByPlaceholderText("קו אורך"), { target: { value: String(ORIGIN.lng) } });
     fireEvent.click(screen.getByRole("button", { name: "בנה מסלול הליכה" }));
     await act(async () => {});
-    fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+    fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
     fireEvent.click(screen.getByRole("button", { name: "התחל הליכה" }));
     await act(async () => {});
     signedIn = true;

@@ -392,14 +392,14 @@ describe("what each walk phase wires up", () => {
     renderPlanner();
     await buildWalk();
 
-    expect(screen.getByLabelText(/Simulate this walk/)).toBeTruthy();
+    expect(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/)).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: /Stray 80 m off route/ }),
     ).toBeNull();
 
     await startWalk();
 
-    expect(screen.queryByLabelText(/Simulate this walk/)).toBeNull();
+    expect(screen.queryByLabelText(/Simulate this walk|הדמיית הליכה/)).toBeNull();
     expect(
       screen.getByRole("button", { name: /Stray 80 m off route/ }),
     ).toBeTruthy();
@@ -450,7 +450,7 @@ describe("what each walk phase wires up", () => {
  * developer ticks to watch this flow in a browser.
  */
 async function startWalk() {
-  fireEvent.click(screen.getByLabelText(/Simulate this walk/));
+  fireEvent.click(screen.getByLabelText(/Simulate this walk|הדמיית הליכה/));
   fireEvent.click(screen.getByRole("button", { name: "Start Walk" }));
   await screen.findByRole("button", { name: "End Walk" });
 }

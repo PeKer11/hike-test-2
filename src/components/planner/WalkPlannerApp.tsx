@@ -1823,7 +1823,7 @@ export function WalkPlannerApp({
           }
           // The AI itself failed (not sign-in, budget or bad input): the rule-based planner can still build the walk.
           if (aiRes.status < 500) {
-            setWalkPlanError(ai.error ?? "The AI could not build a walk that fits.");
+            setWalkPlanError(ai.error ?? (uiLang === "he" ? "לא הצלחנו לבנות הליכה שמתאימה." : "The AI could not build a walk that fits."));
             return null;
           }
           // The AI used up the clock; the planner gets a fresh one.
@@ -1868,7 +1868,7 @@ export function WalkPlannerApp({
         if (snapshot) {
           reportReplanFailed();
         } else {
-          setWalkPlanError(data.error ?? "Failed to build walk plan.");
+          setWalkPlanError(data.error ?? (uiLang === "he" ? "בניית ההליכה נכשלה." : "Failed to build walk plan."));
         }
       } else if (snapshot && (data.orderedAttractions.length === 0 || (data.geometry?.length ?? 0) < 2)) {
         // A route with no stops or no line would drop the walker out of the walk; keep the one they were on.
@@ -1959,8 +1959,12 @@ export function WalkPlannerApp({
         // and "ask for less" — the second is the only one that helps here.
         setWalkPlanError(
           controller.signal.aborted
-            ? WALK_PLAN_TIMEOUT_MESSAGE
-            : "Network error. Please try again.",
+            ? uiLang === "he"
+              ? "זה לקח יותר מדי זמן. נסו פחות עצירות."
+              : WALK_PLAN_TIMEOUT_MESSAGE
+            : uiLang === "he"
+              ? "שגיאת רשת. נסו שוב."
+              : "Network error. Please try again.",
         );
       }
     } finally {
@@ -3135,7 +3139,7 @@ export function WalkPlannerApp({
     if (isUnmountedRef.current) return;
     const plan = planOverride ?? walkPlan;
     if (!plan || walkGeometryRef.current.length < 2) {
-      setWalkPlanError("Build a walk plan before starting live tracking.");
+      setWalkPlanError(uiLang === "he" ? "קודם בונים מסלול." : "Build a walk plan before starting live tracking.");
       return;
     }
     // A start the walker pressed (not the one a rebuild makes for itself) begins from a clean slate:
@@ -5082,7 +5086,7 @@ export function WalkPlannerApp({
                       .then(() => setWalksVersion((v) => v + 1));
                   }}
                 >
-                  {walkBookmarked ? "Saved for later" : "Save for later"}
+                  {uiLang === "he" ? (walkBookmarked ? "נשמר להמשך" : "שמירה להמשך") : walkBookmarked ? "Saved for later" : "Save for later"}
                 </Button>
               )}
               {/* Pinned stop no longer fits the remaining time — ask, don't drop it */}
@@ -5187,8 +5191,9 @@ export function WalkPlannerApp({
                       for half a minute reads as broken. */}
                   {isWalkPlanSlow && (
                     <p role="status" className="text-[13px] text-charcoal/60">
-                      Still building — this one&apos;s taking longer than usual.
-                      Lots of stops or a wide radius means more places to check.
+                      {uiLang === "he"
+                        ? "עדיין בונים — זה לוקח יותר מהרגיל."
+                        : "Still building — this one's taking longer than usual. Lots of stops or a wide radius means more places to check."}
                     </p>
                   )}
                 </Card>
@@ -5201,9 +5206,13 @@ export function WalkPlannerApp({
                   walkPlan.droppedAttractions.length > 0) && (
                   <Card className="space-y-2">
                     <p className="text-sm text-amber-700">
-                      {walkPlan.orderedAttractions.length === 0
-                        ? "No attractions fit your time budget."
-                        : `Only ${walkPlan.orderedAttractions.length} of ${walkPlan.orderedAttractions.length + walkPlan.droppedAttractions.length} attractions fit — expand time or radius?`}
+                      {uiLang === "he"
+                        ? walkPlan.orderedAttractions.length === 0
+                          ? "אין עצירות שנכנסות בזמן."
+                          : `רק ${walkPlan.orderedAttractions.length} מתוך ${walkPlan.orderedAttractions.length + walkPlan.droppedAttractions.length} עצירות נכנסו`
+                        : walkPlan.orderedAttractions.length === 0
+                          ? "No attractions fit your time budget."
+                          : `Only ${walkPlan.orderedAttractions.length} of ${walkPlan.orderedAttractions.length + walkPlan.droppedAttractions.length} attractions fit — expand time or radius?`}
                     </p>
                     <Button
                       variant="secondary"
@@ -5214,7 +5223,7 @@ export function WalkPlannerApp({
                         });
                       }}
                     >
-                      + 15 min and retry
+                      {uiLang === "he" ? "‎+15 דק׳ ולנסות שוב" : "+ 15 min and retry"}
                     </Button>
                   </Card>
                 )
@@ -5245,7 +5254,7 @@ export function WalkPlannerApp({
                     onChange={(e) => setIsSimulating(e.target.checked)}
                     className="h-[18px] w-[18px] shrink-0 accent-tk-check"
                   />
-                  Simulate this walk (10× speed)
+                  {uiLang === "he" ? "הדמיית הליכה (פי 10)" : "Simulate this walk (10× speed)"}
                   <svg aria-hidden viewBox="0 0 186 34" className="pointer-events-none absolute end-[55px] top-[calc(50%+2px)] hidden h-[15px] w-[83px] -translate-y-1/2 rtl:-scale-x-100 @min-[346px]:block">
                     <path d="M3 27C40 33 62 8 100 13S150 30 183 6" fill="none" stroke="#d4b499" strokeWidth={3} strokeDasharray="7 7" strokeLinecap="round" />
                   </svg>
