@@ -164,7 +164,7 @@ describe("Doppler stuck at 0 while walking (Note 9 hypothesis)", () => {
     for (let i = 1; i < trail.length; i++) trailM += Math.abs(trail[i].lat - trail[i - 1].lat) * M_PER_DEG;
     expect(trailM, "trail length").toBeGreaterThan(80);
     for (const [i, t] of cells.slice(45).entries()) expect(t, `cell at ${45 + i} s: ${t}`).not.toMatch(PAUSED);
-    expect(cells.slice(45).some((t) => /^\d/.test(t) && parseFloat(t) >= 3)).toBe(true);
+    expect(cells.slice(45).some((t) => /^≈?\d/.test(t) && parseFloat(t.replace("≈", "")) >= 3)).toBe(true);
   }, 60_000);
 });
 
