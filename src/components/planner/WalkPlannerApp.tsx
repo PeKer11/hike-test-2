@@ -876,6 +876,7 @@ export function WalkPlannerApp({
       sustained,
       position: stab.positionSpeed(now),
       dopplerTrusted: stab.dopplerTrusted(now),
+      trending: stab.trending,
     });
     const projected = progressAlong(
       walkGeometryRef.current,

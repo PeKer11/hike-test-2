@@ -78,6 +78,9 @@ const offset = (a: Coordinates, b: Coordinates) => ({
 const HIST_MS = 40_000;
 /** "Now" is the mean of the fixes in the last 5 s; "then" the mean of those DOT_TREND_STALL_MS +- 5 s ago. */
 const NOW_WINDOW_MS = 5_000;
+/** While trending, the position speed is the fixes' velocity over this window (needs this many fixes). */
+const TREND_SPEED_WINDOW_MS = 10_000;
+const TREND_SPEED_MIN_FIXES = 4;
 
 /**
  * Decides where the shown dot sits. Moving or unsure: it follows the raw fix as before. Standing (Doppler) or no
@@ -144,6 +147,20 @@ export class DotStabilizer {
   }
   /** Speed from the fixes' displacement over about 20 s: moving in trend or follow, paused while held. */
   positionSpeed(ts: number): { kmh: number | null; state: "moving" | "paused" | "unknown" } {
+    // Trending: the velocity of the last 10 s of fixes (least squares), so the cell does not wait 20-30 s.
+    if (this.trend) {
+      const w = this.hist.filter((h) => ts - h.t <= TREND_SPEED_WINDOW_MS);
+      if (w.length >= TREND_SPEED_MIN_FIXES) {
+        const t0 = w.reduce((a, h) => a + h.t, 0) / w.length;
+        const o = w.map((h) => ({ dt: (h.t - t0) / 1000, ...offset(w[0].c, h.c) }));
+        const mx = o.reduce((a, q) => a + q.x, 0) / o.length;
+        const my = o.reduce((a, q) => a + q.y, 0) / o.length;
+        const sxx = o.reduce((a, q) => a + q.dt * q.dt, 0) || 1;
+        const vx = o.reduce((a, q) => a + q.dt * (q.x - mx), 0) / sxx;
+        const vy = o.reduce((a, q) => a + q.dt * (q.y - my), 0) / sxx;
+        return { kmh: Math.hypot(vx, vy) * 3.6, state: "moving" };
+      }
+    }
     const p = this.progress(ts);
     if (!p) return { kmh: null, state: "unknown" };
     const v = p.m / p.dtS;

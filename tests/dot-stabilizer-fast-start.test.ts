@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { DotStabilizer } from "@/lib/walk/dot-stabilizer";
+import { LiveSpeed } from "@/lib/walk/live-speed";
+import { SpeedEstimator } from "@/lib/walk/speed-estimator";
+import { pickShownSpeed } from "@/lib/walk/walk-stats";
 import { DEVICES, T0, genStill, replayStill, standMetrics, stillWalkMetrics, toLL, toXY, type StillOpts } from "./helpers/device-fixes";
 
 // Fast-start bars (docs/LIVE-DEVICE-FOLLOWUP-PLAN-2026-11-26.md, section (a) and (d) commit 1). Seeds 1-6.
@@ -107,4 +110,36 @@ describe("DotStabilizer fast start: guard", () => {
       }
     }
   });
+});
+
+describe("speed cell while the fast lane trends", () => {
+  // Same wiring as WalkPlannerApp: Doppler goes to LiveSpeed / SpeedEstimator only while the stabilizer trusts it.
+  for (const speedWalk of ["null", "zero"] as const) {
+    it(`repro, walk speed ${speedWalk}: the cell shows 3.5-6.5 km/h at walk +10 s and +20 s`, () => {
+      for (const seed of [1, 2, 3]) {
+        const st = new DotStabilizer();
+        const se = new SpeedEstimator();
+        const ls = new LiveSpeed();
+        for (const f of genStill(seed, { ...REPRO, speedWalk })) {
+          const c = toLL(f.x, f.y);
+          st.push({ coordinates: c, accuracyM: f.acc, speedMps: f.speed, timestamp: f.t });
+          const sp = st.dopplerTrusted(f.t) ? f.speed : undefined;
+          ls.record({ timestamp: f.t, speedMps: sp });
+          se.record({ coordinates: c, timestamp: f.t, accuracyMeters: f.acc, speedMps: sp });
+          const t = (f.t - T0) / 1000 - STAND_S;
+          if (t !== 10 && t !== 20) continue;
+          const shown = pickShownSpeed({
+            live: ls.current(f.t),
+            sustained: se.current(f.t),
+            position: st.positionSpeed(f.t),
+            dopplerTrusted: st.dopplerTrusted(f.t),
+            trending: st.trending,
+          });
+          expect(shown.state, `seed ${seed} +${t} s`).toBe("moving");
+          expect(shown.kmh, `seed ${seed} +${t} s`).toBeGreaterThanOrEqual(3.5);
+          expect(shown.kmh, `seed ${seed} +${t} s`).toBeLessThanOrEqual(6.5);
+        }
+      }
+    });
+  }
 });

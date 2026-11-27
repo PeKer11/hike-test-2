@@ -45,8 +45,11 @@ export function pickShownSpeed(args: {
   sustained: ShownSpeed;
   position: ShownSpeed | undefined;
   dopplerTrusted: boolean;
+  /** The dot stabilizer follows positions (no usable Doppler): its position speed comes before the slow sustained one. */
+  trending?: boolean;
 }): ShownSpeed & { source: "live" | "sustained" | "position" } {
   if (args.dopplerTrusted && args.live && args.live.state !== "unknown") return { ...args.live, source: "live" };
+  if (args.trending && args.position && args.position.state !== "unknown") return { ...args.position, source: "position" };
   if (args.sustained.state !== "unknown" || !args.position) return { ...args.sustained, source: "sustained" };
   return { ...args.position, source: "position" };
 }
