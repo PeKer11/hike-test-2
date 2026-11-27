@@ -26,7 +26,8 @@ export type LocateState =
   | "unavailable"
   | "timeout";
 
-export type LocatePurpose = "start" | "walk";
+/** "follow": a visible plan map keeps its "my location" dot live — a start without the early stop, 25 s cap or IP fallback. */
+export type LocatePurpose = "start" | "walk" | "follow";
 
 export interface LocateFix {
   coordinates: Coordinates;
@@ -253,7 +254,7 @@ export function locate(options: LocateOptions): { stop(): void } {
         retries += 1;
         later(delay, quickFix);
       },
-      { enableHighAccuracy: false, maximumAge: purpose === "walk" ? WATCH_MAX_AGE_MS : COARSE_MAX_AGE_MS, timeout: COARSE_TIMEOUT_MS },
+      { enableHighAccuracy: false, maximumAge: purpose !== "start" ? WATCH_MAX_AGE_MS : COARSE_MAX_AGE_MS, timeout: COARSE_TIMEOUT_MS },
     );
   };
 

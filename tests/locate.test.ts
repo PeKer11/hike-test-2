@@ -26,7 +26,7 @@ function fakeGeo() {
   return { geo, quick, watches };
 }
 
-function run(purpose: "start" | "walk") {
+function run(purpose: "start" | "walk" | "follow") {
   const fixes: LocateFix[] = [];
   const states: LocateState[] = [];
   const errors: number[] = [];
@@ -397,5 +397,19 @@ describe("locate: a start's watch ends only on a good watch fix", () => {
     watches[0].ok(pos(15));
     expect(geo.clearWatch).toHaveBeenCalledTimes(1);
     expect(r.fixes.map((f) => f.kind)).toEqual(["quick", "watch"]);
+  });
+});
+
+describe("locate: follow purpose", () => {
+  it("keeps the watch after a good watch fix, takes no cached quick read, and stop() clears it", () => {
+    const { geo, quick, watches } = fakeGeo();
+    const r = run("follow");
+    expect(quick[0].opts.maximumAge).toBeLessThan(10_000);
+    watches[0].ok(pos(15));
+    watches[0].ok(pos(30));
+    expect(geo.clearWatch).not.toHaveBeenCalled();
+    expect(r.fixes.map((f) => f.kind)).toEqual(["watch", "watch"]);
+    r.handle.stop();
+    expect(geo.clearWatch).toHaveBeenCalledTimes(1);
   });
 });
