@@ -56,6 +56,9 @@ export interface GpsDebugSnapshot {
   dotTrend: boolean;
   dopplerTrusted: boolean;
   contradictions: number;
+  /** Fast start lane: its radius when on (0: off or not measured yet), and the fast starts so far. */
+  fastRadiusM: number;
+  fastStarts: number;
 }
 
 const EMPTY: GpsDebugSnapshot = {
@@ -89,6 +92,8 @@ const EMPTY: GpsDebugSnapshot = {
   dotTrend: false,
   dopplerTrusted: true,
   contradictions: 0,
+  fastRadiusM: 0,
+  fastStarts: 0,
 };
 
 const PATH_WINDOW_MS = 60_000;
@@ -175,6 +180,8 @@ export const gpsDebug = {
     trend?: boolean;
     dopplerTrusted?: boolean;
     contradictions?: number;
+    fastRadiusM?: number;
+    fastStarts?: number;
   }): void {
     if (lastShown) {
       const m = haversineDistance(lastShown, d.shown);
@@ -192,6 +199,8 @@ export const gpsDebug = {
     state.dotTrend = d.trend ?? false;
     state.dopplerTrusted = d.dopplerTrusted ?? true;
     state.contradictions = d.contradictions ?? 0;
+    state.fastRadiusM = d.fastRadiusM ?? 0;
+    state.fastStarts = d.fastStarts ?? 0;
   },
   error(e: unknown): void {
     state.errors += 1;
@@ -248,6 +257,9 @@ export function formatGpsDebug(s: GpsDebugSnapshot, zoom: number | undefined, fo
     `trend ${s.dotTrend ? "y" : "n"}`,
     `dopT ${s.dopplerTrusted ? "y" : "n"}`,
     `contra ${s.contradictions}`,
+    `fast ${s.fastRadiusM > 0 ? "y" : "n"}`,
+    `R ${s.fastRadiusM > 0 ? Math.round(s.fastRadiusM) + "m" : "-"}`,
+    `fst ${s.fastStarts}`,
     `err ${s.errors}`,
     `z ${zoom === undefined ? "-" : Math.round(zoom * 10) / 10}`,
     `follow ${follow ? "on" : "off"}`,

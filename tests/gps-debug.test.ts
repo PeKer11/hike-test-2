@@ -153,6 +153,17 @@ describe("gps debug counters", () => {
       expect(line).toContain("contra 2");
     });
 
+    it("shows the fast lane: on with its radius, and the fast starts so far", () => {
+      const base = { state: "nodoppler" as const, holding: true, held: 0, escapes: 0, recentres: 0, raw: { lat: 1, lng: 1 }, shown: { lat: 1, lng: 1 }, timestamp: 1 };
+      gpsDebug.dot({ ...base, fastRadiusM: 7.4, fastStarts: 2 });
+      const line = formatGpsDebug(gpsDebug.snapshot(), 17, true);
+      expect(line).toContain("fast y");
+      expect(line).toContain("R 7m");
+      expect(line).toContain("fst 2");
+      gpsDebug.dot({ ...base, fastRadiusM: 0, fastStarts: 2 });
+      expect(formatGpsDebug(gpsDebug.snapshot(), 17, true)).toContain("fast n | R - | fst 2");
+    });
+
     it("before any fix: dashes, and the old fields default to trend n, dopT y, contra 0", () => {
       const line = formatGpsDebug(gpsDebug.snapshot(), 17, true);
       expect(line).toContain("prov -");
@@ -161,6 +172,7 @@ describe("gps debug counters", () => {
       expect(line).toContain("trend n");
       expect(line).toContain("dopT y");
       expect(line).toContain("contra 0");
+      expect(line).toContain("fast n | R - | fst 0");
     });
   });
 });

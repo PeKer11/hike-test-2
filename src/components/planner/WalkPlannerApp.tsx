@@ -3275,6 +3275,8 @@ export function WalkPlannerApp({
             trend: stab.trending,
             dopplerTrusted: stab.dopplerTrusted(update.timestamp),
             contradictions: stab.stats.contradictions,
+            fastRadiusM: stab.fastRadius,
+            fastStarts: stab.stats.fastStarts,
           });
         }
         if (decision.publish) dotPendingRef.current = decision.coordinates;
