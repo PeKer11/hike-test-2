@@ -111,10 +111,10 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
     const answer = await requestVariant(w.id, request);
     setMaking(false);
     if (!answer.ok) {
-      setNotice(answer.needsAi ? "That is too short to get by dropping stops: ask the assistant for a new shorter walk." : answer.error);
+      setNotice(answer.needsAi ? (lang === "he" ? "קצר מדי. בקשו מהעוזר הליכה חדשה." : "That is too short to get by dropping stops: ask the assistant for a new shorter walk.") : answer.error);
       return;
     }
-    setNotice(`Saved "${answer.walk.title}".`);
+    setNotice(lang === "he" ? `נשמר "${answer.walk.title}".` : `Saved "${answer.walk.title}".`);
     await load();
     setExpanded((cur) => new Set(cur).add(w.id));
   };
@@ -123,7 +123,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
     setMenuFor(null);
     const here = await locateOnce(6000);
     if (!here) {
-      setNotice("Allow your location to start the walk from here.");
+      setNotice(lang === "he" ? "אפשרו מיקום כדי להתחיל מכאן." : "Allow your location to start the walk from here.");
       return;
     }
     await makeVariant(w, { kind: "start_here", at: here });
@@ -188,7 +188,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[13px] ${CHIP[w.status]}`}>{isDraft ? "draft" : w.status}</span>
       </div>
       <p className="text-[13px] text-tk-sage">
-        {runCount > 0 ? `Last walked ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}
+        {runCount > 0 ? `${L.last} ${fmt(runs[0].startedAt)} · ${runCount}×` : fmt(w.createdAt)}
         {w.totalMin !== null && ` · ${w.totalMin} min`}
         {w.distanceM !== null && ` · ${(w.distanceM / 1000).toFixed(1)} km`}
       </p>
@@ -203,7 +203,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
           ))}
         </ol>
       )}
-      {making && <p role="status" className="text-[13px] text-tk-sage">Making that version…</p>}
+      {making && <p role="status" className="text-[13px] text-tk-sage">{lang === "he" ? "מכינים גרסה…" : "Making that version…"}</p>}
       {notice && <p role="status" className="text-[13px] text-tk-body">{notice}</p>}
       <div className="space-y-2">
     <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -223,16 +223,16 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
       )}
       {onShowOnMap && w.stops.length > 0 && (
         <button type="button" aria-pressed={previewId === w.id} onClick={() => (onOpenOnMap && previewId !== w.id ? onOpenOnMap(w) : onShowOnMap(previewId === w.id ? null : w))} className={BTN_SOFT}>
-          {previewId === w.id ? "Hide from map" : "Show on map"}
+          {previewId === w.id ? (lang === "he" ? "הסתרה מהמפה" : "Hide from map") : lang === "he" ? "הצגה במפה" : "Show on map"}
         </button>
       )}
       {runCount > 1 && (
         <button type="button" onClick={() => setOpen(open === w.id ? null : w.id)} className={BTN_SOFT}>
-          {open === w.id ? "Hide runs" : "Earlier runs"}
+          {open === w.id ? (lang === "he" ? "הסתרת הליכות" : "Hide runs") : lang === "he" ? "הליכות קודמות" : "Earlier runs"}
         </button>
       )}
       <button type="button" onClick={() => void toggleVisibility(w)} className={BTN_SOFT}>
-        {w.visibility === "friends" ? "Shared with friends" : "Private"}
+        {w.visibility === "friends" ? (lang === "he" ? "משותף עם חברים" : "Shared with friends") : lang === "he" ? "פרטי" : "Private"}
       </button>
       {socialProfilesEnabled() && w.status === "completed" && (
         <button type="button" aria-pressed={hiddenIds.has(w.id)} onClick={() => void toggleHidden(w)} className={BTN_SOFT}>
@@ -255,7 +255,7 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
           <div role="group" aria-label="Target minutes" className="flex gap-2 pl-2">
             {[30, 45, 60].map((m) => (
               <button key={m} type="button" onClick={() => void makeVariant(w, { kind: "shorter", minutes: m })} className={BTN_SOFT}>
-                {m} min
+                {m} {lang === "he" ? "דק׳" : "min"}
               </button>
             ))}
           </div>
@@ -297,28 +297,28 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
     <section className={`${PANEL} space-y-3`}>
       {segment ? null : (
       <div>
-        <h2 className={PANEL_TITLE}>My walks{loading ? "" : ` (${items.length})`}</h2>
+        <h2 className={PANEL_TITLE}>{lang === "he" ? "ההליכות שלי" : "My walks"}{loading ? "" : ` (${items.length})`}</h2>
       </div>
       )}
       <div role="group" aria-label="Filter walks" className={segment !== undefined ? "hidden" : "flex gap-2 text-[13px]"}>
         {(["all", "drafts"] as const).map((f) => (
           <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={chipCell(filter === f)}>
-            {f === "all" ? "All" : "Drafts"}
+            {f === "all" ? (lang === "he" ? "הכול" : "All") : lang === "he" ? "טיוטות" : "Drafts"}
           </button>
         ))}
       </div>
       {(
         <>
-          {loading && <p className="text-[13px] text-tk-sage">Loading…</p>}
-          {making && <p role="status" className="text-[13px] text-tk-sage">Making that version…</p>}
+          {loading && <p className="text-[13px] text-tk-sage">{lang === "he" ? "טוען…" : "Loading…"}</p>}
+          {making && <p role="status" className="text-[13px] text-tk-sage">{lang === "he" ? "מכינים גרסה…" : "Making that version…"}</p>}
           {notice && <p role="status" className="text-[13px] text-tk-body">{notice}</p>}
-          {!loading && failed && <EmptyState image="load-error.png" title="Couldn't load your walks" hint="Check your connection and reopen this tab." />}
+          {!loading && failed && <EmptyState image="load-error.png" title={lang === "he" ? "לא הצלחנו לטעון" : "Couldn't load your walks"} hint={lang === "he" ? undefined : "Check your connection and reopen this tab."} />}
           {!loading && !failed && shown.length === 0 && (
             <>
               <EmptyState
                 image="empty-walks.png"
                 title={lang === "he" ? (segment === "saved" ? "עוד אין הליכות שמורות" : "עוד אין הליכות") : filter === "drafts" ? "No drafts" : segment === "saved" ? "No saved walks yet" : "No walks yet"}
-                hint={segment ? undefined : "Build one and it shows up here."}
+                hint={segment || lang === "he" ? undefined : "Build one and it shows up here."}
               />
               {segment && onNewRoute ? (
                 <div className="flex justify-center pb-2">
