@@ -209,7 +209,7 @@ export function locate(options: LocateOptions): { stop(): void } {
     if (fix.source === "gps") saveLastFix(fix);
     setState(fix.accuracyMeters <= GOOD_ACCURACY_M ? "good" : "coarse");
     onUpdate(fix.source === "gps" ? { ...fix, kind } : fix);
-    if (purpose === "start" && fix.source === "gps" && fix.accuracyMeters <= GOOD_ACCURACY_M) clearWatch();
+    if (purpose === "start" && kind === "watch" && fix.source === "gps" && fix.accuracyMeters <= GOOD_ACCURACY_M) clearWatch();
   };
 
   const handleError = (err: GeolocationPositionError) => {

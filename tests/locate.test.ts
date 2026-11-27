@@ -387,3 +387,15 @@ describe("walk fixes stamped by a device clock that disagrees with the browser's
     expect(fixes).toHaveLength(2);
   });
 });
+
+describe("locate: a start's watch ends only on a good watch fix", () => {
+  it("a quick fix at 20 m keeps the watch; the first watch fix <= 50 m clears it", () => {
+    const { geo, quick, watches } = fakeGeo();
+    const r = run("start");
+    quick[0].ok(pos(20));
+    expect(geo.clearWatch).not.toHaveBeenCalled();
+    watches[0].ok(pos(15));
+    expect(geo.clearWatch).toHaveBeenCalledTimes(1);
+    expect(r.fixes.map((f) => f.kind)).toEqual(["quick", "watch"]);
+  });
+});
