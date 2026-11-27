@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DotStabilizer } from "@/lib/walk/dot-stabilizer";
-import { genStill, replayStill, standMetrics, stillWalkMetrics, type StillOpts } from "./helpers/device-fixes";
+import { T0, genStill, replayStill, standMetrics, stillWalkMetrics, toLL, toXY, type StillOpts } from "./helpers/device-fixes";
 
 // Fast-start bars (docs/LIVE-DEVICE-FOLLOWUP-PLAN-2026-11-26.md, section (a) and (d) commit 1). Seeds 1-6.
 // Walk: stand 30 s, then 1.4 m/s for 90 s, 1 Hz. `it.fails` marks a bar the current stabilizer does not meet yet;
@@ -82,4 +82,17 @@ describe("DotStabilizer fast start: standing 300 s stays held", () => {
       });
     }
   }
+});
+
+describe("DotStabilizer: stale exact-0 Doppler", () => {
+  it("10 fixes of Doppler 0, then speedless fixes advancing 1.4 m/s: never unsure, no publish lands > 3 m ahead of the raw fix", () => {
+    const st = new DotStabilizer();
+    for (let s = 0; s < 10; s++) st.push({ coordinates: toLL(0, 0), accuracyM: 9, speedMps: 0, timestamp: T0 + s * 1000 });
+    for (let s = 10; s < 50; s++) {
+      const raw = toLL(0, (s - 10) * 1.4);
+      const d = st.push({ coordinates: raw, accuracyM: 9, speedMps: null, timestamp: T0 + s * 1000 });
+      expect(d.state, `t=${s}`).not.toBe("unsure");
+      if (d.publish) expect(toXY(d.coordinates).y - toXY(raw).y, `t=${s}`).toBeLessThanOrEqual(3);
+    }
+  });
 });

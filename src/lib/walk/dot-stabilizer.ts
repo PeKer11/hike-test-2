@@ -146,7 +146,14 @@ export class DotStabilizer {
     if (!this.dopplerTrusted(ts)) return "nodoppler";
     if (this.dop.length >= STOP_MIN_READINGS && median(this.dop.map((d) => d.v)) < SPEED_STOP_BELOW_MPS) return "stopped";
     if (this.dop.length === 0) return "nodoppler";
+    // A few leftover exact-0 readings, none live: they say nothing (the stream of zeros ended).
+    if (this.weakStopped() && !recent.length) return "nodoppler";
     return "unsure";
+  }
+
+  /** Exact-0 Doppler only (the OS stillness flag or a stuck chip): it may not veto a position-based move. */
+  private weakStopped(): boolean {
+    return this.dop.length > 0 && this.dop.every((d) => d.v === 0);
   }
 
   private contradict(ts: number): void {
@@ -209,8 +216,8 @@ export class DotStabilizer {
     }
     // Doppler-stopped: the whole accuracy. No usable Doppler: capped, since network accuracy is bias, not scatter.
     const radius = st === "stopped" ? Math.max(DOT_ESCAPE_MIN_M, f.accuracyM) : Math.max(DOT_ESCAPE_MIN_M, Math.min(f.accuracyM, DOT_NODOP_RADIUS_CAP_M));
-    // The GPS says standing: a Wi-Fi fix (no speed) cannot overrule it.
-    const noSpeedWhileStopped = st === "stopped" && !hasSpeed;
+    // The GPS says standing: a Wi-Fi fix (no speed) cannot overrule it. Exact-0 readings are no such evidence.
+    const noSpeedWhileStopped = st === "stopped" && !hasSpeed && !this.weakStopped();
     if (!noSpeedWhileStopped && haversineDistance(this.shown, f.coordinates) > radius) {
       const last = this.cand[this.cand.length - 1];
       if (last && haversineDistance(last.coordinates, f.coordinates) > radius) this.cand = [];
