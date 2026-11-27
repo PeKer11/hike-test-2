@@ -3612,11 +3612,13 @@ export function WalkPlannerApp({
     const onGpsError = (error: { isTimeout: boolean; message: string }) => {
       if (error.isTimeout) {
         setWalkTrackingMessage(
-          "GPS signal is weak right now. Waiting for the next location update...",
+          uiLang === "he"
+            ? "אות ה-GPS חלש. ממתינים למיקום הבא…"
+            : "GPS signal is weak right now. Waiting for the next location update...",
         );
         return;
       }
-      setWalkTrackingMessage(`Live tracking issue: ${error.message}`);
+      setWalkTrackingMessage(uiLang === "he" ? `בעיה במעקב: ${error.message}` : `Live tracking issue: ${error.message}`);
     };
 
     const tracker = isSimulating
@@ -4813,7 +4815,7 @@ export function WalkPlannerApp({
                 <WalkSlot walking={walkMode} order={15}>
                 <details className={walkMode ? "rounded-tk-card bg-tk-card shadow-tk-card" : "[&>summary]:hidden"} open={!walkMode || chatOpen}
                   onToggle={(e) => { if (walkMode) setChatOpen(e.currentTarget.open); }}>
-                <summary className="cursor-pointer px-4 py-2.5 font-brand text-sm font-semibold text-tk-ink">Chat with Traike · re-plan</summary>
+                <summary className="cursor-pointer px-4 py-2.5 font-brand text-sm font-semibold text-tk-ink">{uiLang === "he" ? "צ׳אט עם Traike · תכנון מחדש" : "Chat with Traike · re-plan"}</summary>
                 <ScreenBoundary name="assistant-chat" {...guard}><AssistantChat
                   lang={uiLang === "he" ? "he" : "en"}
                   prefill={chatPrefill}
@@ -4982,6 +4984,7 @@ export function WalkPlannerApp({
                     stops={lostStops}
                     onRecall={recallDroppedStop}
                     onDismiss={() => setLostStops([])}
+                    lang={uiLang === "he" ? "he" : "en"}
                   />
                 </WalkSlot>
               )}
@@ -5148,11 +5151,11 @@ export function WalkPlannerApp({
                 pointCount={recordedPointCount}
                 onDownload={() => {
                   const points = walkRecorderRef.current?.getPoints() ?? [];
-                  if (points.length > 0) downloadGpx(points, "My Walk", walkPlan?.orderedAttractions ?? []);
+                  if (points.length > 0) downloadGpx(points, uiLang === "he" ? "ההליכה-שלי" : "My Walk", walkPlan?.orderedAttractions ?? []);
                 }}
                 onDownloadCsv={() => {
                   const points = walkRecorderRef.current?.getPoints() ?? [];
-                  if (points.length > 0) downloadCsv(points, walkPlan?.orderedAttractions ?? [], "My Walk");
+                  if (points.length > 0) downloadCsv(points, walkPlan?.orderedAttractions ?? [], uiLang === "he" ? "ההליכה-שלי" : "My Walk");
                 }}
               />
               </WalkSlot>
@@ -5174,6 +5177,7 @@ export function WalkPlannerApp({
                   onTogglePin={toggleAttractionPin}
                   visitedIds={visitedAttractionIds}
                   onSkip={skipAttraction}
+                  lang={uiLang === "he" ? "he" : "en"}
                 />
                 </WalkSlot>
               )}

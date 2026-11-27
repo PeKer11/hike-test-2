@@ -7,6 +7,37 @@ import type { Attraction } from "@/lib/types";
 import { formatDistance } from "@/lib/utils/geo";
 import { CATEGORY_EMOJI } from "@/lib/constants/categories";
 
+const COPY = {
+  en: {
+    ahead: "Attractions ahead",
+    count: (d: number, n: number) => `${d} of ${n} stops`,
+    done: (d: number, n: number) => `${d} of ${n} stops done`,
+    toggle: (show: boolean, d: number) => `${show ? "Hide" : "Show"} ${d} done ${d === 1 ? "stop" : "stops"}`,
+    next: "next",
+    confirmSkip: (x: string) => `Confirm skipping pinned ${x}`,
+    skipAria: (x: string) => `Skip ${x}`,
+    skipPinned: "Skip pinned?",
+    skip: "Skip",
+    unpin: (x: string) => `Unpin ${x}`,
+    pin: (x: string) => `Pin ${x}`,
+    passed: "passed",
+  },
+  he: {
+    ahead: "התחנות הבאות",
+    count: (d: number, n: number) => `${d} מתוך ${n} תחנות`,
+    done: (d: number, n: number) => `${d} מתוך ${n} תחנות הושלמו`,
+    toggle: (show: boolean, d: number) => `${show ? "הסתרת" : "הצגת"} ${d} שהושלמו`,
+    next: "הבאה",
+    confirmSkip: (x: string) => `לאשר דילוג על ${x}`,
+    skipAria: (x: string) => `דילוג על ${x}`,
+    skipPinned: "לדלג על נעוצה?",
+    skip: "דילוג",
+    unpin: (x: string) => `ביטול נעיצה ${x}`,
+    pin: (x: string) => `נעיצה ${x}`,
+    passed: "עברנו",
+  },
+} as const;
+
 interface Props {
   attractions: Attraction[];
   attractionDistances: Record<string, number>;
@@ -16,6 +47,7 @@ interface Props {
   // Stops already done — GPS-confirmed visits and stops the walker skipped by hand.
   visitedIds?: string[];
   onSkip?: (attractionId: string) => void;
+  lang?: "en" | "he";
 }
 
 export function AttractionDistancesPanel({
@@ -25,7 +57,9 @@ export function AttractionDistancesPanel({
   onTogglePin,
   visitedIds = [],
   onSkip,
+  lang = "en",
 }: Props) {
+  const t = COPY[lang];
   // A pinned stop was explicitly marked "definitely include this", so skipping it
   // costs a second click on the same button rather than a modal.
   const [pendingSkipId, setPendingSkipId] = useState<string | null>(null);
@@ -65,10 +99,10 @@ export function AttractionDistancesPanel({
       <div className="space-y-1.5 border-b border-charcoal/10 px-3 py-2">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-[13px] font-semibold text-charcoal/60">
-            Attractions ahead
+            {t.ahead}
           </span>
           <span className="text-[13px] font-medium tabular-nums text-charcoal/60">
-            {doneCount} of {items.length} stops
+            {t.count(doneCount, items.length)}
           </span>
         </div>
         <div
@@ -77,7 +111,7 @@ export function AttractionDistancesPanel({
           aria-valuemin={0}
           aria-valuemax={items.length}
           aria-valuenow={doneCount}
-          aria-label={`${doneCount} of ${items.length} stops done`}
+          aria-label={t.done(doneCount, items.length)}
         >
           <div
             className="h-full rounded-full bg-terra transition-all"
@@ -91,7 +125,7 @@ export function AttractionDistancesPanel({
           onClick={() => setShowDone((v) => !v)}
           className="w-full border-b border-charcoal/10 px-3 py-1.5 text-start text-[13px] font-medium text-charcoal/50 hover:bg-charcoal/5"
         >
-          {showDone ? "Hide" : "Show"} {doneCount} done {doneCount === 1 ? "stop" : "stops"}
+          {t.toggle(showDone, doneCount)}
         </button>
       )}
       <ul className="divide-y divide-charcoal/10">
@@ -120,7 +154,7 @@ export function AttractionDistancesPanel({
                 </span>
                 {isNext && (
                   <span className="shrink-0 rounded-full bg-terra/15 px-1.5 py-0.5 text-[13px] font-medium text-terra">
-                    next
+                    {t.next}
                   </span>
                 )}
               </div>
@@ -136,12 +170,12 @@ export function AttractionDistancesPanel({
                   }}
                   aria-label={
                     isPendingSkip
-                      ? `Confirm skipping pinned ${attraction.name}`
-                      : `Skip ${attraction.name}`
+                      ? t.confirmSkip(attraction.name)
+                      : t.skipAria(attraction.name)
                   }
                   className="ml-2 shrink-0 rounded-full px-1.5 py-0.5 text-[13px] font-medium text-charcoal/50 transition hover:bg-charcoal/5 hover:text-charcoal/80"
                 >
-                  {isPendingSkip ? "Skip pinned?" : "Skip"}
+                  {isPendingSkip ? t.skipPinned : t.skip}
                 </button>
               )}
               {onTogglePin && (
@@ -149,8 +183,8 @@ export function AttractionDistancesPanel({
                   onClick={() => onTogglePin(attraction.id)}
                   aria-label={
                     isPinned
-                      ? `Unpin ${attraction.name}`
-                      : `Pin ${attraction.name}`
+                      ? t.unpin(attraction.name)
+                      : t.pin(attraction.name)
                   }
                   className={`ml-2 flex shrink-0 items-center justify-center rounded-full p-1 text-amber-800 transition ${
                     isPinned
@@ -170,7 +204,7 @@ export function AttractionDistancesPanel({
                       : "text-charcoal/70"
                 }`}
               >
-                {passed ? "passed" : formatDistance(meters ?? 0)}
+                {passed ? t.passed : formatDistance(meters ?? 0, lang)}
               </span>
             </li>
           );

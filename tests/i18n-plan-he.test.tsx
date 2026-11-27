@@ -53,3 +53,29 @@ describe("walk titles", () => {
     expect(displayWalkTitle({ ...auto, title: "My trip" }, "he")).toBe("My trip");
   });
 });
+
+import { AttractionDistancesPanel } from "@/components/walk/AttractionDistancesPanel";
+import { DroppedStopsPanel } from "@/components/walk/DroppedStopsPanel";
+
+describe("walk panels in Hebrew", () => {
+  const atts = [
+    { id: "a", name: "Gan", category: "park", coordinates: { lat: 32, lng: 34 } },
+    { id: "b", name: "Museum", category: "museum", coordinates: { lat: 32.001, lng: 34 } },
+  ] as never;
+  it("AttractionDistancesPanel shows no English outside names", () => {
+    const { container } = render(
+      <AttractionDistancesPanel attractions={atts} attractionDistances={{ a: 120, b: 400 } as never} pinnedIds={[]} onTogglePin={() => {}} visitedIds={[]} onSkip={() => {}} lang="he" />,
+    );
+    const html = (container.innerHTML ?? "").replace(/Gan|Museum/g, "");
+    const visible = container.textContent!.replace(/Gan|Museum/g, "");
+    expect(visible).not.toMatch(/[A-Za-z]{2,}/);
+    expect(html.replace(/<[^>]*>/g, "")).toContain("התחנות הבאות");
+    expect(container.innerHTML).toMatch(/aria-label="דילוג על Gan"/);
+  });
+  it("DroppedStopsPanel shows no English outside names", () => {
+    const { container } = render(
+      <DroppedStopsPanel stops={[{ attraction: { id: "a", name: "Gan", category: "park" }, reason: "behind" }] as never} onRecall={() => {}} onDismiss={() => {}} lang="he" />,
+    );
+    expect(container.textContent!.replace(/Gan/g, "")).not.toMatch(/[A-Za-z]{2,}/);
+  });
+});

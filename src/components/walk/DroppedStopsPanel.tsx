@@ -9,7 +9,29 @@ interface Props {
   stops: LostStop[];
   onRecall: (attractionId: string) => void;
   onDismiss: () => void;
+  lang?: "en" | "he";
 }
+
+const COPY = {
+  en: {
+    title: "Dropped from your walk",
+    dismiss: "Dismiss dropped stops",
+    behind: "Behind you now — you'd have to turn back",
+    late: "Didn't fit the time you have left",
+    back: (name: string) => `Put ${name} back in the walk`,
+    putBack: "Put it back",
+    hint: "Putting a stop back pins it, so it stays through later rebuilds — even if that runs the walk over your remaining time.",
+  },
+  he: {
+    title: "ירדו מההליכה",
+    dismiss: "סגירה",
+    behind: "כבר מאחוריך",
+    late: "לא נכנס בזמן שנשאר",
+    back: (name: string) => `להחזיר את ${name} להליכה`,
+    putBack: "להחזיר",
+    hint: "",
+  },
+} as const;
 
 /**
  * What the last rebuild cost, and one tap to undo it.
@@ -29,18 +51,17 @@ interface Props {
  * something to your walk you should know about, here are your options". Amber,
  * persistent, dismissible, one button per option.
  */
-export function DroppedStopsPanel({ stops, onRecall, onDismiss }: Props) {
+export function DroppedStopsPanel({ stops, onRecall, onDismiss, lang = "en" }: Props) {
+  const t = COPY[lang];
   if (stops.length === 0) return null;
 
   return (
     <Card className="space-y-2 border-amber-300! bg-amber-50!">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold text-amber-800">
-          Dropped from your walk
-        </p>
+        <p className="text-sm font-semibold text-amber-800">{t.title}</p>
         <button
           onClick={onDismiss}
-          aria-label="Dismiss dropped stops"
+          aria-label={t.dismiss}
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-amber-700/60 transition hover:text-amber-900"
         >
           <CloseIcon className="h-4 w-4" />
@@ -57,17 +78,15 @@ export function DroppedStopsPanel({ stops, onRecall, onDismiss }: Props) {
                 {attraction.name}
               </p>
               <p className="text-[13px] text-amber-700/80">
-                {reason === "behind"
-                  ? "Behind you now — you'd have to turn back"
-                  : "Didn't fit the time you have left"}
+                {reason === "behind" ? t.behind : t.late}
               </p>
             </div>
             <button
               onClick={() => onRecall(attraction.id)}
-              aria-label={`Put ${attraction.name} back in the walk`}
+              aria-label={t.back(attraction.name)}
               className="shrink-0 rounded-full border border-amber-400 bg-paper px-2 py-0.5 text-[13px] font-medium text-amber-800 transition hover:bg-amber-100"
             >
-              Put it back
+              {t.putBack}
             </button>
           </li>
         ))}
@@ -75,10 +94,7 @@ export function DroppedStopsPanel({ stops, onRecall, onDismiss }: Props) {
       {/* Said up front rather than discovered afterwards: recall pins, and a pin
           is the one thing the planner will not drop, so it can push the walk
           over budget. */}
-      <p className="text-[13px] text-amber-700/80">
-        Putting a stop back pins it, so it stays through later rebuilds — even if
-        that runs the walk over your remaining time.
-      </p>
+      {t.hint ? <p className="text-[13px] text-amber-700/80">{t.hint}</p> : null}
     </Card>
   );
 }

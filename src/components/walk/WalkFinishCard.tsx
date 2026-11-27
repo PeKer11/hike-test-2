@@ -72,7 +72,7 @@ export function WalkFinishCard({
             <div className="text-[13px] text-charcoal/60">{he ? "משך" : "Duration"}</div>
           </div>
           <div>
-            <div className="font-display text-lg font-bold text-forest">{data.walkedKm.toFixed(1)} km</div>
+            <div className="font-display text-lg font-bold text-forest">{data.walkedKm.toFixed(1)} {he ? "ק״מ" : "km"}</div>
             <div className="text-[13px] text-charcoal/60">{he ? "מרחק" : "Distance"}</div>
           </div>
           <div>
