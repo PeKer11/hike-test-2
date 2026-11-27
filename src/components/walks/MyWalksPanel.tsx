@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { BTN, BTN_ALT_SM, BTN_SOFT, LINK, PANEL, PANEL_TITLE, ROW, chipCell } from "@/components/ui/panel-style";
 import { socialProfilesEnabled } from "@/lib/social/flag";
 import { listMyWalksOrThrow, type SavedWalk } from "@/lib/walks/saved-walks";
-import { deleteWalk, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
+import { deleteWalk, displayWalkTitle, updateWalk, withWalkClient } from "@/lib/walks/walk-history";
 import { RouteSketch } from "@/components/walks/RouteSketch";
 import { routeOf } from "@/lib/walks/walk-again";
 import { locateOnce } from "@/lib/geo/here";
@@ -167,9 +167,9 @@ export function MyWalksPanel({ isSignedIn, refreshKey, onWalkAgain, onEditAsNew,
     ].filter(Boolean);
     return (
       <li key={w.id} className="grid grid-cols-[48px_1fr_auto] items-center gap-3 border-b border-tk-hair px-4 py-[10px] font-app-sans">
-        <RouteSketch route={routeOf(w)} label={`${L.route} ${w.title}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
-        <button type="button" aria-label={`${L.open} ${w.title}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="min-w-0 cursor-pointer text-start">
-          <span className="block text-[18px] font-semibold leading-[1.22] text-tk-ink"><bdi>{w.title}</bdi></span>
+        <RouteSketch route={routeOf(w)} label={`${L.route} ${displayWalkTitle(w, lang)}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
+        <button type="button" aria-label={`${L.open} ${displayWalkTitle(w, lang)}`} onClick={() => (onOpenOnMap ? onOpenOnMap(w) : setDetailId(w.id))} className="min-w-0 cursor-pointer text-start">
+          <span className="block text-[18px] font-semibold leading-[1.22] text-tk-ink"><bdi>{displayWalkTitle(w, lang)}</bdi></span>
           <span className="mt-0.5 block text-[14px] text-tk-sage"><bdi>{meta.join(" · ")}</bdi></span>
         </button>
         <div className="shrink-0">{primaryButton(w, runs, runCount, true)}</div>

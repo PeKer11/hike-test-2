@@ -58,11 +58,28 @@ export function geometryFacts(geometry: Coordinates[]): { end: Coordinates; isLo
   return { end, isLoop: haversineDistance(geometry[0], end) <= LOOP_END_M };
 }
 
-export function titleForWalk(stops: SavedStop[], now: Date = new Date()): string {
+export function titleForWalk(stops: SavedStop[], now: Date = new Date(), lang: "en" | "he" = "en"): string {
+  if (lang === "he") {
+    const day = now.toLocaleDateString("he-IL", { month: "short", day: "numeric" });
+    if (stops.length === 0) return `הליכה · ${day}`;
+    const first = stops[0].name;
+    return stops.length === 1 ? `${first} · ${day}` : `${first} ועוד ${stops.length - 1} · ${day}`;
+  }
   const day = now.toLocaleDateString("en", { month: "short", day: "numeric" });
   if (stops.length === 0) return `Walk, ${day}`;
   const first = stops[0].name;
   return stops.length === 1 ? `${first}, ${day}` : `${first} + ${stops.length - 1} more, ${day}`;
+}
+
+/**
+ * The title to show. An untouched auto title (stored in English) is shown in the walker's language;
+ * a title the walker wrote is shown as written.
+ */
+export function displayWalkTitle(walk: { title: string; stops: SavedStop[]; createdAt: string }, lang: "en" | "he"): string {
+  if (lang !== "he") return walk.title;
+  const created = new Date(walk.createdAt);
+  if (Number.isNaN(created.getTime())) return walk.title;
+  return walk.title === titleForWalk(walk.stops, created, "en") ? titleForWalk(walk.stops, created, "he") : walk.title;
 }
 
 export function newWalkFromPlan(

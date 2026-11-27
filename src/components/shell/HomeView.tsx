@@ -17,7 +17,7 @@ import { presenceEnabled } from "@/lib/social/flag";
 import { fetchWalkingNow } from "@/lib/social/presence";
 import { getMyProfile } from "@/lib/social/profiles";
 import { incomingPending, type WalkRequest } from "@/lib/social/walk-requests";
-import { withWalkClient } from "@/lib/walks/walk-history";
+import { displayWalkTitle, withWalkClient } from "@/lib/walks/walk-history";
 import type { SavedWalk } from "@/lib/walks/saved-walks";
 
 const COPY = {
@@ -353,9 +353,9 @@ export function HomeView({
             <div className={timeline.length > 0 ? undefined : "md:grid md:grid-cols-2 md:gap-x-6 lg:gap-x-10"}>
               {recent.map((w) => (
                 <div key={w.id} className="grid grid-cols-[48px_1fr_auto] items-center gap-3 border-b border-tk-hair px-4 py-[10px]">
-                  <RouteSketch route={routeOf(w)} label={`${t.route} ${w.title}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
+                  <RouteSketch route={routeOf(w)} label={`${t.route} ${displayWalkTitle(w, lang)}`} square className="h-12 w-12 !rounded-[4px] border border-tk-hair !bg-tk-bar" />
                   <div className="min-w-0">
-                    <p className="text-[18px] font-semibold leading-[1.22] text-tk-ink"><bdi>{w.title}</bdi></p>
+                    <p className="text-[18px] font-semibold leading-[1.22] text-tk-ink"><bdi>{displayWalkTitle(w, lang)}</bdi></p>
                     <p className="mt-0.5 text-[14px] text-tk-sage">
                       <bdi>
                         {[w.totalMin !== null ? `${Math.round(w.totalMin)} ${t.min}` : null, w.distanceM !== null ? `${(w.distanceM / 1000).toFixed(1)} ${t.km}` : null, w.stops.length > 0 ? `${w.stops.length} ${t.stopsWord}` : null].filter(Boolean).join(" · ")}
