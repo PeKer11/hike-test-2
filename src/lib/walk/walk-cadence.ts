@@ -132,3 +132,23 @@ export const LOW_ACCURACY_WINDOW_MS = 30_000;
 export const DOT_RECENTRE_FIXES = 30;
 export const DOT_RECENTRE_MAX_ACCURACY_M = 20;
 export const DOT_RECENTRE_MIN_M = 10;
+/**
+ * Fast start (no usable Doppler, good fixes): the hold's own fixes set the radius, 2x how far they travel in 8 s,
+ * at least 6 m; above 15 m the lane is off and the escape rules above apply.
+ */
+export const DOT_FAST_MAX_ACCURACY_M = 20;
+export const DOT_FAST_RADIUS_MIN_M = 6;
+export const DOT_FAST_RADIUS_MAX_M = 15;
+export const DOT_FAST_SCALE_K = 2;
+export const DOT_FAST_LAG_MS = 8_000;
+export const DOT_FAST_LAG_BAND_MS = 500;
+export const DOT_FAST_NOISE_WINDOW_MS = 40_000;
+export const DOT_FAST_BASE_WINDOW_MS = 20_000;
+export const DOT_FAST_FRESH_MS = 3_000;
+export const DOT_FAST_CONFIRM_FIXES = 3;
+export const DOT_FAST_MIN_BASE = 5;
+export const DOT_FAST_MIN_PAIRS = 8;
+/** A young fast trend keeps going while the walker gets this much farther (m/s), less the margin, from the anchor. */
+export const DOT_FAST_KEEP_MPS = 0.7;
+export const DOT_FAST_KEEP_MARGIN_M = 2;
+export const DOT_FAST_YOUNG_MS = 20_000;

@@ -7,6 +7,21 @@ import {
   DOT_ESCAPE_MIN_M,
   DOT_ESCAPE_SPAN_NODOP_MS,
   DOT_ESCAPE_SPAN_STOPPED_MS,
+  DOT_FAST_BASE_WINDOW_MS,
+  DOT_FAST_CONFIRM_FIXES,
+  DOT_FAST_FRESH_MS,
+  DOT_FAST_KEEP_MARGIN_M,
+  DOT_FAST_KEEP_MPS,
+  DOT_FAST_LAG_BAND_MS,
+  DOT_FAST_LAG_MS,
+  DOT_FAST_MAX_ACCURACY_M,
+  DOT_FAST_MIN_BASE,
+  DOT_FAST_MIN_PAIRS,
+  DOT_FAST_NOISE_WINDOW_MS,
+  DOT_FAST_RADIUS_MAX_M,
+  DOT_FAST_RADIUS_MIN_M,
+  DOT_FAST_SCALE_K,
+  DOT_FAST_YOUNG_MS,
   DOT_NODOP_RADIUS_CAP_M,
   DOT_POSITION_MOVING_MPS,
   DOT_PROGRESS_MIN_M,
@@ -81,8 +96,17 @@ export class DotStabilizer {
   private lastEscape: { t: number; x: number; y: number } | null = null;
   private trend = false;
   private contradictedUntil = Number.NEGATIVE_INFINITY;
+  /** Good fixes (accuracy <= DOT_FAST_MAX_ACCURACY_M) for the fast lane. */
+  private fast: Array<{ t: number; c: Coordinates }> = [];
+  private holdSince = Number.NEGATIVE_INFINITY;
+  private trendSince = Number.NEGATIVE_INFINITY;
+  /** Set only for a trend the fast lane started: its anchor and radius. */
+  private trendAnchor: Coordinates | null = null;
+  private trendR = 0;
+  /** The fast lane's last radius (0: the lane is off or not measured yet). For ?gpsdebug=1. */
+  fastRadius = 0;
   /** Counters for ?gpsdebug=1. */
-  stats = { held: 0, escapes: 0, recentres: 0, trends: 0, contradictions: 0 };
+  stats = { held: 0, escapes: 0, recentres: 0, trends: 0, contradictions: 0, fastStarts: 0 };
 
   reset(seed?: Coordinates): void {
     this.shown = seed ?? null;
@@ -95,7 +119,13 @@ export class DotStabilizer {
     this.lastEscape = null;
     this.trend = false;
     this.contradictedUntil = Number.NEGATIVE_INFINITY;
-    this.stats = { held: 0, escapes: 0, recentres: 0, trends: 0, contradictions: 0 };
+    this.fast = [];
+    this.holdSince = Number.NEGATIVE_INFINITY;
+    this.trendSince = Number.NEGATIVE_INFINITY;
+    this.trendAnchor = null;
+    this.trendR = 0;
+    this.fastRadius = 0;
+    this.stats = { held: 0, escapes: 0, recentres: 0, trends: 0, contradictions: 0, fastStarts: 0 };
   }
 
   get state(): DotState {
@@ -156,6 +186,44 @@ export class DotStabilizer {
     return this.dop.length > 0 && this.dop.every((d) => d.v === 0);
   }
 
+  /** Fast lane: the last few good fixes all sit beyond R of the hold's own centre, the same way, not going back. */
+  private fastStart(ts: number): { anchor: Coordinates; r: number } | null {
+    const sinceHold = this.fast.filter((h) => h.t >= this.holdSince && ts - h.t > DOT_FAST_FRESH_MS);
+    const base = sinceHold.filter((h) => ts - h.t <= DOT_FAST_BASE_WINDOW_MS);
+    const recent = this.fast.slice(-DOT_FAST_CONFIRM_FIXES);
+    if (base.length < DOT_FAST_MIN_BASE || recent.length < DOT_FAST_CONFIRM_FIXES || recent.some((h) => ts - h.t > DOT_FAST_FRESH_MS)) return null;
+    // How far this hold's own fixes travel in 8 s (jitter and drift together).
+    const sw = sinceHold.filter((h) => ts - h.t <= DOT_FAST_NOISE_WINDOW_MS);
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i < sw.length; i++) {
+      for (let j = i + 1; j < sw.length; j++) {
+        if (Math.abs(sw[j].t - sw[i].t - DOT_FAST_LAG_MS) <= DOT_FAST_LAG_BAND_MS) {
+          sum += haversineDistance(sw[i].c, sw[j].c) ** 2;
+          n += 1;
+        }
+      }
+    }
+    if (n < DOT_FAST_MIN_PAIRS) return null;
+    const scaled = DOT_FAST_SCALE_K * Math.sqrt(sum / n);
+    if (scaled > DOT_FAST_RADIUS_MAX_M) {
+      this.fastRadius = 0;
+      return null;
+    }
+    const r = Math.max(DOT_FAST_RADIUS_MIN_M, scaled);
+    this.fastRadius = r;
+    const anchor = mean(base.map((h) => h.c));
+    const dir = offset(anchor, mean(recent.map((h) => h.c)));
+    const len = Math.hypot(dir.x, dir.y);
+    if (len < r) return null;
+    const proj = recent.map((h) => {
+      const o = offset(anchor, h.c);
+      return (o.x * dir.x + o.y * dir.y) / len;
+    });
+    if (proj.some((p) => p < 0.7 * r) || proj[proj.length - 1] < proj[0]) return null;
+    return { anchor, r };
+  }
+
   private contradict(ts: number): void {
     this.contradictedUntil = ts + DOT_CONTRADICT_MS;
     this.stats.contradictions += 1;
@@ -166,6 +234,7 @@ export class DotStabilizer {
     const hasSpeed = typeof f.speedMps === "number" && Number.isFinite(f.speedMps);
     if (hasSpeed) this.dop.push({ t: ts, v: f.speedMps as number });
     this.hist = [...this.hist.filter((h) => ts - h.t <= HIST_MS), { t: ts, c: f.coordinates }];
+    if (f.accuracyM <= DOT_FAST_MAX_ACCURACY_M) this.fast = [...this.fast.filter((h) => ts - h.t <= DOT_FAST_NOISE_WINDOW_MS), { t: ts, c: f.coordinates }];
     let st = this.stateAt(ts);
     // Doppler stuck at exactly 0 while the fixes travel 18 m+ in ~20 s is not a standing phone.
     if (this.dopplerTrusted(ts) && this.dop.length > 0 && this.dop.every((d) => d.v === 0)) {
@@ -174,6 +243,8 @@ export class DotStabilizer {
         this.contradict(ts);
         if (this.shown && st === "stopped") {
           this.trend = true;
+          this.trendSince = ts;
+          this.trendAnchor = null;
           this.stats.trends += 1;
         }
         st = this.stateAt(ts);
@@ -194,12 +265,31 @@ export class DotStabilizer {
 
     // Trend: no usable Doppler, the fixes keep advancing. Follow every fix until they make no progress for ~20 s.
     if (this.trend && st !== "stopped") {
-      const p = this.progress(ts);
+      // A young fast-lane trend: the 20 s stall check would compare with fixes from before the walk. Instead it ends
+      // when the last fixes stop getting farther from the anchor (a false start that does not keep going).
+      const young = this.trendAnchor !== null && ts - this.trendSince < DOT_FAST_YOUNG_MS;
+      if (young) {
+        const last = this.fast.slice(-DOT_FAST_CONFIRM_FIXES);
+        const need = this.trendR - DOT_FAST_KEEP_MARGIN_M + DOT_FAST_KEEP_MPS * ((ts - this.trendSince) / 1000);
+        if (last.length && haversineDistance(this.trendAnchor!, mean(last.map((h) => h.c))) < need) {
+          this.trend = false;
+          this.trendAnchor = null;
+          this.lastEscape = null;
+          this.cand = [];
+          this.mode = "hold";
+          this.holdSince = ts;
+          this.shown = mean(last.map((h) => h.c));
+          return { publish: true, coordinates: this.shown, mode: "recentre", state: st };
+        }
+      }
+      const p = young ? null : this.progress(ts);
       if (p && p.m < DOT_TREND_STALL_M) {
         this.trend = false;
+        this.trendAnchor = null;
         this.lastEscape = null;
         this.cand = [];
         this.mode = "hold";
+        this.holdSince = ts;
         this.shown = mean(this.hist.filter((h) => ts - h.t <= NOW_WINDOW_MS).map((h) => h.c));
         return { publish: true, coordinates: this.shown, mode: "recentre", state: st };
       }
@@ -212,7 +302,26 @@ export class DotStabilizer {
 
     if (this.mode !== "hold") {
       this.mode = "hold";
+      this.holdSince = ts;
       this.good = this.good.slice(-1);
+    }
+    // Fast lane: no usable Doppler (none, or exact 0) and a good fix. The hold's own noise sets the radius.
+    if (f.accuracyM <= DOT_FAST_MAX_ACCURACY_M && (st === "nodoppler" || (st === "stopped" && this.weakStopped()))) {
+      const fs = this.fastStart(ts);
+      if (fs) {
+        this.stats.fastStarts += 1;
+        this.stats.trends += 1;
+        this.trend = true;
+        this.trendSince = ts;
+        this.trendAnchor = fs.anchor;
+        this.trendR = fs.r;
+        this.cand = [];
+        // Trend while exact-0 Doppler says standing: the Doppler is wrong.
+        if (st === "stopped") this.contradict(ts);
+        this.mode = "trend";
+        this.shown = f.coordinates;
+        return { publish: true, coordinates: f.coordinates, mode: "trend", state: st };
+      }
     }
     // Doppler-stopped: the whole accuracy. No usable Doppler: capped, since network accuracy is bias, not scatter.
     const radius = st === "stopped" ? Math.max(DOT_ESCAPE_MIN_M, f.accuracyM) : Math.max(DOT_ESCAPE_MIN_M, Math.min(f.accuracyM, DOT_NODOP_RADIUS_CAP_M));
@@ -244,6 +353,8 @@ export class DotStabilizer {
         this.stats.escapes += 1;
         if (advancing || consistent) {
           this.trend = true;
+          this.trendSince = ts;
+          this.trendAnchor = null;
           this.stats.trends += 1;
           // Trend while Doppler says standing: the Doppler is wrong.
           if (st === "stopped") this.contradict(ts);

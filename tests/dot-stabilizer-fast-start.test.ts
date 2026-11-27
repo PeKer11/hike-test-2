@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DotStabilizer } from "@/lib/walk/dot-stabilizer";
-import { T0, genStill, replayStill, standMetrics, stillWalkMetrics, toLL, toXY, type StillOpts } from "./helpers/device-fixes";
+import { DEVICES, T0, genStill, replayStill, standMetrics, stillWalkMetrics, toLL, toXY, type StillOpts } from "./helpers/device-fixes";
 
 // Fast-start bars (docs/LIVE-DEVICE-FOLLOWUP-PLAN-2026-11-26.md, section (a) and (d) commit 1). Seeds 1-6.
 // Walk: stand 30 s, then 1.4 m/s for 90 s, 1 Hz. `it.fails` marks a bar the current stabilizer does not meet yet;
@@ -24,7 +24,7 @@ const fastStarts = (st: DotStabilizer) => (st.stats as { fastStarts?: number }).
 const REPRO = walkOpts({ acc: [9, 9], noise: U(3), standScale: 0.3, speedStand: "zero", speedWalk: "null" });
 
 describe("DotStabilizer fast start: walking", () => {
-  it.fails("repro (still Doppler 0 -> walk null, acc 9, +-3 m): first move <= 8 s, trend by 8 s, lag @20 s <= 5 m", () => {
+  it("repro (still Doppler 0 -> walk null, acc 9, +-3 m): first move <= 8 s, trend by 8 s, lag @20 s <= 5 m", () => {
     for (const seed of SEEDS) {
       const { rows, m } = walk(REPRO, seed);
       expect(m.firstMoveS, `seed ${seed}`).toBeLessThanOrEqual(8);
@@ -34,7 +34,7 @@ describe("DotStabilizer fast start: walking", () => {
   });
 
   for (const [name, speed] of [["null", "null"], ["0", "zero"]] as const) {
-    it.fails(`good GPS, speed ${name} (acc 7-12, +-3 m): first move <= 11 s, median <= 8 s`, () => {
+    it(`good GPS, speed ${name} (acc 7-12, +-3 m): first move <= 11 s, median <= 8 s`, () => {
       const firsts = SEEDS.map((seed) => {
         const { m } = walk(walkOpts({ acc: [7, 12], noise: U(3), speedStand: speed, speedWalk: speed }), seed);
         expect(m.firstMoveS, `seed ${seed}`).toBeLessThanOrEqual(11);
@@ -43,7 +43,7 @@ describe("DotStabilizer fast start: walking", () => {
       expect(median(firsts)).toBeLessThanOrEqual(8);
     });
 
-    it.fails(`realistic drift (AR s4 t60, acc 7-18), speed ${name}: first move <= 10 s`, () => {
+    it(`realistic drift (AR s4 t60, acc 7-18), speed ${name}: first move <= 10 s`, () => {
       for (const seed of SEEDS) {
         const { m } = walk(walkOpts({ acc: [7, 18], noise: DRIFT, speedStand: speed, speedWalk: speed }), seed);
         expect(m.firstMoveS, `seed ${seed}`).toBeLessThanOrEqual(10);
@@ -93,6 +93,18 @@ describe("DotStabilizer: stale exact-0 Doppler", () => {
       const d = st.push({ coordinates: raw, accuracyM: 9, speedMps: null, timestamp: T0 + s * 1000 });
       expect(d.state, `t=${s}`).not.toBe("unsure");
       if (d.publish) expect(toXY(d.coordinates).y - toXY(raw).y, `t=${s}`).toBeLessThanOrEqual(3);
+    }
+  });
+});
+
+describe("DotStabilizer fast start: guard", () => {
+  it("B3 / B4 standing (s5 t15): no fast start on seeds 1-6 (their 8 s noise scale turns the lane off)", () => {
+    for (const id of ["B3", "B4"] as const) {
+      for (const seed of SEEDS) {
+        const st = new DotStabilizer();
+        replayStill(DEVICES[id](seed, false), st);
+        expect(fastStarts(st), `${id} seed ${seed}`).toBe(0);
+      }
     }
   });
 });
