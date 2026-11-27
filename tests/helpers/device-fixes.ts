@@ -175,3 +175,87 @@ export function pathPerMin(dots: DotSample[], from = 30): number {
 
 /** Signed progress of the dot along the walk (metres north). */
 export const alongY = (c: Coordinates) => toXY(c).y;
+
+// --- Fast-start fixtures (docs/LIVE-DEVICE-FOLLOWUP-PLAN-2026-11-26.md, section (d) commit 1) ---
+
+export type StillSpeed = "zero" | "null" | "true";
+export type StillNoise = { kind: "uniform"; a: number } | { kind: "ar"; sigma: number; tau: number; white: number };
+export interface StillOpts {
+  standS: number;
+  walkS: number;
+  v?: number;
+  acc: [number, number];
+  noise: StillNoise;
+  speedStand: StillSpeed;
+  speedWalk: StillSpeed;
+  /** Scales the standing noise (a phone lying still is quieter than one in a hand). */
+  standScale?: number;
+}
+
+/** 1 Hz fixes: stand `standS` s at (0,0), then walk north at `v` m/s for `walkS` s. Deterministic per seed. */
+export function genStill(seed: number, o: StillOpts): Fix[] {
+  const r = rng(seed);
+  const v = o.v ?? V;
+  const e = o.noise.kind === "ar" ? ar(r, o.noise.sigma, o.noise.tau) : null;
+  const out: Fix[] = [];
+  for (let s = 0; s < o.standS + o.walkS; s++) {
+    const walking = s >= o.standS;
+    const ty = walking ? (s - o.standS) * v : 0;
+    let nx: number;
+    let ny: number;
+    if (o.noise.kind === "uniform") {
+      nx = (r.u() * 2 - 1) * o.noise.a;
+      ny = (r.u() * 2 - 1) * o.noise.a;
+    } else {
+      const n = e!();
+      nx = n.x + r.n() * o.noise.white;
+      ny = n.y + r.n() * o.noise.white;
+    }
+    if (!walking && o.standScale !== undefined) {
+      nx *= o.standScale;
+      ny *= o.standScale;
+    }
+    const mode = walking ? o.speedWalk : o.speedStand;
+    const speed = mode === "zero" ? 0 : mode === "null" ? undefined : walking ? Math.max(0, v + r.n() * 0.15) : Math.abs(r.n()) * 0.08;
+    out.push({ t: T0 + s * 1000, x: nx, y: ty + ny, acc: o.acc[0] + r.u() * (o.acc[1] - o.acc[0]), speed, truthY: ty });
+  }
+  return out;
+}
+
+export interface StillRow { s: number; dot: Coordinates; mode?: string; publish: boolean }
+
+/** Feeds every fix and records the shown dot after each one (falls back to the raw fix before the first publish). */
+export function replayStill(fixes: Fix[], st: { push: DotLike["push"] }): StillRow[] {
+  let dot: Coordinates | null = null;
+  return fixes.map((f) => {
+    const raw = toLL(f.x, f.y);
+    const d = st.push({ coordinates: raw, accuracyM: f.acc, speedMps: f.speed, timestamp: f.t }) as { publish: boolean; coordinates: Coordinates; mode?: string };
+    if (d.publish) dot = d.coordinates;
+    return { s: (f.t - T0) / 1000, dot: dot ?? raw, mode: d.mode, publish: d.publish };
+  });
+}
+
+/** Walking after `standS`: first second the dot is >= 5 m along the walk; signed lag (truth - dot) at +10/+20 s. */
+export function stillWalkMetrics(rows: StillRow[], standS: number, v = V) {
+  const base = toXY(rows.find((r) => r.s >= standS)!.dot).y;
+  const first = rows.find((r) => r.s >= standS && toXY(r.dot).y - base >= 5);
+  const lagAt = (sec: number) => {
+    const r = rows.find((x) => x.s === standS + sec);
+    return r ? sec * v - toXY(r.dot).y : Number.NaN;
+  };
+  return { firstMoveS: first ? first.s - standS : Number.POSITIVE_INFINITY, lag10: lagAt(10), lag20: lagAt(20) };
+}
+
+/** Standing: the dot's path (m/min) and moves over 1 m per minute, from `from` s on. */
+export function standMetrics(rows: StillRow[], from = 30) {
+  const w = rows.filter((r) => r.s >= from);
+  let p = 0;
+  let moves = 0;
+  for (let i = 1; i < w.length; i++) {
+    const d = haversineDistance(w[i - 1].dot, w[i].dot);
+    p += d;
+    if (d > 1) moves += 1;
+  }
+  const mins = (w[w.length - 1].s - w[0].s) / 60;
+  return { pathPerMin: p / mins, movesPerMin: moves / mins };
+}
