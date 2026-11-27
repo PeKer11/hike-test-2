@@ -24,7 +24,8 @@ interface NominatimHit {
 
 interface StartLocationPickerProps {
   /** The walk's start point has been chosen (GPS or searched). */
-  onPick: (coordinates: Coordinates) => void;
+  /** `source` "here" marks a GPS pick: the plan map may then keep that dot live. */
+  onPick: (coordinates: Coordinates, source?: "here") => void;
   /** The start already in use; when set, nothing is looked up on mount. */
   origin?: Coordinates | null;
   /** Only a rough (IP-city) position is known: centre the map there, but it is not a start. */
@@ -118,7 +119,7 @@ export function StartLocationPicker({ onPick, origin, onApproximate, lang }: Sta
         setStatus(settled ? null : t.approx);
         setLabel(settled ? t.myLocation : `${t.myLocation} · ${t.approx}`);
         saveStart(fix.coordinates, "My last location");
-        onPick(fix.coordinates);
+        onPick(fix.coordinates, "here");
       },
       onState: (state) => {
         if (state === "denied") {

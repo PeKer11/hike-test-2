@@ -89,7 +89,7 @@ interface AssistantChatProps {
   walkReady: boolean;
   onStart: (simulate: boolean) => void;
   /** The walker picked a start point (GPS or searched place). */
-  onSetOrigin: (coordinates: Coordinates) => void;
+  onSetOrigin: (coordinates: Coordinates, source?: "here") => void;
   /** Only a rough (IP-city) position is known: show that area, without choosing a start. */
   onFocusArea?: (coordinates: Coordinates) => void;
   /** Text to put in the message box (e.g. "like my last walk, but here"); a new `tick` puts it there again. */

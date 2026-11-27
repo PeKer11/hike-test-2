@@ -53,6 +53,7 @@ import { ScreenHeader } from "@/components/shell/ScreenHeader";
 import { WalksBand } from "@/components/shell/WalksBand";
 import { WalksTabs } from "@/components/shell/WalksTabs";
 import { useWalksSummary } from "@/lib/hooks/useWalksSummary";
+import { useFollowHere } from "@/lib/hooks/useFollowHere";
 import { CloseIcon, CollapseIcon, ExpandIcon, RefreshIcon } from "@/components/ui/icons";
 import { BTN, BTN_ALT, BTN_SM } from "@/components/ui/panel-style";
 import { TraikeLockup } from "@/components/ui/TraikeMark";
@@ -576,6 +577,8 @@ export function WalkPlannerApp({
   const [recordedPointCount, setRecordedPointCount] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<Coordinates | null>(null);
+  // True while the walk's origin is the phone's own location: only then does the Plan map keep that dot live.
+  const [originIsHere, setOriginIsHere] = useState(false);
   const [remainingGeometry, setRemainingGeometry] = useState<Coordinates[]>([]);
   const [isOffRoute, setIsOffRoute] = useState(false);
   // Every write to "is the walker off route" goes through here, so the ref and
@@ -4006,6 +4009,7 @@ export function WalkPlannerApp({
       // A tap must not move the walker's dot during a live walk.
       if (walkPhase === "walking") return;
       setMapClickedCoords(coordinates);
+      setOriginIsHere(false);
       setCurrentPosition(coordinates);
       focusOn(coordinates, 16);
       return;
@@ -4485,6 +4489,8 @@ export function WalkPlannerApp({
   const planMapHidden = !walkMode && !mapFull && !isAdvancedOpen && !walkPlan && !walkPreview && previewPlaces.length === 0 && !route?.geometry?.length && waypoints.length === 0;
   // On a phone the Plan map is the top block, above the chat and the form, once there is something to show (and never in the live walk).
   const mapTop = !walkMode && !mapFull && !planMapHidden && !hubTab;
+  // The Plan map's "my location" dot follows the phone while that map is on screen (the walk tracker takes over in a walk).
+  useFollowHere({ enabled: originIsHere && view === "plan" && !walkMode && !planMapHidden && !hubTab, onDot: setCurrentPosition });
   const mapOptionsCard = (
     <MapOptionsCard
       mapType={mapType}
@@ -4822,7 +4828,8 @@ export function WalkPlannerApp({
                   walking={walkMode}
                   onFocusPlace={(coordinates) => focusOn(coordinates, 17)}
                   walkReady={walkPhase === "planned"}
-                  onSetOrigin={(coordinates) => {
+                  onSetOrigin={(coordinates, source) => {
+                    setOriginIsHere(source === "here");
                     setCurrentPosition(coordinates);
                     focusOn(coordinates, 14);
                   }}
@@ -4867,6 +4874,7 @@ export function WalkPlannerApp({
                         },
                       ).then((p) => p !== null);
                     }
+                    setOriginIsHere(false);
                     setCurrentPosition(build.origin);
                     focusOn(build.origin, 14);
                     return handleBuildWalk(
@@ -5049,6 +5057,7 @@ export function WalkPlannerApp({
                 suggestedPace={suggestedPace}
                 suggestedCategories={suggestedCategories}
                 onLocationDetected={(coords) => {
+                  setOriginIsHere(true);
                   setCurrentPosition(coords);
                   focusOn(coords, 16);
                 }}
